@@ -1,0 +1,48 @@
+//src\core\auth\lib\auth.ts
+import { NextRequest, NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
+
+export interface AuthResult {
+  user: { userId: string; wallet: string };
+}
+
+export async function requireAuth(
+  req: NextRequest
+): Promise<AuthResult | NextResponse> {
+  const token = req.cookies.get("token")?.value;
+
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+  }
+
+  try {
+    const decoded = jwt.verify(token, jwtSecret, {
+      issuer: "tanjo-store",
+      audience: "tanjo-users"
+    }) as { userId: string; wallet: string };
+    return { user: decoded };
+  } catch {
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  }
+}
+
+export function verifyCSRF(req: NextRequest): boolean {
+  const csrfToken = req.headers.get("x-csrf-token");
+  const cookieToken = req.cookies.get("csrf_token")?.value;
+
+  if (!csrfToken || !cookieToken || typeof csrfToken !== "string" || typeof cookieToken !== "string") {
+    return false;
+  }
+
+  if (csrfToken.length !== 64 || !/^[0-9a-f]{64}$/.test(csrfToken)) {
+    return false;
+  }
+
+  return csrfToken === cookieToken;
+}
