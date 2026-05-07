@@ -3,6 +3,7 @@ import { getCsrfToken } from "@/core/lib/clientUtils";
 
 export interface FetchOptions extends Omit<RequestInit, "headers"> {
   headers?: Record<string, string>;
+  skipAuthRetry?: boolean;
 }
 
 function buildHeaders(customHeaders?: Record<string, string>): Headers {
@@ -89,6 +90,28 @@ function sanitizeError(raw: unknown): ApiErrorResponse {
 
 type TranslateFn = (key: string, params?: Record<string, unknown>) => string;
 
+async function attemptTokenRefresh(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      console.warn('[api] Refresh endpoint returned:', res.status);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.warn('[api] Token refresh failed:', error);
+    return false;
+  }
+}
+
 export async function apiGet<T = unknown>(
   url: string,
   options?: FetchOptions,
@@ -97,6 +120,29 @@ export async function apiGet<T = unknown>(
   const _t = t || ((k: string) => k);
 
   const res = await fetchWithAuth(url, { method: "GET", ...options });
+
+  if (res.status === 401 && !options?.skipAuthRetry) {
+    const refreshed = await attemptTokenRefresh();
+    
+    if (refreshed) {
+      const retryRes = await fetchWithAuth(url, { 
+        method: "GET", 
+        ...options, 
+        skipAuthRetry: true 
+      });
+      
+      if (!retryRes.ok) {
+        const raw = await parseJsonResponse(retryRes).catch(() => ({}));
+        const errorData = sanitizeError(raw);
+        const errorMessage = errorData.code
+          ? _t(`api.error.${errorData.code}`, { status: retryRes.status })
+          : _t("api.requestFailed", { status: retryRes.status });
+        throw new Error(errorMessage);
+      }
+      
+      return await parseJsonResponse(retryRes) as T;
+    }
+  }
 
   if (!res.ok) {
     const raw = await parseJsonResponse(res).catch(() => ({}));
@@ -125,6 +171,30 @@ export async function apiPost<T = unknown>(
     body: body ? JSON.stringify(body) : undefined,
     ...options,
   });
+
+  if (res.status === 401 && !options?.skipAuthRetry) {
+    const refreshed = await attemptTokenRefresh();
+    
+    if (refreshed) {
+      const retryRes = await fetchWithAuth(url, { 
+        method: "POST",
+        body: body ? JSON.stringify(body) : undefined,
+        ...options, 
+        skipAuthRetry: true 
+      });
+      
+      if (!retryRes.ok) {
+        const raw = await parseJsonResponse(retryRes).catch(() => ({}));
+        const errorData = sanitizeError(raw);
+        const errorMessage = errorData.code
+          ? _t(`api.error.${errorData.code}`, { status: retryRes.status })
+          : _t("api.requestFailed", { status: retryRes.status });
+        throw new Error(errorMessage);
+      }
+      
+      return await parseJsonResponse(retryRes) as T;
+    }
+  }
 
   if (!res.ok) {
     const raw = await parseJsonResponse(res).catch(() => ({}));

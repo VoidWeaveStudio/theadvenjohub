@@ -1,6 +1,10 @@
 import type { Translations } from "../types";
 
 export const zh: Translations = {
+    "marketplace.sortBy": "排序方式",
+    "marketplace.rarity": "稀有度",
+    "marketplace.resetFilters": "重置筛选",
+    "marketplace.search": "搜索物品...",
     "auth.signIn": "登录",
     "auth.signing": "签名中...",
     "auth.signInFailed": "登录失败。请检查您的钱包并重试。",

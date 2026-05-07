@@ -1,6 +1,10 @@
 import type { Translations } from "../types";
 
 export const ko: Translations = {
+  "marketplace.sortBy": "정렬 기준",
+  "marketplace.rarity": "희귀도",
+  "marketplace.resetFilters": "필터 초기화",
+  "marketplace.search": "아이템 검색...",
   "auth.signIn": "로그인",
   "auth.signing": "서명 중...",
   "auth.signInFailed": "로그인에 실패했습니다. 지갑을 확인하고 다시 시도해 주세요.",

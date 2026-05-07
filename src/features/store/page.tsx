@@ -9,14 +9,6 @@ export default function StorePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16">
-      <div className="mb-6 sm:mb-8 text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-          {t("store.title")}
-        </h1>
-        <p className="text-text-secondary mt-2 text-sm sm:text-base">
-          {t("store.subtitle")}
-        </p>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
         <div className="group bg-zinc-900 border border-zinc-700 rounded-lg overflow-hidden hover:border-red-700/60 transition-all hover:shadow-[0_0_25px_rgba(220,38,38,0.2)]">

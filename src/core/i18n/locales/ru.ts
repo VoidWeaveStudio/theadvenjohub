@@ -1,6 +1,10 @@
 import type { Translations } from "../types";
 
 export const ru: Translations = {
+    "marketplace.sortBy": "Сортировка",
+    "marketplace.rarity": "Редкость",
+    "marketplace.resetFilters": "Сбросить фильтры",
+    "marketplace.search": "Поиск товаров...",
     "auth.signIn": "Войти",
     "auth.signing": "Подписание...",
     "auth.signInFailed": "Не удалось войти. Проверьте кошелёк и попробуйте снова.",

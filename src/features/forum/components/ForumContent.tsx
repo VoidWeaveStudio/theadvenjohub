@@ -146,11 +146,6 @@ export default function ForumContent() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t("forum.title")}</h1>
-        <p className="text-text-secondary mt-2 text-sm sm:text-base">{t("forum.description")}</p>
-      </div>
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           {CATEGORIES.map(cat => (
@@ -158,8 +153,8 @@ export default function ForumContent() {
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${selectedCategory === cat.id
-                  ? "bg-primary/10 text-primary border border-primary/30"
-                  : "text-text-secondary hover:text-foreground hover:bg-surface/50 border border-transparent"
+                ? "bg-primary/10 text-primary border border-primary/30"
+                : "text-text-secondary hover:text-foreground hover:bg-surface/50 border border-transparent"
                 }`}
             >
               {t(cat.label)}

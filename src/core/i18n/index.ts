@@ -5,6 +5,7 @@ import { ru } from "./locales/ru";
 import { zh } from "./locales/zh";
 import { ko } from "./locales/ko";
 import { ja } from "./locales/ja";
+
 export { LanguageSwitcher } from "./LanguageSwitcher";
 export type { Language, Translations } from "./types";
 
@@ -25,10 +26,10 @@ export const languageNames: Record<Language, string> = {
 };
 
 export const languageFlags: Record<Language, string> = {
-  en: "🇬",
-  ru: "🇷🇺",
-  zh: "🇨🇳",
-  ko: "🇰🇷",
+  en: "EN",  
+  ru: "🇷🇺",  
+  zh: "🇨🇳",   
+  ko: "🇰🇷", 
   ja: "🇯🇵",
 };
 

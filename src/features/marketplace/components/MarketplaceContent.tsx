@@ -335,42 +335,48 @@ export default function MarketplaceContent() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-          {t("marketplace.title")}
-        </h1>
-        <p className="text-text-secondary">
-          {pagination.total.toLocaleString()} {t("marketplace.itemsAvailable")}
-        </p>
-      </div>
 
-      <div className="mb-6 flex flex-col lg:flex-row gap-4">
-        <MarketplaceFilters
-          filters={filters}
-          onFilterChange={handleFilterChange}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3">
+        <input
+          type="text"
+          placeholder={t("marketplace.search") || "Search items..."}
+          value={filters.search}
+          onChange={(e) => handleFilterChange({ search: e.target.value })}
+          className="input-field flex-1 min-w-[200px]"
         />
 
-        <div className="flex items-center gap-2 lg:ml-auto">
-          <button
-            onClick={() => setViewMode("grid")}
-            className={`p-2 rounded transition-colors ${viewMode === "grid"
-                ? "bg-primary text-white"
-                : "bg-surface text-text-secondary hover:text-foreground"
-              }`}
-            aria-label={t("marketplace.gridView")}
-          >
-            ⊞
-          </button>
-          <button
-            onClick={() => setViewMode("list")}
-            className={`p-2 rounded transition-colors ${viewMode === "list"
-                ? "bg-primary text-white"
-                : "bg-surface text-text-secondary hover:text-foreground"
-              }`}
-            aria-label={t("marketplace.listView")}
-          >
-            ☰
-          </button>
+        <div className="flex items-center gap-2 sm:ml-auto">
+          <MarketplaceFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+          />
+
+          <div className="hidden sm:flex items-center gap-1 p-1 bg-surface border border-border rounded-lg">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-2 rounded-md transition-all ${viewMode === "grid"
+                  ? "bg-primary text-white shadow-md"
+                  : "text-text-secondary hover:text-foreground"
+                }`}
+              aria-label={t("marketplace.gridView")}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-2 rounded-md transition-all ${viewMode === "list"
+                  ? "bg-primary text-white shadow-md"
+                  : "text-text-secondary hover:text-foreground"
+                }`}
+              aria-label={t("marketplace.listView")}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 

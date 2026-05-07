@@ -1,6 +1,10 @@
 import type { Translations } from "../types";
 
 export const ja: Translations = {
+    "marketplace.sortBy": "並び替え",
+    "marketplace.rarity": "レア度",
+    "marketplace.resetFilters": "フィルターをリセット",
+    "marketplace.search": "アイテムを検索...",
     "auth.signIn": "サインイン",
     "auth.signing": "署名中...",
     "auth.signInFailed": "サインインに失敗しました。ウォレットを確認して再試行してください。",

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-:root {
+:root,
+[data-theme="dark"] {
   --background: #161618;
   --foreground: #e1e1e6;
   --surface: #1e1e21;
@@ -21,29 +22,37 @@
   --text-primary: #f0f0f5;
   --text-secondary: #a0a0ab;
   --text-muted: #6e6e78;
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --input-focus-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
-.dark {
-  --background: #161618;
-  --foreground: #e1e1e6;
-  --surface: #1e1e21;
-  --surface-elevated: #26262a;
-  --border: #323236;
-  --border-hover: #45454a;
-  --btn-bg: #1c1c20;
-  --btn-bg-hover: #28282d;
-  --btn-border: #36363b;
-  --btn-border-hover: #4a4a50;
-  --btn-text: #c4c4ca;
-  --btn-text-hover: #ffffff;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --success: #10b981;
-  --error: #ef4444;
-  --warning: #f59e0b;
-  --text-primary: #f0f0f5;
-  --text-secondary: #a0a0ab;
-  --text-muted: #6e6e78;
+[data-theme="light"] {
+  --background: #f8f9fa;
+  --foreground: #1a1a1c;
+  --surface: #ffffff;
+  --surface-elevated: #f1f3f5;
+  --border: #e0e0e3;
+  --border-hover: #c0c0c5;
+  --btn-bg: #ffffff;
+  --btn-bg-hover: #f1f3f5;
+  --btn-border: #d0d0d5;
+  --btn-border-hover: #b0b0b5;
+  --btn-text: #3a3a3c;
+  --btn-text-hover: #000000;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --success: #059669;
+  --error: #dc2626;
+  --warning: #d97706;
+  --text-primary: #1a1a1c;
+  --text-secondary: #525256;
+  --text-muted: #8e8e93;
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --input-focus-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+*, *::before, *::after {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 * {
@@ -77,10 +86,9 @@ button,
   padding: 0.625rem 1.25rem;
   font-weight: 500;
   font-size: 0.875rem;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
   transform: scale(1);
-  will-change: transform;
 }
 
 button:hover,
@@ -98,38 +106,36 @@ button:hover,
   color: var(--btn-text-hover);
   border-color: var(--btn-border-hover);
   transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--card-shadow);
 }
 
 button:disabled,
 .btn-base:disabled,
 [role="button"]:disabled {
-  background: #141416;
-  color: #525256;
-  border-color: #2a2a2e;
+  background: var(--surface-elevated);
+  color: var(--text-muted);
+  border-color: var(--border);
   cursor: not-allowed;
   transform: scale(1);
   box-shadow: none;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #1e2538, #162032);
-  border: 1px solid #3b82f6;
-  color: #e5e7eb;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  border-color: var(--primary);
+  color: #ffffff;
 }
-
 .btn-primary:hover {
-  background: linear-gradient(135deg, #162032, #1e2538);
-  border-color: #60a5fa;
+  background: linear-gradient(135deg, var(--primary-hover), var(--primary));
+  border-color: var(--primary-hover);
   box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
 }
 
 .btn-secondary {
   background: var(--btn-bg);
-  border: 1px solid var(--btn-border);
+  border-color: var(--btn-border);
   color: var(--btn-text);
 }
-
 .btn-secondary:hover {
   background: var(--btn-bg-hover);
   border-color: var(--btn-border-hover);
@@ -138,10 +144,9 @@ button:disabled,
 
 .btn-success {
   background: #1a2e1a;
-  border: 1px solid #22c55e;
+  border-color: #22c55e;
   color: #d1fae5;
 }
-
 .btn-success:hover {
   background: #1e3a1e;
   border-color: #4ade80;
@@ -150,10 +155,9 @@ button:disabled,
 
 .btn-error {
   background: #2e1a1a;
-  border: 1px solid #ef4444;
+  border-color: #ef4444;
   color: #fecaca;
 }
-
 .btn-error:hover {
   background: #3a1e1e;
   border-color: #f87171;
@@ -164,12 +168,13 @@ button:disabled,
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .card-hover {
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
-
 .card-hover:hover {
   border-color: var(--border-hover);
   transform: translateY(-2px);
@@ -180,18 +185,14 @@ button:disabled,
   text-align: center;
   padding: 1rem;
   border-radius: 8px;
-  transition: all 0.2s ease;
-  cursor: pointer;
   background: var(--surface);
   border: 1px solid var(--border);
 }
-
 .clickable-card:hover {
   border-color: var(--primary);
   transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--card-shadow);
 }
-
 .clickable-card:active {
   transform: scale(0.98);
 }
@@ -203,32 +204,31 @@ button:disabled,
   padding: 0.625rem 0.875rem;
   color: var(--text-primary);
   font-size: 0.875rem;
-  transition: all 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   width: 100%;
 }
-
 .input-field:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  box-shadow: var(--input-focus-shadow);
 }
 
 .tab-button {
   padding: 0.75rem 1.5rem;
   font-size: 0.875rem;
   font-weight: 500;
+  border: none;
+  border-radius: 0;
   border-bottom: 2px solid transparent;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
   color: var(--text-secondary);
   background: transparent;
 }
-
 .tab-button:hover {
   color: var(--text-primary);
   background: var(--surface);
   transform: scale(1.02);
 }
-
 .tab-button.active {
   color: var(--primary);
   border-bottom-color: var(--primary);
@@ -239,40 +239,24 @@ button:disabled,
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-track {
   background: var(--background);
 }
-
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-
 @keyframes zoomIn {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .animate-in {
@@ -286,27 +270,38 @@ button:disabled,
   -webkit-text-fill-color: transparent;
 }
 
-.card {
-  will-change: transform;
-  backface-visibility: hidden;
-}
-
 body.modal-open {
   overflow: hidden;
   position: fixed;
   width: 100%;
 }
-
 #modal-portal {
   z-index: 100;
 }
 
-nextjs-portal {
-  display: none;
+.site-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url('/assets/backgrounds/bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.25;
+  filter: blur(12px);
+  transform: scale(1.05);
+  will-change: transform, filter;
 }
-
-.fixed {
-  position: fixed !important;
+.site-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(22, 22, 24, 0.4) 0%, rgba(22, 22, 24, 0.5) 50%, rgba(22, 22, 24, 0.6) 100%);
+  mix-blend-mode: multiply;
 }
 
 .wallet-adapter-button,
@@ -342,7 +337,6 @@ nextjs-portal {
   align-items: center !important;
   gap: 12px !important;
 }
-
 .wallet-adapter-dropdown-list-item:hover {
   background: var(--surface-elevated) !important;
 }
@@ -361,19 +355,16 @@ nextjs-portal {
   justify-content: center !important;
   gap: 8px !important;
   transition: all 0.2s !important;
-  cursor: pointer !important;
 }
-
 .wallet-adapter-button-trigger:hover {
   background: var(--btn-bg-hover) !important;
   border-color: var(--btn-border-hover) !important;
   color: var(--btn-text-hover) !important;
   transform: scale(1.02) !important;
 }
-
 .wallet-adapter-button-trigger:disabled {
-  background: #141416 !important;
-  color: #525256 !important;
+  background: var(--surface-elevated) !important;
+  color: var(--text-muted) !important;
   cursor: not-allowed !important;
   transform: scale(1) !important;
 }
@@ -381,16 +372,13 @@ nextjs-portal {
 .wallet-adapter-button-start-icon {
   display: none !important;
 }
-
 .wallet-adapter-modal {
   z-index: 10000 !important;
 }
-
 .wallet-adapter-modal-overlay {
   background: rgba(0, 0, 0, 0.8) !important;
   backdrop-filter: blur(4px) !important;
 }
-
 .wallet-adapter-modal-container {
   display: flex !important;
   align-items: center !important;
@@ -398,64 +386,108 @@ nextjs-portal {
   min-height: 100vh !important;
   padding: 20px !important;
 }
-
 .wallet-adapter-modal-wrapper {
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
   border-radius: 16px !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
 }
-
 .wallet-adapter-button-wrapper {
   display: inline-flex;
   align-items: center;
-}
-
-.site-background {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-  pointer-events: none;
-  background-image: url('/assets/backgrounds/bg.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0.25;
-  filter: blur(12px);
-  transform: scale(1.05);
-}
-
-.site-background::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg,
-      rgba(22, 22, 24, 0.4) 0%,
-      rgba(22, 22, 24, 0.5) 50%,
-      rgba(22, 22, 24, 0.6) 100%);
-  mix-blend-mode: multiply;
-}
-
-@layer components {
-  .page-container {
-    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12;
-  }
-
-  .section-gap {
-    @apply space-y-6 sm:space-y-8;
-  }
 }
 
 .tab-content-enter {
   opacity: 0;
   transform: translateY(4px);
 }
-
 .tab-content-enter-active {
   opacity: 1;
   transform: translateY(0);
   transition: opacity 150ms ease, transform 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    transform: none !important;
+  }
+}
+
+button:focus-visible,
+.input-field:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+.theme-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.theme-toggle-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--btn-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-border-hover);
+  color: var(--btn-text-hover);
+  transform: scale(1.05);
+}
+
+.theme-toggle-btn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.theme-toggle-btn .sun-icon,
+.theme-toggle-btn .moon-icon {
+  position: absolute;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+[data-theme="light"] .theme-toggle-btn .sun-icon,
+[data-theme="dark"] .theme-toggle-btn .moon-icon {
+  opacity: 1;
+  transform: scale(1) rotate(0);
+}
+
+[data-theme="light"] .theme-toggle-btn .moon-icon,
+[data-theme="dark"] .theme-toggle-btn .sun-icon {
+  opacity: 0;
+  transform: scale(0.8) rotate(180deg);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .theme-toggle-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  .theme-toggle-btn svg {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
 }

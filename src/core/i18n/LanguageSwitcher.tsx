@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
-import { Language, languageNames, languageFlags } from "@/core/i18n/index";
+import { Language, languageNames } from "@/core/i18n/index";
 
 export function LanguageSwitcher() {
   const { language, setLanguage } = useLanguage();
@@ -34,8 +34,7 @@ export function LanguageSwitcher() {
         className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-foreground hover:bg-surface/50 rounded-md transition-colors"
         aria-label="Change language"
       >
-        <span>{languageFlags[language]}</span>
-        <span className="hidden sm:inline">{languageNames[language]}</span>
+        <span>{languageNames[language]}</span>
         <svg className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -52,7 +51,6 @@ export function LanguageSwitcher() {
                   : "text-text-secondary hover:text-foreground hover:bg-surface/50"
                 }`}
             >
-              <span className="text-lg">{languageFlags[lang]}</span>
               <span>{languageNames[lang]}</span>
             </button>
           ))}

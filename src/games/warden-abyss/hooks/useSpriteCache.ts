@@ -16,6 +16,16 @@ export function useSpriteCache(options: SpriteCacheOptions = {}) {
   const { preload = [], retryAttempts = 3, retryDelay = 1000 } = options;
   
   const cleanupRef = useRef<Set<() => void>>(new Set());
+  const isUnmountedRef = useRef(false);
+  
+  useEffect(() => {
+    isUnmountedRef.current = false;
+    return () => {
+      isUnmountedRef.current = true;
+      cleanupRef.current.forEach(fn => fn());
+      cleanupRef.current.clear();
+    };
+  }, []);
   
   const preloadSprite = useCallback(async (src: string, attempt = 0): Promise<HTMLImageElement> => {
     if (globalSpriteCache.has(src)) {
@@ -26,14 +36,29 @@ export function useSpriteCache(options: SpriteCacheOptions = {}) {
       return globalSpritePromises.get(src)!;
     }
     
+    if (attempt > retryAttempts) {
+      throw new Error(`Failed to load sprite after ${retryAttempts} attempts: ${src}`);
+    }
+    
     const loadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
+      if (isUnmountedRef.current) {
+        globalSpritePromises.delete(src);
+        reject(new Error("Component unmounted"));
+        return;
+      }
+      
       const img = new Image();
       
-      img.decoding = 'sync';
+      img.decoding = 'async';
       img.loading = 'eager';
-      img.fetchPriority = 'high';
       
       const onLoad = () => {
+        if (isUnmountedRef.current) {
+          globalSpritePromises.delete(src);
+          reject(new Error("Component unmounted"));
+          return;
+        }
+        
         globalSpriteCache.set(src, img);
         globalSpritePromises.delete(src);
         resolve(img);
@@ -42,15 +67,19 @@ export function useSpriteCache(options: SpriteCacheOptions = {}) {
       const onError = () => {
         globalSpritePromises.delete(src);
         
-        if (attempt < retryAttempts) {
-          const delay = retryDelay * Math.pow(1.5, attempt);
-          setTimeout(() => {
-            preloadSprite(src, attempt + 1).then(resolve).catch(reject);
-          }, delay);
-        } else {
-          console.error(`[SpriteCache] Failed to load after ${retryAttempts} attempts: ${src}`);
-          reject(new Error(`Failed to load sprite: ${src}`));
+        if (isUnmountedRef.current) {
+          reject(new Error("Component unmounted"));
+          return;
         }
+        
+        const delay = retryDelay * Math.pow(2, attempt);
+        setTimeout(() => {
+          if (!isUnmountedRef.current) {
+            preloadSprite(src, attempt + 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error("Component unmounted"));
+          }
+        }, delay);
       };
       
       img.onload = onLoad;
@@ -74,20 +103,22 @@ export function useSpriteCache(options: SpriteCacheOptions = {}) {
           globalSpriteCache.delete(key);
         }
       }
+      for (const key of globalSpritePromises.keys()) {
+        if (key.includes(pattern)) {
+          globalSpritePromises.delete(key);
+        }
+      }
     } else {
       globalSpriteCache.clear();
+      globalSpritePromises.clear();
     }
   }, []);
   
   useEffect(() => {
     preload.forEach(src => {
-      preloadSprite(src).catch(() => {});
+      preloadSprite(src).catch(() => {
+      });
     });
-    
-    return () => {
-      cleanupRef.current.forEach(fn => fn());
-      cleanupRef.current.clear();
-    };
   }, [preload, preloadSprite]);
   
   return {

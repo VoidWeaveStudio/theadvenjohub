@@ -1,6 +1,10 @@
 import type { Translations } from "../types";
 
 export const en: Translations = {
+  "marketplace.sortBy": "Sort by",
+  "marketplace.rarity": "Rarity",
+  "marketplace.resetFilters": "Reset filters",
+  "marketplace.search": "Search items...",
   "auth.signIn": "Sign In",
   "auth.signing": "Signing...",
   "auth.signInFailed": "Failed to sign in. Please check your wallet and try again.",

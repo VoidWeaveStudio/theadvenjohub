@@ -8,13 +8,9 @@ import { WalletName } from "@solana/wallet-adapter-base";
 import { useEffect, useState, useCallback } from "react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/core/i18n/LanguageSwitcher";
+import { ThemeSwitcher } from "@/core/ui/ThemeSwitcher";
 import { apiGet, apiPost } from "@/core/api/client";
 import { performLogout } from "@/core/auth/lib/logout";
-
-function isAdminWallet(wallet: string | null): boolean {
-  if (!wallet || !process.env.NEXT_PUBLIC_ADMIN_WALLET) return false;
-  return wallet.toLowerCase() === process.env.NEXT_PUBLIC_ADMIN_WALLET.toLowerCase();
-}
 
 export function Header() {
   const pathname = usePathname();
@@ -32,39 +28,31 @@ export function Header() {
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-  const walletAddress = publicKey?.toBase58() || null;
-  const isCurrentUserAdmin = isAdminWallet(walletAddress);
-
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
+    let cancelled = false;
+    
     const checkAuth = async () => {
+      if (publicKey === undefined) return;
+      
+      if (!publicKey) {
+        if (!cancelled) setIsAuth(false);
+        return;
+      }
+      
       try {
         await apiGet("/api/auth/me");
-        setIsAuth(!!publicKey);
+        if (!cancelled) setIsAuth(true);
       } catch {
-        setIsAuth(false);
+        if (!cancelled) setIsAuth(false);
       }
     };
-    if (publicKey !== undefined) checkAuth();
-  }, [publicKey]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    const checkAndRefresh = async () => {
-      const hasToken = document.cookie.split(';').some(c => c.trim().startsWith('token='));
-      const hasRefresh = document.cookie.split(';').some(c => c.trim().startsWith('refresh_token='));
-      if (!hasToken && hasRefresh && publicKey) {
-        try {
-          await apiPost("/api/auth/refresh");
-        } catch {
-          handleLogout();
-        }
-      }
-      setIsAuth(document.cookie.split(';').some(c => c.trim().startsWith('token=')) && !!publicKey);
-    };
-    checkAndRefresh();
-  }, [mounted, publicKey]);
+    
+    checkAuth();
+    
+    return () => { cancelled = true; };
+  }, [publicKey]); 
 
   const handleConnect = useCallback(async (walletName: WalletName) => {
     if (isProcessing) return;
@@ -181,21 +169,26 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-[#0c0c0f]/95 backdrop-blur-xl border-b border-border min-h-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">T</span>
+      <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-xl border-b border-border min-h-16">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 min-h-16 h-auto flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 gap-x-3">
+          
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-surface">
+              <img 
+                src="/logo.png" 
+                alt="TANJO" 
+                className="w-full h-full object-contain opacity-85 brightness-90"
+              />
             </div>
-            <span className="text-lg font-semibold text-foreground tracking-tight">TANJO Game Store</span>
+            <span className="text-lg font-semibold text-foreground tracking-tight whitespace-nowrap">TANJO Game Store</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1 flex-wrap justify-center flex-1 min-w-0 px-1">
             {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3 py-2 sm:px-4 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${pathname === link.href
+                className={`px-2 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${pathname === link.href
                     ? "bg-surface text-foreground"
                     : "text-text-secondary hover:text-foreground hover:bg-surface/50"
                   }`}
@@ -203,30 +196,27 @@ export function Header() {
                 {t(link.label)}
               </Link>
             ))}
-
-            {isCurrentUserAdmin && (
-              <Link
-                href="/admin"
-                className="px-3 py-2 sm:px-4 text-sm font-medium rounded-md transition-colors text-primary hover:text-primary/80 hover:bg-surface/50 flex items-center gap-1"
-              >
-                🛠 Admin
-              </Link>
-            )}
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <ThemeSwitcher />
+            
             <LanguageSwitcher />
 
-            <a href="/stub/AdvenjoHub-latest.exe" download className="btn-secondary hidden sm:flex px-4 py-2 text-sm font-medium">
+            <a 
+              href="/stub/AdvenjoHub-latest.exe" 
+              download 
+              className="btn-secondary hidden sm:inline-flex px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
+            >
               {t("header.downloadApp")}
             </a>
 
             {isAuth && publicKey ? (
               <Link
                 href="/profile"
-                className="btn-primary px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex items-center gap-2"
+                className="btn-primary px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap flex items-center gap-2 w-auto justify-center"
               >
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0" />
                 <span className="hidden sm:inline">{truncateAddress(publicKey.toBase58())}</span>
                 <span className="sm:hidden">{truncateAddress(publicKey.toBase58())}</span>
               </Link>
@@ -234,16 +224,16 @@ export function Header() {
               <button
                 onClick={() => setShowWalletSelector(true)}
                 disabled={isProcessing}
-                className="btn-primary px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[100px] sm:min-w-[140px] justify-center"
+                className="btn-primary px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-auto justify-center"
               >
                 {isProcessing ? (
                   <>
-                    <svg className="animate-spin h-3 w-3 sm:h-4 sm:w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     <span className="hidden sm:inline">{t(statusText)}</span>
-                    <span className="sm:hidden">...</span>
+                    <span className="sm:hidden">⏳</span>
                   </>
                 ) : (
                   <>
@@ -256,7 +246,7 @@ export function Header() {
 
             <button
               onClick={() => setShowMobileMenu(true)}
-              className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg"
+              className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0"
               aria-label="Open menu"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -303,7 +293,7 @@ export function Header() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setShowMobileMenu(false)}
-                className={`block py-3 px-4 rounded-lg transition-colors ${pathname === link.href
+                className={`block py-3 px-4 rounded-lg transition-colors whitespace-nowrap ${pathname === link.href
                     ? "bg-primary/10 text-primary border border-primary/30"
                     : "text-foreground hover:bg-surface"
                   }`}
@@ -312,21 +302,11 @@ export function Header() {
               </Link>
             ))}
 
-            {isCurrentUserAdmin && (
-              <Link
-                href="/admin"
-                onClick={() => setShowMobileMenu(false)}
-                className="block py-3 px-4 rounded-lg text-primary hover:bg-surface/50 flex items-center gap-2"
-              >
-                🛠 Admin Panel
-              </Link>
-            )}
-
             <a
               href="/stub/AdvenjoHub-latest.exe"
               download
               onClick={() => setShowMobileMenu(false)}
-              className="block py-3 px-4 rounded-lg bg-surface text-foreground hover:bg-surface/80 text-center mt-4"
+              className="block py-3 px-4 rounded-lg bg-surface text-foreground hover:bg-surface/80 text-center mt-4 whitespace-nowrap"
             >
               {t("header.downloadApp")}
             </a>
