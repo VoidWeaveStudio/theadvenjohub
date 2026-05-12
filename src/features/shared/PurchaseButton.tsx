@@ -1,7 +1,7 @@
+// src/features/shared/PurchaseButton.tsx
 "use client";
 
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
 import { 
   Connection, 
   PublicKey, 
@@ -32,12 +32,10 @@ interface PurchaseButtonProps {
 type LoadingState = boolean | "confirming";
 
 export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButtonProps) {
-  const { sendTransaction } = useWallet();
   const { t } = useLanguage();
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
   
-  // ✅ Локальное состояние: авторизован ли пользователь
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   
@@ -49,7 +47,6 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
     gameId, lotId, price, onSuccess
   }), [gameId, lotId, price, onSuccess]);
 
-  // ✅ Проверка авторизации при монтировании
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -75,7 +72,6 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
   const handlePurchase = useCallback(async (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
     
-    // ✅ Проверка: авторизован ли пользователь
     if (!isAuthorized || !userWallet) {
       setError(t("errors.connectWallet"));
       return;
@@ -94,17 +90,18 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
 
     const { gameId, lotId, price, onSuccess } = purchaseConfig;
 
-    // ✅ Используем userWallet из локального стейта
-    if (!sendTransaction) {
-      setError(t("errors.connectWallet"));
-      return;
-    }
     if (!gameId && !lotId) {
       setError("Missing gameId or lotId");
       return;
     }
     if (price <= 0) {
       setError("Invalid price");
+      return;
+    }
+
+    const phantom = (window as any).phantom?.solana;
+    if (!phantom) {
+      setError("Phantom wallet not found");
       return;
     }
 
@@ -132,10 +129,11 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
       const connection = new Connection(config.publicRpc, "confirmed");
       const mintPubkey = new PublicKey(config.tokenMint);
       const treasuryPubkey = new PublicKey(config.treasuryWallet);
+      const userPubkey = new PublicKey(userWallet);
 
       const userATA = await getAssociatedTokenAddress(
         mintPubkey, 
-        new PublicKey(userWallet), // ✅ Используем userWallet
+        userPubkey,
         undefined, 
         TOKEN_2022_PROGRAM_ID
       );
@@ -149,7 +147,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
       const transferIx = createTransferInstruction(
         userATA, 
         treasuryATA, 
-        new PublicKey(userWallet), // ✅ Используем userWallet
+        userPubkey,
         BigInt(price), 
         [], 
         TOKEN_2022_PROGRAM_ID
@@ -158,7 +156,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       
       const messageV0 = new TransactionMessage({
-        payerKey: new PublicKey(userWallet), // ✅ Используем userWallet
+        payerKey: userPubkey,
         recentBlockhash: blockhash,
         instructions: [transferIx],
       }).compileToV0Message();
@@ -167,17 +165,22 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
 
       const simulation = await connection.simulateTransaction(tx);
       if (simulation.value.err) {
-        throw new Error("Transaction simulation failed");
+        throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
       }
 
       if (abortController.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
       }
       
-      signature = await sendTransaction(tx, connection, {
+      const signedTx = await phantom.signTransaction(tx);
+      
+      if (abortController.signal.aborted) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+      
+      signature = await connection.sendRawTransaction(signedTx.serialize(), {
         skipPreflight: false,
         preflightCommitment: "confirmed",
-        maxRetries: 3,
       });
 
       setLoading("confirming");
@@ -187,7 +190,6 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
         "confirmed"
       );
 
-      // Читаем CSRF
       const csrfToken = getFreshCsrf();
 
       if (abortController.signal.aborted) {
@@ -219,11 +221,12 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
         return;
       }
       
-      if (err.message?.includes("User rejected") || err.message?.includes("cancelled")) {
+      if (err.message?.includes("User rejected") || err.code === 4001) {
         setError(t("errors.userRejected"));
       } else if (signature && (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError"))) {
         setError("Transaction sent, verification pending. Check your purchases.");
       } else {
+        console.error("Purchase error:", err);
         setError(err.message || t("errors.transactionFailed"));
       }
     } finally {
@@ -240,7 +243,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
         }
       }, 2000);
     }
-  }, [isAuthorized, userWallet, sendTransaction, purchaseConfig, t]);
+  }, [isAuthorized, userWallet, purchaseConfig, t]);
 
   const getButtonText = () => {
     if (loading === "confirming") {
@@ -262,8 +265,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
     return `${t("actions.buy")} ${(price / 1_000_000).toFixed(2)} TNJ`;
   };
 
-  // ✅ Кнопка активна, если авторизован И есть sendTransaction
- const isDisabled = !isAuthorized || !!loading || !sendTransaction;
+  const isDisabled = !isAuthorized || !!loading;
 
   return (
     <div className="space-y-2">
