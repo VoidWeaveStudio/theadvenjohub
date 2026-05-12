@@ -15,8 +15,13 @@ const getFreshCsrf = (): string | undefined => {
     ?.trim();
 };
 
-export function LoginWithPhantom({ onLogin }: { onLogin: () => void }) {
-  const { publicKey, signMessage, wallet, connected, connect } = useWallet();
+interface LoginWithPhantomProps {
+  onLogin: () => void;
+  className?: string;
+}
+
+export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomProps) {
+  const { publicKey, signMessage, connected, connect } = useWallet();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +37,9 @@ export function LoginWithPhantom({ onLogin }: { onLogin: () => void }) {
       setError(t("errors.walletNotReady"));
       return;
     }
+
+    setLoading(true);
+    setError(null);
 
     try {
       const { nonce } = await apiGet<{ nonce: string }>(
@@ -68,7 +76,15 @@ export function LoginWithPhantom({ onLogin }: { onLogin: () => void }) {
         setError(t("errors.userRejected"));
         return;
       }
+      
+      if (err.message?.includes("timeout")) {
+        setError(t("errors.walletTimeout"));
+        return;
+      }
+      
       throw err;
+    } finally {
+      setLoading(false);
     }
   }, [publicKey, signMessage, onLogin, t]);
 
@@ -78,20 +94,13 @@ export function LoginWithPhantom({ onLogin }: { onLogin: () => void }) {
       return;
     }
 
-    if (!wallet) {
-      setError(t("errors.walletNotFound"));
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
       await connect();
 
-      if (!publicKey) {
-        await new Promise(res => setTimeout(res, 300));
-      }
+      await new Promise(res => setTimeout(res, 300));
 
       await handleSign();
       
@@ -105,26 +114,31 @@ export function LoginWithPhantom({ onLogin }: { onLogin: () => void }) {
       }
       setLoading(false);
     }
-  }, [connected, publicKey, signMessage, wallet, connect, handleSign, t]);
+  }, [connected, publicKey, signMessage, connect, handleSign, t]);
 
   const buttonText = connected 
     ? (loading ? t("auth.signing") : t("auth.signIn"))
     : (loading ? t("auth.connecting") : t("auth.connectWallet"));
 
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${className}`}>
       <button
         onClick={handleConnectAndSign}
         disabled={loading}
-        className="px-4 py-2 text-sm font-medium bg-primary hover:bg-primary-hover text-white rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        className="btn-primary px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-auto justify-center"
         aria-label={buttonText}
       >
-        {loading && <span className="animate-spin">⟳</span>}
+        {loading && (
+          <svg className="animate-spin h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        )}
         {buttonText}
       </button>
       
       {error && (
-        <p className="text-sm text-red-400" role="alert">{error}</p>
+        <p className="text-xs sm:text-sm text-red-400" role="alert">{error}</p>
       )}
     </div>
   );
