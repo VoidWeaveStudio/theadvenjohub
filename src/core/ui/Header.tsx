@@ -1,4 +1,4 @@
-// src/core/ui/Header.tsx
+//src\core\ui\Header.tsx
 "use client";
 
 import Link from "next/link";
@@ -17,25 +17,20 @@ export function Header() {
   if (pathname?.startsWith('/game')) return null;
 
   const router = useRouter();
-  const { publicKey, disconnect } = useWallet();
+  const { disconnect } = useWallet();
   const { t } = useLanguage();
 
+  const [userWallet, setUserWallet] = useState<string | null>(null);
   const [isAuth, setIsAuth] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
+    if (!userWallet) return;
     let cancelled = false;
     
     const checkAuth = async () => {
-      if (publicKey === undefined) return;
-      
-      if (!publicKey) {
-        if (!cancelled) setIsAuth(false);
-        return;
-      }
-      
       try {
         await apiGet("/api/auth/me");
         if (!cancelled) setIsAuth(true);
@@ -45,22 +40,17 @@ export function Header() {
     };
     
     checkAuth();
-    
     return () => { cancelled = true; };
-  }, [publicKey]); 
+  }, [userWallet]); 
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } catch (error) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("Logout error:", error);
-      }
+      console.error("Logout error:", error);
     } finally {
       await performLogout(disconnect, router);
+      setUserWallet(null);
       setIsAuth(false);
     }
   };
@@ -90,15 +80,7 @@ export function Header() {
 
         <nav className="hidden md:flex items-center gap-1 flex-wrap justify-center flex-1 min-w-0 px-1">
           {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`px-2 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
-                pathname === link.href
-                  ? "bg-surface text-foreground"
-                  : "text-text-secondary hover:text-foreground hover:bg-surface/50"
-              }`}
-            >
+            <Link key={link.href} href={link.href} className={`px-2 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${pathname === link.href ? "bg-surface text-foreground" : "text-text-secondary hover:text-foreground hover:bg-surface/50"}`}>
               {t(link.label)}
             </Link>
           ))}
@@ -112,26 +94,17 @@ export function Header() {
             {t("header.downloadApp")}
           </a>
 
-          {isAuth && publicKey ? (
-            <Link
-              href="/profile"
-              className="btn-primary px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap flex items-center gap-2 w-auto justify-center"
-            >
+          {isAuth && userWallet ? (
+            <Link href="/profile" className="btn-primary px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap flex items-center gap-2 w-auto justify-center">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0" />
-              <span className="hidden sm:inline">{truncateAddress(publicKey.toBase58())}</span>
-              <span className="sm:hidden">{truncateAddress(publicKey.toBase58())}</span>
+              <span className="hidden sm:inline">{truncateAddress(userWallet)}</span>
+              <span className="sm:hidden">{truncateAddress(userWallet)}</span>
             </Link>
           ) : (
-            <LoginWithPhantom 
-              onLogin={() => setIsAuth(true)}
-            />
+            <LoginWithPhantom onLogin={(wallet) => { setUserWallet(wallet); setIsAuth(true); }} />
           )}
 
-          <button
-            onClick={() => {/* menu */}}
-            className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0"
-            aria-label="Open menu"
-          >
+          <button className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0" aria-label="Open menu">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
