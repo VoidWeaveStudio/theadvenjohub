@@ -2,17 +2,15 @@
 
 
 export function getCookie(name: string): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
+  if (typeof document === "undefined") return undefined;
   
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
   
   if (parts.length === 2) {
     const raw = parts.pop()?.split(";").shift();
-    if (raw && /^[0-9a-fA-F]+$/.test(raw) && raw.length >= 32) {
-      return raw;
+    if (raw) {
+      return decodeURIComponent(raw.trim());
     }
   }
   return undefined;
