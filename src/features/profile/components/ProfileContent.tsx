@@ -38,11 +38,11 @@ export default function ProfileContent() {
   const { t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState<TabId>("library");
-  
+
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  
+
   const [libraryGames, setLibraryGames] = useState<LibraryGame[]>([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -78,7 +78,7 @@ export default function ProfileContent() {
   const loadLibrary = useCallback(async () => {
     if (!isAuthorized) return;
     setIsLoadingLibrary(true);
-    
+
     try {
       const data = await apiGet<{ library: LibraryGame[] }>("/api/client/sync");
       setLibraryGames(data.library || []);
@@ -92,7 +92,7 @@ export default function ProfileContent() {
   const loadInventory = useCallback(async (gameId?: string) => {
     if (!isAuthorized) return;
     setIsLoadingInventory(true);
-    
+
     try {
       const params = new URLSearchParams();
       if (gameId && gameId !== "all" && gameId.trim() !== "") {
@@ -110,7 +110,7 @@ export default function ProfileContent() {
 
   useEffect(() => {
     if (!isAuthorized) return;
-    
+
     if (activeTab === "library") {
       loadLibrary();
     } else if (activeTab === "inventory") {
@@ -157,7 +157,7 @@ export default function ProfileContent() {
     }
   };
 
-    const handleLaunchGame = (slug: string) => {
+  const handleLaunchGame = (slug: string) => {
     if (typeof window !== "undefined" && "__TAURI__" in window) {
       // @ts-ignore
       window.__TAURI__?.shell?.open(`tanjo://launch/${slug}`);
@@ -188,7 +188,7 @@ export default function ProfileContent() {
 
   return (
     <div className="max-w-6xl mx-auto py-6 sm:py-8 px-4 sm:px-6">
-      
+
       <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
@@ -217,14 +217,13 @@ export default function ProfileContent() {
 
       <div className="flex gap-2 border-b border-border mb-6 overflow-x-auto">
         {(["library", "inventory", "settings"] as TabId[]).map((tab) => (
-          <button 
-            key={tab} 
-            onClick={() => handleTabChange(tab)} 
-            className={`tab-button whitespace-nowrap rounded-t-md capitalize px-4 py-3 transition-colors ${
-              activeTab === tab 
-                ? "bg-primary/10 text-primary border-b-2 border-primary" 
-                : "text-text-secondary hover:text-foreground hover:bg-surface/50"
-            }`}
+          <button
+            key={tab}
+            onClick={() => handleTabChange(tab)}
+            className={`tab-button whitespace-nowrap rounded-t-md capitalize px-4 py-3 transition-colors ${activeTab === tab
+              ? "bg-primary/10 text-primary border-b-2 border-primary"
+              : "text-text-secondary hover:text-foreground hover:bg-surface/50"
+              }`}
           >
             {t(`profile.${tab}`)}
           </button>
@@ -232,27 +231,27 @@ export default function ProfileContent() {
       </div>
 
       <div className="card p-4 sm:p-6 min-h-[400px]">
-        
+
         {activeTab === "library" && (
           <div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg sm:text-xl font-semibold text-foreground">
                 {t("profile.yourGames")}
               </h2>
-              <Link 
-                href="/" 
+              <Link
+                href="/"
                 className="text-sm text-primary hover:underline flex items-center gap-1"
               >
                 {t("profile.browseStore")} →
               </Link>
             </div>
-            
+
             {isLoadingLibrary ? (
               <div className="flex items-center justify-center py-12">
                 <Spinner size="md" />
               </div>
             ) : libraryGames.length === 0 ? (
-              <EmptyState 
+              <EmptyState
                 title={t("profile.noGames")}
                 description={t("profile.noGamesHint")}
                 action={
@@ -264,8 +263,8 @@ export default function ProfileContent() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {libraryGames.map((game) => (
-                  <div 
-                    key={game.id} 
+                  <div
+                    key={game.id}
                     className="card p-4 border-border hover:border-primary/50 hover:bg-surface/50 transition-all cursor-pointer group"
                     onClick={() => handleLaunchGame(game.slug)}
                   >
@@ -273,18 +272,17 @@ export default function ProfileContent() {
                       <div className="w-16 h-16 bg-zinc-800 rounded-lg flex-shrink-0 flex items-center justify-center text-2xl">
                         🎮
                       </div>
-                      
+
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                           {game.title}
                         </h3>
-                        
+
                         <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-[10px] px-2 py-0.5 rounded ${
-                            game.status === "owned" 
-                              ? "bg-green-500/10 text-green-400" 
-                              : "bg-yellow-500/10 text-yellow-400"
-                          }`}>
+                          <span className={`text-[10px] px-2 py-0.5 rounded ${game.status === "owned"
+                            ? "bg-green-500/10 text-green-400"
+                            : "bg-yellow-500/10 text-yellow-400"
+                            }`}>
                             {t(`profile.status.${game.status}`)}
                           </span>
                           <span className="text-[10px] text-text-muted">
@@ -293,7 +291,7 @@ export default function ProfileContent() {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-2 mt-4 pt-3 border-t border-border/50">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleLaunchGame(game.slug); }}
@@ -323,7 +321,7 @@ export default function ProfileContent() {
                 {t("profile.inventory")}
               </h2>
             </div>
-            
+
             <div className="mb-6">
               <label htmlFor="inventory-game-select" className="block text-sm font-medium text-foreground mb-2">
                 {t("profile.selectGame")}
@@ -342,15 +340,15 @@ export default function ProfileContent() {
                 ))}
               </select>
             </div>
-            
+
             {isLoadingInventory ? (
               <div className="flex items-center justify-center py-12">
                 <Spinner size="md" />
               </div>
             ) : inventoryItems.length === 0 ? (
-              <EmptyState 
+              <EmptyState
                 title={
-                  selectedInventoryGame !== "all" 
+                  selectedInventoryGame !== "all"
                     ? t("profile.noItemsForGame") || t("profile.noItems")
                     : t("profile.noItems")
                 }
@@ -368,37 +366,36 @@ export default function ProfileContent() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {inventoryItems.map((item) => (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     className="card p-3 border-border bg-surface hover:border-primary/30 transition-all group"
                   >
                     <div className="aspect-square bg-zinc-800 rounded-lg mb-2 flex items-center justify-center text-3xl group-hover:scale-105 transition-transform">
                       📦
                     </div>
-                    
+
                     {item.itemName && (
                       <p className="text-xs font-medium text-foreground truncate mb-1">
                         {item.itemName}
                       </p>
                     )}
-                    
+
                     {item.gameTitle && selectedInventoryGame === "all" && (
                       <p className="text-[10px] text-text-secondary truncate mb-2">
                         {item.gameTitle}
                       </p>
                     )}
-                    
+
                     <p className="text-[10px] text-text-muted">
                       {t("profile.acquiredLabel")} {formatDate(item.acquiredAt)}
                     </p>
-                    
-                    <span className={`text-[10px] px-2 py-0.5 rounded mt-2 inline-block ${
-                      item.status === "confirmed" 
-                        ? "bg-green-500/10 text-green-400" 
-                        : item.status === "pending"
+
+                    <span className={`text-[10px] px-2 py-0.5 rounded mt-2 inline-block ${item.status === "confirmed"
+                      ? "bg-green-500/10 text-green-400"
+                      : item.status === "pending"
                         ? "bg-yellow-500/10 text-yellow-400"
                         : "bg-red-500/10 text-red-400"
-                    }`}>
+                      }`}>
                       {t(`profile.status.${item.status}`)}
                     </span>
                   </div>
@@ -413,9 +410,9 @@ export default function ProfileContent() {
             <h2 className="text-lg sm:text-xl font-semibold text-foreground mb-6">
               {t("profile.settings")}
             </h2>
-            
+
             <div className="space-y-6">
-              
+
               <div className="border-t border-border pt-6">
                 <h3 className="text-sm font-medium text-foreground mb-4">
                   {t("profile.linkedWallet")}
@@ -424,7 +421,7 @@ export default function ProfileContent() {
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                     <span className="text-text-secondary">{t("profile.address")}</span>
                     <code className="text-foreground font-mono text-xs bg-surface px-2 py-1 rounded break-all">
-                      {userWallet ? `${userWallet.slice(0, 8)}...${userWallet.slice(-6)}` : 'Not connected'}
+                      {userWallet ? `${userWallet.slice(0, 8)}...${userWallet.slice(-6)}` : t("profile.notConnected")}
                     </code>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
@@ -442,13 +439,13 @@ export default function ProfileContent() {
                   <div className="flex items-center justify-between">
                     <span className="text-text-secondary">{t("profile.clientStatus")}</span>
                     <span className="text-text-muted">
-                      {typeof window !== "undefined" && "tanjoClient" in window 
-                        ? "🟢 Connected" 
-                        : "⚪ Not detected"}
+                      {typeof window !== "undefined" && "tanjoClient" in window
+                        ? t("profile.clientConnected")
+                        : t("profile.clientNotDetected")}
                     </span>
                   </div>
-                  <a 
-                    href="/stub/AdvenjoHub-latest.exe" 
+                  <a
+                    href="/stub/AdvenjoHub-latest.exe"
                     download
                     className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
                   >
@@ -468,11 +465,11 @@ export default function ProfileContent() {
                   {t("header.logout")}
                 </button>
               </div>
-              
+
             </div>
           </div>
         )}
-        
+
       </div>
     </div>
   );

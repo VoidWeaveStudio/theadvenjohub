@@ -29,7 +29,7 @@ export function Header() {
   useEffect(() => {
     if (!userWallet) return;
     let cancelled = false;
-    
+
     const checkAuth = async () => {
       try {
         await apiGet("/api/auth/me");
@@ -38,10 +38,10 @@ export function Header() {
         if (!cancelled) setIsAuth(false);
       }
     };
-    
+
     checkAuth();
     return () => { cancelled = true; };
-  }, [userWallet]); 
+  }, [userWallet]);
 
   const handleLogout = async () => {
     try {
@@ -70,12 +70,12 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-xl border-b border-border min-h-16">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 min-h-16 h-auto flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 gap-x-3">
-        
+
         <Link href="/" className="flex items-center gap-2 flex-shrink-0">
           <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-surface">
-            <img src="/logo.png" alt="TANJO" className="w-full h-full object-contain opacity-85 brightness-90" />
+            <img src="/logo.png" alt={t("header.appName")} className="w-full h-full object-contain opacity-85 brightness-90" />
           </div>
-          <span className="text-lg font-semibold text-foreground tracking-tight whitespace-nowrap">TANJO Game Store</span>
+          <span className="text-lg font-semibold text-foreground tracking-tight whitespace-nowrap">{t("header.appName")}</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1 flex-wrap justify-center flex-1 min-w-0 px-1">
@@ -89,20 +89,20 @@ export function Header() {
         <div className="flex items-center gap-2 flex-shrink-0">
           <ThemeSwitcher />
           <LanguageSwitcher />
-          
+
           <a href="/stub/AdvenjoHub-latest.exe" download className="btn-secondary hidden sm:inline-flex px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap">
             {t("header.downloadApp")}
           </a>
 
           {isAuth && userWallet ? (
-  <Link href="/profile" className="btn-primary ...">
-    {truncateAddress(userWallet)}
-  </Link>
-) : (
-  <LoginWithPhantom onLogin={(wallet) => { setUserWallet(wallet); setIsAuth(true); }} />
-)}
+            <Link href="/profile" className="btn-primary ...">
+              {truncateAddress(userWallet)}
+            </Link>
+          ) : (
+            <LoginWithPhantom onLogin={(wallet) => { setUserWallet(wallet); setIsAuth(true); }} />
+          )}
 
-          <button className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0" aria-label="Open menu">
+          <button className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0" aria-label={t("header.openMenu")}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>

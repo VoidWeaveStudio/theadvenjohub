@@ -1,4 +1,4 @@
-// src/features/shared/PurchaseButton.tsx
+//src\features\shared\PurchaseButton.tsx
 "use client";
 
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
@@ -91,17 +91,17 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
     const { gameId, lotId, price, onSuccess } = purchaseConfig;
 
     if (!gameId && !lotId) {
-      setError("Missing gameId or lotId");
+      setError(t("errors.missingGameOrLotId"));
       return;
     }
     if (price <= 0) {
-      setError("Invalid price");
+      setError(t("errors.invalidPrice"));
       return;
     }
 
     const phantom = (window as any).phantom?.solana;
     if (!phantom) {
-      setError("Phantom wallet not found");
+      setError(t("errors.phantomNotFound"));
       return;
     }
 
@@ -224,7 +224,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
       if (err.message?.includes("User rejected") || err.code === 4001) {
         setError(t("errors.userRejected"));
       } else if (signature && (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError"))) {
-        setError("Transaction sent, verification pending. Check your purchases.");
+        setError(t("errors.verificationPending"));
       } else {
         console.error("Purchase error:", err);
         setError(err.message || t("errors.transactionFailed"));

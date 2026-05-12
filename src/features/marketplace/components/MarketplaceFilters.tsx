@@ -34,18 +34,17 @@ export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFilte
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-all ${
-          isOpen
+        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-all ${isOpen
             ? "bg-primary/10 border-primary text-primary"
             : "bg-surface border-border text-text-secondary hover:text-foreground hover:bg-surface/80"
-        }`}
-        aria-label="Filters"
+          }`}
+        aria-label={t("marketplace.filters")}
         aria-expanded={isOpen}
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
         </svg>
-        <span className="hidden sm:inline font-medium">Filters</span>
+        <span className="hidden sm:inline font-medium">{t("marketplace.filters")}</span>
         {activeFiltersCount > 0 && (
           <span className="flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-primary rounded-full">
             {activeFiltersCount}
@@ -61,7 +60,7 @@ export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFilte
           <div className="p-4 space-y-4">
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
-                {t("marketplace.sortBy") || "Sort by"}
+                {t("marketplace.sortBy")}
               </label>
               <select
                 value={`${filters.sortBy}:${filters.sortOrder}`}
@@ -82,12 +81,12 @@ export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFilte
 
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-2">
-                {t("marketplace.rarity") || "Rarity"}
+                {t("marketplace.rarity")}
               </label>
               <select
                 value={filters.rarity[0] || ""}
-                onChange={(e) => onFilterChange({ 
-                  rarity: e.target.value ? [e.target.value] : [] 
+                onChange={(e) => onFilterChange({
+                  rarity: e.target.value ? [e.target.value] : []
                 })}
                 className="input-field w-full"
               >
@@ -109,7 +108,7 @@ export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFilte
               }}
               className="w-full py-2 text-sm text-text-secondary hover:text-foreground border border-border rounded-lg hover:bg-surface/50 transition-colors"
             >
-              {t("marketplace.resetFilters") || "Reset filters"}
+              {t("marketplace.resetFilters")}
             </button>
           </div>
         </div>
