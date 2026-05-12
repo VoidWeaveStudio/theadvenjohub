@@ -1,4 +1,4 @@
-// src/core/auth/components/LoginWithPhantom.tsx
+//src\core\auth\components\LoginWithPhantom.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -46,6 +46,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       const signed = await phantom.signMessage(new TextEncoder().encode(message), "utf8");
 
       const csrf = getFreshCsrf();
+      
       const res = await fetch("/api/auth/verify", {
         method: "POST",
         credentials: "include",
@@ -61,7 +62,37 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
         }),
       });
 
-      if (!res.ok) {
+      if (res.status === 403) {
+        console.log("CSRF mismatch, retrying with new nonce...");
+        
+        const { nonce: newNonce } = await apiGet<{ nonce: string }>(
+          `/api/auth/challenge?wallet=${wallet}`
+        );
+        
+        const newMessage = `Sign in to TANJO Game Store\nWallet: ${wallet}\nNonce: ${newNonce}`;
+        const newSigned = await phantom.signMessage(new TextEncoder().encode(newMessage), "utf8");
+        const newCsrf = getFreshCsrf();
+        
+        const retryRes = await fetch("/api/auth/verify", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "x-csrf-token": newCsrf || "",
+          },
+          body: JSON.stringify({
+            wallet,
+            message: newMessage,
+            signature: Buffer.from(newSigned.signature).toString("base64"),
+            nonce: newNonce,
+          }),
+        });
+
+        if (!retryRes.ok) {
+          const errData = await retryRes.json().catch(() => ({}));
+          throw new Error(errData.error || "Verification failed after retry");
+        }
+      } else if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || "Verification failed");
       }
