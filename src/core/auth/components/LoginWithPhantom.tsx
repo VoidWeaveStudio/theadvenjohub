@@ -2,11 +2,10 @@
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 import { useState, useCallback, useEffect } from "react";
 import { apiGet, apiPost } from "@/core/api/client";
-import { useLanguage } from "@/core/i18n/LanguageContext";
 
-// ✅ Читаем CSRF напрямую из document.cookie
 const getFreshCsrf = (): string | undefined => {
   if (typeof document === "undefined") return undefined;
   return document.cookie
@@ -22,155 +21,130 @@ interface LoginWithPhantomProps {
 }
 
 export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomProps) {
-  const { publicKey, signMessage, connected, connect } = useWallet();
-  const { t } = useLanguage();
+  const { signMessage } = useWallet(); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [publicKey, setPublicKey] = useState<PublicKey | null>(null);
 
-  // ✅ Сбрасываем ошибку при изменении состояния
-  useEffect(() => {
-    if (connected) {
-      setError(null);
-    }
-  }, [connected]);
-
-  // ✅ Подпись и верификация
-  const handleSign = useCallback(async () => {
-    if (!publicKey || !signMessage) {
-      setError("Кошелёк не готов к подписи");
-      return;
+  const connectToPhantom = useCallback(async (): Promise<PublicKey> => {
+    if (typeof window === "undefined") {
+      throw new Error("Window is not defined");
     }
 
-    setLoading(true);
-    setError(null);
+    const phantom = (window as any).phantom?.solana;
+    
+    if (!phantom) {
+      window.open("https://phantom.app/", "_blank");
+      throw new Error("Phantom не установлен. Открываем сайт для установки...");
+    }
 
     try {
-      // 1. Получаем nonce + сервер устанавливает CSRF куку
+      const response = await phantom.connect();
+      const pubKey = new PublicKey(response.publicKey);
+      
+      console.log("✅ Connected to Phantom:", pubKey.toBase58());
+      return pubKey;
+      
+    } catch (err: any) {
+      if (err.code === 4001 || err.message?.includes("rejected")) {
+        throw new Error("Подключение отменено");
+      }
+      throw err;
+    }
+  }, []);
+
+  const signMessageWithPhantom = useCallback(async (message: Uint8Array): Promise<Uint8Array> => {
+    const phantom = (window as any).phantom?.solana;
+    
+    if (!phantom) {
+      throw new Error("Phantom не доступен");
+    }
+
+    try {
+      const signed = await phantom.signMessage(message, "utf8");
+      return signed.signature;
+    } catch (err: any) {
+      if (err.code === 4001 || err.message?.includes("rejected")) {
+        throw new Error("Подпись отменена");
+      }
+      throw err;
+    }
+  }, []);
+
+  const handleSign = useCallback(async (pubKey: PublicKey) => {
+    try {
       const { nonce } = await apiGet<{ nonce: string }>(
-        `/api/auth/challenge?wallet=${publicKey.toBase58()}`
+        `/api/auth/challenge?wallet=${pubKey.toBase58()}`
       );
 
-      // 2. Формируем сообщение
-      const message = `Sign in to TANJO Game Store\nWallet: ${publicKey.toBase58()}\nNonce: ${nonce}`;
+      const message = `Sign in to TANJO Game Store\nWallet: ${pubKey.toBase58()}\nNonce: ${nonce}`;
       const encoded = new TextEncoder().encode(message);
       
-      // 3. Подписываем (откроется окно Phantom)
-      const signed = await signMessage(encoded);
+      const signed = await signMessageWithPhantom(encoded);
+      const signatureBase64 = Buffer.from(signed).toString("base64");
 
-      // 4. Читаем актуальный CSRF ПЕРЕД запросом
       const csrf = getFreshCsrf();
       
-      // 5. Отправляем на верификацию
       await apiPost("/api/auth/verify", {
-        wallet: publicKey.toBase58(),
+        wallet: pubKey.toBase58(),
         message,
-        signature: Buffer.from(signed).toString("base64"),
+        signature: signatureBase64,
         nonce,
       }, {
         headers: csrf ? { 'x-csrf-token': csrf } : undefined,
       });
 
-      // 6. Микро-задержка для применения новых куки
       await new Promise(res => setTimeout(res, 50));
 
       onLogin();
       
     } catch (err: any) {
-      const isUserRejection = err.code === 4001 || 
-                              err.message?.includes("rejected") || 
-                              err.message?.includes("cancelled") ||
-                              err.message?.includes("User rejected");
-                              
-      if (isUserRejection) {
+      if (err.message?.includes("отменено") || err.code === 4001) {
         setError("Подпись отменена");
         return;
       }
       
-      if (err.message?.includes("timeout")) {
-        setError("Кошелёк не ответил. Попробуйте снова.");
-        return;
-      }
-      
-      // ✅ Логируем ошибку для отладки
       if (process.env.NODE_ENV === "development") {
         console.error("Sign error:", err);
       }
       
       setError("Ошибка при входе. Попробуйте снова.");
       throw err;
-    } finally {
-      setLoading(false);
     }
-  }, [publicKey, signMessage, onLogin]);
+  }, [signMessageWithPhantom, onLogin]);
 
-  // ✅ Подключение + подпись
   const handleConnectAndSign = useCallback(async () => {
-    // ✅ Проверка: кнопка активна?
-    if (loading) {
-      console.log("Already loading, ignoring click");
-      return;
-    }
+    if (loading) return;
 
-    // Если уже подключены — сразу подписываем
-    if (connected && publicKey && signMessage) {
-      console.log("Already connected, signing...");
-      await handleSign();
-      return;
-    }
-
-    console.log("Connecting to Phantom...");
+    console.log("🔗 Connecting to Phantom...");
     setLoading(true);
     setError(null);
 
     try {
-      // ✅ Проверка: есть ли Phantom
-      if (typeof window === "undefined" || !(window as any).phantom?.solana) {
-        throw new Error("Phantom wallet not found. Please install Phantom extension.");
-      }
-
-      // ✅ Прямое подключение к Phantom
-      await connect();
-
-      console.log("Connected, waiting for publicKey...");
+      const pubKey = await connectToPhantom();
+      setPublicKey(pubKey);
       
-      // Ждём, пока подключится и появится publicKey
-      let retries = 0;
-      while (!publicKey && retries < 10) {
-        await new Promise(res => setTimeout(res, 200));
-        retries++;
-      }
-
-      if (!publicKey) {
-        throw new Error("Wallet connected but publicKey not available");
-      }
-
-      console.log("Public key received, signing...");
-      
-      // Теперь подписываем
-      await handleSign();
+      console.log("✍️ Signing message...");
+      await handleSign(pubKey);
       
     } catch (err: any) {
-      console.error("Connect error:", err);
+      console.error("❌ Connect error:", err);
       
-      if (err.message?.includes("User rejected") || err.code === 4001) {
+      if (err.message?.includes("не установлен")) {
+        setError("Phantom не установлен");
+      } else if (err.message?.includes("отменено")) {
         setError("Подключение отменено");
-      } else if (err.message?.includes("Phantom") || err.message?.includes("not found")) {
-        setError("Phantom не установлен. Установите расширение.");
-      } else if (err.message?.includes("not connected")) {
-        setError("Кошелёк не подключился. Попробуйте снова.");
       } else {
-        setError("Не удалось подключиться. Попробуйте снова.");
+        setError("Не удалось подключиться");
       }
+    } finally {
       setLoading(false);
     }
-  }, [connected, publicKey, signMessage, connect, handleSign, loading]);
+  }, [connectToPhantom, handleSign, loading]);
 
-  // ✅ Тексты кнопок с fallback
   const getButtonText = () => {
-    if (loading) {
-      return connected ? "Подпись..." : "Подключение...";
-    }
-    return connected ? "Войти" : "Подключить";
+    if (loading) return "Подключение...";
+    return publicKey ? "Войти" : "Подключить";
   };
 
   return (
@@ -179,7 +153,6 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
         onClick={handleConnectAndSign}
         disabled={loading}
         className="btn-primary px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-auto justify-center cursor-pointer"
-        aria-label={getButtonText()}
         type="button"
       >
         {loading && (
@@ -192,9 +165,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       </button>
       
       {error && (
-        <p className="text-xs sm:text-sm text-red-400" role="alert">
-          {error}
-        </p>
+        <p className="text-xs sm:text-sm text-red-400" role="alert">{error}</p>
       )}
     </div>
   );
