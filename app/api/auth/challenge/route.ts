@@ -32,7 +32,6 @@ export async function GET(req: NextRequest) {
     }
 
     const nonce = randomBytes(16).toString("hex");
-    
     const csrfToken = generateCSRFToken();
     const isProd = process.env.NODE_ENV === "production";
 

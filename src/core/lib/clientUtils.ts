@@ -1,6 +1,4 @@
 // src/core/lib/clientUtils.ts
-
-
 export function getCookie(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
   
@@ -16,39 +14,30 @@ export function getCookie(name: string): string | undefined {
   return undefined;
 }
 
-
 export function getCsrfToken(): string | undefined {
   return getCookie("csrf_token");
 }
 
-
 export function formatDate(dateString: string, locale: string = "en-US"): string {
   try {
     return new Date(dateString).toLocaleDateString(locale, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
+      month: "short", day: "numeric", year: "numeric",
     });
   } catch {
     return "Invalid date";
   }
 }
-
 
 export function formatDateTime(dateString: string, locale: string = "en-US"): string {
   try {
     return new Date(dateString).toLocaleDateString(locale, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      month: "short", day: "numeric", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
     });
   } catch {
     return "Invalid date";
   }
 }
-
 
 export function getAuthorName(wallet: string | null | undefined): string {
   if (!wallet || wallet.length < 10) return "Unknown";

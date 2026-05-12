@@ -1,10 +1,9 @@
 // src/core/providers/SolanaProviders.tsx
 "use client";
 
-import { WalletAdapterNetwork, WalletReadyState } from "@solana/wallet-adapter-base";
+import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl } from "@solana/web3.js";
 import { useMemo, useCallback, useEffect, useState } from "react";
 import "@solana/wallet-adapter-react-ui/styles.css";
@@ -19,10 +18,7 @@ export function SolanaProviders({ children }: { children: React.ReactNode }) {
 
   const wallets = useMemo(() => {
     if (!isClient) return [];
-    return [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ];
+    return [new PhantomWalletAdapter()];
   }, [isClient]);
 
   const onError = useCallback((error: Error) => {
@@ -41,13 +37,11 @@ export function SolanaProviders({ children }: { children: React.ReactNode }) {
     <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed" }}>
       <WalletProvider
         wallets={wallets}
-        autoConnect={false}
+        autoConnect={false} 
         onError={onError}
         key="solana-wallet-provider"
       >
-        <WalletModalProvider>
-          {isClient ? children : null}
-        </WalletModalProvider>
+        {isClient ? children : null}
       </WalletProvider>
     </ConnectionProvider>
   );
