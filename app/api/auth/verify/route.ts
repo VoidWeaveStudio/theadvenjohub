@@ -144,10 +144,12 @@ export async function POST(req: NextRequest) {
 
     const baseCookieOptions = {
   httpOnly: true,
-  secure: isProd,           
-  sameSite: "lax" as const, 
+  secure: true,  
+  sameSite: "strict" as const, 
   path: "/",
-  domain: isProd ? process.env.COOKIE_DOMAIN : undefined, 
+  domain: process.env.NODE_ENV === "production" 
+    ? ".theadvenjo.online"
+    : undefined,
 };
 
     response.cookies.set("token", accessToken, {
