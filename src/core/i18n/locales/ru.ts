@@ -623,6 +623,19 @@ export const ru: Translations = {
     "modal.confirm.withdraw": "Вы уверены, что хотите вывести все токены?",
     "modal.confirm.block": "Вы уверены, что хотите заблокировать все токены?",
     "modal.confirm.bonus": "Бонус: +5%к урону навсегда!",
+    "upgrades.maxed": "МАКС",
+    "upgrades.notEnough": "Недостаточно TNJ",
+    "leaderboard.players": "Игроков",
+    "errors.offline.title": "Нет подключения к интернету",
+    "errors.offline.message": "Warden Abyss требует активного подключения к интернету. Проверьте настройки сети и попробуйте снова.",
+    "errors.loadProgressFailed": "Не удалось загрузить прогресс с сервера",
+    "errors.saveProgressFailed": "Не удалось сохранить прогресс на сервер",
+    "errors.upgradePurchaseFailed": "Не удалось купить улучшение",
+    "errors.skinPurchaseFailed": "Не удалось купить скин",
+    "errors.burnFailed": "Не удалось сжечь токены",
+    "errors.withdrawFailed": "Не удалось вывести токены",
+    "errors.blockFailed": "Не удалось заблокировать токены",
+    "insufficientBalance": "Недостаточно средств",
 };
 
 export default ru;

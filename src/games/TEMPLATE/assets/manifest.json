@@ -1,9 +1,0 @@
-{
-  "gameId": "template-game",
-  "version": "0.1.0",
-  "assets": {
-    "sprites": [],
-    "icons": [],
-    "preload": []
-  }
-}

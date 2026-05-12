@@ -1,4 +1,4 @@
-//src\features\profile\components\ProfileContent.tsx
+// src/features/profile/components/ProfileContent.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -8,6 +8,28 @@ import Link from "next/link";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { apiGet } from "@/core/api/client";
 import { performLogout } from "@/core/auth/lib/logout";
+import { Spinner } from "@/core/ui/Spinner";
+import { EmptyState } from "@/core/ui/EmptyState";
+
+interface LibraryGame {
+  id: string;
+  gameId: string;
+  title: string;
+  slug: string;
+  purchasedAt: string;
+  status: "owned" | "expired" | "revoked";
+}
+
+interface InventoryItem {
+  id: string;
+  lotId: string | null;
+  itemName?: string;
+  gameTitle?: string;
+  acquiredAt: string;
+  status: "confirmed" | "pending" | "failed";
+}
+
+type TabId = "library" | "inventory" | "settings";
 
 export default function ProfileContent() {
   const router = useRouter();
@@ -15,16 +37,18 @@ export default function ProfileContent() {
   const { publicKey, disconnect } = useWallet();
   const { t } = useLanguage();
 
-  type TabId = "library" | "settings";
   const [activeTab, setActiveTab] = useState<TabId>("library");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [libraryGames, setLibraryGames] = useState<any[]>([]);
+  const [libraryGames, setLibraryGames] = useState<LibraryGame[]>([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [isLoadingInventory, setIsLoadingInventory] = useState(false);
+  const [selectedInventoryGame, setSelectedInventoryGame] = useState<string>("all");
 
   useEffect(() => {
     const tab = searchParams.get("tab") as TabId;
-    if (tab && ["library", "settings"].includes(tab)) {
+    if (tab && ["library", "inventory", "settings"].includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -49,17 +73,46 @@ export default function ProfileContent() {
   const loadLibrary = useCallback(async () => {
     if (!publicKey) return;
     setIsLoadingLibrary(true);
+    
     try {
+      const data = await apiGet<{ library: LibraryGame[] }>("/api/client/sync");
+      setLibraryGames(data.library || []);
+    } catch {
       setLibraryGames([]);
     } finally {
       setIsLoadingLibrary(false);
     }
   }, [publicKey]);
 
+  const loadInventory = useCallback(async (gameId?: string) => {
+    if (!publicKey) return;
+    setIsLoadingInventory(true);
+    
+    try {
+      const params = new URLSearchParams();
+      if (gameId && gameId !== "all" && gameId.trim() !== "") {
+        params.set("gameId", gameId);
+      }
+      
+      const url = `/api/user/inventory${params.toString() ? `?${params}` : ""}`;
+      const data = await apiGet<{ items: InventoryItem[] }>(url);
+      setInventoryItems(data.items || []);
+    } catch {
+      setInventoryItems([]);
+    } finally {
+      setIsLoadingInventory(false);
+    }
+  }, [publicKey]);
+
   useEffect(() => {
     if (!isAuthorized || !publicKey) return;
-    loadLibrary();
-  }, [isAuthorized, publicKey, loadLibrary]);
+    
+    if (activeTab === "library") {
+      loadLibrary();
+    } else if (activeTab === "inventory") {
+      loadInventory(selectedInventoryGame !== "all" ? selectedInventoryGame : undefined);
+    }
+  }, [isAuthorized, publicKey, activeTab, selectedInventoryGame, loadLibrary, loadInventory]);
 
   const handleLogout = async () => {
     try {
@@ -67,66 +120,287 @@ export default function ProfileContent() {
         method: "POST",
         credentials: "include",
       });
-    } catch (error) {
-      console.error("Logout error:", error);
+    } catch {
     } finally {
       await performLogout(disconnect, router);
       setIsAuthorized(false);
+      setLibraryGames([]);
+      setInventoryItems([]);
+    }
+  };
+
+  const handleTabChange = (tab: TabId) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`/profile?${params.toString()}`, { scroll: false });
+  };
+
+  const handleInventoryGameChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const gameId = e.target.value;
+    setSelectedInventoryGame(gameId);
+    loadInventory(gameId !== "all" ? gameId : undefined);
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return t("profile.unknown");
+    }
+  };
+
+  const handleLaunchGame = (slug: string) => {
+    if (typeof window !== "undefined" && "__TAURI__" in window) {
+      // @ts-ignore
+      window.__TAURI__?.shell?.open(`tanjo://launch/${slug}`);
+    } else {
+      window.location.href = `tanjo://launch/${slug}`;
+      setTimeout(() => {
+        router.push(`/games/${slug}`);
+      }, 1500);
+    }
+  };
+
+  const handleDownloadGame = (slug: string) => {
+    if (typeof window !== "undefined" && "tanjoClient" in window) {
+      // @ts-ignore
+      window.tanjoClient?.downloadGame?.(slug);
+    } else {
+      alert(t("profile.downloadInstructions"));
     }
   };
 
   if (isLoadingAuth || !isAuthorized) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <Spinner size="md" />
       </div>
     );
   }
 
   return (
     <div className="max-w-6xl mx-auto py-6 sm:py-8 px-4 sm:px-6">
+      
       <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t("profile.title")}</h1>
-          <p className="text-text-secondary mt-1 text-sm sm:text-base">{t("profile.subtitle")}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+            {t("profile.title")}
+          </h1>
+          <p className="text-text-secondary mt-1 text-sm sm:text-base">
+            {t("profile.subtitle")}
+          </p>
         </div>
-        <button onClick={handleLogout} className="btn-error px-4 py-2 text-sm font-medium w-full sm:w-auto">{t("header.logout")}</button>
+        <button 
+          onClick={handleLogout} 
+          className="btn-error px-4 py-2 text-sm font-medium w-full sm:w-auto"
+        >
+          {t("header.logout")}
+        </button>
       </div>
 
       {publicKey && (
         <div className="card p-4 mb-6 bg-surface border-border">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <code className="text-xs sm:text-sm font-mono text-text-secondary break-all">{publicKey.toBase58()}</code>
+            <code className="text-xs sm:text-sm font-mono text-text-secondary break-all">
+              {publicKey.toBase58()}
+            </code>
           </div>
         </div>
       )}
 
       <div className="flex gap-2 border-b border-border mb-6 overflow-x-auto">
-        {(["library", "settings"] as TabId[]).map((tab) => (
-          <button key={tab} onClick={() => { setActiveTab(tab); router.replace(`/profile?tab=${tab}`); }} className={`tab-button whitespace-nowrap rounded-t-md capitalize px-4 py-3 ${activeTab === tab ? "active" : ""}`}>
+        {(["library", "inventory", "settings"] as TabId[]).map((tab) => (
+          <button 
+            key={tab} 
+            onClick={() => handleTabChange(tab)} 
+            className={`tab-button whitespace-nowrap rounded-t-md capitalize px-4 py-3 transition-colors ${
+              activeTab === tab 
+                ? "bg-primary/10 text-primary border-b-2 border-primary" 
+                : "text-text-secondary hover:text-foreground hover:bg-surface/50"
+            }`}
+          >
             {t(`profile.${tab}`)}
           </button>
         ))}
       </div>
 
       <div className="card p-4 sm:p-6 min-h-[400px]">
+        
         {activeTab === "library" && (
           <div>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg sm:text-xl font-semibold text-foreground">{t("profile.yourGames")}</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground">
+                {t("profile.yourGames")}
+              </h2>
+              <Link 
+                href="/" 
+                className="text-sm text-primary hover:underline flex items-center gap-1"
+              >
+                {t("profile.browseStore")} →
+              </Link>
             </div>
+            
             {isLoadingLibrary ? (
-              <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+              <div className="flex items-center justify-center py-12">
+                <Spinner size="md" />
+              </div>
             ) : libraryGames.length === 0 ? (
-              <div className="text-center py-12 text-text-secondary"><p>{t("profile.noGames")}</p><Link href="/" className="text-primary hover:underline mt-2 inline-block">{t("profile.browseStore")}</Link></div>
+              <EmptyState 
+                title={t("profile.noGames")}
+                description={t("profile.noGamesHint")}
+                action={
+                  <Link href="/" className="btn-primary px-4 py-2 text-sm">
+                    {t("profile.browseStore")}
+                  </Link>
+                }
+              />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {libraryGames.map((item) => (
-                  <Link key={item.gameId} href={`/game/${item.gameId}`} className="card p-4 border-border hover:border-primary/50 hover:bg-surface/50 transition-all cursor-pointer group flex items-center gap-4">
-                    <div className="flex-1 min-w-0"><h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">{item.gameId}</h3><p className="text-[10px] text-text-muted mt-2">{t("profile.purchasedLabel")} {item.boughtAt ? new Date(item.boughtAt).toLocaleDateString() : t("profile.unknown")}</p></div>
-                    <div className="text-text-muted group-hover:translate-x-1 transition-transform">→</div>
+                {libraryGames.map((game) => (
+                  <div 
+                    key={game.id} 
+                    className="card p-4 border-border hover:border-primary/50 hover:bg-surface/50 transition-all cursor-pointer group"
+                    onClick={() => handleLaunchGame(game.slug)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-16 h-16 bg-zinc-800 rounded-lg flex-shrink-0 flex items-center justify-center text-2xl">
+                        🎮
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          {game.title}
+                        </h3>
+                        
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`text-[10px] px-2 py-0.5 rounded ${
+                            game.status === "owned" 
+                              ? "bg-green-500/10 text-green-400" 
+                              : "bg-yellow-500/10 text-yellow-400"
+                          }`}>
+                            {t(`profile.status.${game.status}`)}
+                          </span>
+                          <span className="text-[10px] text-text-muted">
+                            {t("profile.purchasedLabel")} {formatDate(game.purchasedAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mt-4 pt-3 border-t border-border/50">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleLaunchGame(game.slug); }}
+                        className="flex-1 btn-primary py-1.5 text-xs font-medium"
+                      >
+                        {t("actions.play")}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDownloadGame(game.slug); }}
+                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-text-secondary rounded text-xs transition-colors"
+                        title={t("actions.download")}
+                      >
+                        ⬇️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "inventory" && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground">
+                {t("profile.inventory")}
+              </h2>
+            </div>
+            
+            <div className="mb-6">
+              <label htmlFor="inventory-game-select" className="block text-sm font-medium text-foreground mb-2">
+                {t("profile.selectGame")}
+              </label>
+              <select
+                id="inventory-game-select"
+                value={selectedInventoryGame}
+                onChange={handleInventoryGameChange}
+                className="input-field w-full sm:w-auto max-w-xs"
+              >
+                <option value="all">{t("profile.allGames")}</option>
+                {libraryGames.map(game => (
+                  <option key={game.gameId} value={game.gameId}>
+                    {game.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {isLoadingInventory ? (
+              <div className="flex items-center justify-center py-12">
+                <Spinner size="md" />
+              </div>
+            ) : inventoryItems.length === 0 ? (
+              <EmptyState 
+                title={
+                  selectedInventoryGame !== "all" 
+                    ? t("profile.noItemsForGame") || t("profile.noItems")
+                    : t("profile.noItems")
+                }
+                description={
+                  selectedInventoryGame !== "all"
+                    ? t("profile.noItemsForGameHint") || t("profile.noItemsHint")
+                    : t("profile.noItemsHint")
+                }
+                action={
+                  <Link href="/marketplace" className="btn-primary px-4 py-2 text-sm">
+                    {t("profile.visitMarketplace")}
                   </Link>
+                }
+              />
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                {inventoryItems.map((item) => (
+                  <div 
+                    key={item.id} 
+                    className="card p-3 border-border bg-surface hover:border-primary/30 transition-all group"
+                  >
+                    <div className="aspect-square bg-zinc-800 rounded-lg mb-2 flex items-center justify-center text-3xl group-hover:scale-105 transition-transform">
+                      📦
+                    </div>
+                    
+                    {item.itemName && (
+                      <p className="text-xs font-medium text-foreground truncate mb-1">
+                        {item.itemName}
+                      </p>
+                    )}
+                    
+                    {item.gameTitle && selectedInventoryGame === "all" && (
+                      <p className="text-[10px] text-text-secondary truncate mb-2">
+                        {item.gameTitle}
+                      </p>
+                    )}
+                    
+                    <p className="text-[10px] text-text-muted">
+                      {t("profile.acquiredLabel")} {formatDate(item.acquiredAt)}
+                    </p>
+                    
+                    <span className={`text-[10px] px-2 py-0.5 rounded mt-2 inline-block ${
+                      item.status === "confirmed" 
+                        ? "bg-green-500/10 text-green-400" 
+                        : item.status === "pending"
+                        ? "bg-yellow-500/10 text-yellow-400"
+                        : "bg-red-500/10 text-red-400"
+                    }`}>
+                      {t(`profile.status.${item.status}`)}
+                    </span>
+                  </div>
                 ))}
               </div>
             )}
@@ -135,20 +409,69 @@ export default function ProfileContent() {
 
         {activeTab === "settings" && (
           <div className="max-w-md mx-auto w-full">
-            <h2 className="text-lg sm:text-xl font-semibold text-foreground mb-6">{t("profile.settings")}</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-foreground mb-6">
+              {t("profile.settings")}
+            </h2>
+            
             <div className="space-y-6">
+              
               <div className="border-t border-border pt-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">{t("profile.linkedWallet")}</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">
+                  {t("profile.linkedWallet")}
+                </h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                     <span className="text-text-secondary">{t("profile.address")}</span>
-                    <code className="text-foreground font-mono text-xs bg-surface px-2 py-1 rounded break-all">{publicKey?.toBase58().slice(0, 8)}...{publicKey?.toBase58().slice(-6)}</code>
+                    <code className="text-foreground font-mono text-xs bg-surface px-2 py-1 rounded break-all">
+                      {publicKey?.toBase58().slice(0, 8)}...{publicKey?.toBase58().slice(-6)}
+                    </code>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                    <span className="text-text-secondary">{t("profile.network")}</span>
+                    <span className="text-foreground">Solana Mainnet</span>
                   </div>
                 </div>
               </div>
+
+              <div className="border-t border-border pt-6">
+                <h3 className="text-sm font-medium text-foreground mb-4">
+                  {t("profile.desktopClient")}
+                </h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-secondary">{t("profile.clientStatus")}</span>
+                    <span className="text-text-muted">
+                      {typeof window !== "undefined" && "tanjoClient" in window 
+                        ? "🟢 Connected" 
+                        : "⚪ Not detected"}
+                    </span>
+                  </div>
+                  <a 
+                    href="/stub/AdvenjoHub-latest.exe" 
+                    download
+                    className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
+                  >
+                    ⬇️ {t("header.downloadApp")}
+                  </a>
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-6">
+                <h3 className="text-sm font-medium text-red-400 mb-4">
+                  {t("profile.dangerZone")}
+                </h3>
+                <button
+                  onClick={handleLogout}
+                  className="btn-error px-4 py-2 text-sm font-medium"
+                >
+                  {t("header.logout")}
+                </button>
+              </div>
+              
             </div>
           </div>
         )}
+        
       </div>
     </div>
   );

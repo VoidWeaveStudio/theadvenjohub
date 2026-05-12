@@ -626,6 +626,19 @@ export const ja: Translations = {
     "wallet.error": "ウォレットエラー",
     "wallet.notInstalled": "Phantom ウォレットがインストールされていません",
     "wallet.rejected": "ユーザーがリクエストを拒否しました",
+    "upgrades.maxed": "MAX",
+    "upgrades.notEnough": "TNJ が不足しています",
+    "leaderboard.players": "プレイヤー",
+    "errors.offline.title": "インターネット接続がありません",
+    "errors.offline.message": "Warden Abyss をプレイするには有効なインターネット接続が必要です。ネットワーク設定を確認して再試行してください。",
+    "errors.loadProgressFailed": "サーバーから進行状況の読み込みに失敗",
+    "errors.saveProgressFailed": "サーバーへの進行状況の保存に失敗",
+    "errors.upgradePurchaseFailed": "アップグレードの購入に失敗",
+    "errors.skinPurchaseFailed": "スキンの購入に失敗",
+    "errors.burnFailed": "焼却操作に失敗",
+    "errors.withdrawFailed": "出金操作に失敗",
+    "errors.blockFailed": "ロック操作に失敗",
+    "insufficientBalance": "残高不足",
 };
 
 export default ja;

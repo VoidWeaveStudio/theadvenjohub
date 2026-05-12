@@ -1,4 +1,4 @@
-//src\core\database\schema.ts
+// src/core/database/schema.ts
 import {
   pgTable,
   uuid,
@@ -7,7 +7,6 @@ import {
   integer,
   text,
   index,
-  numeric,
   jsonb,
   boolean,
 } from "drizzle-orm/pg-core";
@@ -30,12 +29,32 @@ export const games = pgTable("games", {
   developer: varchar("developer", { length: 255 }),
   publisher: varchar("publisher", { length: 255 }),
   releaseDate: timestamp("release_date"),
+  price: integer("price").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  systemRequirements: jsonb("system_requirements").default("{}"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_games_slug").on(table.slug),
   index("idx_games_active").on(table.isActive),
+  index("idx_games_price").on(table.price),
+]);
+
+export const gameLicenses = pgTable("game_licenses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  txSignature: varchar("tx_signature", { length: 88 }).notNull().unique(),
+  price: integer("price").notNull(),
+  purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").default(true).notNull(),
+}, (table) => [
+  index("idx_licenses_user_game").on(table.userId, table.gameId),
+  index("idx_licenses_wallet").on(table.wallet),
+  index("idx_licenses_tx").on(table.txSignature),
+  index("idx_licenses_active").on(table.isActive),
 ]);
 
 export const marketplaceItems = pgTable("marketplace_items", {
@@ -77,6 +96,7 @@ export const marketplaceTransactions = pgTable("marketplace_transactions", {
 
 export const marketplaceLots = pgTable("marketplace_lots", {
   id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").references(() => games.id),
   name: text("name").notNull(),
   description: text("description"),
   price: integer("price").notNull(),
@@ -86,26 +106,80 @@ export const marketplaceLots = pgTable("marketplace_lots", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
+  index("idx_lots_game").on(table.gameId),
   index("idx_lots_status").on(table.status),
   index("idx_lots_type").on(table.type),
   index("idx_lots_created").on(table.createdAt),
 ]);
 
+
 export const marketplacePurchases = pgTable("marketplace_purchases", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id),
-  wallet: varchar("wallet", { length: 44 }),
-  lotId: uuid("lot_id").references(() => marketplaceLots.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  lotId: uuid("lot_id").notNull().references(() => marketplaceLots.id),
   txSignature: varchar("tx_signature", { length: 88 }).notNull().unique(),
   amount: integer("amount").notNull(),
-  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  status: varchar("status", { length: 20 }).notNull().default("confirmed"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_marketplace_user").on(table.userId),
   index("idx_marketplace_wallet").on(table.wallet),
   index("idx_marketplace_tx").on(table.txSignature),
+  index("idx_marketplace_lot").on(table.lotId),
   index("idx_marketplace_created").on(table.createdAt),
 ]);
+export const gameScreenshots = pgTable("game_screenshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  url: varchar("url", { length: 512 }).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_screenshots_game").on(table.gameId),
+  index("idx_screenshots_order").on(table.gameId, table.sortOrder),
+]);
+
+export const gameFeatures = pgTable("game_features", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  text: text("text").notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+}, (table) => [
+  index("idx_features_game").on(table.gameId),
+]);
+
+export const gameStats = pgTable("game_stats", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id).unique(),
+  reviewsCount: integer("reviews_count").default(0).notNull(),
+  positivePercent: integer("positive_percent").default(0).notNull(),
+  playersCount: varchar("players_count", { length: 20 }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_stats_game").on(table.gameId),
+]);
+
+export const gamesRelations = relations(games, ({ many, one }) => ({
+  licenses: many(gameLicenses),
+  items: many(marketplaceItems),
+  lots: many(marketplaceLots),
+  screenshots: many(gameScreenshots),
+  features: many(gameFeatures),
+  stats: one(gameStats),
+}));
+
+export const gameScreenshotsRelations = relations(gameScreenshots, ({ one }) => ({
+  game: one(games, { fields: [gameScreenshots.gameId], references: [games.id] }),
+}));
+
+export const gameFeaturesRelations = relations(gameFeatures, ({ one }) => ({
+  game: one(games, { fields: [gameFeatures.gameId], references: [games.id] }),
+}));
+
+export const gameStatsRelations = relations(gameStats, ({ one }) => ({
+  game: one(games, { fields: [gameStats.gameId], references: [games.id] }),
+}));
 
 export const forumPosts = pgTable("forum_posts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -137,28 +211,19 @@ export const forumComments = pgTable("forum_comments", {
   index("idx_comments_post_created").on(table.postId, table.createdAt),
 ]);
 
-export const gameWardenProgress = pgTable("game_warden_progress", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => users.id).unique(),
-  totalEarned: numeric("total_earned").notNull().default("0"),
-  balance: numeric("balance").notNull().default("0"),
-  burned: numeric("burned").notNull().default("0"),
-  withdrawn: numeric("withdrawn").notNull().default("0"),
-  blocked: numeric("blocked").notNull().default("0"),
-  burnBonusPercent: integer("burn_bonus_percent").notNull().default(0),
-  upgrades: jsonb("upgrades").notNull().default("{}"),
-  skins: jsonb("skins").notNull().default("{}"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  lastActionAt: timestamp("last_action_at").defaultNow().notNull(),
-}, (table) => [
-  index("idx_game_progress_user").on(table.userId),
-  index("idx_game_progress_balance").on(table.balance),
-  index("idx_game_progress_last_action").on(table.lastActionAt),
-]);
 
-export const gamesRelations = relations(games, ({ many }) => ({
-  items: many(marketplaceItems),
+export const usersRelations = relations(users, ({ many }) => ({
+  licenses: many(gameLicenses),
+  purchases: many(marketplacePurchases),
+  boughtItems: many(marketplaceTransactions, { relationName: "buyer" }),
+  soldItems: many(marketplaceTransactions, { relationName: "seller" }),
+  forumPosts: many(forumPosts),
+  forumComments: many(forumComments),
+}));
+
+export const gameLicensesRelations = relations(gameLicenses, ({ one }) => ({
+  user: one(users, { fields: [gameLicenses.userId], references: [users.id] }),
+  game: one(games, { fields: [gameLicenses.gameId], references: [games.id] }),
 }));
 
 export const marketplaceItemsRelations = relations(marketplaceItems, ({ one, many }) => ({
@@ -184,7 +249,11 @@ export const marketplaceTransactionsRelations = relations(marketplaceTransaction
   }),
 }));
 
-export const marketplaceLotsRelations = relations(marketplaceLots, ({ many }) => ({
+export const marketplaceLotsRelations = relations(marketplaceLots, ({ one, many }) => ({
+  game: one(games, {
+    fields: [marketplaceLots.gameId],
+    references: [games.id],
+  }),
   purchases: many(marketplacePurchases),
 }));
 
@@ -222,25 +291,22 @@ export const forumCommentsRelations = relations(forumComments, ({ one }) => ({
   }),
 }));
 
-export const usersRelations = relations(users, ({ one, many }) => ({
-  wardenProgress: one(gameWardenProgress),
-  purchases: many(marketplacePurchases),
-  boughtItems: many(marketplaceTransactions, { relationName: "buyer" }),
-  soldItems: many(marketplaceTransactions, { relationName: "seller" }),
-}));
+export type GameScreenshot = typeof gameScreenshots.$inferSelect;
+export type NewGameScreenshot = typeof gameScreenshots.$inferInsert;
 
-export const gameWardenProgressRelations = relations(gameWardenProgress, ({ one }) => ({
-  user: one(users, {
-    fields: [gameWardenProgress.userId],
-    references: [users.id],
-  }),
-}));
+export type GameFeature = typeof gameFeatures.$inferSelect;
+export type NewGameFeature = typeof gameFeatures.$inferInsert;
 
+export type GameStat = typeof gameStats.$inferSelect;
+export type NewGameStat = typeof gameStats.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
+
+export type GameLicense = typeof gameLicenses.$inferSelect;
+export type NewGameLicense = typeof gameLicenses.$inferInsert;
 
 export type MarketplaceItem = typeof marketplaceItems.$inferSelect;
 export type NewMarketplaceItem = typeof marketplaceItems.$inferInsert;
@@ -259,6 +325,3 @@ export type NewForumPost = typeof forumPosts.$inferInsert;
 
 export type ForumComment = typeof forumComments.$inferSelect;
 export type NewForumComment = typeof forumComments.$inferInsert;
-
-export type GameWardenProgress = typeof gameWardenProgress.$inferSelect;
-export type NewGameWardenProgress = typeof gameWardenProgress.$inferInsert;

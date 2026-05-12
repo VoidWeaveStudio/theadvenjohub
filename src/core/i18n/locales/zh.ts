@@ -626,6 +626,19 @@ export const zh: Translations = {
     "wallet.error": "钱包错误",
     "wallet.notInstalled": "未安装 Phantom 钱包",
     "wallet.rejected": "用户拒绝了请求",
+    "upgrades.maxed": "已满级",
+    "upgrades.notEnough": "TNJ 不足",
+    "leaderboard.players": "玩家",
+    "errors.offline.title": "无网络连接",
+    "errors.offline.message": "Warden Abyss 需要活跃的网络连接才能游玩。请检查网络设置后重试。",
+    "errors.loadProgressFailed": "从服务器加载进度失败",
+    "errors.saveProgressFailed": "保存进度到服务器失败",
+    "errors.upgradePurchaseFailed": "购买升级失败",
+    "errors.skinPurchaseFailed": "购买皮肤失败",
+    "errors.burnFailed": "销毁操作失败",
+    "errors.withdrawFailed": "提取操作失败",
+    "errors.blockFailed": "锁定操作失败",
+    "insufficientBalance": "余额不足",
 };
 
 export default zh;

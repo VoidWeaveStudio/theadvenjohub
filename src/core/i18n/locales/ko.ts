@@ -625,6 +625,19 @@ export const ko: Translations = {
   "marketplace.lot.legendary2.desc": "프로젝트를 매우 강력하게 지원",
   "marketplace.lot.premium.name": "TANJO Premium Supporter",
   "marketplace.lot.premium.desc": "처음부터 TANJO 프로젝트를 지원합니다.",
+  "upgrades.maxed": "최대",
+  "upgrades.notEnough": "TNJ 부족",
+  "leaderboard.players": "플레이어",
+  "errors.offline.title": "인터넷 연결 없음",
+  "errors.offline.message": "Warden Abyss 를 플레이하려면 활성 인터넷 연결이 필요합니다. 네트워크 설정을 확인하고 다시 시도하세요.",
+  "errors.loadProgressFailed": "서버에서 진행 상황 로드 실패",
+  "errors.saveProgressFailed": "서버에 진행 상황 저장 실패",
+  "errors.upgradePurchaseFailed": "업그레이드 구매 실패",
+  "errors.skinPurchaseFailed": "스킨 구매 실패",
+  "errors.burnFailed": "소각 작업 실패",
+  "errors.withdrawFailed": "인출 작업 실패",
+  "errors.blockFailed": "잠금 작업 실패",
+  "insufficientBalance": "잔액 부족",
 };
 
 export default ko;

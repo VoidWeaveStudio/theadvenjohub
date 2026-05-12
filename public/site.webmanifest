@@ -1,6 +1,6 @@
 {
-  "name": "MyWebSite",
-  "short_name": "MySite",
+  "name": "TANJO Game Store",
+  "short_name": "TANJO Game Store",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

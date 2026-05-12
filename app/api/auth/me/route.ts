@@ -1,4 +1,4 @@
-//app\api\auth\me\route.ts
+// app/api/auth/me/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
@@ -13,45 +13,35 @@ export async function GET(req: NextRequest) {
 
   try {
     const token = req.cookies.get("token")?.value;
-    if (!token) {
+    const jwtSecret = process.env.JWT_SECRET;
+
+    if (!token || !jwtSecret) {
       return NextResponse.json(
         { authenticated: false },
-        {
-          status: 401,
-          headers: formatRateLimitHeaders(rl),
-        }
+        { status: 401, headers: formatRateLimitHeaders(rl) }
       );
     }
 
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-      return NextResponse.json(
-        { error: "Server error" },
-        {
-          status: 500,
-          headers: formatRateLimitHeaders(rl),
-        }
-      );
-    }
-
-    const decoded = jwt.verify(token, jwtSecret) as { userId: string; wallet: string };
+    const decoded = jwt.verify(token, jwtSecret, {
+      issuer: "tanjo-store",
+      audience: "tanjo-users",
+    }) as { userId: string; wallet: string };
 
     return NextResponse.json(
       {
         authenticated: true,
         user: { id: decoded.userId, wallet: decoded.wallet }
       },
-      {
-        headers: formatRateLimitHeaders(rl),
-      }
+      { headers: formatRateLimitHeaders(rl) }
     );
-  } catch {
-    return NextResponse.json(
+
+  } catch (error) {
+    const response = NextResponse.json(
       { authenticated: false },
-      {
-        status: 401,
-        headers: formatRateLimitHeaders(rl),
-      }
+      { status: 401, headers: formatRateLimitHeaders(rl) }
     );
+    response.cookies.delete("token");
+    response.cookies.delete("refresh_token");
+    return response;
   }
 }

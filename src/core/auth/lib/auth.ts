@@ -1,6 +1,7 @@
-//src\core\auth\lib\auth.ts
+// src/core/auth/lib/auth.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
+import { timingSafeEqual } from "crypto";
 
 export interface AuthResult {
   user: { userId: string; wallet: string };
@@ -40,9 +41,15 @@ export function verifyCSRF(req: NextRequest): boolean {
     return false;
   }
 
-  if (csrfToken.length !== 64 || !/^[0-9a-f]{64}$/.test(csrfToken)) {
+  if (csrfToken.length !== 64 || cookieToken.length !== 64) return false;
+  if (!/^[0-9a-f]+$/.test(csrfToken) || !/^[0-9a-f]+$/.test(cookieToken)) return false;
+  
+  try {
+    return timingSafeEqual(
+      Buffer.from(csrfToken, 'hex'),
+      Buffer.from(cookieToken, 'hex')
+    );
+  } catch {
     return false;
   }
-
-  return csrfToken === cookieToken;
 }

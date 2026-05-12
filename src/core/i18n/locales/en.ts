@@ -622,6 +622,19 @@ export const en: Translations = {
   "wallet.error": "Wallet error",
   "wallet.notInstalled": "Phantom wallet not installed",
   "wallet.rejected": "User rejected the request",
+  "upgrades.maxed": "MAX",
+  "upgrades.notEnough": "Not enough TNJ",
+  "leaderboard.players": "Players",
+  "errors.offline.title": "No Internet Connection",
+  "errors.offline.message": "Warden Abyss requires an active internet connection to play. Please check your network settings and try again.",
+  "errors.loadProgressFailed": "Failed to load progress from server",
+  "errors.saveProgressFailed": "Failed to save progress to server",
+  "errors.upgradePurchaseFailed": "Upgrade purchase failed",
+  "errors.skinPurchaseFailed": "Skin purchase failed",
+  "errors.burnFailed": "Burn action failed",
+  "errors.withdrawFailed": "Withdraw action failed",
+  "errors.blockFailed": "Block action failed",
+  "insufficientBalance": "Insufficient balance",
 };
 
 export default en;

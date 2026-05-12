@@ -1,4 +1,4 @@
-//app\api\auth\refresh\route.ts
+// app/api/auth/refresh/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
@@ -16,14 +16,8 @@ export async function POST(req: NextRequest) {
 
     if (!rl.allowed) {
       return NextResponse.json(
-        { error: "Too many refresh attempts" },
-        {
-          status: 429,
-          headers: {
-            "Content-Type": "application/json",
-            ...formatRateLimitHeaders(rl),
-          },
-        }
+        { error: "too_many_attempts" },
+        { status: 429, headers: formatRateLimitHeaders(rl) }
       );
     }
 
@@ -32,17 +26,14 @@ export async function POST(req: NextRequest) {
 
     if (!refreshToken || !jwtSecret) {
       return NextResponse.json(
-        { error: "Unauthorized" },
-        {
-          status: 401,
-          headers: formatRateLimitHeaders(rl),
-        }
+        { error: "unauthorized" },
+        { status: 401, headers: formatRateLimitHeaders(rl) }
       );
     }
 
     const decoded = jwt.verify(refreshToken, jwtSecret, {
       issuer: "tanjo-store",
-      audience: "tanjo-users"
+      audience: "tanjo-users",
     }) as { userId: string; wallet: string; iat: number };
 
     const newAccessToken = jwt.sign(
@@ -51,7 +42,7 @@ export async function POST(req: NextRequest) {
       {
         expiresIn: "15m",
         issuer: "tanjo-store",
-        audience: "tanjo-users"
+        audience: "tanjo-users",
       }
     );
 
@@ -61,58 +52,52 @@ export async function POST(req: NextRequest) {
       {
         expiresIn: "7d",
         issuer: "tanjo-store",
-        audience: "tanjo-users"
+        audience: "tanjo-users",
       }
     );
 
     const newCsrfToken = generateCSRFToken();
-
-    const response = NextResponse.json({
-      success: true,
-      csrfToken: newCsrfToken
-    }, {
-      headers: formatRateLimitHeaders(rl),
-    });
-
     const isProd = process.env.NODE_ENV === "production";
 
-    response.cookies.set("token", newAccessToken, {
+    const response = NextResponse.json(
+      { success: true, csrfToken: newCsrfToken },
+      { headers: formatRateLimitHeaders(rl) }
+    );
+
+    const baseCookieOptions = {
       httpOnly: true,
       secure: isProd,
-      sameSite: "lax",
-      maxAge: 15 * 60,
+      sameSite: "lax" as const,
       path: "/",
       domain: isProd ? process.env.COOKIE_DOMAIN : undefined,
+    };
+
+    response.cookies.set("token", newAccessToken, {
+      ...baseCookieOptions,
+      maxAge: 15 * 60,
     });
 
     response.cookies.set("refresh_token", newRefreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "lax",
+      ...baseCookieOptions,
       maxAge: 7 * 24 * 60 * 60,
-      path: "/",
-      domain: isProd ? process.env.COOKIE_DOMAIN : undefined,
     });
 
     response.cookies.set("csrf_token", newCsrfToken, {
+      ...baseCookieOptions,
       httpOnly: false,
-      secure: isProd,
-      sameSite: "strict",
       maxAge: 60 * 60 * 24,
-      path: "/",
-      domain: isProd ? process.env.COOKIE_DOMAIN : undefined,
     });
 
     return response;
 
-  } catch (error: any) {
-    const res = NextResponse.json(
-      { error: "Session expired" },
+  } catch (error) {
+    const response = NextResponse.json(
+      { error: "session_expired" },
       { status: 401 }
     );
-    res.cookies.delete("token");
-    res.cookies.delete("refresh_token");
-    res.cookies.delete("csrf_token");
-    return res;
+    response.cookies.delete("token");
+    response.cookies.delete("refresh_token");
+    response.cookies.delete("csrf_token");
+    return response;
   }
 }

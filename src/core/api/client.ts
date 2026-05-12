@@ -1,4 +1,4 @@
-//src\core\api\client.ts
+// src/core/api/client.ts
 import { getCsrfToken } from "@/core/lib/clientUtils";
 
 export interface FetchOptions extends Omit<RequestInit, "headers"> {
@@ -9,10 +9,12 @@ export interface FetchOptions extends Omit<RequestInit, "headers"> {
 function buildHeaders(customHeaders?: Record<string, string>): Headers {
   const headers = new Headers(customHeaders || {});
   headers.set("Content-Type", "application/json");
+  
   const csrf = getCsrfToken();
   if (csrf) {
     headers.set("x-csrf-token", csrf);
   }
+  
   return headers;
 }
 
@@ -105,7 +107,9 @@ async function attemptTokenRefresh(): Promise<boolean> {
       return false;
     }
 
-    return true;
+    const data = await res.json().catch(() => null);
+    return data?.success === true;
+    
   } catch (error) {
     console.warn('[api] Token refresh failed:', error);
     return false;

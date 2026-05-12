@@ -17,7 +17,7 @@
     "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
     "@neondatabase/serverless": "^0.10.4",
     "@solana-commerce/solana-pay": "^0.1.1",
-    "@solana/spl-token": "^0.4.14",
+    "@solana/spl-token": "^0.3.11",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
     "@solana/wallet-adapter-react-ui": "^0.9.35",

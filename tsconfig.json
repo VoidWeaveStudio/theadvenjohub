@@ -17,8 +17,7 @@
     "paths": {
       "@/*": ["./*"],
       "@/core/*": ["./src/core/*"],
-      "@/features/*": ["./src/features/*"],
-      "@/games/*": ["./src/games/*"]
+      "@/features/*": ["./src/features/*"]
     },
     "typeRoots": ["./node_modules/@types", "./types"]
   },
