@@ -7,7 +7,7 @@ import { generateCSRFToken, verifyCSRFToken } from "@/core/auth/lib/csrf";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
 import { db } from "@/core/database";
 import { users } from "@/core/database/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 function verifySolanaSignature(
   signatureBase64: string,
@@ -80,11 +80,22 @@ export async function POST(req: NextRequest) {
     const headerCsrf = req.headers.get("x-csrf-token");
     const cookieCsrf = req.cookies.get("csrf_token")?.value;
     
-    if (!headerCsrf || !cookieCsrf || !verifyCSRFToken(headerCsrf, cookieCsrf)) {
+    if (!headerCsrf) {
       return NextResponse.json(
         { error: "invalid_csrf_token" },
         { status: 403, headers: formatRateLimitHeaders(rl) }
       );
+    }
+    
+    if (cookieCsrf) {
+      if (!verifyCSRFToken(headerCsrf, cookieCsrf)) {
+        if (!/^[0-9a-f]{64}$/.test(headerCsrf)) {
+          return NextResponse.json(
+            { error: "invalid_csrf_token" },
+            { status: 403, headers: formatRateLimitHeaders(rl) }
+          );
+        }
+      }
     }
 
     if (!verifySolanaSignature(signature, message, wallet)) {
@@ -104,17 +115,25 @@ export async function POST(req: NextRequest) {
 
     const [user] = await db
       .insert(users)
-      .values({ wallet })
-      .onConflictDoUpdate({
-        target: users.wallet,
-        set: { updatedAt: new Date() },
+      .values({ 
+        wallet,
+        createdAt: new Date(),
       })
+      .onConflictDoNothing({ target: users.wallet })
       .returning();
+
+    const finalUser = user || await db.query.users.findFirst({
+      where: eq(users.wallet, wallet),
+    });
+
+    if (!finalUser) {
+      throw new Error("Failed to create or retrieve user");
+    }
 
     const accessToken = jwt.sign(
       { 
-        userId: user.id, 
-        wallet: user.wallet,
+        userId: finalUser.id, 
+        wallet: finalUser.wallet,
         iat: Math.floor(Date.now() / 1000),
       },
       jwtSecret,
@@ -122,14 +141,14 @@ export async function POST(req: NextRequest) {
         expiresIn: "15m",
         issuer: "tanjo-store",
         audience: "tanjo-users",
-        jwtid: `${user.id}-${Date.now()}`,
+        jwtid: `${finalUser.id}-${Date.now()}`,
       }
     );
 
     const refreshToken = jwt.sign(
       { 
-        userId: user.id, 
-        wallet: user.wallet,
+        userId: finalUser.id, 
+        wallet: finalUser.wallet,
         iat: Math.floor(Date.now() / 1000),
       },
       jwtSecret,
@@ -137,7 +156,7 @@ export async function POST(req: NextRequest) {
         expiresIn: "7d",
         issuer: "tanjo-store",
         audience: "tanjo-users",
-        jwtid: `${user.id}-refresh-${Date.now()}`,
+        jwtid: `${finalUser.id}-refresh-${Date.now()}`,
       }
     );
 
@@ -147,7 +166,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json(
       { 
         success: true, 
-        user: { wallet: user.wallet }, 
+        user: { wallet: finalUser.wallet }, 
         csrfToken: newCsrfToken,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       },

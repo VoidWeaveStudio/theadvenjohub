@@ -1,4 +1,4 @@
-// app/api/auth/challenge/route.ts
+//app\api\auth\challenge\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
@@ -36,14 +36,14 @@ export async function GET(req: NextRequest) {
     const isProd = process.env.NODE_ENV === "production";
 
     const response = NextResponse.json(
-      { nonce, csrfToken },
+      { nonce, csrfToken }, 
       { headers: formatRateLimitHeaders(rl) }
     );
 
-     response.cookies.set("csrf_token", csrfToken, {
+    response.cookies.set("csrf_token", csrfToken, {
       httpOnly: false,
       secure: isProd,
-      sameSite: "lax",
+      sameSite: "lax" as const,
       path: "/",
       domain: isProd ? ".theadvenjo.online" : undefined,
       maxAge: 60 * 60 * 24,

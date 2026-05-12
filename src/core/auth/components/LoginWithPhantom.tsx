@@ -1,52 +1,13 @@
-// src/core/auth/components/LoginWithPhantom.tsx
+//src\core\auth\components\LoginWithPhantom.tsx
 "use client";
 
 import { useState, useCallback } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { useWallet } from "@solana/wallet-adapter-react";
 
 const getCsrfFromCookie = (): string | undefined => {
   if (typeof document === "undefined") return undefined;
   const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : undefined;
-};
-
-const fetchChallenge = async (wallet: string): Promise<{ nonce: string }> => {
-  const res = await fetch(`/api/auth/challenge?wallet=${encodeURIComponent(wallet)}`, {
-    method: "GET",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Challenge failed: ${res.status}`);
-  }
-  return res.json();
-};
-
-const fetchVerify = async (body: {
-  wallet: string;
-  message: string;
-  signature: string;
-  nonce: string;
-}): Promise<{ success: boolean }> => {
-  const csrf = getCsrfFromCookie();
-  
-  const res = await fetch("/api/auth/verify", {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(csrf ? { "x-csrf-token": csrf } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Verify failed: ${res.status}`);
-  }
-  return res.json();
 };
 
 interface LoginWithPhantomProps {
@@ -55,7 +16,6 @@ interface LoginWithPhantomProps {
 }
 
 export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomProps) {
-  const { publicKey: adapterPublicKey, connect: adapterConnect } = useWallet();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,25 +34,42 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       const resp = await phantom.connect();
       const wallet = new PublicKey(resp.publicKey).toBase58();
 
-      try {
-        await adapterConnect?.();
-      } catch {
+      const challengeRes = await fetch(`/api/auth/challenge?wallet=${encodeURIComponent(wallet)}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (!challengeRes.ok) {
+        const err = await challengeRes.json().catch(() => ({}));
+        throw new Error(err.error || `Challenge failed: ${challengeRes.status}`);
       }
-
-      const { nonce } = await fetchChallenge(wallet);
+      
+      const { nonce, csrfToken } = await challengeRes.json();
 
       const message = `Sign in to TANJO Game Store\nWallet: ${wallet}\nNonce: ${nonce}`;
       const signed = await phantom.signMessage(new TextEncoder().encode(message), "utf8");
       const signatureBase64 = Buffer.from(signed.signature).toString("base64");
 
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      await fetchVerify({
-        wallet,
-        message,
-        signature: signatureBase64,
-        nonce,
+      const verifyRes = await fetch("/api/auth/verify", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": csrfToken, 
+        },
+        body: JSON.stringify({
+          wallet,
+          message,
+          signature: signatureBase64,
+          nonce,
+        }),
       });
+
+      if (!verifyRes.ok) {
+        const err = await verifyRes.json().catch(() => ({}));
+        throw new Error(err.error || `Verify failed: ${verifyRes.status}`);
+      }
 
       onLogin(wallet);
 
@@ -109,7 +86,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
     } finally {
       setLoading(false);
     }
-  }, [loading, onLogin, adapterConnect]);
+  }, [loading, onLogin]);
 
   return (
     <div className={`space-y-2 ${className}`}>
