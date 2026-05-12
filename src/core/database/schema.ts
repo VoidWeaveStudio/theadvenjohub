@@ -16,6 +16,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   wallet: varchar("wallet", { length: 44 }).notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_users_wallet").on(table.wallet),
 ]);

@@ -1,13 +1,9 @@
-//src\core\auth\components\LoginWithPhantom.tsx
+// src/core/auth/components/LoginWithPhantom.tsx
 "use client";
 
 import { useState, useCallback } from "react";
 import { PublicKey } from "@solana/web3.js";
-
-interface LoginWithPhantomProps {
-  onLogin: (wallet: string) => void;
-  className?: string;
-}
+import { useWallet } from "@solana/wallet-adapter-react";
 
 const getCsrfFromCookie = (): string | undefined => {
   if (typeof document === "undefined") return undefined;
@@ -53,7 +49,13 @@ const fetchVerify = async (body: {
   return res.json();
 };
 
+interface LoginWithPhantomProps {
+  onLogin: (wallet: string) => void;
+  className?: string;
+}
+
 export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomProps) {
+  const { publicKey: adapterPublicKey, connect: adapterConnect } = useWallet();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +73,11 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
 
       const resp = await phantom.connect();
       const wallet = new PublicKey(resp.publicKey).toBase58();
+
+      try {
+        await adapterConnect?.();
+      } catch {
+      }
 
       const { nonce } = await fetchChallenge(wallet);
 
@@ -90,8 +97,6 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       onLogin(wallet);
 
     } catch (err: any) {
-      console.error("Auth error:", err);
-      
       if (err.code === 4001 || err.message?.includes("rejected")) {
         setError("Подпись отменена");
       } else if (err.message === "Phantom not installed") {
@@ -104,7 +109,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
     } finally {
       setLoading(false);
     }
-  }, [loading, onLogin]);
+  }, [loading, onLogin, adapterConnect]);
 
   return (
     <div className={`space-y-2 ${className}`}>

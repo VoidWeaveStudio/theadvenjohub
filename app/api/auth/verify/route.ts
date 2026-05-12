@@ -5,6 +5,9 @@ import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { generateCSRFToken, verifyCSRFToken } from "@/core/auth/lib/csrf";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { db } from "@/core/database";
+import { users } from "@/core/database/schema";
+import { eq, sql } from "drizzle-orm";
 
 function verifySolanaSignature(
   signatureBase64: string,
@@ -99,10 +102,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const [user] = await db
+      .insert(users)
+      .values({ wallet })
+      .onConflictDoUpdate({
+        target: users.wallet,
+        set: { updatedAt: new Date() },
+      })
+      .returning();
+
     const accessToken = jwt.sign(
       { 
-        userId: wallet, 
-        wallet,
+        userId: user.id, 
+        wallet: user.wallet,
         iat: Math.floor(Date.now() / 1000),
       },
       jwtSecret,
@@ -110,14 +122,14 @@ export async function POST(req: NextRequest) {
         expiresIn: "15m",
         issuer: "tanjo-store",
         audience: "tanjo-users",
-        jwtid: `${wallet}-${Date.now()}`,
+        jwtid: `${user.id}-${Date.now()}`,
       }
     );
 
     const refreshToken = jwt.sign(
       { 
-        userId: wallet, 
-        wallet,
+        userId: user.id, 
+        wallet: user.wallet,
         iat: Math.floor(Date.now() / 1000),
       },
       jwtSecret,
@@ -125,7 +137,7 @@ export async function POST(req: NextRequest) {
         expiresIn: "7d",
         issuer: "tanjo-store",
         audience: "tanjo-users",
-        jwtid: `${wallet}-refresh-${Date.now()}`,
+        jwtid: `${user.id}-refresh-${Date.now()}`,
       }
     );
 
@@ -135,7 +147,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json(
       { 
         success: true, 
-        user: { wallet }, 
+        user: { wallet: user.wallet }, 
         csrfToken: newCsrfToken,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       },
@@ -143,12 +155,12 @@ export async function POST(req: NextRequest) {
     );
 
     const baseCookieOptions = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: "lax" as const, 
-  path: "/",
-  domain: isProd ? ".theadvenjo.online" : undefined, 
-};
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "lax" as const,
+      path: "/",
+      domain: isProd ? ".theadvenjo.online" : undefined,
+    };
 
     response.cookies.set("token", accessToken, {
       ...baseCookieOptions,
@@ -160,17 +172,15 @@ export async function POST(req: NextRequest) {
       maxAge: 7 * 24 * 60 * 60,
     });
 
-    response.cookies.set("token", accessToken, { ...baseCookieOptions, maxAge: 15 * 60 });
-response.cookies.set("refresh_token", refreshToken, { ...baseCookieOptions, maxAge: 7 * 24 * 60 * 60 });
-response.cookies.set("csrf_token", newCsrfToken, { 
-  ...baseCookieOptions, 
-  httpOnly: false,
-  maxAge: 60 * 60 * 24 
-});
+    response.cookies.set("csrf_token", newCsrfToken, {
+      ...baseCookieOptions,
+      httpOnly: false,
+      maxAge: 60 * 60 * 24,
+    });
 
     return response;
 
-  } catch {
+  } catch (error) {
     return NextResponse.json(
       { error: process.env.NODE_ENV === "production" ? "verification_failed" : "internal_error" },
       { status: 500 }

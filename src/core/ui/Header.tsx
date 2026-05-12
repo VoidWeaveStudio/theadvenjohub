@@ -95,14 +95,12 @@ export function Header() {
           </a>
 
           {isAuth && userWallet ? (
-            <Link href="/profile" className="btn-primary px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap flex items-center gap-2 w-auto justify-center">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0" />
-              <span className="hidden sm:inline">{truncateAddress(userWallet)}</span>
-              <span className="sm:hidden">{truncateAddress(userWallet)}</span>
-            </Link>
-          ) : (
-            <LoginWithPhantom onLogin={(wallet) => { setUserWallet(wallet); setIsAuth(true); }} />
-          )}
+  <Link href="/profile" className="btn-primary ...">
+    {truncateAddress(userWallet)}
+  </Link>
+) : (
+  <LoginWithPhantom onLogin={(wallet) => { setUserWallet(wallet); setIsAuth(true); }} />
+)}
 
           <button className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0" aria-label="Open menu">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
