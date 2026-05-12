@@ -144,12 +144,10 @@ export async function POST(req: NextRequest) {
 
     const baseCookieOptions = {
   httpOnly: true,
-  secure: true,
-  sameSite: "lax" as const,
+  secure: isProd,
+  sameSite: "lax" as const, 
   path: "/",
-  domain: process.env.NODE_ENV === "production" 
-    ? ".theadvenjo.online" 
-    : undefined,
+  domain: isProd ? ".theadvenjo.online" : undefined, 
 };
 
     response.cookies.set("token", accessToken, {
@@ -162,11 +160,13 @@ export async function POST(req: NextRequest) {
       maxAge: 7 * 24 * 60 * 60,
     });
 
-    response.cookies.set("csrf_token", newCsrfToken, {
-      ...baseCookieOptions,
-      httpOnly: false,
-      maxAge: 60 * 60 * 24,
-    });
+    response.cookies.set("token", accessToken, { ...baseCookieOptions, maxAge: 15 * 60 });
+response.cookies.set("refresh_token", refreshToken, { ...baseCookieOptions, maxAge: 7 * 24 * 60 * 60 });
+response.cookies.set("csrf_token", newCsrfToken, { 
+  ...baseCookieOptions, 
+  httpOnly: false,
+  maxAge: 60 * 60 * 24 
+});
 
     return response;
 

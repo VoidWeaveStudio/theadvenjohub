@@ -40,10 +40,10 @@ export async function GET(req: NextRequest) {
       { headers: formatRateLimitHeaders(rl) }
     );
 
-    response.cookies.set("csrf_token", csrfToken, {
+     response.cookies.set("csrf_token", csrfToken, {
       httpOnly: false,
       secure: isProd,
-      sameSite: "lax" as const,
+      sameSite: "lax",
       path: "/",
       domain: isProd ? ".theadvenjo.online" : undefined,
       maxAge: 60 * 60 * 24,

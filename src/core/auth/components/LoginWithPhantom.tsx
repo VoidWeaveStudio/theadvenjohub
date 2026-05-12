@@ -3,21 +3,55 @@
 
 import { useState, useCallback } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { apiGet } from "@/core/api/client";
-
-const getFreshCsrf = (): string | undefined => {
-  if (typeof document === "undefined") return undefined;
-  return document.cookie
-    .split(';')
-    .find(c => c.trim().startsWith('csrf_token='))
-    ?.split('=')[1]
-    ?.trim();
-};
 
 interface LoginWithPhantomProps {
   onLogin: (wallet: string) => void;
   className?: string;
 }
+
+const getCsrfFromCookie = (): string | undefined => {
+  if (typeof document === "undefined") return undefined;
+  const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : undefined;
+};
+
+const fetchChallenge = async (wallet: string): Promise<{ nonce: string }> => {
+  const res = await fetch(`/api/auth/challenge?wallet=${encodeURIComponent(wallet)}`, {
+    method: "GET",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Challenge failed: ${res.status}`);
+  }
+  return res.json();
+};
+
+const fetchVerify = async (body: {
+  wallet: string;
+  message: string;
+  signature: string;
+  nonce: string;
+}): Promise<{ success: boolean }> => {
+  const csrf = getCsrfFromCookie();
+  
+  const res = await fetch("/api/auth/verify", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrf ? { "x-csrf-token": csrf } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Verify failed: ${res.status}`);
+  }
+  return res.json();
+};
 
 export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomProps) {
   const [loading, setLoading] = useState(false);
@@ -38,74 +72,34 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       const resp = await phantom.connect();
       const wallet = new PublicKey(resp.publicKey).toBase58();
 
-      const { nonce } = await apiGet<{ nonce: string }>(
-        `/api/auth/challenge?wallet=${wallet}`
-      );
+      const { nonce } = await fetchChallenge(wallet);
 
       const message = `Sign in to TANJO Game Store\nWallet: ${wallet}\nNonce: ${nonce}`;
       const signed = await phantom.signMessage(new TextEncoder().encode(message), "utf8");
+      const signatureBase64 = Buffer.from(signed.signature).toString("base64");
 
-      const csrf = getFreshCsrf();
-      
-      const res = await fetch("/api/auth/verify", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrf || "",
-        },
-        body: JSON.stringify({
-          wallet,
-          message,
-          signature: Buffer.from(signed.signature).toString("base64"),
-          nonce,
-        }),
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      await fetchVerify({
+        wallet,
+        message,
+        signature: signatureBase64,
+        nonce,
       });
-
-      if (res.status === 403) {
-        console.log("CSRF mismatch, retrying with new nonce...");
-        
-        const { nonce: newNonce } = await apiGet<{ nonce: string }>(
-          `/api/auth/challenge?wallet=${wallet}`
-        );
-        
-        const newMessage = `Sign in to TANJO Game Store\nWallet: ${wallet}\nNonce: ${newNonce}`;
-        const newSigned = await phantom.signMessage(new TextEncoder().encode(newMessage), "utf8");
-        const newCsrf = getFreshCsrf();
-        
-        const retryRes = await fetch("/api/auth/verify", {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "x-csrf-token": newCsrf || "",
-          },
-          body: JSON.stringify({
-            wallet,
-            message: newMessage,
-            signature: Buffer.from(newSigned.signature).toString("base64"),
-            nonce: newNonce,
-          }),
-        });
-
-        if (!retryRes.ok) {
-          const errData = await retryRes.json().catch(() => ({}));
-          throw new Error(errData.error || "Verification failed after retry");
-        }
-      } else if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Verification failed");
-      }
 
       onLogin(wallet);
 
     } catch (err: any) {
+      console.error("Auth error:", err);
+      
       if (err.code === 4001 || err.message?.includes("rejected")) {
         setError("Подпись отменена");
       } else if (err.message === "Phantom not installed") {
         setError("Установите Phantom Wallet");
+      } else if (err.message?.includes("CSRF") || err.message?.includes("403")) {
+        setError("Сессия истекла. Обновите страницу и попробуйте снова.");
       } else {
-        setError(err.message || "Ошибка подключения");
+        setError("Ошибка подключения. Попробуйте снова.");
       }
     } finally {
       setLoading(false);
