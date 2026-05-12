@@ -34,12 +34,15 @@ type TabId = "library" | "inventory" | "settings";
 export default function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { publicKey, disconnect } = useWallet();
+  const { disconnect } = useWallet();
   const { t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState<TabId>("library");
+  
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [userWallet, setUserWallet] = useState<string | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  
   const [libraryGames, setLibraryGames] = useState<LibraryGame[]>([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -54,24 +57,26 @@ export default function ProfileContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (publicKey === undefined) return;
-
     const checkAuth = async () => {
       try {
-        await apiGet("/api/auth/me");
-        if (publicKey) setIsAuthorized(true);
+        const data = await apiGet<{ authenticated: boolean; user?: { wallet: string } }>("/api/auth/me");
+        if (data.authenticated && data.user?.wallet) {
+          setIsAuthorized(true);
+          setUserWallet(data.user.wallet);
+        }
       } catch {
-        if (!publicKey) router.replace("/");
+        setIsAuthorized(false);
+        setUserWallet(null);
       } finally {
         setIsLoadingAuth(false);
       }
     };
 
     checkAuth();
-  }, [publicKey, router]);
+  }, []);
 
   const loadLibrary = useCallback(async () => {
-    if (!publicKey) return;
+    if (!isAuthorized) return;
     setIsLoadingLibrary(true);
     
     try {
@@ -82,10 +87,10 @@ export default function ProfileContent() {
     } finally {
       setIsLoadingLibrary(false);
     }
-  }, [publicKey]);
+  }, [isAuthorized]);
 
   const loadInventory = useCallback(async (gameId?: string) => {
-    if (!publicKey) return;
+    if (!isAuthorized) return;
     setIsLoadingInventory(true);
     
     try {
@@ -93,7 +98,6 @@ export default function ProfileContent() {
       if (gameId && gameId !== "all" && gameId.trim() !== "") {
         params.set("gameId", gameId);
       }
-      
       const url = `/api/user/inventory${params.toString() ? `?${params}` : ""}`;
       const data = await apiGet<{ items: InventoryItem[] }>(url);
       setInventoryItems(data.items || []);
@@ -102,17 +106,17 @@ export default function ProfileContent() {
     } finally {
       setIsLoadingInventory(false);
     }
-  }, [publicKey]);
+  }, [isAuthorized]);
 
   useEffect(() => {
-    if (!isAuthorized || !publicKey) return;
+    if (!isAuthorized) return;
     
     if (activeTab === "library") {
       loadLibrary();
     } else if (activeTab === "inventory") {
       loadInventory(selectedInventoryGame !== "all" ? selectedInventoryGame : undefined);
     }
-  }, [isAuthorized, publicKey, activeTab, selectedInventoryGame, loadLibrary, loadInventory]);
+  }, [isAuthorized, activeTab, selectedInventoryGame, loadLibrary, loadInventory]);
 
   const handleLogout = async () => {
     try {
@@ -124,6 +128,7 @@ export default function ProfileContent() {
     } finally {
       await performLogout(disconnect, router);
       setIsAuthorized(false);
+      setUserWallet(null);
       setLibraryGames([]);
       setInventoryItems([]);
     }
@@ -145,16 +150,14 @@ export default function ProfileContent() {
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
+        year: "numeric", month: "short", day: "numeric",
       });
     } catch {
       return t("profile.unknown");
     }
   };
 
-  const handleLaunchGame = (slug: string) => {
+    const handleLaunchGame = (slug: string) => {
     if (typeof window !== "undefined" && "__TAURI__" in window) {
       // @ts-ignore
       window.__TAURI__?.shell?.open(`tanjo://launch/${slug}`);
@@ -195,20 +198,18 @@ export default function ProfileContent() {
             {t("profile.subtitle")}
           </p>
         </div>
-        <button 
-          onClick={handleLogout} 
-          className="btn-error px-4 py-2 text-sm font-medium w-full sm:w-auto"
-        >
+        <button onClick={handleLogout} className="btn-error px-4 py-2 text-sm font-medium w-full sm:w-auto">
           {t("header.logout")}
         </button>
       </div>
 
-      {publicKey && (
+      {/* ✅ Показываем адрес из локального стейта */}
+      {userWallet && (
         <div className="card p-4 mb-6 bg-surface border-border">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <code className="text-xs sm:text-sm font-mono text-text-secondary break-all">
-              {publicKey.toBase58()}
+              {userWallet}
             </code>
           </div>
         </div>
@@ -423,7 +424,7 @@ export default function ProfileContent() {
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                     <span className="text-text-secondary">{t("profile.address")}</span>
                     <code className="text-foreground font-mono text-xs bg-surface px-2 py-1 rounded break-all">
-                      {publicKey?.toBase58().slice(0, 8)}...{publicKey?.toBase58().slice(-6)}
+                      {userWallet ? `${userWallet.slice(0, 8)}...${userWallet.slice(-6)}` : 'Not connected'}
                     </code>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2">

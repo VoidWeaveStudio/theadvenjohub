@@ -1,6 +1,6 @@
-// src/features/shared/PurchaseButton.tsx
 "use client";
 
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { 
   Connection, 
@@ -12,9 +12,8 @@ import {
   getAssociatedTokenAddress, 
   createTransferInstruction, 
 } from "@solana/spl-token";
-import { useState, useCallback, useRef, useMemo } from "react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
-import { getCsrfToken } from "@/core/lib/clientUtils";
+import { apiGet } from "@/core/api/client";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -33,10 +32,14 @@ interface PurchaseButtonProps {
 type LoadingState = boolean | "confirming";
 
 export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButtonProps) {
-  const { publicKey, sendTransaction } = useWallet();
+  const { sendTransaction } = useWallet();
   const { t } = useLanguage();
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // ✅ Локальное состояние: авторизован ли пользователь
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [userWallet, setUserWallet] = useState<string | null>(null);
   
   const requestIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const isProcessingRef = useRef(false);
@@ -46,8 +49,37 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
     gameId, lotId, price, onSuccess
   }), [gameId, lotId, price, onSuccess]);
 
+  // ✅ Проверка авторизации при монтировании
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const data = await apiGet<{ authenticated: boolean; user?: { wallet: string } }>("/api/auth/me");
+        if (data.authenticated && data.user?.wallet) {
+          setIsAuthorized(true);
+          setUserWallet(data.user.wallet);
+        }
+      } catch {
+        setIsAuthorized(false);
+        setUserWallet(null);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  const getFreshCsrf = (): string | undefined => {
+    if (typeof document === "undefined") return undefined;
+    const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+    return match ? decodeURIComponent(match[1]) : undefined;
+  };
+
   const handlePurchase = useCallback(async (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
+    
+    // ✅ Проверка: авторизован ли пользователь
+    if (!isAuthorized || !userWallet) {
+      setError(t("errors.connectWallet"));
+      return;
+    }
     
     const currentRequestId = requestIdRef.current;
     const now = Date.now();
@@ -62,7 +94,8 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
 
     const { gameId, lotId, price, onSuccess } = purchaseConfig;
 
-    if (!publicKey || !sendTransaction) {
+    // ✅ Используем userWallet из локального стейта
+    if (!sendTransaction) {
       setError(t("errors.connectWallet"));
       return;
     }
@@ -102,7 +135,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
 
       const userATA = await getAssociatedTokenAddress(
         mintPubkey, 
-        publicKey, 
+        new PublicKey(userWallet), // ✅ Используем userWallet
         undefined, 
         TOKEN_2022_PROGRAM_ID
       );
@@ -116,7 +149,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
       const transferIx = createTransferInstruction(
         userATA, 
         treasuryATA, 
-        publicKey, 
+        new PublicKey(userWallet), // ✅ Используем userWallet
         BigInt(price), 
         [], 
         TOKEN_2022_PROGRAM_ID
@@ -125,7 +158,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       
       const messageV0 = new TransactionMessage({
-        payerKey: publicKey,
+        payerKey: new PublicKey(userWallet), // ✅ Используем userWallet
         recentBlockhash: blockhash,
         instructions: [transferIx],
       }).compileToV0Message();
@@ -154,16 +187,8 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
         "confirmed"
       );
 
-      try {
-        await fetch("/api/auth/refresh", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        }).catch(() => { /* ignore */ });
-      } catch {
-      }
-
-      const csrfToken = getCsrfToken();
+      // Читаем CSRF
+      const csrfToken = getFreshCsrf();
 
       if (abortController.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
@@ -175,46 +200,11 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
         signal: abortController.signal,
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": `${publicKey.toString()}:${signature}`,
+          "Idempotency-Key": `${userWallet}:${signature}`,
           ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
         },
         body: JSON.stringify({ signature, gameId, lotId, price }),
       });
-
-      if (res.status === 401) {
-        try {
-          const refreshRes = await fetch("/api/auth/refresh", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-          });
-          
-          if (refreshRes.ok) {
-            const retryRes = await fetch("/api/purchase/verify", {
-              method: "POST",
-              credentials: "include",
-              signal: abortController.signal,
-              headers: {
-                "Content-Type": "application/json",
-                "Idempotency-Key": `${publicKey.toString()}:${signature}`,
-                ...(getCsrfToken() ? { "x-csrf-token": getCsrfToken() } : {}),
-              },
-              body: JSON.stringify({ signature, gameId, lotId, price }),
-            });
-            
-            if (!retryRes.ok) {
-              const errData = await retryRes.json().catch(() => ({}));
-              throw new Error(errData.error || `Verification failed: ${retryRes.status}`);
-            }
-            
-            const data = await retryRes.json();
-            onSuccess?.(data);
-            return;
-          }
-        } catch {
-        }
-        throw new Error("Session expired. Please refresh the page and try again.");
-      }
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -250,7 +240,7 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
         }
       }, 2000);
     }
-  }, [publicKey, sendTransaction, purchaseConfig, t]);
+  }, [isAuthorized, userWallet, sendTransaction, purchaseConfig, t]);
 
   const getButtonText = () => {
     if (loading === "confirming") {
@@ -272,11 +262,14 @@ export function PurchaseButton({ gameId, lotId, price, onSuccess }: PurchaseButt
     return `${t("actions.buy")} ${(price / 1_000_000).toFixed(2)} TNJ`;
   };
 
+  // ✅ Кнопка активна, если авторизован И есть sendTransaction
+ const isDisabled = !isAuthorized || !!loading || !sendTransaction;
+
   return (
     <div className="space-y-2">
       <button
         onClick={handlePurchase}
-        disabled={!!loading || !publicKey}
+        disabled={isDisabled}
         className="btn-primary px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         style={{ pointerEvents: loading ? 'none' : 'auto' }}
       >
