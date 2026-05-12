@@ -1,23 +1,37 @@
-//src\core\auth\components\LoginWithPhantom.tsx
+// src/core/auth/components/LoginWithPhantom.tsx
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletReadyState } from "@solana/wallet-adapter-base";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { apiGet, apiPost } from "@/core/api/client";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
+async function waitForCookieUpdate(name: string, timeoutMs = 2000): Promise<boolean> {
+  const start = Date.now();
+  const initialValue = document.cookie.split(';').find(c => c.trim().startsWith(`${name}=`));
+  
+  while (Date.now() - start < timeoutMs) {
+    await new Promise(res => setTimeout(res, 50));
+    const currentValue = document.cookie.split(';').find(c => c.trim().startsWith(`${name}=`));
+    if (currentValue !== initialValue) return true;
+  }
+  return false;
+}
+
 export function LoginWithPhantom({ onLogin }: { onLogin: () => void }) {
-  const { publicKey, signMessage, connected } = useWallet();
+  const { publicKey, signMessage, wallet, connected } = useWallet();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
 
-  if (!connected) {
-    return <WalletMultiButton />;
-  }
-
-  const handleSign = async () => {
+  const handleSign = useCallback(async () => {
     if (!publicKey || !signMessage || loading) return;
+    if (wallet?.readyState !== WalletReadyState.Installed && 
+        wallet?.readyState !== WalletReadyState.Loadable) {
+      document.querySelector<HTMLButtonElement>('.wallet-adapter-button-trigger')?.click();
+      return;
+    }
 
     setLoading(true);
     try {
@@ -37,23 +51,27 @@ export function LoginWithPhantom({ onLogin }: { onLogin: () => void }) {
         nonce,
       });
 
+      await waitForCookieUpdate("csrf_token");
+
       onLogin();
+      
     } catch (err: any) {
-      const isUserRejection = err.code === 4001 || err.message?.includes("rejected");
+      const isUserRejection = err.code === 4001 || 
+                              err.message?.includes("rejected") || 
+                              err.message?.includes("cancelled");
+      if (isUserRejection) return;
 
-      if (isUserRejection) {
-        return;
-      }
-
-      if (process.env.NODE_ENV === "development") {
-        console.error("Auth error:", err);
-      }
-
-      alert(t("auth.signInFailed"));
-    } finally {
       setLoading(false);
+      throw err; 
+      
+    } finally {
+      if (!loading) setLoading(false);
     }
-  };
+  }, [publicKey, signMessage, wallet, loading, onLogin, t]);
+
+  if (!connected) {
+    return <WalletMultiButton />;
+  }
 
   return (
     <button

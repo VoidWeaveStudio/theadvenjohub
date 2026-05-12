@@ -45,13 +45,14 @@ async function parseJsonResponse(res: Response): Promise<unknown> {
 
   try {
     return await res.json();
-  } catch (err) {
+  } catch {
     if (process.env.NODE_ENV === "development") {
-      console.warn("[api] Failed to parse JSON response:", err);
+      console.warn("[api] Failed to parse JSON response");
     }
     throw new Error("api.invalidJsonResponse");
   }
 }
+
 
 function sanitizeError(raw: unknown): ApiErrorResponse {
   const safe: ApiErrorResponse = { error: "api.requestFailed" };
@@ -97,21 +98,23 @@ async function attemptTokenRefresh(): Promise<boolean> {
     const res = await fetch('/api/auth/refresh', {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
 
     if (!res.ok) {
-      console.warn('[api] Refresh endpoint returned:', res.status);
+      if (process.env.NODE_ENV === "development") {
+        console.warn('[api] Refresh endpoint returned:', res.status);
+      }
       return false;
     }
 
     const data = await res.json().catch(() => null);
     return data?.success === true;
     
-  } catch (error) {
-    console.warn('[api] Token refresh failed:', error);
+  } catch {
+    if (process.env.NODE_ENV === "development") {
+      console.warn('[api] Token refresh failed');
+    }
     return false;
   }
 }

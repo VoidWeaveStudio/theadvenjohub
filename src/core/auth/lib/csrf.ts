@@ -1,7 +1,11 @@
 // src/core/auth/lib/csrf.ts
 import { randomBytes, timingSafeEqual } from "crypto";
 
-const CSRF_SECRET = process.env.CSRF_SECRET || randomBytes(32).toString("hex");
+const CSRF_SECRET = process.env.CSRF_SECRET!;
+
+if (process.env.NODE_ENV === "production" && !CSRF_SECRET) {
+  throw new Error("CSRF_SECRET is required in production");
+}
 
 export function generateCSRFToken(): string {
   return randomBytes(32).toString("hex");
@@ -20,7 +24,6 @@ export function verifyCSRFToken(headerToken: string, cookieToken: string): boole
     Buffer.from(cookieToken, 'hex')
   );
 }
-
 
 export function verifyCSRF(req: Request): boolean {
   const headerToken = req.headers.get("x-csrf-token");

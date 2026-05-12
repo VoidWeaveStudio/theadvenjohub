@@ -143,12 +143,12 @@ export async function POST(req: NextRequest) {
     );
 
     const baseCookieOptions = {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "lax" as const,
-      path: "/",
-      domain: isProd ? process.env.COOKIE_DOMAIN : undefined,
-    };
+  httpOnly: true,
+  secure: isProd,           
+  sameSite: "lax" as const, 
+  path: "/",
+  domain: isProd ? process.env.COOKIE_DOMAIN : undefined, 
+};
 
     response.cookies.set("token", accessToken, {
       ...baseCookieOptions,

@@ -26,10 +26,11 @@ export function SolanaProviders({ children }: { children: React.ReactNode }) {
   }, [isClient]);
 
   const onError = useCallback((error: Error) => {
-    if (error.name === "WalletNotSelectedError" || error.name === "WalletNotReadyError") {
-      return;
+    if (process.env.NODE_ENV !== "production") {
+      if (error.name !== "WalletNotSelectedError" && error.name !== "WalletNotReadyError") {
+        console.error("Wallet adapter error:", error.name, error.message);
+      }
     }
-    console.error("Wallet adapter error:", error.name, error.message);
   }, []);
 
   useEffect(() => {
