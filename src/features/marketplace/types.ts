@@ -1,13 +1,11 @@
 //src\features\marketplace\types.ts
-export interface ItemWithGame {
+export interface LotWithGame {
   id: string;
   name: string;
-  description: string | null;
   price: number;
-  rarity: string;
   type: string;
   imageUrl: string | null;
-  stock: number;
+  status: string;
   createdAt: string;
   game: {
     id: string;

@@ -1,7 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "lib": ["dom", "dom.iterable", "esnext", "ES2020.BigInt"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext",
+      "ES2020.BigInt"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -13,22 +18,31 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./*"],
-      "@/core/*": ["./src/core/*"],
-      "@/features/*": ["./src/features/*"]
-    },
-    "typeRoots": ["./node_modules/@types", "./types"]
+      "@/*": [
+        "./*"
+      ],
+      "@/core/*": [
+        "./src/core/*"
+      ],
+      "@/features/*": [
+        "./src/features/*"
+      ]
+    }
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "types/**/*.d.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.json"
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }

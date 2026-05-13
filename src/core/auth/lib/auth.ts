@@ -1,4 +1,4 @@
-// src/core/auth/lib/auth.ts
+//src\core\auth\lib\auth.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { timingSafeEqual } from "crypto";

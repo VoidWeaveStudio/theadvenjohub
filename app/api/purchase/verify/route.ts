@@ -1,4 +1,4 @@
-// app/api/purchase/verify/route.ts
+//app\api\purchase\verify\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
     
-    // ✅ Логирование для отладки (только в dev)
     if (process.env.NODE_ENV === "development") {
       console.log("[purchase/verify] Request headers:", {
         hasCookie: !!req.cookies.get("token"),
@@ -52,10 +51,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ ПРОВЕРКА АВТОРИЗАЦИИ
     const authResult = await requireAuth(req);
     if (authResult instanceof NextResponse) {
-      // ✅ Детальное логирование причины 401 в dev
       if (process.env.NODE_ENV === "development") {
         const token = req.cookies.get("token")?.value;
         console.warn("[purchase/verify] Auth failed:", {
@@ -71,7 +68,6 @@ export async function POST(req: NextRequest) {
     }
     const { user } = authResult;
 
-    // ✅ ПРОВЕРКА CSRF
     if (!verifyCSRF(req)) {
       if (process.env.NODE_ENV === "development") {
         console.warn("[purchase/verify] CSRF failed:", {
@@ -144,7 +140,6 @@ export async function POST(req: NextRequest) {
     const expectedAmount = BigInt(price);
     let transferFound = false;
 
-    // ✅ Проверка через postTokenBalances
     if (tx.meta?.postTokenBalances) {
       for (const tb of tx.meta.postTokenBalances) {
         const isCorrectMint = tb.mint === tokenMint;
@@ -166,7 +161,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ✅ Проверка через innerInstructions (fallback)
     if (!transferFound && tx.meta?.innerInstructions) {
       for (const ix of tx.meta.innerInstructions) {
         for (const inner of ix.instructions) {
@@ -211,7 +205,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ Проверка: кто подписал транзакцию
     const signer = tx.transaction.message.accountKeys[0]?.pubkey?.toString();
     if (!signer || signer.toLowerCase() !== user.wallet.toLowerCase()) {
       console.warn("[purchase/verify] Wallet mismatch:", { 
@@ -224,7 +217,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ Проверка идемпотентности: уже обработанная транзакция
     if (gameId) {
       const existing = await db.query.gameLicenses.findFirst({
         where: eq(gameLicenses.txSignature, signature),
@@ -242,11 +234,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ✅ Сохранение покупки в БД
     let result: { id: string; type: "game" | "item" };
     
     if (gameId) {
-      // Race condition check
       const raceCheck = await db.query.gameLicenses.findFirst({
         where: eq(gameLicenses.txSignature, signature),
       });
@@ -304,7 +294,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "validation_failed", details: error.flatten() }, { status: 400 });
     }
     
-    // ✅ Логирование непредвиденных ошибок
     if (process.env.NODE_ENV === "development") {
       console.error("[purchase/verify] Unexpected error:", error);
     }

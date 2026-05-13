@@ -1,4 +1,4 @@
-// app/api/auth/verify/route.ts
+//app\api\auth\verify\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { PublicKey } from "@solana/web3.js";

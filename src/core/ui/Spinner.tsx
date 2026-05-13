@@ -1,4 +1,6 @@
-//src\core\ui\Spinner.tsx
+// src/core/ui/Spinner.tsx
+"use client";
+
 import React from "react";
 
 interface SpinnerProps {
@@ -8,16 +10,23 @@ interface SpinnerProps {
 
 export function Spinner({ size = "md", className = "" }: SpinnerProps) {
   const sizeClasses = {
-    sm: "w-4 h-4 border-2",
-    md: "w-8 h-8 border-2",
-    lg: "w-12 h-12 border-4",
+    sm: "w-8 h-8",
+    md: "w-12 h-12", 
+    lg: "w-16 h-16",
   };
 
   return (
-    <div
-      className={`${sizeClasses[size]} border-primary border-t-transparent rounded-full animate-spin ${className}`}
+    <div 
+      className={`${sizeClasses[size]} animate-spin animate-pulse ${className}`}
       role="status"
       aria-label="Loading"
-    />
+    >
+      <img
+        src="/logo-spinner.png"
+        alt="Loading..."
+        className="w-full h-full object-contain animate-shimmer"
+        draggable={false}
+      />
+    </div>
   );
 }

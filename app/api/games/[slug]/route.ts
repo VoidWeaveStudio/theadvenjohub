@@ -1,26 +1,9 @@
-// app/api/games/[slug]/route.ts
+//app\api\games\[slug]\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/database";
-import { games, gameLicenses, gameScreenshots, gameFeatures, gameStats } from "@/core/database/schema";
+import { games, gameLicenses, gameScreenshots } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "@/core/auth/lib/auth";
-
-
-function normalizeSystemRequirements(
-  raw: unknown
-): { minimum: Record<string, string> } | null {
-  if (!raw || typeof raw !== "object") return null;
-  
-  const req = raw as { minimum?: unknown };
-  
-  if (req.minimum && typeof req.minimum === "object" && !Array.isArray(req.minimum)) {
-    return {
-      minimum: req.minimum as Record<string, string>,
-    };
-  }
-  
-  return { minimum: {} };
-}
 
 export async function GET(
   req: NextRequest,
@@ -35,8 +18,6 @@ export async function GET(
         screenshots: {
           orderBy: (screenshots, { asc }) => [asc(screenshots.sortOrder)],
         },
-        features: true,
-        stats: true,
       },
     });
 
@@ -46,7 +27,7 @@ export async function GET(
 
     let isOwned = false;
     const token = req.cookies.get("token")?.value;
-    
+
     if (token) {
       try {
         const authResult = await requireAuth(req);
@@ -64,27 +45,15 @@ export async function GET(
       }
     }
 
-    const normalizedSystemRequirements = normalizeSystemRequirements(game.systemRequirements);
-
     return NextResponse.json({
       id: game.id,
       slug: game.slug,
       title: game.title,
-      description: game.description,
       coverImage: game.coverImage,
-      developer: game.developer,
       publisher: game.publisher,
-      releaseDate: game.releaseDate,
       price: game.price,
       isOwned,
       screenshots: game.screenshots?.map(s => s.url) || [],
-      features: game.features?.map(f => f.text) || [],
-      systemRequirements: normalizedSystemRequirements,
-      stats: game.stats ? {
-        reviewsCount: game.stats.reviewsCount,
-        positiveReviews: game.stats.positivePercent,
-        playersCount: game.stats.playersCount,
-      } : null,
     }, {
       headers: {
         "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
@@ -96,7 +65,7 @@ export async function GET(
     if (process.env.NODE_ENV !== "production") {
       console.error("[api/games/[slug]] Error:", error);
     }
-    
+
     return NextResponse.json(
       { error: "Failed to fetch game" },
       { status: 500 }

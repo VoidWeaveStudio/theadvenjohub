@@ -1,4 +1,4 @@
-// src/features/store/components/GameCard.tsx
+//src\features\store\components\GameCard.tsx
 "use client";
 
 import { useState } from "react";
@@ -9,23 +9,32 @@ interface GameCardProps {
   id: string;
   slug: string;
   title: string;
-  description: string | null;
   coverImage: string | null;
   price: number;
+  publisher?: string | null;
   isOwned?: boolean;
 }
+
+const normalizeSlug = (slug: string) => slug.replace(/-/g, '_');
 
 export function GameCard({
   id,
   slug,
   title,
-  description,
   coverImage,
   price,
+  publisher,
   isOwned = false,
 }: GameCardProps) {
   const { t } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const formatPrice = (price: number) => {
+    if (price <= 0) return t("game.free");
+    return `${price.toLocaleString("en-US")} TNJ`;
+  };
+
+  const shortDescription = t(`games.${normalizeSlug(slug)}.shortDescription`) || t("game.inDevelopment");
 
   return (
     <>
@@ -35,41 +44,44 @@ export function GameCard({
       >
         <div className="h-48 bg-zinc-800 relative overflow-hidden">
           {coverImage ? (
-            <img 
-              src={coverImage} 
+            <img
+              src={coverImage}
               alt={title}
               className="w-full h-full object-cover transition-transform group-hover:scale-105"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-5xl text-zinc-600">
-              🎮
+              {t("game.placeholderIcon")}
             </div>
           )}
-          
+
           {isOwned && (
             <div className="absolute top-3 right-3 bg-green-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-md">
-              ✓ {t("store.owned")}
+              ✓ {t("game.owned")}
             </div>
           )}
-          
+
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 to-transparent" />
         </div>
 
-        <div className="p-4">
-          <h3 className="text-lg font-bold text-foreground mb-2 truncate">
+        <div className="p-4 flex flex-col h-full">
+          <h3 className="text-lg font-bold text-foreground mb-1 truncate" title={title}>
             {title}
           </h3>
-          
-          <p className="text-xs text-text-secondary line-clamp-2 mb-4 min-h-[2.5rem]">
-            {description || t("store.noDescription")}
+
+          {publisher && (
+            <p className="text-xs text-text-secondary mb-2 truncate" title={publisher}>
+              {t("game.publisher")}: {publisher}
+            </p>
+          )}
+
+          <p className="text-xs text-text-secondary line-clamp-2 mb-4 flex-grow">
+            {shortDescription}
           </p>
-          
-          <div className="flex items-center justify-between">
+
+          <div className="flex items-center justify-between mt-auto pt-3 border-t border-zinc-800/50">
             <span className="text-sm font-bold text-primary">
-              {price > 0 ? `${(price / 1_000_000).toFixed(2)} TNJ` : "Free"}
-            </span>
-            <span className="text-[10px] text-text-muted flex items-center gap-1">
-              💻 {t("store.desktopOnly")}
+              {formatPrice(price)}
             </span>
           </div>
         </div>

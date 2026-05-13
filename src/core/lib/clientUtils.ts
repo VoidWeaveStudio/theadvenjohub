@@ -1,4 +1,4 @@
-// src/core/lib/clientUtils.ts
+//src\core\lib\clientUtils.ts
 export function getCookie(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
   

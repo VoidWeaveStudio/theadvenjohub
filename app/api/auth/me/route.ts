@@ -1,4 +1,4 @@
-// app/api/auth/me/route.ts
+//app\api\auth\me\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";

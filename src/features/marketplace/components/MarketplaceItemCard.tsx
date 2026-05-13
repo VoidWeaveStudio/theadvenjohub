@@ -4,19 +4,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/core/i18n/LanguageContext";
-import { formatPrice } from "../lib/utils";
-import type { ItemWithGame } from "../types";
+import { formatLotPrice } from "../lib/utils";
+import type { LotWithGame } from "../types";
 
 interface MarketplaceItemCardProps {
-  item: ItemWithGame;
+  item: LotWithGame;
   viewMode: "grid" | "list";
-  onItemClick: (item: ItemWithGame) => void;
+  onItemClick: (item: LotWithGame) => void;
 }
 
 const RARITY_COLORS: Record<string, string> = {
-  common: "border-gray-400 bg-gray-400/10 text-gray-400",
-  rare: "border-blue-500 bg-blue-500/10 text-blue-500",
-  epic: "border-purple-500 bg-purple-500/10 text-purple-500",
+  standard: "border-gray-400 bg-gray-400/10 text-gray-400",
+  premium: "border-blue-500 bg-blue-500/10 text-blue-500",
+  rare: "border-purple-500 bg-purple-500/10 text-purple-500",
   legendary: "border-yellow-500 bg-yellow-500/10 text-yellow-500",
 };
 
@@ -36,7 +36,8 @@ export function MarketplaceItemCard({
     router.push(`/games/${gameSlug}`);
   };
 
-  const rarityColor = RARITY_COLORS[item.rarity] || RARITY_COLORS.common;
+  const shortDescription = t("marketplace.lots.legendary.shortDescription") || "";
+  const typeColor = RARITY_COLORS[item.type] || RARITY_COLORS.standard;
 
   if (viewMode === "list") {
     return (
@@ -64,37 +65,36 @@ export function MarketplaceItemCard({
             <h3 className="text-lg font-semibold text-foreground truncate group-hover:text-primary transition-colors">
               {item.name}
             </h3>
-            {item.game && (
-              <button
-                onClick={(e) => handleGameClick(e, item.game!.slug)}
-                className="text-sm text-text-secondary hover:text-primary transition-colors"
-              >
-                {item.game.title}
-              </button>
+
+
+            {shortDescription && (
+              <p className="text-xs text-text-secondary line-clamp-1 mt-1">
+                {shortDescription}
+              </p>
             )}
             <div className="flex items-center gap-3 mt-2">
-              <span className={`px-2 py-0.5 text-xs font-medium rounded border ${rarityColor}`}>
-                {t(`marketplace.rarity.${item.rarity}`)}
+              <span className={`px-2 py-0.5 text-xs font-medium rounded border ${typeColor}`}>
+                {t(`marketplace.type.${item.type}`)}
               </span>
-              <span className="text-xs text-text-muted capitalize">{t(`marketplace.type.${item.type}`)}</span>
             </div>
           </div>
 
           <div className="text-right">
             <div className="text-xl font-bold text-primary">
-              {formatPrice(item.price)} TNJ
+              {formatLotPrice(item.price)} TNJ
             </div>
-            {item.stock === 1 && (
-              <div className="text-xs text-orange-400">{t("marketplace.lastOne")}</div>
+            {item.status === "available" && (
+              <div className="text-xs text-green-400">{t("marketplace.available")}</div>
             )}
-            {item.stock === 0 && (
-              <div className="text-xs text-green-400">{t("marketplace.unlimited")}</div>
+            {item.status === "sold" && (
+              <div className="text-xs text-red-400">{t("marketplace.soldOut")}</div>
             )}
           </div>
 
           <button
             onClick={(e) => { e.stopPropagation(); handleClick(); }}
-            className="btn-primary px-6 py-2"
+            disabled={item.status !== "available"}
+            className="btn-primary px-6 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label={t("marketplace.buy")}
           >
             {t("marketplace.buy")}
@@ -123,9 +123,15 @@ export function MarketplaceItemCard({
           </div>
         )}
 
-        <div className={`absolute top-2 right-2 px-2 py-1 text-xs font-bold rounded border ${rarityColor}`}>
-          {t(`marketplace.rarity.${item.rarity}`)}
+        <div className={`absolute top-2 right-2 px-2 py-1 text-xs font-bold rounded border ${typeColor}`}>
+          {t(`marketplace.type.${item.type}`)}
         </div>
+
+        {item.status === "sold" && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">{t("marketplace.soldOut")}</span>
+          </div>
+        )}
       </div>
 
       <div className="p-4">
@@ -133,24 +139,23 @@ export function MarketplaceItemCard({
           {item.name}
         </h3>
 
-        {item.game && (
-          <button
-            onClick={(e) => handleGameClick(e, item.game!.slug)}
-            className="text-xs text-text-secondary hover:text-primary transition-colors block mb-3"
-          >
-            {item.game.title}
-          </button>
+        {shortDescription && (
+          <p className="text-xs text-text-secondary line-clamp-2 mb-3">
+            {shortDescription}
+          </p>
         )}
 
         <div className="flex items-center justify-between">
           <div className="text-lg font-bold text-primary">
-            {formatPrice(item.price)}
+            {formatLotPrice(item.price)}
           </div>
           <span className="text-xs text-text-muted">TNJ</span>
         </div>
 
-        {item.stock === 1 && (
-          <div className="mt-2 text-xs text-orange-400 text-center">{t("marketplace.lastOne")}</div>
+        {item.status === "available" && (
+          <div className="mt-2 text-xs text-green-400 text-center">
+            {t("marketplace.available")}
+          </div>
         )}
       </div>
     </div>

@@ -1,4 +1,4 @@
-// src/features/store/page.tsx
+//src\features\store\page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -11,9 +11,9 @@ interface StoreGame {
   id: string;
   slug: string;
   title: string;
-  description: string | null;
   coverImage: string | null;
   price: number;
+  publisher?: string | null;
   isActive: boolean;
 }
 
@@ -39,7 +39,7 @@ export default function StorePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16">
-      
+
       <div className="mb-8 sm:mb-12">
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
           {t("store.title")}
@@ -75,9 +75,9 @@ export default function StorePage() {
               id={game.id}
               slug={game.slug}
               title={game.title}
-              description={game.description}
               coverImage={game.coverImage}
               price={game.price}
+              publisher={game.publisher}
             />
           ))}
         </div>

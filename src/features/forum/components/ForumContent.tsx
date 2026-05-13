@@ -9,7 +9,7 @@ import { CreatePostModal } from "./CreatePostModal";
 import { PostModal } from "@/features/forum/components/PostModal";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { Spinner } from "@/core/ui/Spinner";
-
+import { apiGet } from "@/core/api/client";
 
 interface ForumPost {
   id: string;
@@ -42,6 +42,7 @@ export default function ForumContent() {
 
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
@@ -52,23 +53,36 @@ export default function ForumContent() {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const checkAuth = async () => {
       try {
-        const res = await fetch("/api/auth/me", {
-          credentials: "include",
-          cache: "no-store"
-        });
-        if (res.ok && publicKey) {
-          setIsAuth(true);
-        } else {
-          setIsAuth(false);
+        const data = await apiGet<{ authenticated: boolean }>("/api/auth/me");
+        if (!cancelled) {
+          setIsAuth(!!data.authenticated);
         }
       } catch {
-        setIsAuth(!!publicKey);
+        if (!cancelled) {
+          setIsAuth(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAuthLoading(false);
+        }
       }
     };
+
     checkAuth();
-  }, [publicKey]);
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (publicKey && !isAuth) {
+      apiGet<{ authenticated: boolean }>("/api/auth/me")
+        .then(data => setIsAuth(!!data.authenticated))
+        .catch(() => { });
+    }
+  }, [publicKey, isAuth]);
 
   const fetchPosts = useCallback(async (cursor?: string | null, category?: CategoryId) => {
     if (abortControllerRef.current) {
@@ -144,6 +158,14 @@ export default function ForumContent() {
     setShowCreateModal(false);
   };
 
+  if (isAuthLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner size="md" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -153,8 +175,8 @@ export default function ForumContent() {
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${selectedCategory === cat.id
-                ? "bg-primary/10 text-primary border border-primary/30"
-                : "text-text-secondary hover:text-foreground hover:bg-surface/50 border border-transparent"
+                  ? "bg-primary/10 text-primary border border-primary/30"
+                  : "text-text-secondary hover:text-foreground hover:bg-surface/50 border border-transparent"
                 }`}
             >
               {t(cat.label)}

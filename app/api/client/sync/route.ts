@@ -1,4 +1,4 @@
-// app/api/client/sync/route.ts
+//app\api\client\sync\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/core/auth/lib/auth";
 import { db } from "@/core/database";
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     if (authResult instanceof NextResponse) {
       return authResult;
     }
-    
+
     const { user } = authResult;
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
         gameId: gameLicenses.gameId,
         gameSlug: games.slug,
         gameTitle: games.title,
+        gameCoverImage: games.coverImage,
         purchasedAt: gameLicenses.purchasedAt,
         isActive: gameLicenses.isActive,
       })
@@ -35,9 +36,13 @@ export async function GET(req: NextRequest) {
       .offset(offset);
 
     const licenses = licensesResult.map((row) => ({
+      id: row.gameId,
       gameId: row.gameId,
+      title: row.gameTitle ?? "",
+      slug: row.gameSlug ?? "",
       gameSlug: row.gameSlug ?? "",
       gameTitle: row.gameTitle ?? "",
+      coverImage: row.gameCoverImage,
       purchasedAt: row.purchasedAt,
       status: row.isActive ? "owned" as const : "expired" as const,
     }));
@@ -79,7 +84,7 @@ export async function GET(req: NextRequest) {
       },
       syncTimestamp: new Date().toISOString(),
     }, {
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
         "Cache-Control": "no-store, no-cache, must-revalidate",
       },
@@ -88,7 +93,7 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: "Sync failed" },
-      { 
+      {
         status: 500,
         headers: { "Content-Type": "application/json" },
       }

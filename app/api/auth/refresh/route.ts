@@ -1,4 +1,4 @@
-// app/api/auth/refresh/route.ts
+//app\api\auth\refresh\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";

@@ -1,8 +1,10 @@
+//src\core\auth\components\LoginWithPhantom.tsx
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { isMobile } from "@/core/lib/device";
 
 const getCsrfFromCookie = (): string | undefined => {
   if (typeof document === "undefined") return undefined;
@@ -20,11 +22,71 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleConnect = useCallback(async () => {
-    if (loading) return;
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const phantomData = urlParams.get("phantom_data");
+    const publicKey = urlParams.get("publicKey");
+    
+    if (phantomData || publicKey) {
+      const checkAuthAfterRedirect = async () => {
+        try {
+          const data = await fetch("/api/auth/me", { credentials: "include" }).then(r => r.json());
+          if (data.authenticated && data.user?.wallet) {
+            onLogin(data.user.wallet);
+          }
+        } catch (err) {
+          console.error("Failed to auth after Phantom redirect:", err);
+          setError(t("auth.connectionError"));
+        } finally {
+          setLoading(false);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      };
+      
+      checkAuthAfterRedirect();
+    }
+  }, [onLogin, t]);
 
+  useEffect(() => {
+    if (!isMobile()) return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && loading) {
+        try {
+          const data = await fetch("/api/auth/me", { credentials: "include" }).then(r => r.json());
+          if (data.authenticated && data.user?.wallet) {
+            onLogin(data.user.wallet);
+          }
+        } catch {
+          setError(t("auth.connectionError"));
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [loading, onLogin, t]);
+
+  const handleMobileConnect = useCallback(async () => {
+    const currentUrl = encodeURIComponent(window.location.href);
+    const dappUrl = encodeURIComponent(window.location.origin);
+
+    const phantomUrl = `https://phantom.app/ul/v1/connect?dapp_url=${dappUrl}&redirect_url=${currentUrl}`;
+
+    window.location.href = phantomUrl;
+
+    setTimeout(() => {
+      if (document.visibilityState === "visible") {
+        setError(t("auth.phantomNotInstalled"));
+      }
+    }, 3000);
+  }, [t]);
+
+  const handleDesktopConnect = useCallback(async () => {
     try {
       const phantom = (window as any).phantom?.solana;
       if (!phantom?.isPhantom) {
@@ -40,12 +102,12 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
-      
+
       if (!challengeRes.ok) {
         const err = await challengeRes.json().catch(() => ({}));
         throw new Error(err.error || `Challenge failed: ${challengeRes.status}`);
       }
-      
+
       const { nonce, csrfToken } = await challengeRes.json();
 
       const message = `Sign in to TANJO Game Store\nWallet: ${wallet}\nNonce: ${nonce}`;
@@ -57,7 +119,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          "x-csrf-token": csrfToken, 
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           wallet,
@@ -84,10 +146,27 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       } else {
         setError(t("auth.connectionError"));
       }
-    } finally {
-      setLoading(false);
     }
-  }, [loading, onLogin, t]);
+  }, [onLogin, t]);
+
+  const handleConnect = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (isMobile()) {
+        await handleMobileConnect();
+      } else {
+        await handleDesktopConnect();
+      }
+    } catch (err: any) {
+    } finally {
+      if (!isMobile()) {
+        setLoading(false);
+      }
+    }
+  }, [loading, handleMobileConnect, handleDesktopConnect]);
 
   return (
     <div className={`space-y-2 ${className}`}>
@@ -103,12 +182,19 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>{t("auth.connecting")}</span>
+            <span>{isMobile() ? t("auth.openingPhantom") : t("auth.connecting")}</span>
           </>
         ) : (
           <span>{t("auth.connect")}</span>
         )}
       </button>
+
+      {isMobile() && !loading && (
+        <p className="text-[10px] text-text-muted text-center">
+          {t("auth.mobileHint")}
+        </p>
+      )}
+
       {error && <p className="text-xs sm:text-sm text-red-400" role="alert">{error}</p>}
     </div>
   );

@@ -1,4 +1,4 @@
-// src/features/profile/components/ProfileContent.tsx
+//src\features\profile\components\ProfileContent.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -16,6 +16,7 @@ interface LibraryGame {
   gameId: string;
   title: string;
   slug: string;
+  coverImage: string | null;
   purchasedAt: string;
   status: "owned" | "expired" | "revoked";
 }
@@ -24,6 +25,7 @@ interface InventoryItem {
   id: string;
   lotId: string | null;
   itemName?: string;
+  itemImage?: string | null;
   gameTitle?: string;
   acquiredAt: string;
   status: "confirmed" | "pending" | "failed";
@@ -124,13 +126,16 @@ export default function ProfileContent() {
         method: "POST",
         credentials: "include",
       });
-    } catch {
+    } catch (error) {
+      console.error("Logout error:", error);
     } finally {
       await performLogout(disconnect, router);
       setIsAuthorized(false);
       setUserWallet(null);
       setLibraryGames([]);
       setInventoryItems([]);
+
+      window.location.href = "/";
     }
   };
 
@@ -147,16 +152,6 @@ export default function ProfileContent() {
     loadInventory(gameId !== "all" ? gameId : undefined);
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString(undefined, {
-        year: "numeric", month: "short", day: "numeric",
-      });
-    } catch {
-      return t("profile.unknown");
-    }
-  };
-
   const handleLaunchGame = (slug: string) => {
     if (typeof window !== "undefined" && "__TAURI__" in window) {
       // @ts-ignore
@@ -166,15 +161,6 @@ export default function ProfileContent() {
       setTimeout(() => {
         router.push(`/games/${slug}`);
       }, 1500);
-    }
-  };
-
-  const handleDownloadGame = (slug: string) => {
-    if (typeof window !== "undefined" && "tanjoClient" in window) {
-      // @ts-ignore
-      window.tanjoClient?.downloadGame?.(slug);
-    } else {
-      alert(t("profile.downloadInstructions"));
     }
   };
 
@@ -203,7 +189,6 @@ export default function ProfileContent() {
         </button>
       </div>
 
-      {/* ✅ Показываем адрес из локального стейта */}
       {userWallet && (
         <div className="card p-4 mb-6 bg-surface border-border">
           <div className="flex items-center gap-3">
@@ -265,47 +250,36 @@ export default function ProfileContent() {
                 {libraryGames.map((game) => (
                   <div
                     key={game.id}
-                    className="card p-4 border-border hover:border-primary/50 hover:bg-surface/50 transition-all cursor-pointer group"
-                    onClick={() => handleLaunchGame(game.slug)}
+                    className="card p-4 border-border bg-surface/50"
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="w-16 h-16 bg-zinc-800 rounded-lg flex-shrink-0 flex items-center justify-center text-2xl">
-                        🎮
+                    <div className="flex items-center gap-4">
+                      {/* Постер игры */}
+                      <div className="w-16 h-16 bg-zinc-800 rounded-lg flex-shrink-0 overflow-hidden">
+                        {game.coverImage ? (
+                          <img
+                            src={game.coverImage}
+                            alt={game.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-2xl">
+                            🎮
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                        <h3 className="font-bold text-foreground text-sm mb-1 truncate" title={game.title}>
                           {game.title}
                         </h3>
 
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-[10px] px-2 py-0.5 rounded ${game.status === "owned"
+                        <span className={`text-[10px] px-2 py-0.5 rounded inline-block ${game.status === "owned"
                             ? "bg-green-500/10 text-green-400"
                             : "bg-yellow-500/10 text-yellow-400"
-                            }`}>
-                            {t(`profile.status.${game.status}`)}
-                          </span>
-                          <span className="text-[10px] text-text-muted">
-                            {t("profile.purchasedLabel")} {formatDate(game.purchasedAt)}
-                          </span>
-                        </div>
+                          }`}>
+                          {t(`profile.status.${game.status}`)}
+                        </span>
                       </div>
-                    </div>
-
-                    <div className="flex gap-2 mt-4 pt-3 border-t border-border/50">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleLaunchGame(game.slug); }}
-                        className="flex-1 btn-primary py-1.5 text-xs font-medium"
-                      >
-                        {t("actions.play")}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDownloadGame(game.slug); }}
-                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-text-secondary rounded text-xs transition-colors"
-                        title={t("actions.download")}
-                      >
-                        ⬇️
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -370,8 +344,16 @@ export default function ProfileContent() {
                     key={item.id}
                     className="card p-3 border-border bg-surface hover:border-primary/30 transition-all group"
                   >
-                    <div className="aspect-square bg-zinc-800 rounded-lg mb-2 flex items-center justify-center text-3xl group-hover:scale-105 transition-transform">
-                      📦
+                    <div className="aspect-square bg-zinc-800 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
+                      {item.itemImage ? (
+                        <img
+                          src={item.itemImage}
+                          alt={item.itemName || "Item"}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                      ) : (
+                        <span className="text-3xl">📦</span>
+                      )}
                     </div>
 
                     {item.itemName && (
@@ -380,23 +362,19 @@ export default function ProfileContent() {
                       </p>
                     )}
 
-                    {item.gameTitle && selectedInventoryGame === "all" && (
+                    {item.gameTitle && (
                       <p className="text-[10px] text-text-secondary truncate mb-2">
                         {item.gameTitle}
                       </p>
                     )}
 
-                    <p className="text-[10px] text-text-muted">
-                      {t("profile.acquiredLabel")} {formatDate(item.acquiredAt)}
-                    </p>
-
-                    <span className={`text-[10px] px-2 py-0.5 rounded mt-2 inline-block ${item.status === "confirmed"
+                    <span className={`text-[10px] px-2 py-0.5 rounded inline-block ${item.status === "confirmed"
                       ? "bg-green-500/10 text-green-400"
                       : item.status === "pending"
                         ? "bg-yellow-500/10 text-yellow-400"
                         : "bg-red-500/10 text-red-400"
                       }`}>
-                      {t(`profile.status.${item.status}`)}
+                      {t(`profile.status.${item.status}`) || item.status}
                     </span>
                   </div>
                 ))}
@@ -454,17 +432,6 @@ export default function ProfileContent() {
                 </div>
               </div>
 
-              <div className="border-t border-border pt-6">
-                <h3 className="text-sm font-medium text-red-400 mb-4">
-                  {t("profile.dangerZone")}
-                </h3>
-                <button
-                  onClick={handleLogout}
-                  className="btn-error px-4 py-2 text-sm font-medium"
-                >
-                  {t("header.logout")}
-                </button>
-              </div>
 
             </div>
           </div>

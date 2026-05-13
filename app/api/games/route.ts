@@ -1,4 +1,4 @@
-// app/api/games/route.ts
+//app\api\games\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/database";
 import { games } from "@/core/database/schema";
@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
           id: games.id,
           slug: games.slug,
           title: games.title,
-          description: games.description,
           coverImage: games.coverImage,
+          publisher: games.publisher,
           price: games.price,
           isActive: games.isActive,
         })
@@ -54,6 +54,10 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[api/games] Error:", error);
+    }
+
     return NextResponse.json(
       { error: "Failed to fetch games" },
       { status: 500 }

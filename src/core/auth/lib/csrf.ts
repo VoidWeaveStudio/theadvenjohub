@@ -1,4 +1,4 @@
-// src/core/auth/lib/csrf.ts
+//src\core\auth\lib\csrf.ts
 import { randomBytes, timingSafeEqual } from "crypto";
 
 const CSRF_SECRET = process.env.CSRF_SECRET!;

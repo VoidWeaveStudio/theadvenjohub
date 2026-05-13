@@ -2,9 +2,12 @@
 export default function Head() {
   return (
     <>
-      <link rel="manifest" href="/site.webmanifest" />
+      <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content, user-scalable=no"
+      />
       <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-      <meta name="theme-color" content="#161618" /> 
+      <meta name="theme-color" content="#161618" />
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="mobile-web-app-capable" content="yes" />
       <title>TANJO Game Store | Indie Games Platform</title>
