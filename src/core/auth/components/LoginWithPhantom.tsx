@@ -23,27 +23,6 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    const checkAuthOnMount = async () => {
-      try {
-        const data = await fetch("/api/auth/me", { 
-          credentials: "include",
-          cache: "no-store"
-        }).then(r => r.json());
-        if (data.authenticated && data.user?.wallet) {
-          onLogin(data.user.wallet);
-        }
-      } catch (err) {
-        console.error("Auth check failed:", err);
-      }
-    };
-
-    checkAuthOnMount();
-  }, [onLogin]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
     const urlParams = new URLSearchParams(window.location.search);
     const phantomData = urlParams.get("phantom_data");
     const publicKey = urlParams.get("publicKey");
@@ -66,18 +45,15 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
           window.history.replaceState({}, document.title, window.location.pathname);
         }
       };
-
       checkAuthAfterRedirect();
     }
   }, [onLogin, t]);
 
   useEffect(() => {
     if (!isMobile()) return;
-
     const handleVisibilityChange = async () => {
       if (document.visibilityState === "visible") {
         setLoading(false);
-        
         try {
           const data = await fetch("/api/auth/me", { 
             credentials: "include",
@@ -90,7 +66,6 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
         }
       }
     };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [onLogin, t]);
@@ -98,9 +73,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
   const handleMobileConnect = useCallback(async () => {
     const currentUrl = encodeURIComponent(window.location.href);
     const dappUrl = encodeURIComponent(window.location.origin);
-
     const phantomUrl = `https://phantom.app/ul/v1/connect?dapp_url=${dappUrl}&redirect_url=${currentUrl}`;
-
     window.location.href = phantomUrl;
   }, []);
 

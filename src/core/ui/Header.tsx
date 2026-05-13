@@ -146,55 +146,52 @@ export function Header() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 z-40">
-            <div className="absolute inset-0 bg-black/60" onClick={() => setMobileMenuOpen(false)} />
-            <div className="relative bg-surface border-b border-border">
-              <div className="px-4 py-4 space-y-3">
-                {links.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`block px-4 py-4 rounded-lg text-lg font-semibold transition-colors ${
-                      pathname === link.href
-                        ? "bg-primary text-white"
-                        : "text-foreground bg-surface hover:bg-surface/90"
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {t(link.label)}
-                  </Link>
-                ))}
-
-                <a
-                  href="/stub/AdvenjoHub-latest.exe"
-                  download
-                  className="block w-full text-center px-4 py-4 rounded-lg border border-border text-foreground font-semibold hover:bg-surface/90 transition-colors bg-surface"
+          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 z-40 bg-[#161618] overflow-y-auto">
+            <div className="px-4 py-6 space-y-3">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`block px-4 py-4 rounded-xl text-lg font-semibold transition-colors ${
+                    pathname === link.href
+                      ? "bg-primary text-white"
+                      : "text-foreground bg-zinc-800 hover:bg-zinc-700"
+                  }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  {t("header.downloadApp")}
-                </a>
+                  {t(link.label)}
+                </Link>
+              ))}
 
-                {isAuth && userWallet ? (
-                  <Link
-                    href="/profile"
-                    className="block w-full text-center px-4 py-4 rounded-lg btn-primary font-semibold text-white"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {truncateAddress(userWallet)}
-                  </Link>
-                ) : (
-                  <div className="pt-2">
-                    <LoginWithPhantom 
-                      onLogin={(wallet) => { 
-                        setUserWallet(wallet); 
-                        setIsAuth(true); 
-                        setMobileMenuOpen(false);
-                      }} 
-                      className="w-full justify-center"
-                    />
-                  </div>
-                )}
-              </div>
+              <a
+                href="/stub/AdvenjoHub-latest.exe"
+                download
+                className="block w-full text-center px-4 py-4 rounded-xl border border-zinc-700 text-foreground font-semibold hover:bg-zinc-800 transition-colors bg-zinc-900"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {t("header.downloadApp")}
+              </a>
+
+              {isAuth && userWallet ? (
+                <Link
+                  href="/profile"
+                  className="block w-full text-center px-4 py-4 rounded-xl btn-primary font-semibold text-white"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {truncateAddress(userWallet)}
+                </Link>
+              ) : (
+                <div className="pt-2">
+                  <LoginWithPhantom 
+                    onLogin={(wallet) => { 
+                      setUserWallet(wallet); 
+                      setIsAuth(true); 
+                      setMobileMenuOpen(false);
+                    }} 
+                    className="w-full justify-center"
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
