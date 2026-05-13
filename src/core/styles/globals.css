@@ -512,3 +512,21 @@ button:focus-visible,
 .animate-shimmer {
   animation: shimmer 1.5s ease-in-out infinite;
 }
+@supports (-webkit-touch-callout: none) {
+  html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+}
+
+@media (max-width: 767px) {
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+  }
+  
+  * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}

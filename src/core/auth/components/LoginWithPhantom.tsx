@@ -24,11 +24,11 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    
+
     const urlParams = new URLSearchParams(window.location.search);
     const phantomData = urlParams.get("phantom_data");
     const publicKey = urlParams.get("publicKey");
-    
+
     if (phantomData || publicKey) {
       const checkAuthAfterRedirect = async () => {
         try {
@@ -44,7 +44,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
           window.history.replaceState({}, document.title, window.location.pathname);
         }
       };
-      
+
       checkAuthAfterRedirect();
     }
   }, [onLogin, t]);
@@ -190,7 +190,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       </button>
 
       {isMobile() && !loading && (
-        <p className="text-[10px] text-text-muted text-center">
+        <p className="text-[10px] text-text-muted text-center hidden">
           {t("auth.mobileHint")}
         </p>
       )}

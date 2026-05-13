@@ -1,4 +1,4 @@
-//src\core\ui\Header.tsx
+// src/core/ui/Header.tsx
 "use client";
 
 import Link from "next/link";
@@ -23,8 +23,14 @@ export function Header() {
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [isAuth, setIsAuth] = useState(false);
   const [mounted, setMounted] = useState(false);
+  
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!userWallet) return;
@@ -52,6 +58,7 @@ export function Header() {
       await performLogout(disconnect, router);
       setUserWallet(null);
       setIsAuth(false);
+      setMobileMenuOpen(false);
     }
   };
 
@@ -71,7 +78,7 @@ export function Header() {
     <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-xl border-b border-border min-h-16">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 min-h-16 h-auto flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 gap-x-3">
 
-        <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+        <Link href="/" className="flex items-center gap-2 flex-shrink-0" onClick={() => setMobileMenuOpen(false)}>
           <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-surface">
             <img src="/logo.png" alt={t("header.appName")} className="w-full h-full object-contain opacity-85 brightness-90" />
           </div>
@@ -80,7 +87,15 @@ export function Header() {
 
         <nav className="hidden md:flex items-center gap-1 flex-wrap justify-center flex-1 min-w-0 px-1">
           {links.map((link) => (
-            <Link key={link.href} href={link.href} className={`px-2 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${pathname === link.href ? "bg-surface text-foreground" : "text-text-secondary hover:text-foreground hover:bg-surface/50"}`}>
+            <Link 
+              key={link.href} 
+              href={link.href} 
+              className={`px-2 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                pathname === link.href 
+                  ? "bg-surface text-foreground" 
+                  : "text-text-secondary hover:text-foreground hover:bg-surface/50"
+              }`}
+            >
               {t(link.label)}
             </Link>
           ))}
@@ -90,24 +105,94 @@ export function Header() {
           <ThemeSwitcher />
           <LanguageSwitcher />
 
-          <a href="/stub/AdvenjoHub-latest.exe" download className="btn-secondary hidden sm:inline-flex px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap">
+          <a 
+            href="/stub/AdvenjoHub-latest.exe" 
+            download 
+            className="btn-secondary hidden sm:inline-flex px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
+          >
             {t("header.downloadApp")}
           </a>
 
           {isAuth && userWallet ? (
-            <Link href="/profile" className="btn-primary ...">
+            <Link 
+              href="/profile" 
+              className="btn-primary hidden sm:inline-flex px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
+              onClick={() => setMobileMenuOpen(false)}
+            >
               {truncateAddress(userWallet)}
             </Link>
           ) : (
-            <LoginWithPhantom onLogin={(wallet) => { setUserWallet(wallet); setIsAuth(true); }} />
+            <div className="hidden sm:block">
+              <LoginWithPhantom onLogin={(wallet) => { setUserWallet(wallet); setIsAuth(true); }} />
+            </div>
           )}
 
-          <button className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0" aria-label={t("header.openMenu")}>
+          <button 
+            className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0" 
+            aria-label={t("header.openMenu")}
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-expanded={mobileMenuOpen}
+          >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              {mobileMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
             </svg>
           </button>
         </div>
+
+        {mobileMenuOpen && (
+          <div className="md:hidden absolute top-full left-0 right-0 bg-surface/95 backdrop-blur-xl border-b border-border shadow-lg z-40">
+            <div className="px-4 py-4 space-y-3">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`block px-4 py-3 rounded-lg text-base font-medium transition-colors ${
+                    pathname === link.href
+                      ? "bg-primary/10 text-primary"
+                      : "text-text-secondary hover:text-foreground hover:bg-surface/50"
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {t(link.label)}
+                </Link>
+              ))}
+
+              <a
+                href="/stub/AdvenjoHub-latest.exe"
+                download
+                className="block w-full text-center px-4 py-3 rounded-lg border border-border text-text-secondary hover:text-foreground hover:bg-surface/50 transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {t("header.downloadApp")}
+              </a>
+
+              {isAuth && userWallet ? (
+                <Link
+                  href="/profile"
+                  className="block w-full text-center px-4 py-3 rounded-lg btn-primary font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {truncateAddress(userWallet)}
+                </Link>
+              ) : (
+                <div className="flex justify-center">
+                  <LoginWithPhantom 
+                    onLogin={(wallet) => { 
+                      setUserWallet(wallet); 
+                      setIsAuth(true); 
+                      setMobileMenuOpen(false);
+                    }} 
+                    className="!w-full"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );
