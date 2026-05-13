@@ -56,7 +56,9 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
     if (!isMobile()) return;
 
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible" && loading) {
+      if (document.visibilityState === "visible") {
+        setLoading(false);
+        
         try {
           const data = await fetch("/api/auth/me", { 
             credentials: "include",
@@ -66,17 +68,15 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
             onLogin(data.user.wallet);
           }
         } catch {
-          setError(t("auth.connectionError"));
-        } finally {
-          setLoading(false);
         }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [loading, onLogin, t]);
+  }, [onLogin, t]);
 
+  // ✅ Мобильное подключение через deep link
   const handleMobileConnect = useCallback(async () => {
     const currentUrl = encodeURIComponent(window.location.href);
     const dappUrl = encodeURIComponent(window.location.origin);
@@ -84,11 +84,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
     const phantomUrl = `https://phantom.app/ul/v1/connect?dapp_url=${dappUrl}&redirect_url=${currentUrl}`;
 
     window.location.href = phantomUrl;
-
-    setTimeout(() => {
-      if (document.visibilityState === "visible") {
-      }
-    }, 3000);
+    
   }, []);
 
   const handleDesktopConnect = useCallback(async () => {
@@ -151,6 +147,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       } else {
         setError(t("auth.connectionError"));
       }
+      setLoading(false);
     }
   }, [onLogin, t]);
 
@@ -166,10 +163,9 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
         await handleDesktopConnect();
       }
     } catch (err: any) {
-    } finally {
-      if (!isMobile()) {
-        setLoading(false);
-      }
+    }
+    if (!isMobile()) {
+      setLoading(false);
     }
   }, [loading, handleMobileConnect, handleDesktopConnect]);
 
@@ -193,8 +189,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
           <span>{t("auth.connect")}</span>
         )}
       </button>
-      
-      
+            
       {error && <p className="text-xs text-red-400 text-center" role="alert">{error}</p>}
     </div>
   );

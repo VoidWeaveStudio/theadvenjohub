@@ -23,7 +23,6 @@ export function Header() {
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [isAuth, setIsAuth] = useState(false);
   const [mounted, setMounted] = useState(false);
-  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -31,36 +30,6 @@ export function Header() {
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    
-    const checkAuthAfterRedirect = async () => {
-      try {
-        const data = await apiGet<{ authenticated: boolean; user?: { wallet: string } }>("/api/auth/me");
-        if (data.authenticated && data.user?.wallet) {
-          setIsAuth(true);
-          setUserWallet(data.user.wallet);
-        }
-      } catch {
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        checkAuthAfterRedirect();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    
-    // Также проверяем при монтировании на мобильных
-    if (window.innerWidth < 768) {
-      checkAuthAfterRedirect();
-    }
-
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [mounted]);
 
   useEffect(() => {
     if (!userWallet) return;
@@ -178,52 +147,56 @@ export function Header() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 bg-surface z-40 border-t border-border shadow-lg">
-            <div className="px-4 py-4 space-y-3">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`block px-4 py-4 rounded-lg text-lg font-semibold transition-colors ${
-                    pathname === link.href
-                      ? "bg-primary text-white"
-                      : "text-foreground hover:bg-surface/80"
-                  }`}
+          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 bg-surface z-40 border-t border-border">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+            
+            <div className="relative bg-surface border-b border-border shadow-lg">
+              <div className="px-4 py-4 space-y-3">
+                {links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`block px-4 py-4 rounded-lg text-lg font-semibold transition-colors ${
+                      pathname === link.href
+                        ? "bg-primary text-white"
+                        : "text-foreground bg-surface hover:bg-surface/90"
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t(link.label)}
+                  </Link>
+                ))}
+
+                <a
+                  href="/stub/AdvenjoHub-latest.exe"
+                  download
+                  className="block w-full text-center px-4 py-4 rounded-lg border border-border text-foreground font-semibold hover:bg-surface/90 transition-colors bg-surface"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  {t(link.label)}
-                </Link>
-              ))}
+                  {t("header.downloadApp")}
+                </a>
 
-              <a
-                href="/stub/AdvenjoHub-latest.exe"
-                download
-                className="block w-full text-center px-4 py-4 rounded-lg border border-border text-foreground font-semibold hover:bg-surface/80 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {t("header.downloadApp")}
-              </a>
-
-              {isAuth && userWallet ? (
-                <Link
-                  href="/profile"
-                  className="block w-full text-center px-4 py-4 rounded-lg btn-primary font-semibold text-white"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {truncateAddress(userWallet)}
-                </Link>
-              ) : (
-                <div className="pt-2">
-                  <LoginWithPhantom 
-                    onLogin={(wallet) => { 
-                      setUserWallet(wallet); 
-                      setIsAuth(true); 
-                      setMobileMenuOpen(false);
-                    }} 
-                    className="w-full justify-center"
-                  />
-                </div>
-              )}
+                {isAuth && userWallet ? (
+                  <Link
+                    href="/profile"
+                    className="block w-full text-center px-4 py-4 rounded-lg btn-primary font-semibold text-white"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {truncateAddress(userWallet)}
+                  </Link>
+                ) : (
+                  <div className="pt-2">
+                    <LoginWithPhantom 
+                      onLogin={(wallet) => { 
+                        setUserWallet(wallet); 
+                        setIsAuth(true); 
+                        setMobileMenuOpen(false);
+                      }} 
+                      className="w-full justify-center"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
