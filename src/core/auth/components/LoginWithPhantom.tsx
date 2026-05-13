@@ -23,6 +23,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const urlParams = new URLSearchParams(window.location.search);
     const phantomData = urlParams.get("phantom_data");
     const publicKey = urlParams.get("publicKey");
@@ -51,8 +52,9 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
 
   useEffect(() => {
     if (!isMobile()) return;
+
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && loading) {
         setLoading(false);
         try {
           const data = await fetch("/api/auth/me", { 
@@ -66,9 +68,10 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
         }
       }
     };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [onLogin, t]);
+  }, [loading, onLogin, t]);
 
   const handleMobileConnect = useCallback(async () => {
     const currentUrl = encodeURIComponent(window.location.href);

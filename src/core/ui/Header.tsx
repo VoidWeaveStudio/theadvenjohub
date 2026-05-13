@@ -113,12 +113,21 @@ export function Header() {
             </a>
 
             {isAuth && userWallet ? (
-              <Link 
-                href="/profile" 
-                className="btn-primary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
-              >
-                {truncateAddress(userWallet)}
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link 
+                  href="/profile" 
+                  className="btn-primary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
+                >
+                  {truncateAddress(userWallet)}
+                </Link>
+                <button 
+                  onClick={handleLogout}
+                  className="text-xs text-text-secondary hover:text-red-400 transition-colors px-2"
+                  title={t("header.logout")}
+                >
+                  ✕
+                </button>
+              </div>
             ) : (
               <LoginWithPhantom 
                 onLogin={(wallet) => { 
@@ -146,52 +155,66 @@ export function Header() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 z-40 bg-[#161618] overflow-y-auto">
-            <div className="px-4 py-6 space-y-3">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`block px-4 py-4 rounded-xl text-lg font-semibold transition-colors ${
-                    pathname === link.href
-                      ? "bg-primary text-white"
-                      : "text-foreground bg-zinc-800 hover:bg-zinc-700"
-                  }`}
+          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 z-[60] bg-zinc-900">
+            <div className="absolute inset-0 bg-black/70" onClick={() => setMobileMenuOpen(false)} />
+            <div className="relative bg-zinc-900 border-b border-zinc-700 min-h-screen">
+              <div className="px-4 py-6 space-y-3">
+                {links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`block px-4 py-4 rounded-xl text-lg font-semibold transition-colors ${
+                      pathname === link.href
+                        ? "bg-primary text-white"
+                        : "text-foreground bg-zinc-800 hover:bg-zinc-700"
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t(link.label)}
+                  </Link>
+                ))}
+
+                <a
+                  href="/stub/AdvenjoHub-latest.exe"
+                  download
+                  className="block w-full text-center px-4 py-4 rounded-xl border border-zinc-700 text-foreground font-semibold hover:bg-zinc-800 transition-colors bg-zinc-900"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  {t(link.label)}
-                </Link>
-              ))}
+                  {t("header.downloadApp")}
+                </a>
 
-              <a
-                href="/stub/AdvenjoHub-latest.exe"
-                download
-                className="block w-full text-center px-4 py-4 rounded-xl border border-zinc-700 text-foreground font-semibold hover:bg-zinc-800 transition-colors bg-zinc-900"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {t("header.downloadApp")}
-              </a>
-
-              {isAuth && userWallet ? (
-                <Link
-                  href="/profile"
-                  className="block w-full text-center px-4 py-4 rounded-xl btn-primary font-semibold text-white"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {truncateAddress(userWallet)}
-                </Link>
-              ) : (
-                <div className="pt-2">
-                  <LoginWithPhantom 
-                    onLogin={(wallet) => { 
-                      setUserWallet(wallet); 
-                      setIsAuth(true); 
-                      setMobileMenuOpen(false);
-                    }} 
-                    className="w-full justify-center"
-                  />
-                </div>
-              )}
+                {isAuth && userWallet ? (
+                  <div className="space-y-3 pt-2">
+                    <Link
+                      href="/profile"
+                      className="block w-full text-center px-4 py-4 rounded-xl btn-primary font-semibold text-white"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {truncateAddress(userWallet)}
+                    </Link>
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setMobileMenuOpen(false);
+                      }}
+                      className="block w-full text-center px-4 py-4 rounded-xl bg-red-600/20 text-red-400 font-semibold hover:bg-red-600/30 transition-colors"
+                    >
+                      {t("header.logout")}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-2">
+                    <LoginWithPhantom 
+                      onLogin={(wallet) => { 
+                        setUserWallet(wallet); 
+                        setIsAuth(true); 
+                        setMobileMenuOpen(false);
+                      }} 
+                      className="w-full justify-center"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
