@@ -33,6 +33,36 @@ export function Header() {
   }, [pathname]);
 
   useEffect(() => {
+    if (!mounted) return;
+    
+    const checkAuthAfterRedirect = async () => {
+      try {
+        const data = await apiGet<{ authenticated: boolean; user?: { wallet: string } }>("/api/auth/me");
+        if (data.authenticated && data.user?.wallet) {
+          setIsAuth(true);
+          setUserWallet(data.user.wallet);
+        }
+      } catch {
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkAuthAfterRedirect();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    // Также проверяем при монтировании на мобильных
+    if (window.innerWidth < 768) {
+      checkAuthAfterRedirect();
+    }
+
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [mounted]);
+
+  useEffect(() => {
     if (!userWallet) return;
     let cancelled = false;
 
@@ -76,16 +106,16 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-xl border-b border-border min-h-16">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 min-h-16 h-auto flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 gap-x-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 min-h-16 h-auto flex items-center justify-between gap-x-3">
 
-        <Link href="/" className="flex items-center gap-2 flex-shrink-0" onClick={() => setMobileMenuOpen(false)}>
+        <Link href="/" className="flex items-center gap-2 flex-shrink-0 z-50" onClick={() => setMobileMenuOpen(false)}>
           <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-surface">
             <img src="/logo.png" alt={t("header.appName")} className="w-full h-full object-contain opacity-85 brightness-90" />
           </div>
           <span className="text-lg font-semibold text-foreground tracking-tight whitespace-nowrap">{t("header.appName")}</span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1 flex-wrap justify-center flex-1 min-w-0 px-1">
+        <nav className="hidden md:flex items-center gap-1 justify-center flex-1 min-w-0 px-1">
           {links.map((link) => (
             <Link 
               key={link.href} 
@@ -102,33 +132,37 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          <ThemeSwitcher />
-          <LanguageSwitcher />
+          <div className="hidden md:flex items-center gap-2">
+            <ThemeSwitcher />
+            <LanguageSwitcher />
 
-          <a 
-            href="/stub/AdvenjoHub-latest.exe" 
-            download 
-            className="btn-secondary hidden sm:inline-flex px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
-          >
-            {t("header.downloadApp")}
-          </a>
-
-          {isAuth && userWallet ? (
-            <Link 
-              href="/profile" 
-              className="btn-primary hidden sm:inline-flex px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
-              onClick={() => setMobileMenuOpen(false)}
+            <a 
+              href="/stub/AdvenjoHub-latest.exe" 
+              download 
+              className="btn-secondary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
             >
-              {truncateAddress(userWallet)}
-            </Link>
-          ) : (
-            <div className="hidden sm:block">
-              <LoginWithPhantom onLogin={(wallet) => { setUserWallet(wallet); setIsAuth(true); }} />
-            </div>
-          )}
+              {t("header.downloadApp")}
+            </a>
+
+            {isAuth && userWallet ? (
+              <Link 
+                href="/profile" 
+                className="btn-primary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
+              >
+                {truncateAddress(userWallet)}
+              </Link>
+            ) : (
+              <LoginWithPhantom 
+                onLogin={(wallet) => { 
+                  setUserWallet(wallet); 
+                  setIsAuth(true); 
+                }} 
+              />
+            )}
+          </div>
 
           <button 
-            className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0" 
+            className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0 z-50 relative" 
             aria-label={t("header.openMenu")}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
@@ -144,16 +178,16 @@ export function Header() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 right-0 bg-surface/95 backdrop-blur-xl border-b border-border shadow-lg z-40">
+          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 bg-surface z-40 border-t border-border shadow-lg">
             <div className="px-4 py-4 space-y-3">
               {links.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`block px-4 py-3 rounded-lg text-base font-medium transition-colors ${
+                  className={`block px-4 py-4 rounded-lg text-lg font-semibold transition-colors ${
                     pathname === link.href
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-secondary hover:text-foreground hover:bg-surface/50"
+                      ? "bg-primary text-white"
+                      : "text-foreground hover:bg-surface/80"
                   }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
@@ -164,7 +198,7 @@ export function Header() {
               <a
                 href="/stub/AdvenjoHub-latest.exe"
                 download
-                className="block w-full text-center px-4 py-3 rounded-lg border border-border text-text-secondary hover:text-foreground hover:bg-surface/50 transition-colors"
+                className="block w-full text-center px-4 py-4 rounded-lg border border-border text-foreground font-semibold hover:bg-surface/80 transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {t("header.downloadApp")}
@@ -173,20 +207,20 @@ export function Header() {
               {isAuth && userWallet ? (
                 <Link
                   href="/profile"
-                  className="block w-full text-center px-4 py-3 rounded-lg btn-primary font-medium"
+                  className="block w-full text-center px-4 py-4 rounded-lg btn-primary font-semibold text-white"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   {truncateAddress(userWallet)}
                 </Link>
               ) : (
-                <div className="flex justify-center">
+                <div className="pt-2">
                   <LoginWithPhantom 
                     onLogin={(wallet) => { 
                       setUserWallet(wallet); 
                       setIsAuth(true); 
                       setMobileMenuOpen(false);
                     }} 
-                    className="!w-full"
+                    className="w-full justify-center"
                   />
                 </div>
               )}
