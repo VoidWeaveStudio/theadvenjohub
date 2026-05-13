@@ -1,4 +1,3 @@
-// src/core/ui/Header.tsx
 "use client";
 
 import Link from "next/link";
@@ -147,10 +146,9 @@ export function Header() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 bg-surface z-40 border-t border-border">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
-            
-            <div className="relative bg-surface border-b border-border shadow-lg">
+          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 z-40">
+            <div className="absolute inset-0 bg-black/60" onClick={() => setMobileMenuOpen(false)} />
+            <div className="relative bg-surface border-b border-border">
               <div className="px-4 py-4 space-y-3">
                 {links.map((link) => (
                   <Link

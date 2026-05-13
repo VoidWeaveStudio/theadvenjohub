@@ -1,4 +1,3 @@
-// src/core/auth/components/LoginWithPhantom.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -21,6 +20,26 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkAuthOnMount = async () => {
+      try {
+        const data = await fetch("/api/auth/me", { 
+          credentials: "include",
+          cache: "no-store"
+        }).then(r => r.json());
+        if (data.authenticated && data.user?.wallet) {
+          onLogin(data.user.wallet);
+        }
+      } catch (err) {
+        console.error("Auth check failed:", err);
+      }
+    };
+
+    checkAuthOnMount();
+  }, [onLogin]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -76,7 +95,6 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [onLogin, t]);
 
-  // ✅ Мобильное подключение через deep link
   const handleMobileConnect = useCallback(async () => {
     const currentUrl = encodeURIComponent(window.location.href);
     const dappUrl = encodeURIComponent(window.location.origin);
@@ -84,7 +102,6 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
     const phantomUrl = `https://phantom.app/ul/v1/connect?dapp_url=${dappUrl}&redirect_url=${currentUrl}`;
 
     window.location.href = phantomUrl;
-    
   }, []);
 
   const handleDesktopConnect = useCallback(async () => {
@@ -189,7 +206,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
           <span>{t("auth.connect")}</span>
         )}
       </button>
-            
+      
       {error && <p className="text-xs text-red-400 text-center" role="alert">{error}</p>}
     </div>
   );
