@@ -1,3 +1,4 @@
+//app\api\client\download\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { list, getDownloadUrl } from "@vercel/blob";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
@@ -48,9 +49,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const downloadUrl = await getDownloadUrl(blobPath, {
-      validUntil: new Date(Date.now() + 60 * 60 * 1000),
-    });
+    const downloadUrl = await getDownloadUrl(blobPath);
 
     console.log(`[Download] ${filename} (${(blob.size / 1024 / 1024).toFixed(2)} MB) requested from ${ip}`);
 
