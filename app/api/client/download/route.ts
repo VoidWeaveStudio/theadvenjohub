@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
     if (!rl.allowed) {
       return NextResponse.json(
-        { error: "too_many_downloads" },
+        { error: "too_many_downloads", message: "Too many download attempts. Please try again later." },
         { status: 429, headers: formatRateLimitHeaders(rl) }
       );
     }
@@ -50,9 +50,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    console.log(`[Download] ${filename} (${(blob.size / 1024 / 1024).toFixed(2)} MB) requested from ${ip}`);
+
     const downloadUrl = await getDownloadUrl(blobPath);
 
-    console.log(`[Download] ${filename} (${(blob.size / 1024 / 1024).toFixed(2)} MB) requested from ${ip}`);
+    console.log(`[Download] Redirecting to: ${downloadUrl.toString()}`);
 
     return NextResponse.redirect(downloadUrl.toString(), 302);
 
