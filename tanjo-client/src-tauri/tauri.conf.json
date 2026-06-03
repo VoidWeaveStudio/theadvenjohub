@@ -1,74 +1,76 @@
 {
-  "productName": "TANJO Game Store",
-  "version": "0.1.0",
-  "identifier": "online.theadvenjo.tanjo",
-  "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
-  },
-  "app": {
-    "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "TANJO Game Store",
-        "width": 1280,
-        "height": 720,
-        "resizable": true,
-        "center": true,
-        "minWidth": 1024,
-        "minHeight": 600
-      }
-    ],
-    "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://theadvenjo.online https://*.theadvenjo.online https://mainnet.helius-rpc.com https://*.helius-rpc.com https://api.mainnet-beta.solana.com wss://*.solana.com; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'",
-      "assetProtocol": {
-        "enable": true,
-        "scope": [
-          "$APPDATA/**",
-          "$DOWNLOAD/**"
-        ]
-      }
-    }
-  },
-  "plugins": {
-    "updater": {
-      "active": true,
-      "endpoints": [
-        "https://theadvenjo.online/api/client/updates/{{target}}/{{arch}}/{{current_version}}"
-      ],
-      "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2MTRBNkFEQjEyRjEyRgpSV1F2OFJMYmFrcGhEVzhUZ3RsYlEvQy9lT0NWbzU5ckRyVWFhSkdwMWY0SmNJYng3QnRRVWtLQgo="
-    },
-    "deep-link": {
-      "schemes": [
-        "tanjo"
-      ]
-    }
-  },
-  "bundle": {
-    "active": true,
-    "targets": [
-      "nsis",
-      "msi"
-    ],
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/icon.ico"
-    ],
-    "resources": [],
-    "windows": {
-      "certificateThumbprint": null,
-      "digestAlgorithm": "sha256",
-      "timestampUrl": "http://timestamp.digicert.com",
-      "wix": {
-        "language": [
-          "ru-RU",
-          "en-US"
-        ]
-      }
-    }
-  }
+    "productName":  "TANJO Game Store",
+    "version":  "0.1.1",
+    "identifier":  "online.theadvenjo.tanjo",
+    "build":  {
+                  "frontendDist":  "../dist",
+                  "devUrl":  "http://localhost:1420",
+                  "beforeDevCommand":  "npm run dev",
+                  "beforeBuildCommand":  "npm run build"
+              },
+    "app":  {
+                "withGlobalTauri":  true,
+                "windows":  [
+                                {
+                                    "title":  "TANJO Game Store",
+                                    "width":  1280,
+                                    "height":  720,
+                                    "resizable":  true,
+                                    "center":  true,
+                                    "minWidth":  1024,
+                                    "minHeight":  600
+                                }
+                            ],
+                "security":  {
+                                 "csp":  "default-src \u0027self\u0027; connect-src \u0027self\u0027 https://theadvenjo.online https://*.theadvenjo.online https://mainnet.helius-rpc.com https://*.helius-rpc.com https://api.mainnet-beta.solana.com wss://*.solana.com; img-src \u0027self\u0027 data: https: blob:; style-src \u0027self\u0027 \u0027unsafe-inline\u0027 https://fonts.googleapis.com; font-src \u0027self\u0027 https://fonts.gstatic.com; script-src \u0027self\u0027",
+                                 "assetProtocol":  {
+                                                       "enable":  true,
+                                                       "scope":  [
+                                                                     "$APPDATA/**",
+                                                                     "$DOWNLOAD/**"
+                                                                 ]
+                                                   }
+                             }
+            },
+    "plugins":  {
+                    "updater":  {
+                                    "active":  true,
+                                    "endpoints":  [
+                                                      "https://theadvenjo.online/api/client/updates/{{target}}/{{arch}}/{{current_version}}"
+                                                  ],
+                                    "dialog":  false,
+                                    "pubkey":  "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2MTRBNkFEQjEyRjEyRgpSV1F2OFJMYmFrcGhEVzhUZ3RsYlEvQy9lT0NWbzU5ckRyVWFhSkdwMWY0SmNJYng3QnRRVWtLQgo="
+                                },
+                    "deep-link":  {
+                                      "schemes":  [
+                                                      "tanjo"
+                                                  ]
+                                  }
+                },
+    "bundle":  {
+                   "active":  true,
+                   "targets":  [
+                                   "nsis",
+                                   "msi"
+                               ],
+                   "icon":  [
+                                "icons/32x32.png",
+                                "icons/128x128.png",
+                                "icons/icon.ico"
+                            ],
+                   "resources":  [
+
+                                 ],
+                   "windows":  {
+                                   "certificateThumbprint":  null,
+                                   "digestAlgorithm":  "sha256",
+                                   "timestampUrl":  "http://timestamp.digicert.com",
+                                   "wix":  {
+                                               "language":  [
+                                                                "ru-RU",
+                                                                "en-US"
+                                                            ]
+                                           }
+                               }
+               }
 }
