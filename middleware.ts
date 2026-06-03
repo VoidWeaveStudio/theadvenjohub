@@ -16,15 +16,15 @@ export function middleware(request: NextRequest) {
     'http://localhost:3000', 
     'https://theadvenjo.online',
     'tauri://localhost',           
-    'https://tauri.localhost',   
-    'http://tauri.localhost',    
+    'https://tauri.localhost',     
+    'http://tauri.localhost',      
   ];
   
   if (isDev) {
     allowedOrigins.push(
       'http://127.0.0.1:3000', 
       'http://127.0.0.1:1420',
-      'http://localhost:5173',  
+      'http://localhost:5173',    
     );
   }
   
