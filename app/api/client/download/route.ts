@@ -1,6 +1,6 @@
-//app\api\client\download\route.ts
+// app/api/client/download/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { list, getDownloadUrl } from "@vercel/blob";
+import { list, getSignedUrl } from "@vercel/blob";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
 
 export async function GET(req: NextRequest) {
@@ -43,22 +43,31 @@ export async function GET(req: NextRequest) {
     const blob = blobs.find(b => b.pathname === blobPath);
 
     if (!blob) {
+      console.error(`[Download] File not found in blob store: ${blobPath}`);
+      console.log(`[Download] Available files:`, blobs.map(b => b.pathname));
+      
       return NextResponse.json(
         { error: "File not found", message: "The requested file is not available yet" },
         { status: 404 }
       );
     }
 
-    const downloadUrl = await getDownloadUrl(blobPath);
+    const signedUrl = await getSignedUrl(blobPath, {
+      validUntil: new Date(Date.now() + 60 * 60 * 1000), 
+    });
 
     console.log(`[Download] ${filename} (${(blob.size / 1024 / 1024).toFixed(2)} MB) requested from ${ip}`);
+    console.log(`[Download] Redirecting to signed URL`);
 
-    return NextResponse.redirect(downloadUrl.toString(), 302);
+    return NextResponse.redirect(signedUrl.toString(), 302);
 
   } catch (error) {
     console.error("[Download] Error:", error);
     return NextResponse.json(
-      { error: "Download failed", details: error instanceof Error ? error.message : String(error) },
+      { 
+        error: "Download failed", 
+        details: error instanceof Error ? error.message : String(error) 
+      },
       { status: 500 }
     );
   }
