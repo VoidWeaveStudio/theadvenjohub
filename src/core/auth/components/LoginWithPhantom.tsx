@@ -1,3 +1,4 @@
+//src\core\auth\components\LoginWithPhantom.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -31,7 +32,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
     if (phantomData || publicKey) {
       const checkAuthAfterRedirect = async () => {
         try {
-          const data = await fetch("/api/auth/me", { 
+          const data = await fetch("/api/auth/me", {
             credentials: "include",
             cache: "no-store"
           }).then(r => r.json());
@@ -57,7 +58,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
       if (document.visibilityState === "visible" && loading) {
         setLoading(false);
         try {
-          const data = await fetch("/api/auth/me", { 
+          const data = await fetch("/api/auth/me", {
             credentials: "include",
             cache: "no-store"
           }).then(r => r.json());
@@ -182,7 +183,7 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
           <span>{t("auth.connect")}</span>
         )}
       </button>
-      
+
       {error && <p className="text-xs text-red-400 text-center" role="alert">{error}</p>}
     </div>
   );

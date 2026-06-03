@@ -1,0 +1,182 @@
+/* tanjo-client/src/styles/components/game-sidebar.css */
+
+.game-sidebar {
+  width: 280px !important;
+  background-color: var(--bg-secondary) !important;
+  border-right: 1px solid var(--border) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.sidebar-header {
+  padding: 12px 16px !important;
+  border-bottom: 1px solid var(--border) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.sidebar-title {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text-muted) !important;
+  margin: 0 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+.game-count {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-muted) !important;
+  padding: 2px 8px !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+.game-list {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 4px 0 !important;
+  background: transparent !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+}
+
+.game-list-item {
+  appearance: none !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  
+  width: -webkit-fit-content !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  flex-grow: 0 !important;
+  flex-shrink: 0 !important;
+  
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 6px 12px !important;
+  
+  cursor: pointer !important;
+  text-align: left !important;
+}
+
+.game-list-item:hover,
+.game-list-item:focus,
+.game-list-item:focus-visible,
+.game-list-item:active,
+.game-list-item.active {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.game-list-item::-moz-focus-inner {
+  border: 0 !important;
+  padding: 0 !important;
+  outline: none !important;
+}
+
+.game-icon {
+  width: 32px !important;
+  height: 32px !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.game-icon img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+
+.game-icon-placeholder {
+  width: 100% !important;
+  height: 100% !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 18px !important;
+  color: var(--text-muted) !important;
+}
+
+.game-info {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.2 !important;
+}
+
+.game-title {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--text-primary) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.game-version {
+  font-size: 11px !important;
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.status-indicator {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  margin-left: 8px !important;
+  background-color: var(--text-muted) !important;
+}
+
+.status-indicator.ready,
+.status-indicator.update,
+.status-indicator.installing {
+  background-color: var(--text-muted) !important;
+}
+
+.status-indicator.installing {
+  animation: pulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.game-list::-webkit-scrollbar { width: 6px !important; }
+.game-list::-webkit-scrollbar-track { background: transparent !important; }
+.game-list::-webkit-scrollbar-thumb { background: var(--border) !important; border-radius: 3px !important; }

@@ -3,11 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
+import { Redis } from "@upstash/redis";
 import { generateCSRFToken, verifyCSRFToken } from "@/core/auth/lib/csrf";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
 import { db } from "@/core/database";
 import { users } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
 function verifySolanaSignature(
   signatureBase64: string,
@@ -18,7 +24,7 @@ function verifySolanaSignature(
     const signature = Uint8Array.from(Buffer.from(signatureBase64, "base64"));
     const messageBytes = new TextEncoder().encode(message);
     const publicKey = new PublicKey(wallet);
-    
+
     return nacl.sign.detached.verify(
       messageBytes,
       signature,
@@ -50,12 +56,14 @@ export async function POST(req: NextRequest) {
     const { signature, wallet, message, nonce } = body;
 
     if (
-      !signature || 
-      !wallet || 
-      !message || 
-      typeof signature !== "string" || 
-      typeof wallet !== "string" || 
-      typeof message !== "string"
+      !signature ||
+      !wallet ||
+      !message ||
+      !nonce ||
+      typeof signature !== "string" ||
+      typeof wallet !== "string" ||
+      typeof message !== "string" ||
+      typeof nonce !== "string"
     ) {
       return NextResponse.json(
         { error: "missing_required_fields" },
@@ -79,23 +87,21 @@ export async function POST(req: NextRequest) {
 
     const headerCsrf = req.headers.get("x-csrf-token");
     const cookieCsrf = req.cookies.get("csrf_token")?.value;
-    
-    if (!headerCsrf) {
+
+    if (!headerCsrf || !cookieCsrf || !verifyCSRFToken(headerCsrf, cookieCsrf)) {
       return NextResponse.json(
         { error: "invalid_csrf_token" },
         { status: 403, headers: formatRateLimitHeaders(rl) }
       );
     }
-    
-    if (cookieCsrf) {
-      if (!verifyCSRFToken(headerCsrf, cookieCsrf)) {
-        if (!/^[0-9a-f]{64}$/.test(headerCsrf)) {
-          return NextResponse.json(
-            { error: "invalid_csrf_token" },
-            { status: 403, headers: formatRateLimitHeaders(rl) }
-          );
-        }
-      }
+
+    const storedNonce = await redis.get(`auth:nonce:${wallet}`);
+
+    if (!storedNonce || storedNonce !== nonce) {
+      return NextResponse.json(
+        { error: "invalid_or_expired_nonce" },
+        { status: 401, headers: formatRateLimitHeaders(rl) }
+      );
     }
 
     if (!verifySolanaSignature(signature, message, wallet)) {
@@ -104,6 +110,8 @@ export async function POST(req: NextRequest) {
         { status: 401, headers: formatRateLimitHeaders(rl) }
       );
     }
+
+    await redis.del(`auth:nonce:${wallet}`);
 
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret || jwtSecret.length < 32) {
@@ -115,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     const [user] = await db
       .insert(users)
-      .values({ 
+      .values({
         wallet,
         createdAt: new Date(),
       })
@@ -131,8 +139,8 @@ export async function POST(req: NextRequest) {
     }
 
     const accessToken = jwt.sign(
-      { 
-        userId: finalUser.id, 
+      {
+        userId: finalUser.id,
         wallet: finalUser.wallet,
         iat: Math.floor(Date.now() / 1000),
       },
@@ -146,8 +154,8 @@ export async function POST(req: NextRequest) {
     );
 
     const refreshToken = jwt.sign(
-      { 
-        userId: finalUser.id, 
+      {
+        userId: finalUser.id,
         wallet: finalUser.wallet,
         iat: Math.floor(Date.now() / 1000),
       },
@@ -164,11 +172,12 @@ export async function POST(req: NextRequest) {
     const isProd = process.env.NODE_ENV === "production";
 
     const response = NextResponse.json(
-      { 
-        success: true, 
-        user: { wallet: finalUser.wallet }, 
+      {
+        success: true,
+        user: { wallet: finalUser.wallet },
         csrfToken: newCsrfToken,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+        accessToken: accessToken,
       },
       { headers: formatRateLimitHeaders(rl) }
     );
@@ -200,6 +209,7 @@ export async function POST(req: NextRequest) {
     return response;
 
   } catch (error) {
+    console.error("Verify error:", error);
     return NextResponse.json(
       { error: process.env.NODE_ENV === "production" ? "verification_failed" : "internal_error" },
       { status: 500 }

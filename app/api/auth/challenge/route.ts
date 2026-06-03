@@ -1,8 +1,14 @@
 //app\api\auth\challenge\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
+import { Redis } from "@upstash/redis";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,6 +38,9 @@ export async function GET(req: NextRequest) {
     }
 
     const nonce = randomBytes(16).toString("hex");
+    
+    await redis.set(`auth:nonce:${wallet}`, nonce, { ex: 120 });
+
     const csrfToken = generateCSRFToken();
     const isProd = process.env.NODE_ENV === "production";
 
@@ -51,7 +60,8 @@ export async function GET(req: NextRequest) {
 
     return response;
 
-  } catch {
+  } catch (error) {
+    console.error("Challenge error:", error);
     return NextResponse.json(
       { error: "challenge_failed" },
       { status: 500 }

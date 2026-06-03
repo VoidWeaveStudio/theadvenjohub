@@ -530,3 +530,139 @@ button:focus-visible,
     box-sizing: border-box;
   }
 }
+
+.auth-container {
+  min-height: 100vh;
+  background: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.auth-card {
+  max-width: 400px;
+  width: 100%;
+  padding: 2rem;
+  text-align: center;
+}
+
+.auth-header {
+  margin-bottom: 1.5rem;
+}
+
+.auth-header .title-gradient {
+  margin: 0 0 0.5rem 0;
+}
+
+.auth-header .subtitle {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.auth-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.auth-status.auth-success {
+  color: var(--success);
+}
+
+.success-icon {
+  width: 48px;
+  height: 48px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid var(--success);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--success);
+  animation: zoomIn 0.3s ease-out;
+}
+
+.error-box {
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  color: var(--error);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.auth-connect-btn {
+  width: 100%;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+
+
+.auth-retry-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.auth-footer {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2rem;
+  line-height: 1.4;
+}
+
+.auth-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.auth-card {
+  animation: fadeIn 0.3s ease-out, zoomIn 0.3s ease-out;
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    padding: 1.5rem;
+  }
+  
+  .auth-header .title-gradient {
+    font-size: 1.25rem;
+  }
+  
+  .auth-connect-btn {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-card,
+  .success-icon,
+  .auth-spinner {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.auth-connect-btn:focus-visible,
+.auth-retry-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: var(--input-focus-shadow);
+}

@@ -20,20 +20,37 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get("limit") || String(PAGE_SIZE)), 100);
     const offset = (page - 1) * limit;
 
-    const licensesResult = await db
-      .select({
-        gameId: gameLicenses.gameId,
-        gameSlug: games.slug,
-        gameTitle: games.title,
-        gameCoverImage: games.coverImage,
-        purchasedAt: gameLicenses.purchasedAt,
-        isActive: gameLicenses.isActive,
-      })
-      .from(gameLicenses)
-      .leftJoin(games, eq(gameLicenses.gameId, games.id))
-      .where(eq(gameLicenses.userId, user.userId))
-      .limit(limit)
-      .offset(offset);
+    const [licensesResult, inventoryResult] = await Promise.all([
+      db
+        .select({
+          gameId: gameLicenses.gameId,
+          gameSlug: games.slug,
+          gameTitle: games.title,
+          gameCoverImage: games.coverImage,
+          purchasedAt: gameLicenses.purchasedAt,
+          isActive: gameLicenses.isActive,
+        })
+        .from(gameLicenses)
+        .leftJoin(games, eq(gameLicenses.gameId, games.id))
+        .where(eq(gameLicenses.userId, user.userId))
+        .limit(limit)
+        .offset(offset),
+      
+      db
+        .select({
+          lotId: marketplacePurchases.lotId,
+          itemName: marketplaceLots.name,
+          itemType: marketplaceLots.type,
+          gameId: marketplaceLots.gameId,
+          status: marketplacePurchases.status,
+          acquiredAt: marketplacePurchases.createdAt,
+        })
+        .from(marketplacePurchases)
+        .leftJoin(marketplaceLots, eq(marketplacePurchases.lotId, marketplaceLots.id))
+        .where(eq(marketplacePurchases.userId, user.userId))
+        .limit(limit)
+        .offset(offset)
+    ]);
 
     const licenses = licensesResult.map((row) => ({
       id: row.gameId,
@@ -46,21 +63,6 @@ export async function GET(req: NextRequest) {
       purchasedAt: row.purchasedAt,
       status: row.isActive ? "owned" as const : "expired" as const,
     }));
-
-    const inventoryResult = await db
-      .select({
-        lotId: marketplacePurchases.lotId,
-        itemName: marketplaceLots.name,
-        itemType: marketplaceLots.type,
-        gameId: marketplaceLots.gameId,
-        status: marketplacePurchases.status,
-        acquiredAt: marketplacePurchases.createdAt,
-      })
-      .from(marketplacePurchases)
-      .leftJoin(marketplaceLots, eq(marketplacePurchases.lotId, marketplaceLots.id))
-      .where(eq(marketplacePurchases.userId, user.userId))
-      .limit(limit)
-      .offset(offset);
 
     const inventory = inventoryResult.map((row) => ({
       lotId: row.lotId,
@@ -91,6 +93,7 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error) {
+    console.error("Sync error:", error);
     return NextResponse.json(
       { error: "Sync failed" },
       {

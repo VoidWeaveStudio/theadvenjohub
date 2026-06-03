@@ -85,14 +85,13 @@ export function Header() {
 
         <nav className="hidden md:flex items-center gap-1 justify-center flex-1 min-w-0 px-1">
           {links.map((link) => (
-            <Link 
-              key={link.href} 
-              href={link.href} 
-              className={`px-2 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
-                pathname === link.href 
-                  ? "bg-surface text-foreground" 
-                  : "text-text-secondary hover:text-foreground hover:bg-surface/50"
-              }`}
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`px-2 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${pathname === link.href
+                ? "bg-surface text-foreground"
+                : "text-text-secondary hover:text-foreground hover:bg-surface/50"
+                }`}
             >
               {t(link.label)}
             </Link>
@@ -104,9 +103,9 @@ export function Header() {
             <ThemeSwitcher />
             <LanguageSwitcher />
 
-            <a 
-              href="/stub/AdvenjoHub-latest.exe" 
-              download 
+            <a
+              href="/api/client/download"
+              download="TANJO-Client-latest.exe"
               className="btn-secondary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
             >
               {t("header.downloadApp")}
@@ -114,13 +113,13 @@ export function Header() {
 
             {isAuth && userWallet ? (
               <div className="flex items-center gap-2">
-                <Link 
-                  href="/profile" 
+                <Link
+                  href="/profile"
                   className="btn-primary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
                 >
                   {truncateAddress(userWallet)}
                 </Link>
-                <button 
+                <button
                   onClick={handleLogout}
                   className="text-xs text-text-secondary hover:text-red-400 transition-colors px-2"
                   title={t("header.logout")}
@@ -129,17 +128,17 @@ export function Header() {
                 </button>
               </div>
             ) : (
-              <LoginWithPhantom 
-                onLogin={(wallet) => { 
-                  setUserWallet(wallet); 
-                  setIsAuth(true); 
-                }} 
+              <LoginWithPhantom
+                onLogin={(wallet) => {
+                  setUserWallet(wallet);
+                  setIsAuth(true);
+                }}
               />
             )}
           </div>
 
-          <button 
-            className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0 z-50 relative" 
+          <button
+            className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0 z-50 relative"
             aria-label={t("header.openMenu")}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
@@ -163,11 +162,10 @@ export function Header() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`block px-4 py-4 rounded-xl text-lg font-semibold transition-colors ${
-                      pathname === link.href
-                        ? "bg-primary text-white"
-                        : "text-foreground bg-zinc-800 hover:bg-zinc-700"
-                    }`}
+                    className={`block px-4 py-4 rounded-xl text-lg font-semibold transition-colors ${pathname === link.href
+                      ? "bg-primary text-white"
+                      : "text-foreground bg-zinc-800 hover:bg-zinc-700"
+                      }`}
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     {t(link.label)}
@@ -204,12 +202,12 @@ export function Header() {
                   </div>
                 ) : (
                   <div className="pt-2">
-                    <LoginWithPhantom 
-                      onLogin={(wallet) => { 
-                        setUserWallet(wallet); 
-                        setIsAuth(true); 
+                    <LoginWithPhantom
+                      onLogin={(wallet) => {
+                        setUserWallet(wallet);
+                        setIsAuth(true);
                         setMobileMenuOpen(false);
-                      }} 
+                      }}
                       className="w-full justify-center"
                     />
                   </div>

@@ -1,4 +1,4 @@
-//src\core\auth\lib\auth.ts
+// src/core/auth/lib/auth.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { timingSafeEqual } from "crypto";
@@ -10,7 +10,16 @@ export interface AuthResult {
 export async function requireAuth(
   req: NextRequest
 ): Promise<AuthResult | NextResponse> {
-  const token = req.cookies.get("token")?.value;
+  const authHeader = req.headers.get("authorization");
+  let token: string | undefined;
+
+  if (authHeader?.startsWith("Bearer ")) {
+    token = authHeader.slice(7);
+  }
+
+  if (!token) {
+    token = req.cookies.get("token")?.value;
+  }
 
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -43,7 +52,7 @@ export function verifyCSRF(req: NextRequest): boolean {
 
   if (csrfToken.length !== 64 || cookieToken.length !== 64) return false;
   if (!/^[0-9a-f]+$/.test(csrfToken) || !/^[0-9a-f]+$/.test(cookieToken)) return false;
-  
+
   try {
     return timingSafeEqual(
       Buffer.from(csrfToken, 'hex'),
