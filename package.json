@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "upload:release": "node scripts/upload-to-blob.js",
     "build:client": "cd tanjo-client && npm run tauri build",
     "copy:release": "node scripts/copy-release.js",
     "release": "npm run build:client && npm run copy:release",
