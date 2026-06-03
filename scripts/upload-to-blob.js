@@ -28,7 +28,7 @@ async function uploadFiles() {
 
     try {
       const blob = await put(blobPath, fileBuffer, {
-        access: 'public',        // ✅ Явно указываем public
+        access: 'public',       
         addRandomSuffix: false,
       });
 
