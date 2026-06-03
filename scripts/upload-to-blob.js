@@ -13,7 +13,7 @@ const files = [
 ];
 
 async function uploadFiles() {
-  console.log('📤 Загрузка файлов в Vercel Blob (Private)...\n');
+  console.log('📤 Загрузка файлов в Vercel Blob (Public)...\n');
 
   for (const filename of files) {
     const filePath = path.join(releasesDir, filename);
@@ -28,12 +28,11 @@ async function uploadFiles() {
 
     try {
       const blob = await put(blobPath, fileBuffer, {
-        access: 'private',
+        access: 'public',        // ✅ Явно указываем public
         addRandomSuffix: false,
       });
 
       console.log(`✅ Загружен: ${filename}`);
-      console.log(`   Pathname: ${blob.pathname}`);
       console.log(`   URL: ${blob.url}`);
       console.log(`   Размер: ${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB\n`);
     } catch (error) {
