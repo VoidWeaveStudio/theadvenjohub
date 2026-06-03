@@ -149,3 +149,63 @@ lerna-debug.log*
 # ====================
 .osx-cache/
 .coverage
+# ====================
+# СЕКРЕТЫ И КЛЮЧИ
+# ====================
+tanjo-client/.env
+tanjo-client/keys/
+*.key
+*.key.pub
+.env
+.env.local
+.env.*.local
+
+# ====================
+# ЗАВИСИМОСТИ
+# ====================
+node_modules/
+tanjo-client/node_modules/
+
+# ====================
+# СБОРКА И БИЛДЫ
+# ====================
+dist/
+tanjo-client/dist/
+.next/
+out/
+build/
+releases/
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.sig
+
+# ====================
+# RUST / TAURI
+# ====================
+tanjo-client/src-tauri/target/
+*.pdb
+
+# ====================
+# IDE И РЕДАКТОРЫ
+# ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ====================
+# СИСТЕМНЫЕ ФАЙЛЫ
+# ====================
+.DS_Store
+Thumbs.db
+
+# ====================
+# ЛОГИ
+# ====================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

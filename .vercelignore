@@ -1,0 +1,36 @@
+# Tauri client (собирается отдельно)
+tanjo-client/
+
+# Release binaries
+releases/
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.sig
+
+# Build artifacts
+.next/
+dist/
+out/
+
+# Dependencies
+node_modules/
+
+# Keys and secrets
+*.key
+*.key.pub
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
