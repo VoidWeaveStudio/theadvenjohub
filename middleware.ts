@@ -15,17 +15,29 @@ export function middleware(request: NextRequest) {
     'http://localhost:1420',
     'http://localhost:3000', 
     'https://theadvenjo.online',
-    'tauri://localhost',
+    'tauri://localhost',           
+    'https://tauri.localhost',   
+    'http://tauri.localhost',    
   ];
   
   if (isDev) {
-    allowedOrigins.push('http://127.0.0.1:3000', 'http://127.0.0.1:1420');
+    allowedOrigins.push(
+      'http://127.0.0.1:3000', 
+      'http://127.0.0.1:1420',
+      'http://localhost:5173',  
+    );
   }
   
-  const isAllowed = allowedOrigins.includes(origin);
+  const isTauriOrigin = origin.startsWith('tauri://') || 
+                        origin.endsWith('.tauri.localhost') ||
+                        origin === 'https://tauri.localhost' ||
+                        origin === 'http://tauri.localhost';
+  
+  const isAllowed = allowedOrigins.includes(origin) || isTauriOrigin;
   
   if (request.method === 'OPTIONS') {
     if (!isAllowed) {
+      console.log(`[CORS] Blocked preflight from origin: ${origin}`);
       return new NextResponse(null, { status: 403 });
     }
     
@@ -49,6 +61,8 @@ export function middleware(request: NextRequest) {
     response.headers.set('Access-Control-Allow-Credentials', 'true');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-csrf-token, x-device-id, x-client-version');
     response.headers.set('Vary', 'Origin');
+  } else {
+    console.log(`[CORS] Blocked request from origin: ${origin}`);
   }
   
   return response;
