@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
     
     const rl = await checkRateLimit(`download:${ip}`, {
-      maxAttempts: 10,
+      maxAttempts: 100,
       windowMs: 60 * 60 * 1000,
       prefix: "api:download",
     });
