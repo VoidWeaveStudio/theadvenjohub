@@ -1,4 +1,4 @@
-//src\features\shared\PurchaseButton.tsx
+// src/features/shared/PurchaseButton.tsx
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -8,13 +8,16 @@ import {
   PublicKey,
   TransactionMessage,
   VersionedTransaction,
+  SystemProgram,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   createTransferInstruction,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { useLanguage } from "@/core/i18n/LanguageContext";
-import { apiGet } from "@/core/api/client";
+import { useAuth } from "@/core/auth/AuthProvider";
+import { LoginButton } from "@/core/auth/components/LoginButton";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -36,11 +39,9 @@ type LoadingState = boolean | "confirming";
 export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
   const { t } = useLanguage();
   const { publicKey } = useWallet();
+  const { isAuthorized, userWallet } = useAuth();
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [userWallet, setUserWallet] = useState<string | null>(null);
 
   const requestIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const isProcessingRef = useRef(false);
@@ -49,44 +50,6 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
   const purchaseConfig = useMemo(() => ({
     gameId, lotId, price, isLot, onSuccess
   }), [gameId, lotId, price, isLot, onSuccess]);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const data = await apiGet<{ authenticated: boolean; user?: { wallet: string } }>("/api/auth/me");
-        if (data.authenticated && data.user?.wallet) {
-          setIsAuthorized(true);
-          setUserWallet(data.user.wallet);
-        }
-      } catch (err) {
-        console.warn("[PurchaseButton] Auth check failed:", err);
-      }
-    };
-    checkAuth();
-  }, []);
-
-  useEffect(() => {
-    if (publicKey) {
-      const walletAddress = typeof publicKey === 'string' ? publicKey : publicKey.toBase58();
-
-      if (!isAuthorized) {
-        const syncAuth = async () => {
-          try {
-            const data = await apiGet<{ authenticated: boolean; user?: { wallet: string } }>("/api/auth/me");
-            if (data.authenticated && data.user?.wallet) {
-              if (data.user.wallet.toLowerCase() === walletAddress.toLowerCase()) {
-                setIsAuthorized(true);
-                setUserWallet(data.user.wallet);
-              }
-            }
-          } catch (err) {
-            console.warn("[PurchaseButton] Sync auth failed:", err);
-          }
-        };
-        syncAuth();
-      }
-    }
-  }, [publicKey, isAuthorized]);
 
   const getFreshCsrf = (): string | undefined => {
     if (typeof document === "undefined") return undefined;
@@ -97,35 +60,9 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
   const handlePurchase = useCallback(async (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
 
-    let currentWallet = userWallet;
-    let currentAuth = isAuthorized;
-
-    const connectedWalletAddress = publicKey
-      ? (typeof publicKey === 'string' ? publicKey : publicKey.toBase58())
-      : null;
-
-    if (!currentAuth && connectedWalletAddress) {
-      try {
-        console.log("[PurchaseButton] Force checking auth...");
-        const data = await apiGet<{ authenticated: boolean; user?: { wallet: string } }>("/api/auth/me");
-
-        if (data.authenticated && data.user?.wallet) {
-          if (data.user.wallet.toLowerCase() === connectedWalletAddress.toLowerCase()) {
-            currentAuth = true;
-            currentWallet = data.user.wallet;
-
-            setIsAuthorized(true);
-            setUserWallet(data.user.wallet);
-          }
-        }
-      } catch (err) {
-        console.error("[PurchaseButton] Force auth check failed", err);
-      }
-    }
-
-    if (!currentAuth || !currentWallet) {
-      console.warn("[PurchaseButton] Blocking purchase: Not authorized or no wallet", { currentAuth, currentWallet, connectedWalletAddress });
-      setError(t("errors.connectWallet"));
+    // Проверка авторизации
+    if (!isAuthorized || !userWallet) {
+      setError(t("errors.connectWallet") || "Please connect your wallet first");
       return;
     }
 
@@ -184,7 +121,7 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
 
       const decimals = parseInt(config.decimals || "6");
 
-      const userPubkey = new PublicKey(currentWallet);
+      const userPubkey = new PublicKey(userWallet);
 
       const userATA = await getAssociatedTokenAddress(
         mintPubkey,
@@ -199,9 +136,41 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         TOKEN_2022_PROGRAM_ID
       );
 
+      // Проверяем, существует ли ATA пользователя
+      let needsCreateATA = false;
+      try {
+        const accountInfo = await connection.getAccountInfo(userATA, "confirmed");
+        if (!accountInfo) {
+          needsCreateATA = true;
+        }
+      } catch (err) {
+        needsCreateATA = true;
+      }
+
       const amountToSend = BigInt(price) * BigInt(10 ** decimals);
 
-      const transferIx = createTransferInstruction(
+      // Создаём инструкции
+      const instructions = [];
+
+      // Если ATA не существует — добавляем инструкцию создания
+      if (needsCreateATA) {
+        const createATAInstruction = {
+          keys: [
+            { pubkey: userPubkey, isSigner: true, isWritable: true }, // payer
+            { pubkey: userATA, isSigner: false, isWritable: true }, // ata
+            { pubkey: userPubkey, isSigner: false, isWritable: false }, // owner
+            { pubkey: mintPubkey, isSigner: false, isWritable: false }, // mint
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // system program
+            { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false }, // token program
+          ],
+          programId: TOKEN_2022_PROGRAM_ID,
+          data: Buffer.from([0x01]), // CreateAssociatedTokenAccount instruction discriminator
+        };
+        instructions.push(createATAInstruction);
+      }
+
+      // Добавляем инструкцию трансфера
+      const transferInstruction = createTransferInstruction(
         userATA,
         treasuryATA,
         userPubkey,
@@ -209,13 +178,14 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         [],
         TOKEN_2022_PROGRAM_ID
       );
+      instructions.push(transferInstruction);
 
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
       const messageV0 = new TransactionMessage({
         payerKey: userPubkey,
         recentBlockhash: blockhash,
-        instructions: [transferIx],
+        instructions: instructions,
       }).compileToV0Message();
 
       const tx = new VersionedTransaction(messageV0);
@@ -259,7 +229,7 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         signal: abortController.signal,
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": `${currentWallet}:${signature}`,
+          "Idempotency-Key": `${userWallet}:${signature}`,
           ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
         },
         body: JSON.stringify({ signature, gameId, lotId, price }),
@@ -302,6 +272,18 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
     }
   }, [isAuthorized, userWallet, publicKey, purchaseConfig, t]);
 
+  // Если не авторизован — показываем кнопку подключения
+  if (!isAuthorized) {
+    return (
+      <div className="space-y-2">
+        <LoginButton className="w-full" />
+        <p className="text-xs text-text-secondary text-center">
+          {t("purchase.connectWalletHint") || "Connect your wallet to purchase"}
+        </p>
+      </div>
+    );
+  }
+
   const getButtonText = () => {
     if (loading === "confirming") {
       return (
@@ -323,7 +305,7 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
     return `${t("actions.buy")} ${price.toLocaleString("en-US")} TNJ`;
   };
 
-  const isDisabled = !isAuthorized || !!loading;
+  const isDisabled = !!loading;
 
   return (
     <div className="space-y-2">

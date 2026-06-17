@@ -1,15 +1,14 @@
-//src\features\forum\components\ForumContent.tsx
+// src/features/forum/components/ForumContent.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
 import { ForumPost, type PostWithUser } from "./ForumPost";
 import { CreatePostModal } from "./CreatePostModal";
 import { PostModal } from "@/features/forum/components/PostModal";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { Spinner } from "@/core/ui/Spinner";
-import { apiGet } from "@/core/api/client";
+import { useAuth } from "@/core/auth/AuthProvider";
 
 interface ForumPost {
   id: string;
@@ -37,52 +36,18 @@ type CategoryId = typeof CATEGORIES[number]["id"];
 
 export default function ForumContent() {
   const router = useRouter();
-  const { publicKey } = useWallet();
   const { t } = useLanguage();
+  const { isAuthorized, isLoading: isAuthLoading } = useAuth();
 
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [isAuth, setIsAuth] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const checkAuth = async () => {
-      try {
-        const data = await apiGet<{ authenticated: boolean }>("/api/auth/me");
-        if (!cancelled) {
-          setIsAuth(!!data.authenticated);
-        }
-      } catch {
-        if (!cancelled) {
-          setIsAuth(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsAuthLoading(false);
-        }
-      }
-    };
-
-    checkAuth();
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    if (publicKey && !isAuth) {
-      apiGet<{ authenticated: boolean }>("/api/auth/me")
-        .then(data => setIsAuth(!!data.authenticated))
-        .catch(() => { });
-    }
-  }, [publicKey, isAuth]);
 
   const fetchPosts = useCallback(async (cursor?: string | null, category?: CategoryId) => {
     if (abortControllerRef.current) {
@@ -184,7 +149,7 @@ export default function ForumContent() {
           ))}
         </div>
 
-        {isAuth ? (
+        {isAuthorized ? (
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn-primary px-4 py-2 text-sm font-medium whitespace-nowrap"

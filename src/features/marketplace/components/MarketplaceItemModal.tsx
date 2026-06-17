@@ -1,10 +1,12 @@
-//src\features\marketplace\components\MarketplaceItemModal.tsx
+// src/features/marketplace/components/MarketplaceItemModal.tsx
 "use client";
 
 import { Modal } from "@/core/ui/Modal";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { formatLotPrice } from "../lib/utils";
 import { PurchaseButton } from "@/features/shared/PurchaseButton";
+import { LoginButton } from "@/core/auth/components/LoginButton";
+import { useAuth } from "@/core/auth/AuthProvider";
 import type { LotWithGame } from "../types";
 
 interface MarketplaceItemModalProps {
@@ -19,6 +21,7 @@ export function MarketplaceItemModal({
   onSuccess,
 }: MarketplaceItemModalProps) {
   const { t } = useLanguage();
+  const { isAuthorized } = useAuth();
 
   const typeColors: Record<string, string> = {
     standard: "border-gray-400 text-gray-400",
@@ -79,20 +82,29 @@ export function MarketplaceItemModal({
           <div className="p-4 bg-surface rounded-lg border border-border">
             <div className="text-xs text-text-secondary mb-1 uppercase tracking-wide">{t("marketplace.priceLabel")}</div>
             <div className="text-2xl font-bold text-primary">
-              {formatLotPrice(item.price)} TN
+              {formatLotPrice(item.price)} TNJ
             </div>
           </div>
 
           {item.status === "available" ? (
-            <PurchaseButton
-              lotId={item.id}
-              price={item.price}
-              isLot={true}
-              onSuccess={() => {
-                onSuccess?.();
-                onClose();
-              }}
-            />
+            isAuthorized ? (
+              <PurchaseButton
+                lotId={item.id}
+                price={item.price}
+                isLot={true}
+                onSuccess={() => {
+                  onSuccess?.();
+                  onClose();
+                }}
+              />
+            ) : (
+              <div className="space-y-2">
+                <LoginButton className="w-full" />
+                <p className="text-xs text-text-secondary text-center">
+                  {t("purchase.connectWalletHint") || "Connect your wallet to purchase"}
+                </p>
+              </div>
+            )
           ) : (
             <button
               disabled

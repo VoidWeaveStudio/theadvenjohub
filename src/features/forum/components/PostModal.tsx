@@ -3,7 +3,6 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
 import { Modal } from "@/core/ui/Modal";
 import { sanitizeInput, sanitizeRichText } from "@/core/lib/sanitize";
 import { shortId } from "@/core/lib/shortId";
@@ -11,6 +10,7 @@ import { useLanguage } from "@/core/i18n/LanguageContext";
 import { formatDateTime, getAuthorName } from "@/core/lib/clientUtils";
 import { apiGet, apiPost } from "@/core/api/client";
 import { Spinner } from "@/core/ui/Spinner";
+import { useAuth } from "@/core/auth/AuthProvider";
 
 interface PostUser {
   id: string;
@@ -43,29 +43,16 @@ interface PostModalProps {
 
 export function PostModal({ postId, onClose }: PostModalProps) {
   const router = useRouter();
-  const { publicKey } = useWallet();
   const { t } = useLanguage();
+  const { isAuthorized } = useAuth();
 
   const [post, setPost] = useState<ForumPost | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuth, setIsAuth] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        await apiGet("/api/auth/me");
-        setIsAuth(!!publicKey);
-      } catch {
-        setIsAuth(!!publicKey);
-      }
-    };
-    checkAuth();
-  }, [publicKey]);
 
   useEffect(() => {
     if (!postId) return;
@@ -87,7 +74,7 @@ export function PostModal({ postId, onClose }: PostModalProps) {
 
   const handleAddComment = async (e: FormEvent) => {
     e.preventDefault();
-    if (!isAuth || !commentText.trim() || !postId) return;
+    if (!isAuthorized || !commentText.trim() || !postId) return;
 
     setIsSubmitting(true);
     try {
@@ -176,7 +163,7 @@ export function PostModal({ postId, onClose }: PostModalProps) {
         <section className="space-y-4 pt-4 border-t border-border">
           <h3 className="text-lg font-semibold text-foreground">{t("post.commentsCount")}</h3>
 
-          {isAuth ? (
+          {isAuthorized ? (
             <form onSubmit={handleAddComment} className="space-y-3">
               <textarea
                 value={commentText}

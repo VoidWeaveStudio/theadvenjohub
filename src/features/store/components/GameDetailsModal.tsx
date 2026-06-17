@@ -1,13 +1,14 @@
-//src\features\store\components\GameDetailsModal.tsx
+// src/features/store/components/GameDetailsModal.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { Modal } from "@/core/ui/Modal";
 import { Spinner } from "@/core/ui/Spinner";
 import { PurchaseButton } from "@/features/shared/PurchaseButton";
+import { LoginButton } from "@/core/auth/components/LoginButton";
+import { useAuth } from "@/core/auth/AuthProvider";
 import { apiGet } from "@/core/api/client";
 
 interface GameDetail {
@@ -38,7 +39,7 @@ export function GameDetailModal({
 }: GameDetailModalProps) {
   const { t } = useLanguage();
   const router = useRouter();
-  const { publicKey } = useWallet();
+  const { isAuthorized } = useAuth();
 
   const [game, setGame] = useState<GameDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -209,12 +210,19 @@ export function GameDetailModal({
                   {t("actions.goToLibrary")}
                 </button>
               </div>
-            ) : (
+            ) : isAuthorized ? (
               <PurchaseButton
                 gameId={game.id}
                 price={game.price}
                 onSuccess={handlePurchaseSuccess}
               />
+            ) : (
+              <div className="space-y-2">
+                <LoginButton className="w-full" />
+                <p className="text-xs text-text-secondary text-center">
+                  {t("purchase.connectWalletHint") || "Connect your wallet to purchase"}
+                </p>
+              </div>
             )}
           </div>
 
