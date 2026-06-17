@@ -217,7 +217,7 @@ export const ja: Translations = {
   "profile.unknown": "不明",
   "profile.arrowNext": "→",
   "profile.viewDetails": "詳細を見る",
-
+  "purchase.connectWalletHint": "購入するにはウォレットを接続してください",
   "forum.comments": "コメント",
   "meta.title": "TANJO ゲームストア | インディーゲームプラットフォーム",
   "meta.description": "TANJO ゲームストア - インディーゲームを見つけてプレイしよう",

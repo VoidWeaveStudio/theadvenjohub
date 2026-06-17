@@ -60,7 +60,6 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
   const handlePurchase = useCallback(async (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
 
-    // Проверка авторизации
     if (!isAuthorized || !userWallet) {
       setError(t("errors.connectWallet") || "Please connect your wallet first");
       return;
@@ -136,7 +135,6 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         TOKEN_2022_PROGRAM_ID
       );
 
-      // Проверяем, существует ли ATA пользователя
       let needsCreateATA = false;
       try {
         const accountInfo = await connection.getAccountInfo(userATA, "confirmed");
@@ -149,27 +147,24 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
 
       const amountToSend = BigInt(price) * BigInt(10 ** decimals);
 
-      // Создаём инструкции
       const instructions = [];
 
-      // Если ATA не существует — добавляем инструкцию создания
       if (needsCreateATA) {
         const createATAInstruction = {
           keys: [
-            { pubkey: userPubkey, isSigner: true, isWritable: true }, // payer
-            { pubkey: userATA, isSigner: false, isWritable: true }, // ata
-            { pubkey: userPubkey, isSigner: false, isWritable: false }, // owner
-            { pubkey: mintPubkey, isSigner: false, isWritable: false }, // mint
-            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // system program
-            { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false }, // token program
+            { pubkey: userPubkey, isSigner: true, isWritable: true }, 
+            { pubkey: userATA, isSigner: false, isWritable: true },
+            { pubkey: userPubkey, isSigner: false, isWritable: false }, 
+            { pubkey: mintPubkey, isSigner: false, isWritable: false }, 
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false }, 
           ],
           programId: TOKEN_2022_PROGRAM_ID,
-          data: Buffer.from([0x01]), // CreateAssociatedTokenAccount instruction discriminator
+          data: Buffer.from([0x01]), 
         };
         instructions.push(createATAInstruction);
       }
 
-      // Добавляем инструкцию трансфера
       const transferInstruction = createTransferInstruction(
         userATA,
         treasuryATA,
@@ -272,7 +267,6 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
     }
   }, [isAuthorized, userWallet, publicKey, purchaseConfig, t]);
 
-  // Если не авторизован — показываем кнопку подключения
   if (!isAuthorized) {
     return (
       <div className="space-y-2">

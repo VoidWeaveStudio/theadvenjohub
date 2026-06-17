@@ -217,7 +217,8 @@ export const ru: Translations = {
   "profile.unknown": "Неизвестно",
   "profile.arrowNext": "→",
   "profile.viewDetails": "Подробнее",
-
+  "purchase.connectWalletHint": "Подключите кошелёк для покупки"
+,
   "forum.comments": "Комментарии",
   "store.title": "Магазин игр",
   "store.subtitle": "Открывай и играй в инди-игры на блокчейне",

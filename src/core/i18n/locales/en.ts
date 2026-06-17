@@ -1,6 +1,7 @@
 import type { Translations } from "../types";
 
 export const en: Translations = {
+    "purchase.connectWalletHint": "Connect your wallet to purchase",
   "auth.selectWallet": "Select Wallet",
   "auth.detected": "Detected",
   "auth.notInstalled": "Not installed",

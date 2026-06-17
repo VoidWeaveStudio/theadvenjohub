@@ -218,7 +218,7 @@ export const ko: Translations = {
   "profile.unknown": "알 수 없음",
   "profile.arrowNext": "→",
   "profile.viewDetails": "자세히 보기",
-
+  "purchase.connectWalletHint": "구매하려면 지갑을 연결하세요",
   "forum.comments": "댓글",
   "ui.processing": "처리 중...",
   "ui.error": "오류",

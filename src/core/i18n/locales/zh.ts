@@ -214,6 +214,8 @@ export const zh: Translations = {
   "profile.noGames": "游戏库中暂无游戏",
   "profile.browseStore": "浏览商店",
   "profile.unknown": "未知",
+    "purchase.connectWalletHint": "连接钱包以购买"
+,
   "profile.arrowNext": "→",
   "profile.viewDetails": "查看详情",
   "forum.comments": "评论",
