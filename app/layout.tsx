@@ -1,4 +1,4 @@
-//app\layout.tsx
+// app/layout.tsx
 import "@/core/init";
 import type { Metadata, Viewport } from "next"; 
 import "@/core/styles/globals.css";

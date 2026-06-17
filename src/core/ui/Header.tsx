@@ -1,26 +1,23 @@
+// src/core/ui/Header.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/core/i18n/LanguageSwitcher";
 import { ThemeSwitcher } from "@/core/ui/ThemeSwitcher";
-import { apiGet } from "@/core/api/client";
-import { performLogout } from "@/core/auth/lib/logout";
-import { LoginWithPhantom } from "@/core/auth/components/LoginWithPhantom";
+import { useAuth } from "@/core/auth/AuthProvider";
+import { LoginButton } from "@/core/auth/components/LoginButton";
 
 export function Header() {
   const pathname = usePathname();
   if (pathname?.startsWith('/game')) return null;
 
   const router = useRouter();
-  const { disconnect } = useWallet();
   const { t } = useLanguage();
+  const { userWallet, isAuthorized, logout } = useAuth();
 
-  const [userWallet, setUserWallet] = useState<string | null>(null);
-  const [isAuth, setIsAuth] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -30,34 +27,10 @@ export function Header() {
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    if (!userWallet) return;
-    let cancelled = false;
-
-    const checkAuth = async () => {
-      try {
-        await apiGet("/api/auth/me");
-        if (!cancelled) setIsAuth(true);
-      } catch {
-        if (!cancelled) setIsAuth(false);
-      }
-    };
-
-    checkAuth();
-    return () => { cancelled = true; };
-  }, [userWallet]);
-
   const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      await performLogout(disconnect, router);
-      setUserWallet(null);
-      setIsAuth(false);
-      setMobileMenuOpen(false);
-    }
+    await logout();
+    setMobileMenuOpen(false);
+    router.push("/");
   };
 
   const truncateAddress = (addr: string) => `${addr.slice(0, 4)}...${addr.slice(-4)}`;
@@ -111,7 +84,7 @@ export function Header() {
               {t("header.downloadApp")}
             </a>
 
-            {isAuth && userWallet ? (
+            {isAuthorized && userWallet ? (
               <div className="flex items-center gap-2">
                 <Link
                   href="/profile"
@@ -128,12 +101,7 @@ export function Header() {
                 </button>
               </div>
             ) : (
-              <LoginWithPhantom
-                onLogin={(wallet) => {
-                  setUserWallet(wallet);
-                  setIsAuth(true);
-                }}
-              />
+              <LoginButton />
             )}
           </div>
 
@@ -173,7 +141,7 @@ export function Header() {
                 ))}
 
                 <a
-                  href="/stub/AdvenjoHub-latest.exe"
+                  href="/api/client/download"
                   download
                   className="block w-full text-center px-4 py-4 rounded-xl border border-zinc-700 text-foreground font-semibold hover:bg-zinc-800 transition-colors bg-zinc-900"
                   onClick={() => setMobileMenuOpen(false)}
@@ -181,7 +149,7 @@ export function Header() {
                   {t("header.downloadApp")}
                 </a>
 
-                {isAuth && userWallet ? (
+                {isAuthorized && userWallet ? (
                   <div className="space-y-3 pt-2">
                     <Link
                       href="/profile"
@@ -202,14 +170,7 @@ export function Header() {
                   </div>
                 ) : (
                   <div className="pt-2">
-                    <LoginWithPhantom
-                      onLogin={(wallet) => {
-                        setUserWallet(wallet);
-                        setIsAuth(true);
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full justify-center"
-                    />
+                    <LoginButton className="w-full justify-center" />
                   </div>
                 )}
               </div>

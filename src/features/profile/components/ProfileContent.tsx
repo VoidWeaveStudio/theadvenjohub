@@ -1,13 +1,12 @@
-//src\features\profile\components\ProfileContent.tsx
+// src/features/profile/components/ProfileContent.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
 import Link from "next/link";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { apiGet } from "@/core/api/client";
-import { performLogout } from "@/core/auth/lib/logout";
+import { useAuth } from "@/core/auth/AuthProvider";
 import { Spinner } from "@/core/ui/Spinner";
 import { EmptyState } from "@/core/ui/EmptyState";
 
@@ -36,14 +35,10 @@ type TabId = "library" | "inventory" | "settings";
 export default function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { disconnect } = useWallet();
   const { t } = useLanguage();
+  const { userWallet, isAuthorized, isLoading: isAuthLoading, logout, selectedWalletName } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabId>("library");
-
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [userWallet, setUserWallet] = useState<string | null>(null);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   const [libraryGames, setLibraryGames] = useState<LibraryGame[]>([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
@@ -57,25 +52,6 @@ export default function ProfileContent() {
       setActiveTab(tab);
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const data = await apiGet<{ authenticated: boolean; user?: { wallet: string } }>("/api/auth/me");
-        if (data.authenticated && data.user?.wallet) {
-          setIsAuthorized(true);
-          setUserWallet(data.user.wallet);
-        }
-      } catch {
-        setIsAuthorized(false);
-        setUserWallet(null);
-      } finally {
-        setIsLoadingAuth(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
 
   const loadLibrary = useCallback(async () => {
     if (!isAuthorized) return;
@@ -121,22 +97,8 @@ export default function ProfileContent() {
   }, [isAuthorized, activeTab, selectedInventoryGame, loadLibrary, loadInventory]);
 
   const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      await performLogout(disconnect, router);
-      setIsAuthorized(false);
-      setUserWallet(null);
-      setLibraryGames([]);
-      setInventoryItems([]);
-
-      window.location.href = "/";
-    }
+    await logout();
+    window.location.href = "/";
   };
 
   const handleTabChange = (tab: TabId) => {
@@ -164,7 +126,7 @@ export default function ProfileContent() {
     }
   };
 
-  if (isLoadingAuth || !isAuthorized) {
+  if (isAuthLoading || !isAuthorized) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Spinner size="md" />
@@ -196,6 +158,11 @@ export default function ProfileContent() {
             <code className="text-xs sm:text-sm font-mono text-text-secondary break-all">
               {userWallet}
             </code>
+            {selectedWalletName && (
+              <span className="text-xs text-text-muted">
+                ({selectedWalletName})
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -253,7 +220,6 @@ export default function ProfileContent() {
                     className="card p-4 border-border bg-surface/50"
                   >
                     <div className="flex items-center gap-4">
-                      {/* Постер игры */}
                       <div className="w-16 h-16 bg-zinc-800 rounded-lg flex-shrink-0 overflow-hidden">
                         {game.coverImage ? (
                           <img
@@ -403,6 +369,10 @@ export default function ProfileContent() {
                     </code>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
+                    <span className="text-text-secondary">{t("profile.walletType")}</span>
+                    <span className="text-foreground">{selectedWalletName || "Unknown"}</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                     <span className="text-text-secondary">{t("profile.network")}</span>
                     <span className="text-foreground">Solana Mainnet</span>
                   </div>
@@ -423,7 +393,7 @@ export default function ProfileContent() {
                     </span>
                   </div>
                   <a
-                    href="/stub/AdvenjoHub-latest.exe"
+                    href="/api/client/download"
                     download
                     className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
                   >
@@ -431,7 +401,6 @@ export default function ProfileContent() {
                   </a>
                 </div>
               </div>
-
 
             </div>
           </div>

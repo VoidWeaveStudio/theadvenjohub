@@ -1,7 +1,8 @@
-//src\core\ui\Modal.tsx
+// src/core/ui/Modal.tsx
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export interface ModalProps {
@@ -14,57 +15,66 @@ export interface ModalProps {
 
 export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalProps) {
   const { t } = useLanguage();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
-      document.body.style.position = "fixed";
-      document.body.style.width = "100%";
     } else {
       document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
     }
     return () => {
       document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
   const sizeClasses = {
     sm: "sm:max-w-sm",
-    md: "sm:max-w-xl lg:max-w-2xl",
+    md: "sm:max-w-md lg:max-w-lg",
     lg: "sm:max-w-2xl lg:max-w-4xl",
     xl: "sm:max-w-3xl lg:max-w-6xl",
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-200">
-      <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6"
+      onClick={onClose}
+    >
+      <div 
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        aria-hidden="true"
+      />
 
       <div
-        className={`relative w-full ${sizeClasses[size]} bg-surface border-t sm:border border-border rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col transition-transform duration-200 ease-out`}
+        className={`relative w-full ${sizeClasses[size]} bg-surface border border-border rounded-xl shadow-2xl max-h-[85vh] overflow-hidden flex flex-col`}
         onClick={(e) => e.stopPropagation()}
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
-          <h2 className="text-lg font-semibold text-foreground line-clamp-1 pr-4">{title}</h2>
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-border flex-shrink-0">
+          <h2 className="text-lg sm:text-xl font-semibold text-foreground line-clamp-1 pr-4">
+            {title}
+          </h2>
           <button
             onClick={onClose}
-            className="p-2 text-text-muted hover:text-foreground transition-colors text-xl min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg active:scale-95 touch-manipulation"
+            className="p-2 text-text-muted hover:text-foreground transition-colors rounded-lg hover:bg-surface/50 active:scale-95 min-w-[40px] min-h-[40px] flex items-center justify-center"
             aria-label={t("modal.close")}
           >
-            ✕
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12-12" />
+            </svg>
           </button>
         </div>
 
-        <div className="p-4 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

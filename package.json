@@ -17,14 +17,15 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@ledgerhq/hw-transport-webhid": "^6.35.4",
     "@metaplex-foundation/js": "^0.20.1",
     "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
     "@neondatabase/serverless": "^0.10.4",
     "@solana-commerce/solana-pay": "^0.1.1",
     "@solana/spl-token": "^0.3.11",
     "@solana/wallet-adapter-base": "^0.9.23",
-    "@solana/wallet-adapter-react": "^0.15.35",
-    "@solana/wallet-adapter-react-ui": "^0.9.35",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/wallet-adapter-react-ui": "^0.9.39",
     "@solana/wallet-adapter-solflare": "^0.6.33",
     "@solana/wallet-adapter-wallets": "^0.19.38",
     "@solana/wallet-standard-wallet-adapter": "^1.1.4",
