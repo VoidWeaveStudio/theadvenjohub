@@ -1,6 +1,11 @@
 import type { Translations } from "../types";
 
 export const ru: Translations = {
+    "support.links.dexscreener": "Dexscreener",
+  "support.links.geckoterminal": "GeckoTerminal",
+  "support.links.jupiterProfile": "Профиль Jupiter Verified",
+  "support.links.jupiterDashboard": "Верификация токена Jupiter",
+  "support.links.verification": "Помогут лайки и подписчики",
    "game.sysreq.available": "Есть",
   "game.sysreq.notAvailable": "Нет",
   "game.sysreq.tbd": "Будет определено",

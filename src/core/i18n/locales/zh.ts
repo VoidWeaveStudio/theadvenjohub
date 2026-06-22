@@ -1,6 +1,11 @@
 import type { Translations } from "../types";
 
 export const zh: Translations = {
+    "support.links.dexscreener": "Dexscreener",
+  "support.links.geckoterminal": "GeckoTerminal",
+  "support.links.jupiterProfile": "Jupiter 认证资料",
+  "support.links.jupiterDashboard": "Jupiter 代币验证",
+  "support.links.verification": "点赞和关注有帮助",
     "game.sysreq.available": "有",
   "game.sysreq.notAvailable": "无",
   "game.sysreq.tbd": "待定",

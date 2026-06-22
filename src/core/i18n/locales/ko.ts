@@ -1,6 +1,11 @@
 import type { Translations } from "../types";
 
 export const ko: Translations = {
+    "support.links.dexscreener": "Dexscreener",
+  "support.links.geckoterminal": "GeckoTerminal",
+  "support.links.jupiterProfile": "Jupiter 인증 프로필",
+  "support.links.jupiterDashboard": "Jupiter 토큰 인증",
+  "support.links.verification": "좋아요와 팔로워가 도움이 됩니다",
     "game.sysreq.available": "있음",
   "game.sysreq.notAvailable": "없음",
   "game.sysreq.tbd": "미정",

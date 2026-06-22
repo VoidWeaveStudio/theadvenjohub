@@ -1,4 +1,4 @@
-//src\features\support\page.tsx
+// src/features/support/page.tsx
 "use client";
 
 import { useLanguage } from "@/core/i18n/LanguageContext";
@@ -52,6 +52,32 @@ export default function SupportPage() {
       url: "https://pump.fun/coin/BTUu1KQ1rhcmtMVGLm7unFbCR4CU6RCwxhTtK2xUpump",
       icon: "🪙",
       external: true,
+    },
+    {
+      label: t("support.links.dexscreener"),
+      url: "https://dexscreener.com/solana/7vkxdgdijf6gdrzgkcguvuncywwphdsnrrpyzbys6gur",
+      icon: "📊",
+      external: true,
+    },
+    {
+      label: t("support.links.geckoterminal"),
+      url: "https://www.geckoterminal.com/solana/pools/7VkXdGDijF6gDrzgKCGuVuncyWwphdSNRRPyzbys6gur",
+      icon: "🦎",
+      external: true,
+    },
+    {
+      label: t("support.links.jupiterProfile"),
+      url: "https://verified.jup.ag/profile/TheAdvenJo",
+      icon: "♃",
+      external: true,
+      note: t("support.links.verification"),
+    },
+    {
+      label: t("support.links.jupiterDashboard"),
+      url: "https://verified.jup.ag/dashboard/BTUu1KQ1rhcmtMVGLm7unFbCR4CU6RCwxhTtK2xUpump",
+      icon: "🎯",
+      external: true,
+      note: t("support.links.verification"),
     },
   ];
 
