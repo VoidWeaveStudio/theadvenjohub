@@ -1,4 +1,4 @@
-// src/core/api/client.ts
+// src/core/api/client.ts 
 import { getCsrfToken } from "@/core/lib/clientUtils";
 
 export interface FetchOptions extends Omit<RequestInit, "headers"> {

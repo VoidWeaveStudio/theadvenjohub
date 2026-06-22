@@ -1,5 +1,5 @@
 // src/core/auth/components/WalletSelectorModal.tsx
-"use client";
+"use client"; 
 
 import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";

@@ -1,4 +1,4 @@
-// src/core/providers/SolanaProviders.tsx
+// src/core/providers/SolanaProviders.tsx 
 "use client";
 
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
