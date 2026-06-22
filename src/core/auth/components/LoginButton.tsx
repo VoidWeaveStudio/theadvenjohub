@@ -9,17 +9,15 @@ import { useAuth } from "../AuthProvider";
 
 type LoadingState = boolean | "connecting" | "signing";
 
-const WALLETS_WITHOUT_SIGN_MESSAGE = ["Ledger"];
-
 export function LoginButton({ className = "" }: { className?: string }) {
   const { t } = useLanguage();
   const { connect, publicKey, wallet, connected, select } = useWallet();
   const { login, isAuthorized } = useAuth();
-  
+
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
-  
+
   const pendingWalletName = useRef<string | null>(null);
   const isProcessingRef = useRef(false);
 
@@ -36,14 +34,14 @@ export function LoginButton({ className = "" }: { className?: string }) {
           login(data.user.wallet, savedWallet);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [isAuthorized, login]);
 
   useEffect(() => {
     if (!connected || !publicKey || !pendingWalletName.current || isProcessingRef.current) return;
-    
+
     isProcessingRef.current = true;
-    
+
     const doSignAndVerify = async () => {
       const walletName = pendingWalletName.current;
       if (!walletName) {
@@ -54,7 +52,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
       try {
         const walletAddress = publicKey.toBase58();
         setLoading("signing");
-        
+
         const challengeRes = await fetch(
           `/api/auth/challenge?wallet=${encodeURIComponent(walletAddress)}`,
           {
@@ -77,21 +75,21 @@ export function LoginButton({ className = "" }: { className?: string }) {
           throw new Error("Wallet adapter not found");
         }
 
-        let signatureBase64: string;
         const signMessageFn = (wallet.adapter as any).signMessage;
-        
-        if (typeof signMessageFn === "function" && !WALLETS_WITHOUT_SIGN_MESSAGE.includes(walletName)) {
-          try {
-            const signed = await signMessageFn.call(wallet.adapter, messageBytes);
-            signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signed)));
-          } catch (signError: any) {
-            if (signError.message?.includes("not supported") || signError.message?.includes("not a function")) {
-              throw new Error("SIGN_METHOD_NOT_SUPPORTED");
-            }
-            throw signError;
-          }
-        } else {
+
+        if (typeof signMessageFn !== "function") {
           throw new Error("SIGN_METHOD_NOT_SUPPORTED");
+        }
+
+        let signatureBase64: string;
+        try {
+          const signed = await signMessageFn.call(wallet.adapter, messageBytes);
+          signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signed)));
+        } catch (signError: any) {
+          if (signError.message?.includes("not supported") || signError.message?.includes("not a function")) {
+            throw new Error("SIGN_METHOD_NOT_SUPPORTED");
+          }
+          throw signError;
         }
 
         const verifyRes = await fetch("/api/auth/verify", {
@@ -116,15 +114,13 @@ export function LoginButton({ className = "" }: { className?: string }) {
 
         login(walletAddress, walletName);
         localStorage.setItem("selectedWallet", walletName);
-        
+
         setLoading(false);
         pendingWalletName.current = null;
 
       } catch (err: any) {
-        console.error("Login error:", err);
-        
         if (err.message === "SIGN_METHOD_NOT_SUPPORTED") {
-          setError(t("auth.walletNotSupported") || "This wallet doesn't support message signing. Please use Phantom or Solflare.");
+          setError(t("auth.walletNotSupported") || "This wallet doesn't support message signing.");
         } else if (err.code === 4001 || err.message?.includes("rejected") || err.message?.includes("User rejected")) {
           setError(t("auth.signatureCancelled"));
         } else if (err.message?.includes("does not support")) {
@@ -134,7 +130,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
         } else {
           setError(err.message || t("auth.connectionError"));
         }
-        
+
         setLoading(false);
         pendingWalletName.current = null;
       } finally {
@@ -147,7 +143,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
 
   const handleWalletSelect = useCallback(async (walletName: string) => {
     if (loading) return;
-    
+
     pendingWalletName.current = walletName;
     setError(null);
     setLoading("connecting");
@@ -155,34 +151,9 @@ export function LoginButton({ className = "" }: { className?: string }) {
 
     try {
       select(walletName as any);
-      
-      let attempts = 0;
-      const maxAttempts = 10;
-      
-      while (attempts < maxAttempts) {
-        await new Promise(r => setTimeout(r, 100));
-        
-        if (wallet?.adapter?.name === walletName) {
-          break;
-        }
-        
-        attempts++;
-      }
-      
-      try {
-        await connect();
-      } catch (connectError: any) {
-        if (connectError.name === "WalletNotSelectedError" && attempts < maxAttempts) {
-          await new Promise(r => setTimeout(r, 200));
-          await connect();
-        } else {
-          throw connectError;
-        }
-      }
-      
+      await new Promise(r => setTimeout(r, 100));
+      await connect();
     } catch (err: any) {
-      console.error("Connect error:", err);
-      
       if (err.name === "WalletNotReadyError") {
         setError(`${walletName} is not installed. Please install it first.`);
       } else if (err.code === 4001 || err.message?.includes("rejected")) {
@@ -190,15 +161,15 @@ export function LoginButton({ className = "" }: { className?: string }) {
       } else {
         setError(err.message || t("auth.connectionError"));
       }
-      
+
       setLoading(false);
       pendingWalletName.current = null;
     }
-  }, [loading, select, connect, wallet, t]);
+  }, [loading, select, connect, t]);
 
   const handleConnect = useCallback(() => {
     if (loading || isAuthorized) return;
-    
+
     const savedWallet = localStorage.getItem("selectedWallet");
     if (savedWallet) {
       handleWalletSelect(savedWallet);

@@ -2,22 +2,18 @@
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import {
   Connection,
   PublicKey,
-  TransactionMessage,
-  VersionedTransaction,
-  SystemProgram,
+  Transaction,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   createTransferInstruction,
-  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
-import { LoginButton } from "@/core/auth/components/LoginButton";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -34,12 +30,12 @@ interface PurchaseButtonProps {
   onSuccess?: (result: { id: string; type: "game" | "item" }) => void;
 }
 
-type LoadingState = boolean | "confirming";
+type LoadingState = boolean | "connecting" | "signing" | "confirming";
 
 export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
   const { t } = useLanguage();
   const { publicKey } = useWallet();
-  const { isAuthorized, userWallet } = useAuth();
+  const { login, refreshAuth, userWallet, isAuthorized } = useAuth();
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,8 +56,15 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
   const handlePurchase = useCallback(async (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
 
-    if (!isAuthorized || !userWallet) {
+    if (!publicKey && !userWallet) {
       setError(t("errors.connectWallet") || "Please connect your wallet first");
+      return;
+    }
+
+    const walletAddress = publicKey?.toBase58() || userWallet;
+
+    if (!walletAddress) {
+      setError(t("errors.connectWallet") || "Wallet address not available");
       return;
     }
 
@@ -104,12 +107,64 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
     abortControllerRef.current = abortController;
 
     isProcessingRef.current = true;
-    setLoading(true);
+    setLoading("connecting");
     setError(null);
 
     let signature: string | null = null;
 
     try {
+      setLoading("signing");
+      
+      const challengeRes = await fetch(
+        `/api/auth/challenge?wallet=${encodeURIComponent(walletAddress)}`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (!challengeRes.ok) {
+        const err = await challengeRes.json().catch(() => ({}));
+        throw new Error(err.error || `Challenge failed: ${challengeRes.status}`);
+      }
+
+      const { nonce, csrfToken } = await challengeRes.json();
+      const authMessage = `Sign in to TANJO Game Store\nWallet: ${walletAddress}\nNonce: ${nonce}`;
+      const authMessageBytes = new TextEncoder().encode(authMessage);
+
+      const authSigned = await phantom.signMessage(authMessageBytes, "utf8");
+      const authSignatureBase64 = btoa(String.fromCharCode(...authSigned.signature));
+
+      if (abortController.signal.aborted) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+
+      const authVerifyRes = await fetch("/api/auth/verify", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
+        },
+        body: JSON.stringify({
+          wallet: walletAddress,
+          message: authMessage,
+          signature: authSignatureBase64,
+          nonce,
+        }),
+      });
+
+      if (!authVerifyRes.ok) {
+        const err = await authVerifyRes.json().catch(() => ({}));
+        throw new Error(err.error || `Auth verification failed: ${authVerifyRes.status}`);
+      }
+
+      login(walletAddress, "Phantom");
+      await refreshAuth();
+
+      setLoading("confirming");
+
       const configRes = await fetch("/api/marketplace/config", { signal: abortController.signal });
       if (!configRes.ok) throw new Error("Failed to load config");
       const config = await configRes.json();
@@ -119,80 +174,51 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
       const treasuryPubkey = new PublicKey(config.treasuryWallet);
 
       const decimals = parseInt(config.decimals || "6");
+      const userPubkey = new PublicKey(walletAddress);
+      const tokenProgramId = TOKEN_2022_PROGRAM_ID;
 
-      const userPubkey = new PublicKey(userWallet);
+      const userATA = await getAssociatedTokenAddress(mintPubkey, userPubkey, false, tokenProgramId);
+      const treasuryATA = await getAssociatedTokenAddress(mintPubkey, treasuryPubkey, true, tokenProgramId);
 
-      const userATA = await getAssociatedTokenAddress(
-        mintPubkey,
-        userPubkey,
-        undefined,
-        TOKEN_2022_PROGRAM_ID
-      );
-      const treasuryATA = await getAssociatedTokenAddress(
-        mintPubkey,
-        treasuryPubkey,
-        undefined,
-        TOKEN_2022_PROGRAM_ID
-      );
+      const [userAccountInfo, treasuryAccountInfo] = await Promise.all([
+        connection.getAccountInfo(userATA, "confirmed"),
+        connection.getAccountInfo(treasuryATA, "confirmed"),
+      ]);
 
-      let needsCreateATA = false;
-      try {
-        const accountInfo = await connection.getAccountInfo(userATA, "confirmed");
-        if (!accountInfo) {
-          needsCreateATA = true;
-        }
-      } catch (err) {
-        needsCreateATA = true;
-      }
+      if (!userAccountInfo) throw new Error("Your token account not found. Make sure you have TNJ tokens.");
+      if (!treasuryAccountInfo) throw new Error("Treasury account not found.");
+
+      const accountData = userAccountInfo.data;
+      const balance = BigInt(accountData[64]) |
+        BigInt(accountData[65]) << 8n |
+        BigInt(accountData[66]) << 16n |
+        BigInt(accountData[67]) << 24n |
+        BigInt(accountData[68]) << 32n |
+        BigInt(accountData[69]) << 40n |
+        BigInt(accountData[70]) << 48n |
+        BigInt(accountData[71]) << 56n;
 
       const amountToSend = BigInt(price) * BigInt(10 ** decimals);
 
-      const instructions = [];
-
-      if (needsCreateATA) {
-        const createATAInstruction = {
-          keys: [
-            { pubkey: userPubkey, isSigner: true, isWritable: true }, 
-            { pubkey: userATA, isSigner: false, isWritable: true },
-            { pubkey: userPubkey, isSigner: false, isWritable: false }, 
-            { pubkey: mintPubkey, isSigner: false, isWritable: false }, 
-            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-            { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false }, 
-          ],
-          programId: TOKEN_2022_PROGRAM_ID,
-          data: Buffer.from([0x01]), 
-        };
-        instructions.push(createATAInstruction);
+      if (balance < amountToSend) {
+        throw new Error(`Insufficient balance. You have ${Number(balance) / Math.pow(10, decimals)} TNJ, need ${price} TNJ`);
       }
+
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
       const transferInstruction = createTransferInstruction(
         userATA,
         treasuryATA,
         userPubkey,
-        amountToSend, 
+        amountToSend,
         [],
-        TOKEN_2022_PROGRAM_ID
+        tokenProgramId
       );
-      instructions.push(transferInstruction);
 
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-
-      const messageV0 = new TransactionMessage({
-        payerKey: userPubkey,
+      const tx = new Transaction({
+        feePayer: userPubkey,
         recentBlockhash: blockhash,
-        instructions: instructions,
-      }).compileToV0Message();
-
-      const tx = new VersionedTransaction(messageV0);
-
-      const simulation = await connection.simulateTransaction(tx);
-      if (simulation.value.err) {
-        throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
-      }
-
-      if (abortController.signal.aborted) {
-        throw new DOMException("Aborted", "AbortError");
-      }
+      }).add(transferInstruction);
 
       const signedTx = await phantom.signTransaction(tx);
 
@@ -205,37 +231,35 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         preflightCommitment: "confirmed",
       });
 
-      setLoading("confirming");
-
       await connection.confirmTransaction(
         { signature, blockhash, lastValidBlockHeight },
         "confirmed"
       );
 
-      const csrfToken = getFreshCsrf();
+      const newCsrfToken = getFreshCsrf();
 
       if (abortController.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
       }
 
-      const res = await fetch("/api/purchase/verify", {
+      const verifyRes = await fetch("/api/purchase/verify", {
         method: "POST",
         credentials: "include",
         signal: abortController.signal,
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": `${userWallet}:${signature}`,
-          ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+          "Idempotency-Key": `${walletAddress}:${signature}`,
+          ...(newCsrfToken ? { "x-csrf-token": newCsrfToken } : {}),
         },
         body: JSON.stringify({ signature, gameId, lotId, price }),
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Verification failed: ${res.status}`);
+      if (!verifyRes.ok) {
+        const errData = await verifyRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Verification failed: ${verifyRes.status}`);
       }
 
-      const data = await res.json();
+      const data = await verifyRes.json();
       onSuccess?.(data);
 
     } catch (err: any) {
@@ -248,7 +272,6 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
       } else if (signature && (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError"))) {
         setError(t("errors.verificationPending"));
       } else {
-        console.error("Purchase error:", err);
         setError(err.message || t("errors.transactionFailed"));
       }
     } finally {
@@ -265,33 +288,30 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         }
       }, 2000);
     }
-  }, [isAuthorized, userWallet, publicKey, purchaseConfig, t]);
-
-  if (!isAuthorized) {
-    return (
-      <div className="space-y-2">
-        <LoginButton className="w-full" />
-        <p className="text-xs text-text-secondary text-center">
-          {t("purchase.connectWalletHint") || "Connect your wallet to purchase"}
-        </p>
-      </div>
-    );
-  }
+  }, [publicKey, userWallet, purchaseConfig, t, login, refreshAuth]);
 
   const getButtonText = () => {
+    if (loading === "connecting") {
+      return (
+        <span className="flex items-center gap-2">
+          <span className="animate-spin">⟳</span>
+          {t("purchase.authorizing") || "Authorizing..."}
+        </span>
+      );
+    }
+    if (loading === "signing") {
+      return (
+        <span className="flex items-center gap-2">
+          <span className="animate-pulse">✍️</span>
+          {t("purchase.signingAuth") || "Sign to authorize..."}
+        </span>
+      );
+    }
     if (loading === "confirming") {
       return (
         <span className="flex items-center gap-2">
           <span className="animate-pulse">⛓️</span>
-          {t("actions.confirming")}
-        </span>
-      );
-    }
-    if (loading) {
-      return (
-        <span className="flex items-center gap-2">
-          <span className="animate-spin">⟳</span>
-          {t("actions.processing")}
+          {t("purchase.confirming") || "Confirming..."}
         </span>
       );
     }

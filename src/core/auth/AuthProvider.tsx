@@ -11,7 +11,7 @@ interface AuthContextType {
   isLoading: boolean;
   selectedWalletName: string | null;
   login: (wallet: string, walletName: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
 }
 

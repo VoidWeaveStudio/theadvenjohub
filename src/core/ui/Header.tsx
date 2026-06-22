@@ -12,7 +12,8 @@ import { LoginButton } from "@/core/auth/components/LoginButton";
 
 export function Header() {
   const pathname = usePathname();
-  if (pathname?.startsWith('/game')) return null;
+  
+  if (pathname?.startsWith('/game/')) return null;
 
   const router = useRouter();
   const { t } = useLanguage();
