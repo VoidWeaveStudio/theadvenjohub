@@ -1,4 +1,4 @@
-// src/core/auth/components/LoginButton.tsx
+//src\core\auth\components\LoginButton.tsx
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -11,15 +11,17 @@ type LoadingState = boolean | "connecting" | "signing";
 
 export function LoginButton({ className = "" }: { className?: string }) {
   const { t } = useLanguage();
-  const { connect, publicKey, wallet, connected, select } = useWallet();
+  const { connect, publicKey, wallet, connected, select, connecting } = useWallet();
   const { login, isAuthorized } = useAuth();
 
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
+  const [signTrigger, setSignTrigger] = useState(0);
 
   const pendingWalletName = useRef<string | null>(null);
   const isProcessingRef = useRef(false);
+  const pendingConnectRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || isAuthorized) return;
@@ -36,6 +38,22 @@ export function LoginButton({ className = "" }: { className?: string }) {
       })
       .catch(() => { });
   }, [isAuthorized, login]);
+
+  useEffect(() => {
+    if (pendingConnectRef.current && wallet && !connected && !connecting) {
+      pendingConnectRef.current = false;
+      
+      connect()
+        .then(() => {
+          setSignTrigger(prev => prev + 1);
+        })
+        .catch((err: any) => {
+          console.error("[TANJO Wallet Connection Error]", err);
+          setLoading(false);
+          pendingWalletName.current = null;
+        });
+    }
+  }, [wallet, connected, connecting, connect]);
 
   useEffect(() => {
     if (!connected || !publicKey || !pendingWalletName.current || isProcessingRef.current) return;
@@ -84,7 +102,8 @@ export function LoginButton({ className = "" }: { className?: string }) {
         let signatureBase64: string;
         try {
           const signed = await signMessageFn.call(wallet.adapter, messageBytes);
-          signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signed)));
+          const signatureBytes = signed.signature || signed;
+          signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
         } catch (signError: any) {
           if (signError.message?.includes("not supported") || signError.message?.includes("not a function")) {
             throw new Error("SIGN_METHOD_NOT_SUPPORTED");
@@ -119,6 +138,8 @@ export function LoginButton({ className = "" }: { className?: string }) {
         pendingWalletName.current = null;
 
       } catch (err: any) {
+        console.error("[TANJO Auth Error]", err);
+        
         if (err.message === "SIGN_METHOD_NOT_SUPPORTED") {
           setError(t("auth.walletNotSupported") || "This wallet doesn't support message signing.");
         } else if (err.code === 4001 || err.message?.includes("rejected") || err.message?.includes("User rejected")) {
@@ -139,7 +160,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
     };
 
     doSignAndVerify();
-  }, [connected, publicKey, wallet, t, login]);
+  }, [connected, publicKey, wallet, t, login, signTrigger]);
 
   const handleWalletSelect = useCallback(async (walletName: string) => {
     if (loading) return;
@@ -148,16 +169,16 @@ export function LoginButton({ className = "" }: { className?: string }) {
     setError(null);
     setLoading("connecting");
     setShowWalletSelector(false);
+    pendingConnectRef.current = true;
 
     try {
       select(walletName as any);
-      await new Promise(r => setTimeout(r, 100));
-      await connect();
     } catch (err: any) {
+      console.error("[TANJO Wallet Selection Error]", err);
+      pendingConnectRef.current = false;
+      
       if (err.name === "WalletNotReadyError") {
         setError(`${walletName} is not installed. Please install it first.`);
-      } else if (err.code === 4001 || err.message?.includes("rejected")) {
-        setError(t("auth.signatureCancelled"));
       } else {
         setError(err.message || t("auth.connectionError"));
       }
@@ -165,7 +186,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
       setLoading(false);
       pendingWalletName.current = null;
     }
-  }, [loading, select, connect, t]);
+  }, [loading, select, t]);
 
   const handleConnect = useCallback(() => {
     if (loading || isAuthorized) return;

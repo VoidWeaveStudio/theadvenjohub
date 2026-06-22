@@ -1,4 +1,4 @@
-// src/features/shared/PurchaseButton.tsx
+//src\features\shared\PurchaseButton.tsx
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -7,20 +7,18 @@ import {
   Connection,
   PublicKey,
   Transaction,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   createTransferInstruction,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
+import { LoginButton } from "@/core/auth/components/LoginButton"; 
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-
-let globalPurchaseLock = false;
-let activeRequestId: string | null = null;
-let lastPurchaseTime = 0;
-const PURCHASE_COOLDOWN_MS = 5000;
 
 interface PurchaseButtonProps {
   gameId?: string;
@@ -34,12 +32,11 @@ type LoadingState = boolean | "connecting" | "signing" | "confirming";
 
 export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
   const { t } = useLanguage();
-  const { publicKey } = useWallet();
+  const { publicKey, connected, wallet } = useWallet();
   const { login, refreshAuth, userWallet, isAuthorized } = useAuth();
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const requestIdRef = useRef<string>(Math.random().toString(36).slice(2));
   const isProcessingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -53,31 +50,49 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
     return match ? decodeURIComponent(match[1]) : undefined;
   };
 
+  const getTokenBalance = useCallback(async (
+    connection: Connection,
+    ata: PublicKey,
+    tokenProgramId: PublicKey
+  ): Promise<bigint> => {
+    const accountInfo = await connection.getAccountInfo(ata, "confirmed");
+    
+    if (!accountInfo) {
+      throw new Error("Token account not found");
+    }
+
+    const data = accountInfo.data;
+    if (data.length < 72) {
+      throw new Error("Invalid token account data");
+    }
+
+    const balance = BigInt(data[64]) |
+      BigInt(data[65]) << 8n |
+      BigInt(data[66]) << 16n |
+      BigInt(data[67]) << 24n |
+      BigInt(data[68]) << 32n |
+      BigInt(data[69]) << 40n |
+      BigInt(data[70]) << 48n |
+      BigInt(data[71]) << 56n;
+
+    return balance;
+  }, []);
+
   const handlePurchase = useCallback(async (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
 
-    if (!publicKey && !userWallet) {
+    if (!publicKey || !connected || !wallet?.adapter) {
       setError(t("errors.connectWallet") || "Please connect your wallet first");
-      return;
-    }
-
-    const walletAddress = publicKey?.toBase58() || userWallet;
-
-    if (!walletAddress) {
-      setError(t("errors.connectWallet") || "Wallet address not available");
-      return;
-    }
-
-    const currentRequestId = requestIdRef.current;
-    const now = Date.now();
-
-    if (globalPurchaseLock || activeRequestId !== null || (now - lastPurchaseTime < PURCHASE_COOLDOWN_MS)) {
       return;
     }
 
     if (isProcessingRef.current) {
       return;
     }
+
+    const walletAddress = publicKey.toBase58();
+    const walletAdapter = wallet.adapter;
+    const walletName = walletAdapter.name;
 
     const { gameId, lotId, price, onSuccess } = purchaseConfig;
 
@@ -90,15 +105,10 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
       return;
     }
 
-    const phantom = (window as any).phantom?.solana;
-    if (!phantom) {
-      setError(t("errors.phantomNotFound"));
+    if (typeof (walletAdapter as any).signMessage !== "function") {
+      setError(t("errors.walletNotSupported") || "This wallet doesn't support message signing");
       return;
     }
-
-    globalPurchaseLock = true;
-    activeRequestId = currentRequestId;
-    lastPurchaseTime = now;
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -113,55 +123,68 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
     let signature: string | null = null;
 
     try {
-      setLoading("signing");
-      
-      const challengeRes = await fetch(
-        `/api/auth/challenge?wallet=${encodeURIComponent(walletAddress)}`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
+      if (!isAuthorized) {
+        setLoading("signing");
+        
+        const challengeRes = await fetch(
+          `/api/auth/challenge?wallet=${encodeURIComponent(walletAddress)}`,
+          {
+            method: "GET",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        if (!challengeRes.ok) {
+          const err = await challengeRes.json().catch(() => ({}));
+          throw new Error(err.error || `Challenge failed: ${challengeRes.status}`);
         }
-      );
 
-      if (!challengeRes.ok) {
-        const err = await challengeRes.json().catch(() => ({}));
-        throw new Error(err.error || `Challenge failed: ${challengeRes.status}`);
+        const { nonce, csrfToken } = await challengeRes.json();
+        const authMessage = `Sign in to TANJO Game Store\nWallet: ${walletAddress}\nNonce: ${nonce}`;
+        const authMessageBytes = new TextEncoder().encode(authMessage);
+
+        const signMessageFn = (walletAdapter as any).signMessage;
+        let authSignatureBase64: string;
+
+        try {
+          const signed = await signMessageFn.call(walletAdapter, authMessageBytes);
+          const signatureBytes = signed.signature || signed;
+          authSignatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
+        } catch (signError: any) {
+          if (signError.code === 4001 || signError.message?.includes("rejected")) {
+            throw new Error("User rejected signature");
+          }
+          throw signError;
+        }
+
+        if (abortController.signal.aborted) {
+          throw new DOMException("Aborted", "AbortError");
+        }
+
+        const authVerifyRes = await fetch("/api/auth/verify", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "x-csrf-token": csrfToken,
+          },
+          body: JSON.stringify({
+            wallet: walletAddress,
+            message: authMessage,
+            signature: authSignatureBase64,
+            nonce,
+          }),
+        });
+
+        if (!authVerifyRes.ok) {
+          const err = await authVerifyRes.json().catch(() => ({}));
+          throw new Error(err.error || `Auth verification failed: ${authVerifyRes.status}`);
+        }
+
+        login(walletAddress, walletName);
+        await refreshAuth();
       }
-
-      const { nonce, csrfToken } = await challengeRes.json();
-      const authMessage = `Sign in to TANJO Game Store\nWallet: ${walletAddress}\nNonce: ${nonce}`;
-      const authMessageBytes = new TextEncoder().encode(authMessage);
-
-      const authSigned = await phantom.signMessage(authMessageBytes, "utf8");
-      const authSignatureBase64 = btoa(String.fromCharCode(...authSigned.signature));
-
-      if (abortController.signal.aborted) {
-        throw new DOMException("Aborted", "AbortError");
-      }
-
-      const authVerifyRes = await fetch("/api/auth/verify", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
-        body: JSON.stringify({
-          wallet: walletAddress,
-          message: authMessage,
-          signature: authSignatureBase64,
-          nonce,
-        }),
-      });
-
-      if (!authVerifyRes.ok) {
-        const err = await authVerifyRes.json().catch(() => ({}));
-        throw new Error(err.error || `Auth verification failed: ${authVerifyRes.status}`);
-      }
-
-      login(walletAddress, "Phantom");
-      await refreshAuth();
 
       setLoading("confirming");
 
@@ -180,23 +203,7 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
       const userATA = await getAssociatedTokenAddress(mintPubkey, userPubkey, false, tokenProgramId);
       const treasuryATA = await getAssociatedTokenAddress(mintPubkey, treasuryPubkey, true, tokenProgramId);
 
-      const [userAccountInfo, treasuryAccountInfo] = await Promise.all([
-        connection.getAccountInfo(userATA, "confirmed"),
-        connection.getAccountInfo(treasuryATA, "confirmed"),
-      ]);
-
-      if (!userAccountInfo) throw new Error("Your token account not found. Make sure you have TNJ tokens.");
-      if (!treasuryAccountInfo) throw new Error("Treasury account not found.");
-
-      const accountData = userAccountInfo.data;
-      const balance = BigInt(accountData[64]) |
-        BigInt(accountData[65]) << 8n |
-        BigInt(accountData[66]) << 16n |
-        BigInt(accountData[67]) << 24n |
-        BigInt(accountData[68]) << 32n |
-        BigInt(accountData[69]) << 40n |
-        BigInt(accountData[70]) << 48n |
-        BigInt(accountData[71]) << 56n;
+      const balance = await getTokenBalance(connection, userATA, tokenProgramId);
 
       const amountToSend = BigInt(price) * BigInt(10 ** decimals);
 
@@ -220,7 +227,19 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         recentBlockhash: blockhash,
       }).add(transferInstruction);
 
-      const signedTx = await phantom.signTransaction(tx);
+      if (typeof (walletAdapter as any).signTransaction !== "function") {
+        throw new Error("This wallet doesn't support transaction signing");
+      }
+
+      let signedTx: Transaction | VersionedTransaction;
+      try {
+        signedTx = await (walletAdapter as any).signTransaction(tx);
+      } catch (signError: any) {
+        if (signError.code === 4001 || signError.message?.includes("rejected")) {
+          throw new Error("User rejected transaction");
+        }
+        throw signError;
+      }
 
       if (abortController.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
@@ -231,16 +250,20 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         preflightCommitment: "confirmed",
       });
 
-      await connection.confirmTransaction(
-        { signature, blockhash, lastValidBlockHeight },
-        "confirmed"
-      );
-
-      const newCsrfToken = getFreshCsrf();
+      try {
+        await connection.confirmTransaction(
+          { signature, blockhash, lastValidBlockHeight },
+          "confirmed"
+        );
+      } catch (confirmErr: any) {
+        console.warn("[TANJO] Transaction confirmation timeout, relying on backend verification:", confirmErr.message);
+      }
 
       if (abortController.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
       }
+
+      const newCsrfToken = getFreshCsrf();
 
       const verifyRes = await fetch("/api/purchase/verify", {
         method: "POST",
@@ -263,6 +286,8 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
       onSuccess?.(data);
 
     } catch (err: any) {
+      console.error("[TANJO Purchase Error]", err);
+      
       if (err.name === "AbortError" || err.message === "Aborted") {
         return;
       }
@@ -277,18 +302,19 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
     } finally {
       isProcessingRef.current = false;
       setLoading(false);
-
-      if (activeRequestId === currentRequestId) {
-        activeRequestId = null;
-      }
-
-      setTimeout(() => {
-        if (activeRequestId === null) {
-          globalPurchaseLock = false;
-        }
-      }, 2000);
     }
-  }, [publicKey, userWallet, purchaseConfig, t, login, refreshAuth]);
+  }, [publicKey, connected, wallet, purchaseConfig, t, login, refreshAuth, userWallet, isAuthorized, getTokenBalance]);
+
+  if (!publicKey || !connected) {
+    return (
+      <div className="space-y-2">
+        <LoginButton className="w-full" />
+        <p className="text-xs text-text-secondary text-center">
+          {t("purchase.connectWalletHint") || "Connect your wallet to purchase"}
+        </p>
+      </div>
+    );
+  }
 
   const getButtonText = () => {
     if (loading === "connecting") {

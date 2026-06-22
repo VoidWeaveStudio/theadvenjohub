@@ -16,6 +16,7 @@ interface WalletSelectorModalProps {
 const WALLET_LABELS: Record<string, string> = {
   "Phantom": "Phantom",
   "Solflare": "Solflare",
+  "OKX Wallet": "OKX Wallet",
   "MathWallet": "MathWallet",
   "TokenPocket": "TokenPocket",
   "Solong": "Solong",

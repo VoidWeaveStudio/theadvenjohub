@@ -20,6 +20,7 @@ import {
 import { clusterApiUrl } from "@solana/web3.js";
 import { useMemo, useCallback } from "react";
 import { AuthProvider } from "@/core/auth/AuthProvider";
+import { OKXWalletAdapter } from "@/core/wallets/OKXWalletAdapter";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function SolanaProviders({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ export function SolanaProviders({ children }: { children: React.ReactNode }) {
   const wallets = useMemo(() => [
     new PhantomWalletAdapter(),
     new SolflareWalletAdapter(),
+    new OKXWalletAdapter(),
     new MathWalletAdapter(),
     new TokenPocketWalletAdapter(),
     new SolongWalletAdapter(),
@@ -55,7 +57,7 @@ export function SolanaProviders({ children }: { children: React.ReactNode }) {
     <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed" }}>
       <WalletProvider
         wallets={wallets}
-        autoConnect={false}
+        autoConnect={true}
         onError={onError}
       >
         <WalletModalProvider>
