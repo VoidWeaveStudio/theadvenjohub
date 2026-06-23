@@ -167,7 +167,7 @@ export const ru: Translations = {
   "marketplace.sortBy": "Сортировать по",
   "marketplace.rarity": "Редкость",
   "marketplace.resetFilters": "Сбросить фильтры",
-  "header.appName": "TANJO Игровой Магазин",
+  "header.appName": "TANJO",
   "header.openMenu": "Открыть меню",
   "auth.phantomNotInstalled": "Установите Phantom Wallet",
 
