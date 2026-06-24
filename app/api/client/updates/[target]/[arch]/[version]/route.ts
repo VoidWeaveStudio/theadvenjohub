@@ -1,7 +1,6 @@
-//app\api\client\updates\[target]\[arch]\[version]\route.ts
+// app/api/client/updates/[target]/[arch]/[version]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { list } from "@vercel/blob";
 
 export async function GET(
   req: NextRequest,
@@ -17,33 +16,73 @@ export async function GET(
   
   const platformKey = `${target}-${arch}`;
   
-  const releasesDir = path.join(process.cwd(), "..", "releases");
   const installerFilename = platformKey.includes("windows") 
     ? "TANJO-Client-latest.exe"
     : platformKey.includes("darwin")
     ? "TANJO-Client-latest.dmg"
     : "TANJO-Client-latest.AppImage";
   
-  const sigPath = path.join(releasesDir, `${installerFilename}.sig`);
-  const signature = fs.existsSync(sigPath)
-    ? fs.readFileSync(sigPath, "utf-8").trim()
-    : "";
+  const sigFilename = `${installerFilename}.sig`;
   
-  if (!signature) {
-    console.error(`[Updater] Signature file not found: ${sigPath}`);
-  }
-  
-  const response = {
-    version: LATEST_VERSION,
-    notes: "Bug fixes and improvements", 
-    pub_date: new Date().toISOString(),
-    platforms: {
-      [platformKey]: {
-        url: `https://theadvenjo.online/api/client/download`,
-        signature: signature || "INVALID_SIGNATURE_MISSING_SIG_FILE"
-      }
+  try {
+    const { blobs } = await list({ prefix: "releases/" });
+    
+    const installerBlob = blobs.find(b => b.pathname === `releases/${installerFilename}`);
+    if (!installerBlob) {
+      console.error(`[Updater] Installer not found: ${installerFilename}`);
+      return NextResponse.json(
+        { error: "Installer not found" },
+        { status: 404 }
+      );
     }
-  };
-  
-  return NextResponse.json(response);
+    
+    const sigBlob = blobs.find(b => b.pathname === `releases/${sigFilename}`);
+    if (!sigBlob) {
+      console.error(`[Updater] Signature file not found: ${sigFilename}`);
+      return NextResponse.json(
+        { error: "Signature file not found" },
+        { status: 404 }
+      );
+    }
+    
+    const signatureResponse = await fetch(sigBlob.downloadUrl || sigBlob.url);
+    const signature = (await signatureResponse.text()).trim();
+    
+    if (!signature) {
+      console.error(`[Updater] Empty signature file: ${sigFilename}`);
+      return NextResponse.json(
+        { error: "Empty signature file" },
+        { status: 500 }
+      );
+    }
+    
+    const response = {
+      version: LATEST_VERSION,
+      notes: "Added support for all Solana wallets, multilingual support, bug fixes", 
+      pub_date: new Date().toISOString(),
+      platforms: {
+        [platformKey]: {
+          url: installerBlob.downloadUrl || installerBlob.url,
+          signature: signature
+        }
+      }
+    };
+    
+    console.log(`[Updater] Update available: ${version} -> ${LATEST_VERSION} for ${platformKey}`);
+    
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    });
+    
+  } catch (error) {
+    console.error("[Updater] Error:", error);
+    return NextResponse.json(
+      { error: "Update check failed", details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  }
 }

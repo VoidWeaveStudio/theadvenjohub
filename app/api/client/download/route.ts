@@ -6,7 +6,7 @@ import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
 export async function GET(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
-    
+
     const rl = await checkRateLimit(`download:${ip}`, {
       maxAttempts: 100,
       windowMs: 60 * 60 * 1000,
