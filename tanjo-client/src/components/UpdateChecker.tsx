@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Spinner } from '../ui/Spinner';
-import { logger } from '../lib/logger'; 
+import { logger } from '../lib/logger';
+import { useI18n } from '../i18n';
 
 interface UpdateInfo {
   available: boolean;
@@ -17,6 +18,7 @@ interface UpdateCheckerProps {
 }
 
 export function UpdateChecker({ onCheckComplete }: UpdateCheckerProps) {
+  const { t } = useI18n();
   const [checking, setChecking] = useState(true);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [installing, setInstalling] = useState(false);
@@ -68,8 +70,8 @@ export function UpdateChecker({ onCheckComplete }: UpdateCheckerProps) {
       <div className="update-checker">
         <div className="update-content">
           <Spinner size="lg" />
-          <h2 className="update-title">Checking for updates...</h2>
-          <p className="update-description">Please wait</p>
+          <h2 className="update-title">{t.updateChecker.checking}</h2>
+          <p className="update-description">{t.updateChecker.pleaseWait}</p>
         </div>
       </div>
     );
@@ -80,7 +82,7 @@ export function UpdateChecker({ onCheckComplete }: UpdateCheckerProps) {
       <div className="update-checker">
         <div className="update-content">
           <div className="update-icon">🎉</div>
-          <h2 className="update-title">Update Available!</h2>
+          <h2 className="update-title">{t.updateChecker.updateAvailable}</h2>
           <div className="update-version-info">
             <span className="current-version">v{updateInfo.current_version}</span>
             <span className="arrow">→</span>
@@ -89,7 +91,7 @@ export function UpdateChecker({ onCheckComplete }: UpdateCheckerProps) {
           
           {updateInfo.body && (
             <div className="update-changelog">
-              <h3>What's New:</h3>
+              <h3>{t.updateChecker.whatsNew}</h3>
               <p>{updateInfo.body}</p>
             </div>
           )}
@@ -109,10 +111,10 @@ export function UpdateChecker({ onCheckComplete }: UpdateCheckerProps) {
               {installing ? (
                 <>
                   <Spinner size="sm" />
-                  Installing...
+                  {t.updateChecker.installing}
                 </>
               ) : (
-                'Install Update'
+                t.updateChecker.installUpdate
               )}
             </button>
             <button
@@ -120,7 +122,7 @@ export function UpdateChecker({ onCheckComplete }: UpdateCheckerProps) {
               disabled={installing}
               className="btn btn-ghost"
             >
-              Skip for now
+              {t.updateChecker.skipForNow}
             </button>
           </div>
         </div>
@@ -133,10 +135,10 @@ export function UpdateChecker({ onCheckComplete }: UpdateCheckerProps) {
       <div className="update-checker">
         <div className="update-content">
           <div className="update-icon">⚠️</div>
-          <h2 className="update-title">Update Check Failed</h2>
+          <h2 className="update-title">{t.updateChecker.checkFailed}</h2>
           <p className="update-description">{error}</p>
           <button onClick={onCheckComplete} className="btn btn-primary">
-            Continue Anyway
+            {t.updateChecker.continueAnyway}
           </button>
         </div>
       </div>

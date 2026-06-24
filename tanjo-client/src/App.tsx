@@ -4,11 +4,13 @@ import { LibraryView } from './components/LibraryView';
 import { UpdateChecker } from './components/UpdateChecker';
 import { checkAuth, handleDeepLink, type AuthState, openBrowserAuth } from './lib/auth';
 import { launchGame } from './lib/library';
-import { logger } from './lib/logger'; 
+import { logger } from './lib/logger';
+import { I18nProvider, useI18n } from './i18n';
 import './styles/global.css';
 import './styles/components/update-checker.css';
 
 function AppContent() {
+  const { t } = useI18n();
   const [updateCheckComplete, setUpdateCheckComplete] = useState(false);
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,7 @@ function AppContent() {
               setLoading(false);
               setAuthError(null);
             } else if (!cancelled) {
-              setAuthError('Failed to authorize. Please try again.');
+              setAuthError(t.auth.authError);
             }
           });
 
@@ -67,7 +69,7 @@ function AppContent() {
       if (unlistenDeepLink) unlistenDeepLink();
       if (unlistenLaunch) unlistenLaunch();
     };
-  }, []);
+  }, [t]);
 
   const handleDownloadGame = useCallback(async (slug: string) => {
     logger.info('Download requested:', slug);
@@ -78,9 +80,9 @@ function AppContent() {
     try {
       await openBrowserAuth();
     } catch {
-      setAuthError('Failed to open browser for authorization');
+      setAuthError(t.auth.loginError);
     }
-  }, []);
+  }, [t]);
 
   const handleLogout = useCallback(async () => {
     await import('./lib/auth').then(m => m.logout());
@@ -103,8 +105,8 @@ function AppContent() {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center p-md">
         <div className="card max-w-md w-full p-lg text-center">
-          <h1 className="text-2xl font-bold title-gradient mb-md">TANJO Game Store</h1>
-          <p className="text-secondary mb-lg">Connect with Phantom to access your game library</p>
+          <h1 className="text-2xl font-bold title-gradient mb-md">{t.auth.title}</h1>
+          <p className="text-secondary mb-lg">{t.auth.subtitle}</p>
 
           {authError && (
             <div className="error-box mb-md">
@@ -116,12 +118,12 @@ function AppContent() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
             </svg>
-            Connect with Phantom
+            {t.auth.connectButton}
           </button>
 
           <p className="text-muted text-xs mt-md">
-            A browser window will open for secure authorization.<br />
-            After confirmation, you will return to the app.
+            {t.auth.browserMessage}<br />
+            {t.auth.returnMessage}
           </p>
         </div>
       </div>
@@ -137,7 +139,7 @@ function AppContent() {
             {auth.wallet?.slice(0, 6)}...{auth.wallet?.slice(-4)}
           </span>
           <button onClick={handleLogout} className="btn btn-ghost btn-sm text-error">
-            Logout
+            {t.auth.logout}
           </button>
         </div>
       </header>
@@ -150,5 +152,9 @@ function AppContent() {
 }
 
 export default function App() {
-  return <AppContent />;
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
+  );
 }

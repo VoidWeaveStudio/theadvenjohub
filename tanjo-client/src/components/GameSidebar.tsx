@@ -1,5 +1,6 @@
-// tanjo-client/src/components/GameSidebar.tsx
+//tanjo-client\src\components\GameSidebar.tsx
 import type { SyncedGame } from '../lib/library';
+import { useI18n } from '../i18n';
 import '../styles/components/game-sidebar.css';
 
 interface GameSidebarProps {
@@ -9,10 +10,12 @@ interface GameSidebarProps {
 }
 
 export function GameSidebar({ games, selectedGame, onSelectGame }: GameSidebarProps) {
+  const { t } = useI18n();
+
   return (
     <aside className="game-sidebar">
       <div className="sidebar-header">
-        <h2 className="sidebar-title">MY GAMES</h2>
+        <h2 className="sidebar-title">{t.library.myGames}</h2>
         <span className="game-count">{games.length}</span>
       </div>
 

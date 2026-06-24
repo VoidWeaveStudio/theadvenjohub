@@ -1,8 +1,9 @@
-// tanjo-client/src/components/LibraryView.tsx
+//tanjo-client\src\components\LibraryView.tsx
 import { useState, useEffect, useRef } from 'react';
 import { syncLibrary, type SyncedGame } from '../lib/library';
 import { GameSidebar } from './GameSidebar';
 import { GameDetails } from './GameDetails';
+import { useI18n } from '../i18n';
 import '../styles/components/library.css';
 
 interface LibraryViewProps {
@@ -10,6 +11,7 @@ interface LibraryViewProps {
 }
 
 export function LibraryView({ onDownloadGame }: LibraryViewProps) {
+  const { t } = useI18n();
   const [games, setGames] = useState<SyncedGame[]>([]);
   const [selectedGame, setSelectedGame] = useState<SyncedGame | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,7 +102,7 @@ export function LibraryView({ onDownloadGame }: LibraryViewProps) {
       <div className="error-container">
         <p className="text-error">{error}</p>
         <button onClick={loadLibrary} className="btn btn-primary">
-          Retry
+          {t.common.retry}
         </button>
       </div>
     );
@@ -114,9 +116,9 @@ export function LibraryView({ onDownloadGame }: LibraryViewProps) {
     return (
       <div className="empty-state">
         <div className="empty-state-icon">🎮</div>
-        <h3 className="text-lg font-semibold mb-sm text-primary">Library is empty</h3>
+        <h3 className="text-lg font-semibold mb-sm text-primary">{t.library.libraryEmpty}</h3>
         <p className="text-sm text-secondary max-w-prose mb-lg">
-          Purchase games in the store to see them here
+          {t.library.purchaseGames}
         </p>
         <a
           href={storeUrl}
@@ -124,7 +126,7 @@ export function LibraryView({ onDownloadGame }: LibraryViewProps) {
           rel="noopener noreferrer"
           className="btn btn-primary"
         >
-          Go to Store
+          {t.library.goToStore}
         </a>
       </div>
     );
@@ -145,7 +147,7 @@ export function LibraryView({ onDownloadGame }: LibraryViewProps) {
           />
         ) : (
           <div className="no-game-selected">
-            <p className="text-secondary">Select a game to view details</p>
+            <p className="text-secondary">{t.library.selectGame}</p>
           </div>
         )}
       </div>

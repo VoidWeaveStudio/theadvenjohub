@@ -9,7 +9,7 @@ export async function GET(
 ) {
   const { target, arch, version } = await params;
   
-  const LATEST_VERSION = "0.1.0";
+  const LATEST_VERSION = "0.1.3";
   
   if (version === LATEST_VERSION) {
     return NextResponse.json({ version: LATEST_VERSION }, { status: 204 });

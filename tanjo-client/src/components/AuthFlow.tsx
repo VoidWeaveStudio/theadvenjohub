@@ -1,9 +1,11 @@
 //tanjo-client\src\components\AuthFlow.tsx
 import { useState, useCallback } from 'react';
 import { logout } from '../lib/auth';
+import { useI18n } from '../i18n';
 import '../styles/components/auth.css';
 
 export function AuthFlow() {
+  const { t } = useI18n();
   const [status, setStatus] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -22,10 +24,10 @@ export function AuthFlow() {
       await open(authUrl);
       setStatus('idle');
     } catch {
-      setError('Failed to open browser');
+      setError(t.auth.failedToOpenBrowser);
       setStatus('error');
     }
-  }, []);
+  }, [t]);
 
   const handleLogout = useCallback(async () => {
     await logout();
@@ -34,10 +36,10 @@ export function AuthFlow() {
 
   const getStatusText = (): string => {
     const texts: Record<string, string> = {
-      connecting: 'Opening browser...',
-      signing: 'Sign the message in Phantom...',
-      verifying: 'Verifying signature...',
-      syncing: 'Syncing library...',
+      connecting: t.auth.connecting,
+      signing: t.auth.signing,
+      verifying: t.auth.verifying,
+      syncing: t.auth.syncing,
     };
     return texts[status] || '';
   };
@@ -60,7 +62,7 @@ export function AuthFlow() {
             onClick={() => { setStatus('idle'); setError(null); }}
             className="btn btn-ghost btn-sm mt-sm"
           >
-            Try Again
+            {t.auth.tryAgain}
           </button>
         </div>
       </div>
@@ -70,9 +72,9 @@ export function AuthFlow() {
   return (
     <div className="flex flex-col items-center gap-md p-md">
       <div className="text-center">
-        <h2 className="text-xl font-bold mb-sm text-primary">Sign in to TANJO</h2>
+        <h2 className="text-xl font-bold mb-sm text-primary">{t.auth.signIn}</h2>
         <p className="text-sm text-secondary m-0">
-          Connect Phantom to access your game library
+          {t.auth.subtitle}
         </p>
       </div>
 
@@ -83,14 +85,14 @@ export function AuthFlow() {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <circle cx="12" cy="12" r="10" />
         </svg>
-        Connect with Phantom
+        {t.auth.connectButton}
       </button>
 
       <button
         onClick={handleLogout}
         className="btn btn-ghost btn-sm"
       >
-        Sign out
+        {t.auth.signOut}
       </button>
     </div>
   );

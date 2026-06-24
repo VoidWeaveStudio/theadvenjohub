@@ -1,7 +1,8 @@
-// tanjo-client/src/components/GameDetails.tsx
+//tanjo-client\src\components\GameDetails.tsx
 import { useState } from 'react';
 import type { SyncedGame } from '../lib/library';
 import { launchGame, checkForUpdates } from '../lib/library';
+import { useI18n } from '../i18n';
 import '../styles/components/game-details.css';
 
 interface GameDetailsProps {
@@ -10,6 +11,7 @@ interface GameDetailsProps {
 }
 
 export function GameDetails({ game, onDownload }: GameDetailsProps) {
+  const { t } = useI18n();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [bgImageError, setBgImageError] = useState(false);
 
@@ -59,18 +61,18 @@ export function GameDetails({ game, onDownload }: GameDetailsProps) {
           <h1 className="game-title">{game.title}</h1>
 
           <div className="news-section">
-            <h3 className="news-title">Latest News</h3>
+            <h3 className="news-title">{t.gameDetails.latestNews}</h3>
             <div className="news-content">
               <div className="news-item">
-                <span className="news-date">May 31, 2026</span>
-                <p className="news-text">Work on the game continues, don't miss important news and updates</p>
+                <span className="news-date">{t.gameDetails.newsDate}</span>
+                <p className="news-text">{t.gameDetails.newsText}</p>
               </div>
             </div>
           </div>
 
           {game.localData?.version && (
             <div className="version-info">
-              <span className="version-label">Version:</span>
+              <span className="version-label">{t.gameDetails.version}</span>
               <span className="version-value">{game.localData.version}</span>
             </div>
           )}
@@ -83,27 +85,27 @@ export function GameDetails({ game, onDownload }: GameDetailsProps) {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5v14l11-7z" />
             </svg>
-            PLAY Beta
+            {t.gameDetails.playBeta}
           </button>
         )}
 
         {game.installStatus === 'update_available' && (
           <>
             <button onClick={handleCheckUpdates} disabled={checkingUpdate} className="btn-update">
-              {checkingUpdate ? 'Checking...' : 'Update'}
+              {checkingUpdate ? t.gameDetails.checking : t.gameDetails.update}
             </button>
             <button onClick={handlePlay} className="btn-play">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5v14l11-7z" />
               </svg>
-              PLAY Beta
+              {t.gameDetails.playBeta}
             </button>
           </>
         )}
 
         {game.installStatus === 'not_installed' && (
           <button onClick={handleDownload} className="btn-download">
-            Download
+            {t.gameDetails.download}
           </button>
         )}
 
@@ -116,7 +118,7 @@ export function GameDetails({ game, onDownload }: GameDetailsProps) {
               />
             </div>
             <span className="progress-text">
-              {game.downloadProgress ? `${Math.round(game.downloadProgress)}%` : 'Installing...'}
+              {game.downloadProgress ? `${Math.round(game.downloadProgress)}%` : t.gameDetails.installing}
             </span>
           </div>
         )}
