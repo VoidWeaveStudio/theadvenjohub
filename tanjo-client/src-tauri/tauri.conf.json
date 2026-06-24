@@ -33,14 +33,15 @@
         }
     },
     "plugins": {
-        "updater": {
-            "active": true,
-            "endpoints": [
-                "https://theadvenjo.online/api/client/updates/{{target}}/{{arch}}/{{current_version}}"
-            ],
-            "dialog": false,
-            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGNUVCNjRCOTcwNjU4OUUKUldTZVdBYVhTN1plejFkN1EreThRbE5STFZ1Y01RbnlWSWlIenRmRmtiU1hNekNvYVFmVGxveDEK"
-        },
+  "updater": {
+    "active": true,
+    "endpoints": [
+      "https://raw.githubusercontent.com/VoidWeaveStudio/theadvenjohub/main/updater.json"
+    ],
+    "dialog": false,
+    "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENGNUVCNjRCOTcwNjU4OUUKUldTZVdBYVhTN1plejFkN1EreThRbE5STFZ1Y01RbnlWSWlIenRmRmtiU1hNekNvYVFmVGxveDEK"
+  
+},
         "deep-link": {
             "schemes": [
                 "tanjo"
