@@ -1,13 +1,15 @@
-//tanjo-client\src\App.tsx
+// tanjo-client/src/App.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { LibraryView } from './components/LibraryView';
 import { UpdateChecker } from './components/UpdateChecker';
+import { LanguageSelector } from './components/LanguageSelector'; 
 import { checkAuth, handleDeepLink, type AuthState, openBrowserAuth } from './lib/auth';
 import { launchGame } from './lib/library';
 import { logger } from './lib/logger';
 import { I18nProvider, useI18n } from './i18n';
 import './styles/global.css';
 import './styles/components/update-checker.css';
+import './styles/components/language-selector.css'; 
 
 function AppContent() {
   const { t } = useI18n();
@@ -125,6 +127,10 @@ function AppContent() {
             {t.auth.browserMessage}<br />
             {t.auth.returnMessage}
           </p>
+          
+          <div className="mt-md">
+            <LanguageSelector />
+          </div>
         </div>
       </div>
     );
@@ -135,6 +141,8 @@ function AppContent() {
       <header className="app-header">
         <h1 className="text-xl font-bold title-gradient m-0">TANJO</h1>
         <div className="flex items-center gap-md">
+          <LanguageSelector />
+          
           <span className="wallet-display">
             {auth.wallet?.slice(0, 6)}...{auth.wallet?.slice(-4)}
           </span>
