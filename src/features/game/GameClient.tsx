@@ -21,24 +21,18 @@ interface GameFullData {
 
 export function GameClient({ slug }: GameClientProps) {
   const router = useRouter();
-  const { isAuthorized, userWallet } = useAuth();
+  const { isAuthorized, userWallet, isLoading: isAuthLoading } = useAuth();
   const [gameData, setGameData] = useState<GameFullData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [gameState, setGameState] = useState<'lobby' | 'playing'>('lobby');
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [currentMode, setCurrentMode] = useState<string>('5v5');
-  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setAuthChecked(true);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!authChecked) return;
+    if (isAuthLoading) {
+      return;
+    }
 
     if (!isAuthorized) {
       setError("Please login to play");
@@ -47,9 +41,10 @@ export function GameClient({ slug }: GameClientProps) {
     }
 
     checkOwnership();
-  }, [isAuthorized, slug, authChecked]);
+  }, [isAuthorized, isAuthLoading, slug]);
 
   const checkOwnership = async () => {
+    setLoading(true);
     try {
       const data = await apiGet<GameFullData>(`/api/games/${slug}/full`);
       setGameData(data);
@@ -59,6 +54,7 @@ export function GameClient({ slug }: GameClientProps) {
         setTimeout(() => router.push(`/games/${slug}`), 2000);
       }
     } catch (err) {
+      console.error("Check ownership error:", err);
       setError("Failed to verify ownership");
     } finally {
       setLoading(false);
@@ -79,11 +75,16 @@ export function GameClient({ slug }: GameClientProps) {
     setCurrentMode('5v5');
   };
 
-  if (loading) {
+  if (isAuthLoading || loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-8 text-center">
-          <div className="text-white text-xl">Loading game...</div>
+          <div className="text-white text-xl">
+            {isAuthLoading ? "Loading authorization..." : "Loading game..."}
+          </div>
+          <div className="text-zinc-400 text-sm mt-2">
+            {isAuthLoading ? "Please wait..." : "Checking ownership..."}
+          </div>
         </div>
       </div>
     );
