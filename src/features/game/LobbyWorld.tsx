@@ -28,6 +28,12 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
     const isLockedRef = useRef(false);
     const animationFrameRef = useRef<number | null>(null);
     const portalRef = useRef<THREE.Mesh | null>(null);
+    const portalPositionRef = useRef(new THREE.Vector3(0, 3, -15));
+
+    // ✅ ИСПРАВЛЕНИЕ: используем ref для значений, которые нужны в обработчиках клавиш
+    const nearPortalRef = useRef(false);
+    const queueModeRef = useRef<string | null>(null);
+    const showModeSelectRef = useRef(false);
 
     const [players, setPlayers] = useState<any[]>([]);
     const [queues, setQueues] = useState<{ '5v5': QueueStatus; 'ffa': QueueStatus }>({
@@ -39,6 +45,11 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
     const [isLocked, setIsLocked] = useState(false);
     const [nearPortal, setNearPortal] = useState(false);
     const [showModeSelect, setShowModeSelect] = useState(false);
+
+    // ✅ Синхронизация state с ref
+    useEffect(() => { queueModeRef.current = queueMode; }, [queueMode]);
+    useEffect(() => { showModeSelectRef.current = showModeSelect; }, [showModeSelect]);
+    useEffect(() => { nearPortalRef.current = nearPortal; }, [nearPortal]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -75,7 +86,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         containerRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
-        // Освещение
         const ambientLight = new THREE.AmbientLight(0x404080, 0.5);
         scene.add(ambientLight);
 
@@ -84,12 +94,10 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         directionalLight.castShadow = true;
         scene.add(directionalLight);
 
-        // Точечный свет для портала
         const portalLight = new THREE.PointLight(0x00ffff, 2, 20);
         portalLight.position.set(0, 3, -15);
         scene.add(portalLight);
 
-        // Пол
         const groundGeometry = new THREE.BoxGeometry(100, 1, 100);
         const groundMaterial = new THREE.MeshStandardMaterial({
             color: 0x2a2a4e,
@@ -100,7 +108,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Создаём портал
         createPortal(scene);
 
         const handleResize = () => {
@@ -114,7 +121,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
     };
 
     const createPortal = (scene: THREE.Scene) => {
-        // Арка портала (тор)
         const torusGeometry = new THREE.TorusGeometry(3, 0.3, 16, 32);
         const torusMaterial = new THREE.MeshStandardMaterial({
             color: 0x00ffff,
@@ -128,7 +134,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         scene.add(portal);
         portalRef.current = portal;
 
-        // Внутренняя часть портала (полупрозрачная)
         const innerGeometry = new THREE.CircleGeometry(2.8, 32);
         const innerMaterial = new THREE.MeshBasicMaterial({
             color: 0x00ffff,
@@ -140,7 +145,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         inner.position.set(0, 3, -15);
         scene.add(inner);
 
-        // Столбы по бокам
         const pillarGeometry = new THREE.BoxGeometry(0.6, 6, 0.6);
         const pillarMaterial = new THREE.MeshStandardMaterial({
             color: 0x4a4a6e,
@@ -157,7 +161,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         rightPillar.castShadow = true;
         scene.add(rightPillar);
 
-        // Надпись "QUEUE" над порталом
         const canvas = document.createElement('canvas');
         canvas.width = 512;
         canvas.height = 128;
@@ -182,6 +185,7 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         socketRef.current = socket;
 
         socket.on("connect", () => {
+            console.log("Connected to server");
             socket.emit("joinLobby", { wallet, username });
         });
 
@@ -238,12 +242,12 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         socket.on("gameStarted", (data: any) => {
             onEnterGame(data.roomId, data.mode, data.players);
         });
+
         socket.on("joinedFFAGame", (data: any) => {
             onEnterGame(data.roomId, data.mode, data.players);
         });
 
         socket.on("playerJoinedFFAGame", (player: any) => {
-            // Игрок подключился к FFA игре
             console.log("Player joined FFA game:", player.username);
         });
 
@@ -296,8 +300,9 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         const handleKeyDown = (e: KeyboardEvent) => {
             keysRef.current.add(e.code);
 
+            // ✅ ИСПРАВЛЕНИЕ: используем ref вместо state
             if (e.code === "Escape") {
-                if (showModeSelect) {
+                if (showModeSelectRef.current) {
                     setShowModeSelect(false);
                     return;
                 }
@@ -305,14 +310,19 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
                     document.exitPointerLock();
                 }
                 onExit();
+                return;
             }
 
-            if (e.code === "KeyE" && nearPortal && !queueMode) {
+            if (e.code === "KeyE" && nearPortalRef.current && !queueModeRef.current) {
+                console.log("Opening mode select menu");
                 setShowModeSelect(true);
+                return;
             }
 
-            if (e.code === "KeyQ" && queueMode) {
+            if (e.code === "KeyQ" && queueModeRef.current) {
+                console.log("Leaving queue");
                 socketRef.current?.emit("leaveQueue");
+                return;
             }
         };
 
@@ -356,9 +366,20 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         };
 
         document.addEventListener("mousemove", handleMouseMove);
+
+        (window as any).__lobbyCleanup = () => {
+            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("keyup", handleKeyUp);
+            if (containerRef.current) {
+                containerRef.current.removeEventListener("click", handleClick);
+            }
+            document.removeEventListener("pointerlockchange", handlePointerLockChange);
+            document.removeEventListener("mousemove", handleMouseMove);
+        };
     };
 
     const joinQueue = (mode: string) => {
+        console.log("Joining queue:", mode);
         socketRef.current?.emit("joinQueue", { mode, wallet, username });
     };
 
@@ -399,15 +420,20 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
             }
         }
 
-        // Анимация портала (вращение)
+        // Анимация портала
         if (portalRef.current) {
             portalRef.current.rotation.z += 0.01;
         }
 
         // Проверка близости к порталу
-        const portalPosition = new THREE.Vector3(0, 3, -15);
-        const distance = cameraRef.current.position.distanceTo(portalPosition);
-        setNearPortal(distance < 6);
+        if (cameraRef.current) {
+            const distance = cameraRef.current.position.distanceTo(portalPositionRef.current);
+            const isNear = distance < 6;
+            
+            // ✅ Обновляем и ref, и state
+            nearPortalRef.current = isNear;
+            setNearPortal(isNear);
+        }
 
         rendererRef.current.render(sceneRef.current, cameraRef.current);
     };
@@ -415,6 +441,11 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
     const cleanup = () => {
         if (animationFrameRef.current !== null) {
             cancelAnimationFrame(animationFrameRef.current);
+        }
+
+        if ((window as any).__lobbyCleanup) {
+            (window as any).__lobbyCleanup();
+            delete (window as any).__lobbyCleanup;
         }
 
         socketRef.current?.disconnect();
@@ -465,7 +496,7 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
 
             {/* Меню выбора режима */}
             {showModeSelect && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto">
                     <div className="bg-zinc-900 border border-cyan-500/30 rounded-xl p-8 max-w-md w-full space-y-6">
                         <div className="text-center">
                             <h2 className="text-3xl font-bold text-cyan-400 mb-2">SELECT MODE</h2>
