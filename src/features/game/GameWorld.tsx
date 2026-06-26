@@ -1,7 +1,7 @@
 //src\features\game\GameWorld.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { io, Socket } from "socket.io-client";
 import { GameHUD } from "./GameHUD";
@@ -48,6 +48,13 @@ const FFA_COLORS = [
     0xffaa00, 0xaaff00
 ];
 
+// Настройки стрельбы
+const FIRE_RATE = 120; // мс между выстрелами
+const PLAYER_HEIGHT = 1.6;
+const GRAVITY = -0.02;
+const JUMP_FORCE = 0.3;
+const PLAYER_RADIUS = 0.4;
+
 export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const socketRef = useRef<Socket | null>(null);
@@ -67,6 +74,20 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
     const playerIndexRef = useRef<Map<string, number>>(new Map());
     const collisionBoxesRef = useRef<CollisionBox[]>([]);
 
+    // Прыжок и гравитация
+    const velocityYRef = useRef(0);
+    const isOnGroundRef = useRef(true);
+
+    // Автоматическая стрельба
+    const isMouseDownRef = useRef(false);
+    const shootIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const canShootRef = useRef(true);
+
+    // Патроны через ref для мгновенного доступа в интервале
+    const ammoRef = useRef(30);
+    const isReloadingRef = useRef(false);
+    const gameStatusRef = useRef<'waiting' | 'playing' | 'ended'>('playing');
+
     const [players, setPlayers] = useState<Player[]>([]);
     const [myHealth, setMyHealth] = useState(100);
     const [myKills, setMyKills] = useState(0);
@@ -78,6 +99,11 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
     const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'ended'>('playing');
     const [scores, setScores] = useState<any>(mode === '5v5' ? { 1: 0, 2: 0 } : {});
     const [winner, setWinner] = useState<any>(null);
+
+    // Синхронизация state с ref
+    useEffect(() => { ammoRef.current = ammo; }, [ammo]);
+    useEffect(() => { isReloadingRef.current = isReloading; }, [isReloading]);
+    useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -102,8 +128,8 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         if (!containerRef.current) return;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(mode === '5v5' ? 0xd4a574 : 0x2a1a3e);
-        scene.fog = new THREE.Fog(mode === '5v5' ? 0xd4a574 : 0x2a1a3e, 0, 200);
+        scene.background = new THREE.Color(0xd4a574);
+        scene.fog = new THREE.Fog(0xd4a574, 0, 150);
         sceneRef.current = scene;
 
         const camera = new THREE.PerspectiveCamera(
@@ -112,7 +138,8 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             0.1,
             1000
         );
-        camera.position.set(0, 1.6, 0);
+        // ✅ ИСПРАВЛЕНИЕ: спавн за пределами всех стен
+        camera.position.set(-20, PLAYER_HEIGHT, -45);
         camera.rotation.order = 'YXZ';
         cameraRef.current = camera;
 
@@ -122,19 +149,27 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         containerRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // Освещение в стиле Dust 2 (тёплое, пустынное)
+        const ambientLight = new THREE.AmbientLight(0xffeedd, 0.5);
         scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(50, 100, 50);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        scene.add(directionalLight);
+        const sunLight = new THREE.DirectionalLight(0xfff5e0, 1.0);
+        sunLight.position.set(30, 80, 20);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 200;
+        sunLight.shadow.camera.left = -80;
+        sunLight.shadow.camera.right = 80;
+        sunLight.shadow.camera.top = 80;
+        sunLight.shadow.camera.bottom = -80;
+        scene.add(sunLight);
 
+        // Пол (песчаный)
         const groundGeometry = new THREE.BoxGeometry(200, 1, 200);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: mode === '5v5' ? 0xc2956b : 0x4a2a6e,
+            color: 0xc2956b,
             flatShading: true
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -163,16 +198,26 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             flatShading: true
         });
 
+        const wallDarkMaterial = new THREE.MeshStandardMaterial({
+            color: 0xb89060,
+            flatShading: true
+        });
+
         const boxMaterial = new THREE.MeshStandardMaterial({
             color: 0x8b6f47,
             flatShading: true
         });
 
+        const concreteMaterial = new THREE.MeshStandardMaterial({
+            color: 0xa0a090,
+            flatShading: true
+        });
+
         collisionBoxesRef.current = [];
 
-        const addWall = (x: number, z: number, width: number, depth: number, height: number = 4) => {
+        const addWall = (x: number, z: number, width: number, depth: number, height: number = 5, material?: THREE.MeshStandardMaterial) => {
             const geometry = new THREE.BoxGeometry(width, height, depth);
-            const wall = new THREE.Mesh(geometry, wallMaterial);
+            const wall = new THREE.Mesh(geometry, material || wallMaterial);
             wall.position.set(x, height / 2, z);
             wall.castShadow = true;
             wall.receiveShadow = true;
@@ -186,10 +231,11 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             });
         };
 
-        const addBox = (x: number, z: number, size: number = 2) => {
-            const geometry = new THREE.BoxGeometry(size, size, size);
+        const addBox = (x: number, z: number, size: number = 2, height?: number) => {
+            const h = height || size;
+            const geometry = new THREE.BoxGeometry(size, h, size);
             const box = new THREE.Mesh(geometry, boxMaterial);
-            box.position.set(x, size / 2, z);
+            box.position.set(x, h / 2, z);
             box.castShadow = true;
             box.receiveShadow = true;
             scene.add(box);
@@ -202,84 +248,199 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             });
         };
 
-        // T-Spawn (террористы) - нижняя часть карты
-        addWall(-30, -40, 2, 20);
-        addWall(-20, -50, 20, 2);
-        addWall(-10, -40, 2, 20);
+        // ============================================
+        // КАРТА DUST 2 (упрощённая)
+        // ============================================
+        //
+        //   [Site B]          [Site A]
+        //       \               /
+        //   [B Tunnels]    [Long A]
+        //         \           /
+        //          [  Mid  ]
+        //              |
+        //         [T Spawn]
+        //
 
-        // CT-Spawn (контр-террористы) - верхняя часть карты
-        addWall(30, 40, 2, 20);
-        addWall(20, 50, 20, 2);
-        addWall(10, 40, 2, 20);
+        // === ГРАНИЦЫ КАРТЫ ===
+        addWall(0, -65, 140, 2, 8, concreteMaterial); // Южная
+        addWall(0, 65, 140, 2, 8, concreteMaterial);  // Северная
+        addWall(-70, 0, 2, 130, 8, concreteMaterial); // Западная
+        addWall(70, 0, 2, 130, 8, concreteMaterial);  // Восточная
 
-        // Mid (средняя зона)
-        addWall(0, 0, 2, 30);
-        addWall(-15, 0, 2, 20);
-        addWall(15, 0, 2, 20);
+        // === T-SPAWN (юг, z = -40 до -60) ===
+        addWall(-25, -50, 2, 20, 5, wallDarkMaterial);   // Левая стена T-spawn
+        addWall(25, -50, 2, 20, 5, wallDarkMaterial);    // Правая стена T-spawn
+        addBox(-20, -55, 2);                              // Ящик у T-spawn
+        addBox(20, -55, 2);                               // Ящик у T-spawn
 
-        // Site A (левая верхняя)
-        addWall(-35, 25, 15, 2);
-        addWall(-35, 35, 15, 2);
-        addWall(-42, 30, 2, 10);
-        addBox(-35, 30, 3);
+        // === ВХОД ИЗ T-SPAWN В MID ===
+        addWall(-8, -35, 2, 12, 5);
+        addWall(8, -35, 2, 12, 5);
 
-        // Site B (правая верхняя)
-        addWall(35, 25, 15, 2);
-        addWall(35, 35, 15, 2);
-        addWall(42, 30, 2, 10);
-        addBox(35, 30, 3);
+        // === MID (центр, z = -25 до 10) ===
+        addWall(-18, -10, 2, 30, 5);     // Левая стена mid
+        addWall(18, -10, 2, 30, 5);      // Правая стена mid
+        addBox(-5, -15, 2.5);             // Ящик mid (укрытие)
+        addBox(5, -15, 2.5);              // Ящик mid
+        addBox(0, -5, 2);                 // Ящик центр mid
 
-        // Long A (длинный коридор к A)
-        addWall(-25, 15, 2, 20);
-        addWall(-20, 15, 2, 20);
-        addBox(-22, 10, 2);
-        addBox(-22, 20, 2);
+        // === LONG A (запад,通往 Site A) ===
+        addWall(-35, -15, 2, 30, 5);     // Внешняя стена Long A
+        addWall(-25, -15, 2, 30, 5);     // Внутренняя стена Long A
+        addBox(-30, -25, 2);              // Ящик Long A (door)
+        addBox(-30, -5, 2);               // Ящик Long A
+        addBox(-30, 5, 2.5, 1.5);         // Низкий ящик (можно запрыгнуть)
 
-        // Short A (короткий путь к A)
-        addWall(-10, 20, 2, 10);
-        addWall(-5, 25, 10, 2);
+        // === SHORT A / CATWALK (通往 Site A сверху) ===
+        addWall(-20, 10, 12, 2, 5);       // Стена catwalk
+        addWall(-20, 18, 12, 2, 5);       // Стена catwalk верх
 
-        // B Tunnels (туннели к B)
-        addWall(20, 15, 2, 20);
-        addWall(25, 15, 2, 20);
-        addBox(22, 10, 2);
-        addBox(22, 20, 2);
+        // === SITE A (северо-запад) ===
+        addWall(-45, 25, 20, 2, 5);       // Южная стена A
+        addWall(-45, 45, 20, 2, 5);       // Северная стена A
+        addWall(-55, 35, 2, 20, 5);       // Западная стена A
+        addWall(-35, 35, 2, 10, 5);       // Восточная стена A (с проходом)
+        addBox(-45, 35, 3, 2);             // Ящик на Site A
+        addBox(-50, 30, 2);                // Ящик A
+        addBox(-40, 40, 2);                // Ящик A
 
-        // CT Spawn connection
-        addWall(0, 35, 20, 2);
-        addBox(0, 40, 3);
+        // === B TUNNELS (восток,通往 Site B) ===
+        addWall(35, -15, 2, 30, 5);       // Внешняя стена B tunnels
+        addWall(25, -15, 2, 30, 5);       // Внутренняя стена B tunnels
+        addBox(30, -25, 2);                // Ящик B tunnels
+        addBox(30, -5, 2);                 // Ящик B tunnels
+        addBox(30, 5, 2.5, 1.5);           // Низкий ящик
 
-        // T Spawn connection
-        addWall(0, -35, 20, 2);
-        addBox(0, -40, 3);
+        // === SITE B (северо-восток) ===
+        addWall(45, 25, 20, 2, 5);        // Южная стена B
+        addWall(45, 45, 20, 2, 5);        // Северная стена B
+        addWall(55, 35, 2, 20, 5);        // Восточная стена B
+        addWall(35, 35, 2, 10, 5);        // Западная стена B (с проходом)
+        addBox(45, 35, 3, 2);              // Ящик на Site B
+        addBox(50, 30, 2);                 // Ящик B
+        addBox(40, 40, 2);                 // Ящик B
 
-        // Дополнительные укрытия
-        addBox(-8, -10, 2);
-        addBox(8, -10, 2);
-        addBox(-8, 10, 2);
-        addBox(8, 10, 2);
+        // === CT SPAWN (север, z = 40 до 60) ===
+        addWall(-15, 55, 2, 16, 5, wallDarkMaterial);
+        addWall(15, 55, 2, 16, 5, wallDarkMaterial);
+        addWall(0, 50, 20, 2, 5, wallDarkMaterial);
+        addBox(-10, 58, 2);
+        addBox(10, 58, 2);
 
-        // Границы карты
-        addWall(0, -60, 120, 2, 6);
-        addWall(0, 60, 120, 2, 6);
-        addWall(-60, 0, 2, 120, 6);
-        addWall(60, 0, 2, 120, 6);
+        // === СОЕДИНЕНИЕ CT -> A и CT -> B ===
+        addWall(-25, 50, 2, 12, 5);       // Путь CT к A
+        addWall(25, 50, 2, 12, 5);        // Путь CT к B
+
+        // === ДОПОЛНИТЕЛЬНЫЕ УКРЫТИЯ ===
+        addBox(-12, 0, 2);                 // Mid укрытие
+        addBox(12, 0, 2);                  // Mid укрытие
+        addBox(0, 15, 2.5);                // Центр карта
+
+        // === МАРКЕРЫ ЗОН (плоские цветные метки на полу) ===
+        const markerGeometry = new THREE.BoxGeometry(4, 0.05, 4);
+        
+        const tMarker = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: 0xff4444 }));
+        tMarker.position.set(0, 0.03, -50);
+        scene.add(tMarker);
+
+        const ctMarker = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: 0x4444ff }));
+        ctMarker.position.set(0, 0.03, 55);
+        scene.add(ctMarker);
+
+        const aMarker = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: 0xffff00 }));
+        aMarker.position.set(-45, 0.03, 35);
+        scene.add(aMarker);
+
+        const bMarker = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: 0x00ff00 }));
+        bMarker.position.set(45, 0.03, 35);
+        scene.add(bMarker);
     };
 
-    const checkCollision = (x: number, z: number, radius: number = 0.5): boolean => {
+    const checkCollision = (x: number, z: number, radius: number = PLAYER_RADIUS): boolean => {
         for (const box of collisionBoxesRef.current) {
             const closestX = Math.max(box.minX, Math.min(x, box.maxX));
             const closestZ = Math.max(box.minZ, Math.min(z, box.maxZ));
             
             const distanceX = x - closestX;
             const distanceZ = z - closestZ;
-            const distanceSquared = (distanceX * distanceX) + (distanceZ * distanceZ);
             
-            if (distanceSquared < (radius * radius)) {
+            if (distanceX * distanceX + distanceZ * distanceZ < radius * radius) {
                 return true;
             }
         }
         return false;
+    };
+
+    // ✅ Функция выстрела (используется и в click, и в interval)
+    const performShoot = useCallback(() => {
+        if (
+            isReloadingRef.current ||
+            ammoRef.current <= 0 ||
+            !cameraRef.current ||
+            !socketRef.current ||
+            gameStatusRef.current !== 'playing'
+        ) {
+            // Если патроны кончились - останавливаем стрельбу
+            if (ammoRef.current <= 0) {
+                stopAutoFire();
+            }
+            return;
+        }
+
+        const newAmmo = ammoRef.current - 1;
+        ammoRef.current = newAmmo;
+        setAmmo(newAmmo);
+
+        soundManagerRef.current?.playShoot();
+
+        const origin = {
+            x: cameraRef.current.position.x,
+            y: cameraRef.current.position.y,
+            z: cameraRef.current.position.z
+        };
+
+        const direction = new THREE.Vector3(0, 0, -1);
+        direction.applyQuaternion(cameraRef.current.quaternion);
+
+        socketRef.current.emit("shoot", {
+            origin,
+            direction: { x: direction.x, y: direction.y, z: direction.z },
+            damage: 25
+        });
+
+        createBulletTrail(origin, direction);
+
+        // Если патроны кончились
+        if (newAmmo <= 0) {
+            stopAutoFire();
+        }
+    }, []);
+
+    // ✅ Запуск автоматической стрельбы
+    const startAutoFire = useCallback(() => {
+        if (shootIntervalRef.current) return;
+        
+        // Первый выстрел сразу
+        performShoot();
+        
+        // Потом с интервалом
+        shootIntervalRef.current = setInterval(() => {
+            performShoot();
+        }, FIRE_RATE);
+    }, [performShoot]);
+
+    // ✅ Остановка автоматической стрельбы
+    const stopAutoFire = useCallback(() => {
+        if (shootIntervalRef.current) {
+            clearInterval(shootIntervalRef.current);
+            shootIntervalRef.current = null;
+        }
+        isMouseDownRef.current = false;
+    }, []);
+
+    const createBulletTrail = (origin: any, direction: any) => {
+        if (!bulletPoolRef.current) return;
+        bulletPoolRef.current.fire(origin, direction);
     };
 
     const initSocket = () => {
@@ -303,6 +464,14 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             setMyKills(data.player.kills);
             setMyDeaths(data.player.deaths);
             if (data.scores) setScores(data.scores);
+
+            // Переместить камеру на позицию спавна от сервера
+            if (data.player.position && cameraRef.current) {
+                const spawnPos = data.player.position;
+                if (!checkCollision(spawnPos.x, spawnPos.z)) {
+                    cameraRef.current.position.set(spawnPos.x, PLAYER_HEIGHT, spawnPos.z);
+                }
+            }
 
             data.players.forEach((player: Player, index: number) => {
                 playerIndexRef.current.set(player.id, index);
@@ -364,8 +533,10 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         socket.on("playerRespawned", (data) => {
             if (data.id === socketRef.current?.id) {
                 setMyHealth(100);
+                setAmmo(30);
+                ammoRef.current = 30;
                 if (cameraRef.current) {
-                    cameraRef.current.position.set(data.position.x, data.position.y, data.position.z);
+                    cameraRef.current.position.set(data.position.x, PLAYER_HEIGHT, data.position.z);
                 }
             }
         });
@@ -375,10 +546,12 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             setGameStatus('ended');
             setWinner(data.winner);
             setScores(data.scores);
+            stopAutoFire();
         });
 
         socket.on("returnedToLobby", () => {
             console.log("Returned to lobby");
+            stopAutoFire();
             onExit();
         });
 
@@ -400,10 +573,7 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         }
 
         const bodyGeometry = new THREE.BoxGeometry(0.8, 1.6, 0.8);
-        const bodyMaterial = new THREE.MeshStandardMaterial({
-            color: bodyColor,
-            flatShading: true
-        });
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: bodyColor, flatShading: true });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.position.y = 0.8;
         body.castShadow = true;
@@ -411,10 +581,7 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         group.add(body);
 
         const headGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-        const headMaterial = new THREE.MeshStandardMaterial({
-            color: 0xffdbac,
-            flatShading: true
-        });
+        const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffdbac, flatShading: true });
         const head = new THREE.Mesh(headGeometry, headMaterial);
         head.position.y = 1.9;
         head.castShadow = true;
@@ -422,11 +589,7 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         group.add(head);
 
         const armGeometry = new THREE.BoxGeometry(0.25, 1.0, 0.25);
-        const armMaterial = new THREE.MeshStandardMaterial({
-            color: bodyColor,
-            flatShading: true
-        });
-
+        const armMaterial = new THREE.MeshStandardMaterial({ color: bodyColor, flatShading: true });
         const leftArm = new THREE.Mesh(armGeometry, armMaterial);
         leftArm.position.set(-0.55, 0.8, 0);
         leftArm.name = "leftArm";
@@ -438,11 +601,7 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         group.add(rightArm);
 
         const legGeometry = new THREE.BoxGeometry(0.3, 1.0, 0.3);
-        const legMaterial = new THREE.MeshStandardMaterial({
-            color: 0x333333,
-            flatShading: true
-        });
-
+        const legMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, flatShading: true });
         const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
         leftLeg.position.set(-0.2, 0.0, 0);
         leftLeg.name = "leftLeg";
@@ -474,23 +633,28 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         }
     };
 
-    const createBulletTrail = (origin: any, direction: any) => {
-        if (!bulletPoolRef.current) return;
-        bulletPoolRef.current.fire(origin, direction);
-    };
-
     const initControls = () => {
         const handleKeyDown = (e: KeyboardEvent) => {
             keysRef.current.add(e.code);
 
             if (e.code === "Escape") {
+                stopAutoFire();
                 if (document.pointerLockElement) {
                     document.exitPointerLock();
                 }
                 onExit();
+                return;
             }
 
-            if (e.code === "KeyR" && !isReloading && ammo < maxAmmo && gameStatus === 'playing') {
+            // ✅ ПРЫЖОК
+            if (e.code === "Space" && isOnGroundRef.current && gameStatusRef.current === 'playing') {
+                e.preventDefault();
+                velocityYRef.current = JUMP_FORCE;
+                isOnGroundRef.current = false;
+            }
+
+            // ✅ ПЕРЕЗАРЯДКА
+            if (e.code === "KeyR" && !isReloadingRef.current && ammoRef.current < 30 && gameStatusRef.current === 'playing') {
                 reload();
             }
         };
@@ -502,22 +666,39 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         window.addEventListener("keydown", handleKeyDown);
         window.addEventListener("keyup", handleKeyUp);
 
-        const handleClick = () => {
+        // ✅ АВТОМАТИЧЕСКАЯ СТРЕЛЬБА: mousedown запускает, mouseup останавливает
+        const handleMouseDown = (e: MouseEvent) => {
+            if (e.button !== 0) return; // Только левая кнопка
+
             if (!document.pointerLockElement) {
                 containerRef.current?.requestPointerLock();
-            } else if (gameStatus === 'playing') {
-                shoot();
+                return;
             }
+
+            if (gameStatusRef.current !== 'playing') return;
+
+            isMouseDownRef.current = true;
+            startAutoFire();
+        };
+
+        const handleMouseUp = (e: MouseEvent) => {
+            if (e.button !== 0) return;
+            stopAutoFire();
         };
 
         if (containerRef.current) {
-            containerRef.current.addEventListener("click", handleClick);
+            containerRef.current.addEventListener("mousedown", handleMouseDown);
         }
+        // mouseup на window чтобы ловить даже если мышь ушла за пределы
+        window.addEventListener("mouseup", handleMouseUp);
 
         const handlePointerLockChange = () => {
             const locked = document.pointerLockElement === containerRef.current;
             isLockedRef.current = locked;
             setIsLocked(locked);
+            if (!locked) {
+                stopAutoFire();
+            }
         };
 
         document.addEventListener("pointerlockchange", handlePointerLockChange);
@@ -541,44 +722,28 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         (window as any).__gameCleanup = () => {
             window.removeEventListener("keydown", handleKeyDown);
             window.removeEventListener("keyup", handleKeyUp);
+            window.removeEventListener("mouseup", handleMouseUp);
             if (containerRef.current) {
-                containerRef.current.removeEventListener("click", handleClick);
+                containerRef.current.removeEventListener("mousedown", handleMouseDown);
             }
             document.removeEventListener("pointerlockchange", handlePointerLockChange);
             document.removeEventListener("mousemove", handleMouseMove);
         };
     };
 
-    const shoot = () => {
-        if (isReloading || ammo <= 0 || !cameraRef.current || !socketRef.current || gameStatus !== 'playing') return;
-
-        setAmmo((prev) => prev - 1);
-        soundManagerRef.current?.playShoot();
-
-        const origin = {
-            x: cameraRef.current.position.x,
-            y: cameraRef.current.position.y,
-            z: cameraRef.current.position.z
-        };
-
-        const direction = new THREE.Vector3(0, 0, -1);
-        direction.applyQuaternion(cameraRef.current.quaternion);
-
-        socketRef.current.emit("shoot", {
-            origin,
-            direction: { x: direction.x, y: direction.y, z: direction.z },
-            damage: 25
-        });
-
-        createBulletTrail(origin, direction);
-    };
-
     const reload = () => {
+        if (isReloadingRef.current || ammoRef.current >= 30) return;
+        
         setIsReloading(true);
+        isReloadingRef.current = true;
+        stopAutoFire();
         soundManagerRef.current?.playReload();
+        
         setTimeout(() => {
-            setAmmo(maxAmmo);
+            setAmmo(30);
+            ammoRef.current = 30;
             setIsReloading(false);
+            isReloadingRef.current = false;
         }, 2000);
     };
 
@@ -590,26 +755,40 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         const deltaTime = lastTimeRef.current ? (currentTime - lastTimeRef.current) / 1000 : 0.016;
         lastTimeRef.current = currentTime;
 
-        const speed = 0.2;
-        const direction = new THREE.Vector3();
+        // === ПРЫЖОК И ГРАВИТАЦИЯ ===
+        if (!isOnGroundRef.current) {
+            velocityYRef.current += GRAVITY;
+            cameraRef.current.position.y += velocityYRef.current;
 
-        if (keysRef.current.has("KeyW")) direction.z -= 1;
-        if (keysRef.current.has("KeyS")) direction.z += 1;
-        if (keysRef.current.has("KeyA")) direction.x -= 1;
-        if (keysRef.current.has("KeyD")) direction.x += 1;
+            // Приземление
+            if (cameraRef.current.position.y <= PLAYER_HEIGHT) {
+                cameraRef.current.position.y = PLAYER_HEIGHT;
+                velocityYRef.current = 0;
+                isOnGroundRef.current = true;
+            }
+        }
 
-        const isMoving = direction.length() > 0;
+        // === ДВИЖЕНИЕ С КОЛЛИЗИЯМИ ===
+        const speed = 0.15;
+        const moveDirection = new THREE.Vector3();
 
-        if (isMoving) {
-            direction.normalize();
-            direction.applyQuaternion(cameraRef.current.quaternion);
-            direction.y = 0;
-            direction.normalize();
+        if (keysRef.current.has("KeyW")) moveDirection.z -= 1;
+        if (keysRef.current.has("KeyS")) moveDirection.z += 1;
+        if (keysRef.current.has("KeyA")) moveDirection.x -= 1;
+        if (keysRef.current.has("KeyD")) moveDirection.x += 1;
 
-            const newX = cameraRef.current.position.x + direction.x * speed;
-            const newZ = cameraRef.current.position.z + direction.z * speed;
+        const isMoving = moveDirection.length() > 0;
 
-            // Проверяем коллизии по X и Z отдельно
+        if (isMoving && gameStatusRef.current === 'playing') {
+            moveDirection.normalize();
+            moveDirection.applyQuaternion(cameraRef.current.quaternion);
+            moveDirection.y = 0;
+            moveDirection.normalize();
+
+            const newX = cameraRef.current.position.x + moveDirection.x * speed;
+            const newZ = cameraRef.current.position.z + moveDirection.z * speed;
+
+            // Проверяем коллизии по каждой оси отдельно (скольжение вдоль стен)
             if (!checkCollision(newX, cameraRef.current.position.z)) {
                 cameraRef.current.position.x = newX;
             }
@@ -617,12 +796,14 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
                 cameraRef.current.position.z = newZ;
             }
 
+            // Шаги
             footstepTimerRef.current += deltaTime;
-            if (footstepTimerRef.current > 0.4) {
+            if (footstepTimerRef.current > 0.35) {
                 soundManagerRef.current?.playFootstep();
                 footstepTimerRef.current = 0;
             }
 
+            // Отправка позиции на сервер
             if (socketRef.current?.connected) {
                 socketRef.current.emit("playerMove", {
                     position: {
@@ -639,6 +820,7 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             }
         }
 
+        // === ОБНОВЛЕНИЕ ПУЛЯ И АНИМАЦИИ ===
         bulletPoolRef.current?.update(deltaTime);
 
         playerAnimationDataRef.current.forEach((animData, playerId) => {
@@ -685,6 +867,8 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         if (animationFrameRef.current !== null) {
             cancelAnimationFrame(animationFrameRef.current);
         }
+
+        stopAutoFire();
 
         if ((window as any).__gameCleanup) {
             (window as any).__gameCleanup();
@@ -738,6 +922,31 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             <div ref={containerRef} className="w-full h-full cursor-pointer" />
             {renderHUD()}
             
+            {/* Предупреждение о пустых патронах */}
+            {ammo === 0 && !isReloading && gameStatus === 'playing' && (
+                <div className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-red-900/80 backdrop-blur px-6 py-3 rounded-lg animate-pulse pointer-events-none">
+                    <div className="text-red-300 text-lg font-bold">NO AMMO - Press R to Reload</div>
+                </div>
+            )}
+
+            {/* Индикатор перезарядки */}
+            {isReloading && (
+                <div className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg pointer-events-none">
+                    <div className="text-white text-lg font-bold">Reloading...</div>
+                    <div className="w-full h-2 bg-zinc-700 rounded-full mt-2 overflow-hidden">
+                        <div className="h-full bg-yellow-400 animate-[loading_2s_linear]" style={{
+                            animation: 'loading 2s linear forwards',
+                        }} />
+                    </div>
+                    <style>{`
+                        @keyframes loading {
+                            from { width: 0%; }
+                            to { width: 100%; }
+                        }
+                    `}</style>
+                </div>
+            )}
+
             {gameStatus === 'waiting' && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/80 p-8 rounded-lg">
@@ -771,9 +980,7 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
                                 </div>
                             </>
                         )}
-                        <div className="text-zinc-500 text-sm">
-                            Returning to lobby...
-                        </div>
+                        <div className="text-zinc-500 text-sm">Returning to lobby...</div>
                     </div>
                 </div>
             )}
@@ -781,12 +988,8 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             {!isLocked && gameStatus === 'playing' && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/70 p-8 rounded-lg">
-                        <div className="text-white text-3xl font-bold mb-4 animate-pulse">
-                            Click to Start
-                        </div>
-                        <div className="text-zinc-400 text-sm">
-                            Click anywhere to capture mouse
-                        </div>
+                        <div className="text-white text-3xl font-bold mb-4 animate-pulse">Click to Start</div>
+                        <div className="text-zinc-400 text-sm">Click anywhere to capture mouse</div>
                     </div>
                 </div>
             )}
