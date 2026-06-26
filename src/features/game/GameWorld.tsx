@@ -34,7 +34,13 @@ interface PlayerAnimationData {
     deathAnimation: number;
 }
 
-// Цвета для FFA (каждый игрок своего цвета)
+interface CollisionBox {
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+}
+
 const FFA_COLORS = [
     0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff,
     0xff8800, 0x88ff00, 0x0088ff, 0xff0088, 0x8800ff, 0x00ff88,
@@ -52,13 +58,14 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
     const keysRef = useRef<Set<string>>(new Set());
     const isLockedRef = useRef(false);
     const animationFrameRef = useRef<number | null>(null);
-
+    
     const bulletPoolRef = useRef<BulletPool | null>(null);
     const soundManagerRef = useRef<SoundManager | null>(null);
     const lastTimeRef = useRef<number>(0);
     const playerAnimationDataRef = useRef<Map<string, PlayerAnimationData>>(new Map());
     const footstepTimerRef = useRef<number>(0);
     const playerIndexRef = useRef<Map<string, number>>(new Map());
+    const collisionBoxesRef = useRef<CollisionBox[]>([]);
 
     const [players, setPlayers] = useState<Player[]>([]);
     const [myHealth, setMyHealth] = useState(100);
@@ -95,9 +102,8 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         if (!containerRef.current) return;
 
         const scene = new THREE.Scene();
-        // Разный фон для разных режимов
-        scene.background = new THREE.Color(mode === '5v5' ? 0x87ceeb : 0x2a1a3e);
-        scene.fog = new THREE.Fog(mode === '5v5' ? 0x87ceeb : 0x2a1a3e, 0, 200);
+        scene.background = new THREE.Color(mode === '5v5' ? 0xd4a574 : 0x2a1a3e);
+        scene.fog = new THREE.Fog(mode === '5v5' ? 0xd4a574 : 0x2a1a3e, 0, 200);
         sceneRef.current = scene;
 
         const camera = new THREE.PerspectiveCamera(
@@ -122,13 +128,13 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(50, 100, 50);
         directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 1024;
-        directionalLight.shadow.mapSize.height = 1024;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
         scene.add(directionalLight);
 
-        const groundGeometry = new THREE.BoxGeometry(100, 1, 100);
+        const groundGeometry = new THREE.BoxGeometry(200, 1, 200);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: mode === '5v5' ? 0x3a7d44 : 0x4a2a6e,
+            color: mode === '5v5' ? 0xc2956b : 0x4a2a6e,
             flatShading: true
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -136,7 +142,7 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         ground.receiveShadow = true;
         scene.add(ground);
 
-        createMap(scene);
+        createDust2Map(scene);
 
         bulletPoolRef.current = new BulletPool(scene, 50);
         soundManagerRef.current = new SoundManager();
@@ -151,45 +157,129 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         window.addEventListener("resize", handleResize);
     };
 
-    const createMap = (scene: THREE.Scene) => {
-        const boxGeometry = new THREE.BoxGeometry(4, 4, 4);
+    const createDust2Map = (scene: THREE.Scene) => {
         const wallMaterial = new THREE.MeshStandardMaterial({
-            color: mode === '5v5' ? 0x8b7355 : 0x6a4a8e,
+            color: 0xd4a574,
             flatShading: true
         });
 
-        const obstacles = [
-            { x: -15, z: -10 },
-            { x: -15, z: 10 },
-            { x: 15, z: -10 },
-            { x: 15, z: 10 },
-            { x: 0, z: 0 },
-            { x: -8, z: 0 },
-            { x: 8, z: 0 },
-        ];
+        const boxMaterial = new THREE.MeshStandardMaterial({
+            color: 0x8b6f47,
+            flatShading: true
+        });
 
-        obstacles.forEach((pos) => {
-            const wall = new THREE.Mesh(boxGeometry, wallMaterial);
-            wall.position.set(pos.x, 2, pos.z);
+        collisionBoxesRef.current = [];
+
+        const addWall = (x: number, z: number, width: number, depth: number, height: number = 4) => {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const wall = new THREE.Mesh(geometry, wallMaterial);
+            wall.position.set(x, height / 2, z);
             wall.castShadow = true;
             wall.receiveShadow = true;
             scene.add(wall);
-        });
 
-        // Спавны
-        if (mode === '5v5') {
-            const spawnGeometry = new THREE.BoxGeometry(2, 0.1, 2);
-            const spawnMaterial1 = new THREE.MeshStandardMaterial({ color: 0x0000ff });
-            const spawnMaterial2 = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            collisionBoxesRef.current.push({
+                minX: x - width / 2,
+                maxX: x + width / 2,
+                minZ: z - depth / 2,
+                maxZ: z + depth / 2
+            });
+        };
 
-            const spawn1 = new THREE.Mesh(spawnGeometry, spawnMaterial1);
-            spawn1.position.set(-20, 0.05, 0);
-            scene.add(spawn1);
+        const addBox = (x: number, z: number, size: number = 2) => {
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            const box = new THREE.Mesh(geometry, boxMaterial);
+            box.position.set(x, size / 2, z);
+            box.castShadow = true;
+            box.receiveShadow = true;
+            scene.add(box);
 
-            const spawn2 = new THREE.Mesh(spawnGeometry, spawnMaterial2);
-            spawn2.position.set(20, 0.05, 0);
-            scene.add(spawn2);
+            collisionBoxesRef.current.push({
+                minX: x - size / 2,
+                maxX: x + size / 2,
+                minZ: z - size / 2,
+                maxZ: z + size / 2
+            });
+        };
+
+        // T-Spawn (террористы) - нижняя часть карты
+        addWall(-30, -40, 2, 20);
+        addWall(-20, -50, 20, 2);
+        addWall(-10, -40, 2, 20);
+
+        // CT-Spawn (контр-террористы) - верхняя часть карты
+        addWall(30, 40, 2, 20);
+        addWall(20, 50, 20, 2);
+        addWall(10, 40, 2, 20);
+
+        // Mid (средняя зона)
+        addWall(0, 0, 2, 30);
+        addWall(-15, 0, 2, 20);
+        addWall(15, 0, 2, 20);
+
+        // Site A (левая верхняя)
+        addWall(-35, 25, 15, 2);
+        addWall(-35, 35, 15, 2);
+        addWall(-42, 30, 2, 10);
+        addBox(-35, 30, 3);
+
+        // Site B (правая верхняя)
+        addWall(35, 25, 15, 2);
+        addWall(35, 35, 15, 2);
+        addWall(42, 30, 2, 10);
+        addBox(35, 30, 3);
+
+        // Long A (длинный коридор к A)
+        addWall(-25, 15, 2, 20);
+        addWall(-20, 15, 2, 20);
+        addBox(-22, 10, 2);
+        addBox(-22, 20, 2);
+
+        // Short A (короткий путь к A)
+        addWall(-10, 20, 2, 10);
+        addWall(-5, 25, 10, 2);
+
+        // B Tunnels (туннели к B)
+        addWall(20, 15, 2, 20);
+        addWall(25, 15, 2, 20);
+        addBox(22, 10, 2);
+        addBox(22, 20, 2);
+
+        // CT Spawn connection
+        addWall(0, 35, 20, 2);
+        addBox(0, 40, 3);
+
+        // T Spawn connection
+        addWall(0, -35, 20, 2);
+        addBox(0, -40, 3);
+
+        // Дополнительные укрытия
+        addBox(-8, -10, 2);
+        addBox(8, -10, 2);
+        addBox(-8, 10, 2);
+        addBox(8, 10, 2);
+
+        // Границы карты
+        addWall(0, -60, 120, 2, 6);
+        addWall(0, 60, 120, 2, 6);
+        addWall(-60, 0, 2, 120, 6);
+        addWall(60, 0, 2, 120, 6);
+    };
+
+    const checkCollision = (x: number, z: number, radius: number = 0.5): boolean => {
+        for (const box of collisionBoxesRef.current) {
+            const closestX = Math.max(box.minX, Math.min(x, box.maxX));
+            const closestZ = Math.max(box.minZ, Math.min(z, box.maxZ));
+            
+            const distanceX = x - closestX;
+            const distanceZ = z - closestZ;
+            const distanceSquared = (distanceX * distanceX) + (distanceZ * distanceZ);
+            
+            if (distanceSquared < (radius * radius)) {
+                return true;
+            }
         }
+        return false;
     };
 
     const initSocket = () => {
@@ -302,7 +392,6 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
 
         const group = new THREE.Group();
 
-        // Определяем цвет
         let bodyColor: number;
         if (mode === '5v5') {
             bodyColor = player.team === 1 ? 0x0000ff : 0xff0000;
@@ -332,7 +421,6 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         head.name = "head";
         group.add(head);
 
-        // Руки
         const armGeometry = new THREE.BoxGeometry(0.25, 1.0, 0.25);
         const armMaterial = new THREE.MeshStandardMaterial({
             color: bodyColor,
@@ -349,7 +437,6 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         rightArm.name = "rightArm";
         group.add(rightArm);
 
-        // Ноги
         const legGeometry = new THREE.BoxGeometry(0.3, 1.0, 0.3);
         const legMaterial = new THREE.MeshStandardMaterial({
             color: 0x333333,
@@ -519,7 +606,16 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
             direction.y = 0;
             direction.normalize();
 
-            cameraRef.current.position.add(direction.multiplyScalar(speed));
+            const newX = cameraRef.current.position.x + direction.x * speed;
+            const newZ = cameraRef.current.position.z + direction.z * speed;
+
+            // Проверяем коллизии по X и Z отдельно
+            if (!checkCollision(newX, cameraRef.current.position.z)) {
+                cameraRef.current.position.x = newX;
+            }
+            if (!checkCollision(cameraRef.current.position.x, newZ)) {
+                cameraRef.current.position.z = newZ;
+            }
 
             footstepTimerRef.current += deltaTime;
             if (footstepTimerRef.current > 0.4) {
@@ -617,50 +713,31 @@ export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
         }
     };
 
-    // Рендер HUD в зависимости от режима
     const renderHUD = () => {
         const myUsername = `Player_${wallet.substring(0, 4)}`;
-
-        if (mode === '5v5') {
-            return (
-                <GameHUD
-                    health={myHealth}
-                    kills={myKills}
-                    deaths={myDeaths}
-                    ammo={ammo}
-                    maxAmmo={maxAmmo}
-                    isReloading={isReloading}
-                    roomId={roomId}
-                    players={players}
-                    mode="5v5"
-                    scores={scores}
-                    myUsername={myUsername}
-                />
-            );
-        } else {
-            return (
-                <GameHUD
-                    health={myHealth}
-                    kills={myKills}
-                    deaths={myDeaths}
-                    ammo={ammo}
-                    maxAmmo={maxAmmo}
-                    isReloading={isReloading}
-                    roomId={roomId}
-                    players={players}
-                    mode="ffa"
-                    scores={scores}
-                    myUsername={myUsername}
-                />
-            );
-        }
+        
+        return (
+            <GameHUD
+                health={myHealth}
+                kills={myKills}
+                deaths={myDeaths}
+                ammo={ammo}
+                maxAmmo={maxAmmo}
+                isReloading={isReloading}
+                roomId={roomId}
+                players={players}
+                mode={mode as '5v5' | 'ffa'}
+                scores={scores}
+                myUsername={myUsername}
+            />
+        );
     };
 
     return (
         <div className="relative w-full h-full">
             <div ref={containerRef} className="w-full h-full cursor-pointer" />
             {renderHUD()}
-
+            
             {gameStatus === 'waiting' && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/80 p-8 rounded-lg">
