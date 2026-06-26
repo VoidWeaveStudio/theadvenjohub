@@ -51,10 +51,15 @@ export function GameDetailModal({
     setLoading(true);
     setError(null);
 
+    console.log("🔍 Loading game with slug:", slug);
+
     try {
       const data = await apiGet<GameDetail>(`/api/games/${slug}`);
+      console.log("📦 Game loaded:", data);
+      console.log("🎮 Game slug:", data.slug, "isOwned:", data.isOwned);
       setGame(data);
-    } catch {
+    } catch (err) {
+      console.error("❌ Failed to load game:", err);
       setError(t("game.failedToLoad"));
     } finally {
       setLoading(false);
@@ -63,6 +68,7 @@ export function GameDetailModal({
 
   useEffect(() => {
     if (isOpen && slug) {
+      console.log("🚪 Modal opened for slug:", slug);
       loadGame();
     }
   }, [isOpen, slug, loadGame]);
@@ -79,6 +85,7 @@ export function GameDetailModal({
   }, [isOpen]);
 
   const handlePurchaseSuccess = useCallback(() => {
+    console.log("✅ Purchase successful, reloading game data");
     loadGame();
     onPurchaseSuccess?.();
   }, [loadGame, onPurchaseSuccess]);
@@ -158,8 +165,8 @@ export function GameDetailModal({
                       key={idx}
                       onClick={() => setActiveScreenshot(idx)}
                       className={`flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden border-2 transition-all ${activeScreenshot === idx
-                          ? "border-primary"
-                          : "border-transparent hover:border-zinc-600"
+                        ? "border-primary"
+                        : "border-transparent hover:border-zinc-600"
                         }`}
                       aria-label={`${t("game.screenshot")} ${idx + 1}`}
                     >
@@ -194,36 +201,66 @@ export function GameDetailModal({
           </div>
 
           <div className="sticky bottom-0 bg-zinc-900/95 backdrop-blur py-4 border-t border-zinc-700 -mx-2 px-2">
-            {game.isOwned ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-green-400">
-                  <span className="text-xl">✓</span>
-                  <span className="font-medium">{t("game.inLibrary")}</span>
-                </div>
-                <button
-                  onClick={() => {
-                    onClose();
-                    router.push("/profile?tab=library");
-                  }}
-                  className="btn-primary px-6 py-2"
-                >
-                  {t("actions.goToLibrary")}
-                </button>
-              </div>
-            ) : isAuthorized ? (
-              <PurchaseButton
-                gameId={game.id}
-                price={game.price}
-                onSuccess={handlePurchaseSuccess}
-              />
-            ) : (
-              <div className="space-y-2">
-                <LoginButton className="w-full" />
-                <p className="text-xs text-text-secondary text-center">
-                  {t("purchase.connectWalletHint") || "Connect your wallet to purchase"}
-                </p>
-              </div>
-            )}
+            {(() => {
+              console.log("🎯 Rendering bottom section - isOwned:", game.isOwned, "slug:", game.slug, "isAuthorized:", isAuthorized);
+              
+              if (game.isOwned) {
+                console.log("✅ Game is owned! Checking if should show PLAY button...");
+                console.log("🎮 Is tanjo-shooter?", game.slug === "tanjo-shooter");
+                
+                return (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-green-400">
+                      <span className="text-xl">✓</span>
+                      <span className="font-medium">{t("game.inLibrary")}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      {game.slug === "tanjo-shooter" && (
+                        <button
+                          onClick={() => {
+                            console.log("🎮 ИГРАТЬ button clicked! Navigating to:", `/game/${game.slug}`);
+                            onClose();
+                            router.push(`/game/${game.slug}`);
+                          }}
+                          className="btn-primary px-6 py-2"
+                        >
+                          ИГРАТЬ
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          console.log("📚 В библиотеку button clicked!");
+                          onClose();
+                          router.push("/profile?tab=library");
+                        }}
+                        className="btn-secondary px-6 py-2"
+                      >
+                        {t("actions.goToLibrary")}
+                      </button>
+                    </div>
+                  </div>
+                );
+              } else if (isAuthorized) {
+                console.log("💰 Game not owned, showing PurchaseButton");
+                return (
+                  <PurchaseButton
+                    gameId={game.id}
+                    price={game.price}
+                    onSuccess={handlePurchaseSuccess}
+                  />
+                );
+              } else {
+                console.log("🔒 Not authorized, showing LoginButton");
+                return (
+                  <div className="space-y-2">
+                    <LoginButton className="w-full" />
+                    <p className="text-xs text-text-secondary text-center">
+                      {t("purchase.connectWalletHint") || "Connect your wallet to purchase"}
+                    </p>
+                  </div>
+                );
+              }
+            })()}
           </div>
 
         </div>

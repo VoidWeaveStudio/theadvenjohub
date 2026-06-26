@@ -139,7 +139,7 @@ export default function GamePageContent() {
                                         <Image
                                             src={game.coverImage}
                                             alt={game.title}
-                                            width={400} 
+                                            width={400}
                                             height={600}
                                             className="w-auto h-auto max-w-full max-h-[400px] object-contain"
                                             priority
@@ -419,7 +419,17 @@ export default function GamePageContent() {
                                         <span className="text-xl">✓</span>
                                         <span className="font-medium">{t("game.owned") || "In Your Library"}</span>
                                     </div>
-                                    <button className="btn-primary w-full py-3">
+                                    <button
+                                        onClick={() => {
+                                            console.log("🎮 Play button clicked! Slug:", game.slug);
+                                            if (game.slug === "tanjo-shooter") {
+                                                window.location.href = `/game/${game.slug}`;
+                                            } else {
+                                                console.log("Other game, no play action");
+                                            }
+                                        }}
+                                        className="btn-primary w-full py-3"
+                                    >
                                         {t("game.play") || "Play Now"}
                                     </button>
                                 </div>
@@ -428,7 +438,7 @@ export default function GamePageContent() {
                                     gameId={game.id}
                                     price={game.price}
                                     onSuccess={() => {
-                                       
+
                                         window.location.reload();
                                     }}
                                 />

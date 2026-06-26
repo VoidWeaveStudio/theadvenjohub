@@ -13,7 +13,8 @@ export function middleware(request: NextRequest) {
   
   const allowedOrigins = [
     'http://localhost:1420',
-    'http://localhost:3000', 
+    'http://localhost:3000',
+    'http://localhost:3001',
     'https://theadvenjo.online',
     'tauri://localhost',           
     'https://tauri.localhost',     
