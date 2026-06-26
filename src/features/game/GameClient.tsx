@@ -1,10 +1,11 @@
+//src\features\game\GameClient.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { apiGet } from "@/core/api/client";
-import { GameLobby } from "@/features/game/GameLobby";
+import { LobbyWorld } from "@/features/game/LobbyWorld";
 import { GameWorld } from "@/features/game/GameWorld";
 
 interface GameClientProps {
@@ -24,10 +25,9 @@ export function GameClient({ slug }: GameClientProps) {
   const [gameData, setGameData] = useState<GameFullData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [inGame, setInGame] = useState(false);
+  const [gameState, setGameState] = useState<'lobby' | 'playing'>('lobby');
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-
-  console.log("🎮 GameClient:", { slug, isAuthorized, userWallet });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -49,23 +49,31 @@ export function GameClient({ slug }: GameClientProps) {
   }, [isAuthorized, slug, authChecked]);
 
   const checkOwnership = async () => {
-    console.log("🔍 Checking ownership for:", slug);
     try {
       const data = await apiGet<GameFullData>(`/api/games/${slug}/full`);
-      console.log("📦 Game data:", data);
       setGameData(data);
       
       if (!data.isOwned) {
-        console.error("❌ Game not owned!");
         setError("You don't own this game");
         setTimeout(() => router.push(`/games/${slug}`), 2000);
       }
     } catch (err) {
-      console.error("❌ Check error:", err);
       setError("Failed to verify ownership");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEnterGame = (roomId: string, players: any[]) => {
+    console.log("Entering game room:", roomId, "with players:", players.length);
+    setCurrentRoomId(roomId);
+    setGameState('playing');
+  };
+
+  const handleExitGame = () => {
+    console.log("Exiting game, returning to lobby");
+    setGameState('lobby');
+    setCurrentRoomId(null);
   };
 
   if (loading) {
@@ -88,13 +96,14 @@ export function GameClient({ slug }: GameClientProps) {
     );
   }
 
-  if (!inGame) {
+  if (gameState === 'playing' && currentRoomId) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <GameLobby
+      <div className="fixed inset-0 z-50 bg-black" style={{ top: "64px" }}>
+        <GameWorld 
+          key={`${userWallet}-${currentRoomId}`}
           wallet={userWallet || ""}
-          onStart={() => setInGame(true)}
-          onExit={() => router.push(`/games/${slug}`)}
+          roomId={currentRoomId}
+          onExit={handleExitGame}
         />
       </div>
     );
@@ -102,10 +111,11 @@ export function GameClient({ slug }: GameClientProps) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black" style={{ top: "64px" }}>
-      <GameWorld 
-        key={userWallet}
-        wallet={userWallet || ""} 
-        onExit={() => setInGame(false)} 
+      <LobbyWorld
+        wallet={userWallet || ""}
+        username={`Player_${(userWallet || "").substring(0, 4)}`}
+        onEnterGame={handleEnterGame}
+        onExit={() => router.push(`/games/${slug}`)}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+//src\features\game\GameHUD.tsx
 "use client";
 
 interface Player {
