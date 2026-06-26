@@ -1,13 +1,13 @@
-//src\features\game\LobbyWorld.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
 
 interface LobbyWorldProps {
     wallet: string;
     username: string;
+    socket: Socket | null;
     onEnterGame: (roomId: string, mode: string, players: any[]) => void;
     onExit: () => void;
 }
@@ -17,9 +17,8 @@ interface QueueStatus {
     max: number;
 }
 
-export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorldProps) {
+export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: LobbyWorldProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const socketRef = useRef<Socket | null>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -30,7 +29,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
     const portalRef = useRef<THREE.Mesh | null>(null);
     const portalPositionRef = useRef(new THREE.Vector3(0, 3, -15));
 
-    // ✅ ИСПРАВЛЕНИЕ: используем ref для значений, которые нужны в обработчиках клавиш
     const nearPortalRef = useRef(false);
     const queueModeRef = useRef<string | null>(null);
     const showModeSelectRef = useRef(false);
@@ -46,7 +44,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
     const [nearPortal, setNearPortal] = useState(false);
     const [showModeSelect, setShowModeSelect] = useState(false);
 
-    // ✅ Синхронизация state с ref
     useEffect(() => { queueModeRef.current = queueMode; }, [queueMode]);
     useEffect(() => { showModeSelectRef.current = showModeSelect; }, [showModeSelect]);
     useEffect(() => { nearPortalRef.current = nearPortal; }, [nearPortal]);
@@ -180,9 +177,7 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
     };
 
     const initSocket = () => {
-        const serverUrl = process.env.NEXT_PUBLIC_GAME_SERVER_URL || "http://localhost:3001";
-        const socket = io(serverUrl);
-        socketRef.current = socket;
+        if (!socket) return;
 
         socket.on("connect", () => {
             console.log("Connected to server");
@@ -300,7 +295,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         const handleKeyDown = (e: KeyboardEvent) => {
             keysRef.current.add(e.code);
 
-            // ✅ ИСПРАВЛЕНИЕ: используем ref вместо state
             if (e.code === "Escape") {
                 if (showModeSelectRef.current) {
                     setShowModeSelect(false);
@@ -321,7 +315,7 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
 
             if (e.code === "KeyQ" && queueModeRef.current) {
                 console.log("Leaving queue");
-                socketRef.current?.emit("leaveQueue");
+                socket?.emit("leaveQueue");
                 return;
             }
         };
@@ -380,7 +374,7 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
 
     const joinQueue = (mode: string) => {
         console.log("Joining queue:", mode);
-        socketRef.current?.emit("joinQueue", { mode, wallet, username });
+        socket?.emit("joinQueue", { mode, wallet, username });
     };
 
     const animate = () => {
@@ -404,8 +398,8 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
 
             cameraRef.current.position.add(direction.multiplyScalar(speed));
 
-            if (socketRef.current?.connected) {
-                socketRef.current.emit("lobbyMove", {
+            if (socket?.connected) {
+                socket.emit("lobbyMove", {
                     position: {
                         x: cameraRef.current.position.x,
                         y: cameraRef.current.position.y,
@@ -420,17 +414,14 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
             }
         }
 
-        // Анимация портала
         if (portalRef.current) {
             portalRef.current.rotation.z += 0.01;
         }
 
-        // Проверка близости к порталу
         if (cameraRef.current) {
             const distance = cameraRef.current.position.distanceTo(portalPositionRef.current);
             const isNear = distance < 6;
             
-            // ✅ Обновляем и ref, и state
             nearPortalRef.current = isNear;
             setNearPortal(isNear);
         }
@@ -448,7 +439,22 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
             delete (window as any).__lobbyCleanup;
         }
 
-        socketRef.current?.disconnect();
+        // ✅ ИСПРАВЛЕНИЕ: НЕ отключаем сокет здесь, только убираем слушатели
+        if (socket) {
+            socket.off("connect");
+            socket.off("lobbyJoined");
+            socket.off("playerJoinedLobby");
+            socket.off("playerLeftLobby");
+            socket.off("playerMovedInLobby");
+            socket.off("queuesStatusUpdate");
+            socket.off("joinedQueue");
+            socket.off("queuePositionUpdate");
+            socket.off("leftQueue");
+            socket.off("gameStarted");
+            socket.off("joinedFFAGame");
+            socket.off("playerJoinedFFAGame");
+            socket.off("queueError");
+        }
 
         if (rendererRef.current) {
             rendererRef.current.dispose();
@@ -466,13 +472,11 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
         <div className="relative w-full h-full">
             <div ref={containerRef} className="w-full h-full cursor-pointer" />
 
-            {/* Верхняя панель */}
             <div className="absolute top-8 left-8 bg-black/70 backdrop-blur px-4 py-3 rounded-lg">
                 <div className="text-cyan-400 text-xl font-bold">TANJO LOBBY</div>
                 <div className="text-zinc-400 text-sm">Players online: {players.length}</div>
             </div>
 
-            {/* Статус очередей */}
             <div className="absolute top-8 right-8 bg-black/70 backdrop-blur px-4 py-3 rounded-lg space-y-2">
                 <div className="text-white font-bold mb-2">Queues</div>
                 <div className="flex items-center gap-2">
@@ -487,14 +491,12 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
                 </div>
             </div>
 
-            {/* Подсказка у портала */}
             {nearPortal && !queueMode && !showModeSelect && (
                 <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg animate-pulse">
                     <div className="text-cyan-400 text-lg font-bold">Press E to enter Queue</div>
                 </div>
             )}
 
-            {/* Меню выбора режима */}
             {showModeSelect && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto">
                     <div className="bg-zinc-900 border border-cyan-500/30 rounded-xl p-8 max-w-md w-full space-y-6">
@@ -539,7 +541,6 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
                 </div>
             )}
 
-            {/* Статус очереди */}
             {queueMode && (
                 <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg">
                     <div className="text-white text-lg">
@@ -550,14 +551,12 @@ export function LobbyWorld({ wallet, username, onEnterGame, onExit }: LobbyWorld
                 </div>
             )}
 
-            {/* Подсказка управления */}
             <div className="absolute bottom-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg text-xs text-zinc-400">
                 <div>WASD - Move</div>
                 <div>E - Interact</div>
                 <div>ESC - Exit</div>
             </div>
 
-            {/* Экран захвата мыши */}
             {!isLocked && !showModeSelect && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/70 p-8 rounded-lg">
