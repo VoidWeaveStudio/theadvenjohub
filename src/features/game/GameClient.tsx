@@ -27,6 +27,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [gameState, setGameState] = useState<'lobby' | 'playing'>('lobby');
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
+  const [currentMode, setCurrentMode] = useState<string>('5v5');
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
@@ -64,16 +65,18 @@ export function GameClient({ slug }: GameClientProps) {
     }
   };
 
-  const handleEnterGame = (roomId: string, players: any[]) => {
-    console.log("Entering game room:", roomId, "with players:", players.length);
+  const handleEnterGame = (roomId: string, mode: string, players: any[]) => {
+    console.log("Entering game:", roomId, "mode:", mode, "players:", players.length);
     setCurrentRoomId(roomId);
+    setCurrentMode(mode);
     setGameState('playing');
   };
 
   const handleExitGame = () => {
-    console.log("Exiting game, returning to lobby");
+    console.log("Returning to lobby");
     setGameState('lobby');
     setCurrentRoomId(null);
+    setCurrentMode('5v5');
   };
 
   if (loading) {
@@ -103,6 +106,7 @@ export function GameClient({ slug }: GameClientProps) {
           key={`${userWallet}-${currentRoomId}`}
           wallet={userWallet || ""}
           roomId={currentRoomId}
+          mode={currentMode}
           onExit={handleExitGame}
         />
       </div>

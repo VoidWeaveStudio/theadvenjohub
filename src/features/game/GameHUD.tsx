@@ -19,6 +19,9 @@ interface GameHUDProps {
   isReloading: boolean;
   roomId: string | null;
   players: Player[];
+  mode: '5v5' | 'ffa';
+  scores: any;
+  myUsername: string;
 }
 
 export function GameHUD({
@@ -29,13 +32,20 @@ export function GameHUD({
   maxAmmo,
   isReloading,
   roomId,
-  players
+  players,
+  mode,
+  scores,
+  myUsername
 }: GameHUDProps) {
-  const team1Players = players.filter((p) => p.team === 1);
-  const team2Players = players.filter((p) => p.team === 2);
+  // Сортировка игроков по убийствам для FFA
+  const sortedPlayers = [...players].sort((a, b) => b.kills - a.kills);
+
+  // Находим место игрока в FFA
+  const myPlace = mode === 'ffa' ? sortedPlayers.findIndex(p => p.username === myUsername) + 1 : null;
 
   return (
     <>
+      {/* Прицел */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
         <div className="w-6 h-6 relative">
           <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white -translate-y-1/2" />
@@ -43,6 +53,20 @@ export function GameHUD({
         </div>
       </div>
 
+      {/* НИКНЕЙМ ИГРОКА - ВЕРХНИЙ ЦЕНТР */}
+      <div className="absolute top-28 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-2 rounded-lg">
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${mode === '5v5' ? 'bg-blue-500' : 'bg-yellow-500'}`} />
+          <span className="text-white font-bold text-lg">{myUsername}</span>
+          {mode === 'ffa' && myPlace && (
+            <span className={`font-bold ${myPlace === 1 ? 'text-yellow-400' : myPlace === 2 ? 'text-zinc-300' : myPlace === 3 ? 'text-orange-400' : 'text-zinc-500'}`}>
+              #{myPlace}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* HP и патроны */}
       <div className="absolute bottom-8 left-8 space-y-2">
         <div className="bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
           <div className="text-white text-sm mb-1">Health</div>
@@ -68,31 +92,32 @@ export function GameHUD({
         </div>
       </div>
 
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg">
-        <div className="flex items-center gap-8">
-          <div className="text-center">
-            <div className="text-blue-400 text-sm">Team 1</div>
-            <div className="text-white font-bold text-2xl">
-              {team1Players.reduce((sum, p) => sum + p.kills, 0)}
+      {/* Счёт вверху - зависит от режима */}
+      {mode === '5v5' ? (
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg">
+          <div className="flex items-center gap-8">
+            <div className="text-center">
+              <div className="text-blue-400 text-sm">Blue Team</div>
+              <div className="text-white font-bold text-2xl">{scores[1] || 0}</div>
+            </div>
+            <div className="text-zinc-500 text-2xl">vs</div>
+            <div className="text-center">
+              <div className="text-red-400 text-sm">Red Team</div>
+              <div className="text-white font-bold text-2xl">{scores[2] || 0}</div>
             </div>
           </div>
-          <div className="text-zinc-500 text-2xl">vs</div>
-          <div className="text-center">
-            <div className="text-red-400 text-sm">Team 2</div>
-            <div className="text-white font-bold text-2xl">
-              {team2Players.reduce((sum, p) => sum + p.kills, 0)}
-            </div>
-          </div>
+          <div className="text-center text-xs text-zinc-500 mt-1">First to 50</div>
         </div>
-      </div>
-
-      {roomId && (
-        <div className="absolute top-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
-          <div className="text-zinc-400 text-xs">Room</div>
-          <div className="text-white font-mono font-bold">{roomId}</div>
+      ) : (
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg">
+          <div className="text-center">
+            <div className="text-yellow-400 text-sm font-bold">SURVIVAL</div>
+            <div className="text-white font-bold text-xl">First to 50 kills</div>
+          </div>
         </div>
       )}
 
+      {/* Личная статистика */}
       <div className="absolute top-8 left-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
         <div className="flex gap-4">
           <div>
@@ -106,28 +131,55 @@ export function GameHUD({
         </div>
       </div>
 
+      {/* Room ID */}
+      {roomId && (
+        <div className="absolute top-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
+          <div className="text-zinc-400 text-xs">Room</div>
+          <div className="text-white font-mono font-bold">{roomId}</div>
+        </div>
+      )}
+
+      {/* Таблица игроков */}
       <div className="absolute top-32 right-8 bg-black/70 backdrop-blur px-4 py-3 rounded-lg max-w-xs">
-        <div className="text-white font-semibold mb-2">Players ({players.length})</div>
+        <div className="text-white font-semibold mb-2">
+          {mode === '5v5' ? 'Players' : 'Leaderboard'} ({players.length})
+        </div>
         <div className="space-y-1 text-sm">
-          {team1Players.map((player) => (
-            <div key={player.id} className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-500" />
-              <span className="text-white flex-1 truncate">{player.username}</span>
-              <span className="text-zinc-400">{player.kills}/{player.deaths}</span>
-            </div>
-          ))}
-          {team2Players.map((player) => (
-            <div key={player.id} className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-red-500" />
-              <span className="text-white flex-1 truncate">{player.username}</span>
-              <span className="text-zinc-400">{player.kills}/{player.deaths}</span>
-            </div>
-          ))}
+          {mode === '5v5' ? (
+            <>
+              {players.filter(p => p.team === 1).map((player) => (
+                <div key={player.id} className={`flex items-center gap-2 ${player.username === myUsername ? 'bg-blue-500/20 -mx-2 px-2 py-0.5 rounded' : ''}`}>
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span className="text-white flex-1 truncate">{player.username}</span>
+                  <span className="text-zinc-400">{player.kills}/{player.deaths}</span>
+                </div>
+              ))}
+              {players.filter(p => p.team === 2).map((player) => (
+                <div key={player.id} className={`flex items-center gap-2 ${player.username === myUsername ? 'bg-red-500/20 -mx-2 px-2 py-0.5 rounded' : ''}`}>
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span className="text-white flex-1 truncate">{player.username}</span>
+                  <span className="text-zinc-400">{player.kills}/{player.deaths}</span>
+                </div>
+              ))}
+            </>
+          ) : (
+            sortedPlayers.map((player, index) => (
+              <div key={player.id} className={`flex items-center gap-2 ${player.username === myUsername ? 'bg-yellow-500/20 -mx-2 px-2 py-0.5 rounded' : ''}`}>
+                <span className={`font-bold w-6 ${index === 0 ? 'text-yellow-400' : index === 1 ? 'text-zinc-300' : index === 2 ? 'text-orange-400' : 'text-zinc-500'}`}>
+                  #{index + 1}
+                </span>
+                <span className="text-white flex-1 truncate">{player.username}</span>
+                <span className="text-green-400 font-bold">{player.kills}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
+      {/* Подсказки управления */}
       <div className="absolute bottom-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg text-xs text-zinc-400">
-        <div>Click to capture mouse</div>
+        <div>Click - Shoot</div>
+        <div>R - Reload</div>
         <div>ESC - Exit</div>
       </div>
     </>

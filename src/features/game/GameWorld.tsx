@@ -11,6 +11,7 @@ import { SoundManager } from "./SoundManager";
 interface GameWorldProps {
     wallet: string;
     roomId: string;
+    mode: string;
     onExit: () => void;
 }
 
@@ -33,7 +34,15 @@ interface PlayerAnimationData {
     deathAnimation: number;
 }
 
-export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
+// Цвета для FFA (каждый игрок своего цвета)
+const FFA_COLORS = [
+    0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff,
+    0xff8800, 0x88ff00, 0x0088ff, 0xff0088, 0x8800ff, 0x00ff88,
+    0xff4444, 0x44ff44, 0x4444ff, 0xffff44, 0xff44ff, 0x44ffff,
+    0xffaa00, 0xaaff00
+];
+
+export function GameWorld({ wallet, roomId, mode, onExit }: GameWorldProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const socketRef = useRef<Socket | null>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
@@ -43,12 +52,13 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
     const keysRef = useRef<Set<string>>(new Set());
     const isLockedRef = useRef(false);
     const animationFrameRef = useRef<number | null>(null);
-    
+
     const bulletPoolRef = useRef<BulletPool | null>(null);
     const soundManagerRef = useRef<SoundManager | null>(null);
     const lastTimeRef = useRef<number>(0);
     const playerAnimationDataRef = useRef<Map<string, PlayerAnimationData>>(new Map());
     const footstepTimerRef = useRef<number>(0);
+    const playerIndexRef = useRef<Map<string, number>>(new Map());
 
     const [players, setPlayers] = useState<Player[]>([]);
     const [myHealth, setMyHealth] = useState(100);
@@ -58,9 +68,9 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
     const [maxAmmo] = useState(30);
     const [isReloading, setIsReloading] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
-    const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'ended'>('waiting');
-    const [scores, setScores] = useState<{ 1: number; 2: number }>({ 1: 0, 2: 0 });
-    const [winner, setWinner] = useState<number | null>(null);
+    const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'ended'>('playing');
+    const [scores, setScores] = useState<any>(mode === '5v5' ? { 1: 0, 2: 0 } : {});
+    const [winner, setWinner] = useState<any>(null);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -85,8 +95,9 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
         if (!containerRef.current) return;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87ceeb);
-        scene.fog = new THREE.Fog(0x87ceeb, 0, 200);
+        // Разный фон для разных режимов
+        scene.background = new THREE.Color(mode === '5v5' ? 0x87ceeb : 0x2a1a3e);
+        scene.fog = new THREE.Fog(mode === '5v5' ? 0x87ceeb : 0x2a1a3e, 0, 200);
         sceneRef.current = scene;
 
         const camera = new THREE.PerspectiveCamera(
@@ -117,7 +128,7 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
 
         const groundGeometry = new THREE.BoxGeometry(100, 1, 100);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x3a7d44,
+            color: mode === '5v5' ? 0x3a7d44 : 0x4a2a6e,
             flatShading: true
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -143,7 +154,7 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
     const createMap = (scene: THREE.Scene) => {
         const boxGeometry = new THREE.BoxGeometry(4, 4, 4);
         const wallMaterial = new THREE.MeshStandardMaterial({
-            color: 0x8b7355,
+            color: mode === '5v5' ? 0x8b7355 : 0x6a4a8e,
             flatShading: true
         });
 
@@ -165,17 +176,20 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
             scene.add(wall);
         });
 
-        const spawnGeometry = new THREE.BoxGeometry(2, 0.1, 2);
-        const spawnMaterial1 = new THREE.MeshStandardMaterial({ color: 0x0000ff });
-        const spawnMaterial2 = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        // Спавны
+        if (mode === '5v5') {
+            const spawnGeometry = new THREE.BoxGeometry(2, 0.1, 2);
+            const spawnMaterial1 = new THREE.MeshStandardMaterial({ color: 0x0000ff });
+            const spawnMaterial2 = new THREE.MeshStandardMaterial({ color: 0xff0000 });
 
-        const spawn1 = new THREE.Mesh(spawnGeometry, spawnMaterial1);
-        spawn1.position.set(-20, 0.05, 0);
-        scene.add(spawn1);
+            const spawn1 = new THREE.Mesh(spawnGeometry, spawnMaterial1);
+            spawn1.position.set(-20, 0.05, 0);
+            scene.add(spawn1);
 
-        const spawn2 = new THREE.Mesh(spawnGeometry, spawnMaterial2);
-        spawn2.position.set(20, 0.05, 0);
-        scene.add(spawn2);
+            const spawn2 = new THREE.Mesh(spawnGeometry, spawnMaterial2);
+            spawn2.position.set(20, 0.05, 0);
+            scene.add(spawn2);
+        }
     };
 
     const initSocket = () => {
@@ -184,7 +198,7 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
         socketRef.current = socket;
 
         socket.on("connect", () => {
-            console.log("Connected to game server, joining room:", roomId);
+            console.log("Connected, joining room:", roomId);
             socket.emit("joinGameRoom", {
                 wallet,
                 username: `Player_${wallet.substring(0, 4)}`,
@@ -198,40 +212,26 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
             setMyHealth(data.player.health);
             setMyKills(data.player.kills);
             setMyDeaths(data.player.deaths);
+            if (data.scores) setScores(data.scores);
 
-            data.players.forEach((player: Player) => {
+            data.players.forEach((player: Player, index: number) => {
+                playerIndexRef.current.set(player.id, index);
                 if (player.id !== socket.id) {
-                    createPlayerModel(player);
+                    createPlayerModel(player, index);
                 }
             });
         });
 
-        socket.on("playerJoinedGameRoom", (player: Player) => {
+        socket.on("playerJoinedGame", (player: Player) => {
             setPlayers((prev) => [...prev, player]);
-            createPlayerModel(player);
+            const index = playerIndexRef.current.size;
+            playerIndexRef.current.set(player.id, index);
+            createPlayerModel(player, index);
         });
 
         socket.on("playerLeft", (playerId: string) => {
             setPlayers((prev) => prev.filter((p) => p.id !== playerId));
             removePlayerModel(playerId);
-        });
-
-        socket.on("gameStarted", (data) => {
-            console.log("Game started!", data);
-            setGameStatus('playing');
-            setPlayers(data.players);
-            setScores(data.scores);
-
-            // Обновить модели с правильными командами
-            data.players.forEach((player: Player) => {
-                const existingModel = playersRef.current.get(player.id);
-                if (existingModel) {
-                    removePlayerModel(player.id);
-                }
-                if (player.id !== socket.id) {
-                    createPlayerModel(player);
-                }
-            });
         });
 
         socket.on("playerMoved", (data) => {
@@ -283,7 +283,7 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
         socket.on("gameEnded", (data) => {
             console.log("Game ended!", data);
             setGameStatus('ended');
-            setWinner(data.winningTeam);
+            setWinner(data.winner);
             setScores(data.scores);
         });
 
@@ -295,20 +295,24 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
         socket.on("connect_error", (err) => {
             console.error("Connection error:", err);
         });
-
-        socket.on("disconnect", () => {
-            console.log("Disconnected from server");
-        });
     };
 
-    const createPlayerModel = (player: Player) => {
+    const createPlayerModel = (player: Player, index: number) => {
         if (!sceneRef.current) return;
 
         const group = new THREE.Group();
 
+        // Определяем цвет
+        let bodyColor: number;
+        if (mode === '5v5') {
+            bodyColor = player.team === 1 ? 0x0000ff : 0xff0000;
+        } else {
+            bodyColor = FFA_COLORS[index % FFA_COLORS.length];
+        }
+
         const bodyGeometry = new THREE.BoxGeometry(0.8, 1.6, 0.8);
         const bodyMaterial = new THREE.MeshStandardMaterial({
-            color: player.team === 1 ? 0x0000ff : 0xff0000,
+            color: bodyColor,
             flatShading: true
         });
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
@@ -328,9 +332,10 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
         head.name = "head";
         group.add(head);
 
+        // Руки
         const armGeometry = new THREE.BoxGeometry(0.25, 1.0, 0.25);
         const armMaterial = new THREE.MeshStandardMaterial({
-            color: player.team === 1 ? 0x0000aa : 0xaa0000,
+            color: bodyColor,
             flatShading: true
         });
 
@@ -344,6 +349,7 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
         rightArm.name = "rightArm";
         group.add(rightArm);
 
+        // Ноги
         const legGeometry = new THREE.BoxGeometry(0.3, 1.0, 0.3);
         const legMaterial = new THREE.MeshStandardMaterial({
             color: 0x333333,
@@ -611,43 +617,83 @@ export function GameWorld({ wallet, roomId, onExit }: GameWorldProps) {
         }
     };
 
+    // Рендер HUD в зависимости от режима
+    const renderHUD = () => {
+        const myUsername = `Player_${wallet.substring(0, 4)}`;
+
+        if (mode === '5v5') {
+            return (
+                <GameHUD
+                    health={myHealth}
+                    kills={myKills}
+                    deaths={myDeaths}
+                    ammo={ammo}
+                    maxAmmo={maxAmmo}
+                    isReloading={isReloading}
+                    roomId={roomId}
+                    players={players}
+                    mode="5v5"
+                    scores={scores}
+                    myUsername={myUsername}
+                />
+            );
+        } else {
+            return (
+                <GameHUD
+                    health={myHealth}
+                    kills={myKills}
+                    deaths={myDeaths}
+                    ammo={ammo}
+                    maxAmmo={maxAmmo}
+                    isReloading={isReloading}
+                    roomId={roomId}
+                    players={players}
+                    mode="ffa"
+                    scores={scores}
+                    myUsername={myUsername}
+                />
+            );
+        }
+    };
+
     return (
         <div className="relative w-full h-full">
             <div ref={containerRef} className="w-full h-full cursor-pointer" />
-            <GameHUD
-                health={myHealth}
-                kills={myKills}
-                deaths={myDeaths}
-                ammo={ammo}
-                maxAmmo={maxAmmo}
-                isReloading={isReloading}
-                roomId={roomId}
-                players={players}
-            />
-            
+            {renderHUD()}
+
             {gameStatus === 'waiting' && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/80 p-8 rounded-lg">
                         <div className="text-white text-3xl font-bold mb-4">Waiting for players...</div>
                         <div className="text-zinc-400 text-lg">
-                            {players.length}/10 players in room
-                        </div>
-                        <div className="text-zinc-500 text-sm mt-4">
-                            Game will start when 10 players are ready
+                            {players.length}/{mode === '5v5' ? 10 : 20} players in room
                         </div>
                     </div>
                 </div>
             )}
 
-            {gameStatus === 'ended' && (
+            {gameStatus === 'ended' && winner && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/80 p-8 rounded-lg">
-                        <div className="text-white text-4xl font-bold mb-4">
-                            {winner === 1 ? "🔵 Blue Team Wins!" : "🔴 Red Team Wins!"}
-                        </div>
-                        <div className="text-zinc-400 text-xl mb-4">
-                            Score: {scores[1]} - {scores[2]}
-                        </div>
+                        {mode === '5v5' ? (
+                            <>
+                                <div className="text-white text-4xl font-bold mb-4">
+                                    {winner.team === 1 ? "🔵 Blue Team Wins!" : "🔴 Red Team Wins!"}
+                                </div>
+                                <div className="text-zinc-400 text-xl mb-4">
+                                    Score: {scores[1]} - {scores[2]}
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="text-yellow-400 text-4xl font-bold mb-4">
+                                    🏆 {winner.username} Wins!
+                                </div>
+                                <div className="text-zinc-400 text-xl mb-4">
+                                    {winner.playerId === socketRef.current?.id ? "YOU ARE #1!" : `${winner.username} got 50 kills`}
+                                </div>
+                            </>
+                        )}
                         <div className="text-zinc-500 text-sm">
                             Returning to lobby...
                         </div>
