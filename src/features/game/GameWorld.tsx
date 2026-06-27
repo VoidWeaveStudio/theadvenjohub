@@ -115,29 +115,24 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         scene.add(ground);
 
         const map = new Dust2Map();
-        map.build(scene);
-        collisionBoxesRef.current = map.getCollisionBoxes();
+        const mapRef = { current: map };
+
+        map.loadModel(scene, '/maps/dust_2_cs_1.6.glb')
+            .then(() => {
+                collisionBoxesRef.current = map.getCollisionBoxes();
+                console.log(`🗺️ Map ready: ${collisionBoxesRef.current.length} collision boxes`);
+            })
+            .catch((error) => {
+                console.error('Map load error:', error);
+                map.build(scene);
+                collisionBoxesRef.current = map.getCollisionBoxes();
+            });
 
         bulletPoolRef.current = new BulletPool(scene, 50);
         soundManagerRef.current = new SoundManager();
 
         WeaponModel.create(camera);
         scene.add(camera);
-
-        const localPlayerModel = PlayerModel.create(scene, {
-            id: socket?.id || 'local',
-            username: `Player_${wallet.substring(0, 4)}`,
-            team: 0,
-            position: { x: -20, y: 0, z: -45 },
-            rotation: { x: 0, y: 0, z: 0 },
-            health: 100,
-            kills: 0,
-            deaths: 0,
-            isAlive: true
-        }, 0, mode);
-        localPlayerModel.visible = false;
-        scene.add(localPlayerModel);
-        playerModelRef.current = localPlayerModel;
 
         const handleResize = () => {
             if (!cameraRef.current || !rendererRef.current) return;
@@ -151,6 +146,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            if (mapRef.current) {
+                mapRef.current.dispose();
+            }
         };
     }, [roomId]);
 
@@ -367,9 +365,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             if (playerModelRef.current && isThirdPersonRef.current) {
                 playerModelRef.current.position.x = cameraRef.current.position.x;
                 playerModelRef.current.position.z = cameraRef.current.position.z;
-                
+
                 updateThirdPersonCamera(playerModelRef.current.position);
-                
+
                 const cameraDir = new THREE.Vector3();
                 cameraRef.current.getWorldDirection(cameraDir);
                 playerModelRef.current.rotation.y = Math.atan2(cameraDir.x, cameraDir.z);

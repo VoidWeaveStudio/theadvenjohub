@@ -1,11 +1,13 @@
 // src\features\game\map\Dust2Map.ts
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CollisionBox } from '../types';
 
 export class Dust2Map {
     private collisionBoxes: CollisionBox[] = [];
     private scene: THREE.Scene | null = null;
+    private mapModel: THREE.Group | null = null;
 
     private wallGeometries: THREE.BufferGeometry[] = [];
     private boxGeometries: THREE.BufferGeometry[] = [];
@@ -37,6 +39,80 @@ export class Dust2Map {
                 { x: 30, z: -30 }, { x: 0, z: -30 }, { x: -15, z: -25 }, { x: 15, z: -25 }
             ]
         };
+    }
+
+   
+    async loadModel(scene: THREE.Scene, modelPath: string = '/maps/dust_2_cs_1.6.glb'): Promise<void> {
+        this.scene = scene;
+        this.collisionBoxes = [];
+
+        return new Promise((resolve, reject) => {
+            const loader = new GLTFLoader();
+            
+            loader.load(
+                modelPath,
+                (gltf) => {
+                    const model = gltf.scene;
+                    this.mapModel = model;
+
+        
+                    model.scale.set(1, 1, 1);
+                    
+                    model.position.set(0, 0, 0);
+
+                    let meshCount = 0;
+                    model.traverse((child) => {
+                        if (child instanceof THREE.Mesh) {
+                            meshCount++;
+                            
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            
+                            this.extractCollisionFromMesh(child);
+                        }
+                    });
+
+                    scene.add(model);
+                    
+                    console.log(`✅ Dust 2 GLB loaded: ${meshCount} meshes, ${this.collisionBoxes.length} collision boxes`);
+                    resolve();
+                },
+                (progress) => {
+                    if (progress.total > 0) {
+                        const percent = (progress.loaded / progress.total * 100).toFixed(1);
+                        console.log(`📥 Loading Dust 2: ${percent}%`);
+                    }
+                },
+                (error) => {
+                    console.error('❌ Failed to load GLB map:', error);
+                    console.warn('⚠️ Falling back to programmatic map generation');
+                    
+                    this.build(scene);
+                    resolve();
+                }
+            );
+        });
+    }
+
+ 
+    private extractCollisionFromMesh(mesh: THREE.Mesh): void {
+        mesh.updateMatrixWorld(true);
+        
+        const box = new THREE.Box3().setFromObject(mesh);
+        
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        
+        if (size.x < 0.5 || size.z < 0.5) return;
+        
+        if (size.y < 0.2 && size.x > 10 && size.z > 10) return;
+
+        this.collisionBoxes.push({
+            minX: box.min.x,
+            maxX: box.max.x,
+            minZ: box.min.z,
+            maxZ: box.max.z
+        });
     }
 
     build(scene: THREE.Scene): void {
@@ -221,5 +297,24 @@ export class Dust2Map {
         createMergedMesh(this.boxGeometries, this.boxMaterial);
         createMergedMesh(this.darkWallGeometries, this.wallDarkMaterial);
         createMergedMesh(this.concreteGeometries, this.concreteMaterial);
+    }
+
+    dispose(): void {
+        if (this.mapModel) {
+            this.mapModel.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    child.geometry.dispose();
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            });
+            this.scene?.remove(this.mapModel);
+            this.mapModel = null;
+        }
+
+        [this.wallMaterial, this.wallDarkMaterial, this.boxMaterial, this.concreteMaterial].forEach(m => m.dispose());
     }
 }
