@@ -15,6 +15,37 @@ export class Dust2Map {
         return this.collisionBoxes;
     }
 
+    getSpawnPoints(): { team1: { x: number; z: number }[]; team2: { x: number; z: number }[]; ffa: { x: number; z: number }[] } {
+        return {
+            team1: [
+                { x: -20, z: -50 },
+                { x: -15, z: -50 },
+                { x: -25, z: -50 },
+                { x: -18, z: -48 },
+                { x: -22, z: -48 }
+            ],
+            team2: [
+                { x: 20, z: -50 },
+                { x: 15, z: -50 },
+                { x: 25, z: -50 },
+                { x: 18, z: -48 },
+                { x: 22, z: -48 }
+            ],
+            ffa: [
+                { x: 0, z: -45 },
+                { x: -10, z: -40 },
+                { x: 10, z: -40 },
+                { x: -20, z: -35 },
+                { x: 20, z: -35 },
+                { x: -30, z: -30 },
+                { x: 30, z: -30 },
+                { x: 0, z: -30 },
+                { x: -15, z: -25 },
+                { x: 15, z: -25 }
+            ]
+        };
+    }
+
     build(scene: THREE.Scene): void {
         this.scene = scene;
         this.collisionBoxes = [];

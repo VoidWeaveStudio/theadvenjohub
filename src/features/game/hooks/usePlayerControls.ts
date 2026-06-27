@@ -50,7 +50,9 @@ export function usePlayerControls({
 
             if (e.code === 'Escape') {
                 stopAutoFire();
-                if (document.pointerLockElement) document.exitPointerLock();
+                if (document.pointerLockElement) {
+                    document.exitPointerLock();
+                }
                 onExit();
                 return;
             }
@@ -61,10 +63,14 @@ export function usePlayerControls({
                 isOnGroundRef.current = false;
             }
 
-            if (e.code === 'KeyR' && gameStatusRef.current === 'playing') reload();
+            if (e.code === 'KeyR' && gameStatusRef.current === 'playing') {
+                reload();
+            }
         };
 
-        const handleKeyUp = (e: KeyboardEvent) => keysRef.current.delete(e.code);
+        const handleKeyUp = (e: KeyboardEvent) => {
+            keysRef.current.delete(e.code);
+        };
 
         const handleMouseDown = (e: MouseEvent) => {
             if (e.button !== 0) return;
@@ -89,7 +95,9 @@ export function usePlayerControls({
             const locked = document.pointerLockElement === container;
             isLockedRef.current = locked;
             onLockChange(locked);
-            if (!locked) stopAutoFire();
+            if (!locked) {
+                stopAutoFire();
+            }
         };
 
         const handleMouseMove = (e: MouseEvent) => {
@@ -155,12 +163,13 @@ export function usePlayerControls({
             if (!checkCollision(newX, cameraRef.current.position.z, collisionBoxes, PLAYER_RADIUS)) {
                 cameraRef.current.position.x = newX;
             }
+            
             if (!checkCollision(cameraRef.current.position.x, newZ, collisionBoxes, PLAYER_RADIUS)) {
                 cameraRef.current.position.z = newZ;
             }
 
             footstepTimerRef.current += deltaTime;
-            if (footstepTimerRef.current > 0.35) {
+            if (footstepTimerRef.current > 0.35 && isOnGroundRef.current) {
                 soundManagerRef.current?.playFootstep();
                 footstepTimerRef.current = 0;
             }

@@ -15,7 +15,8 @@ import { useShooting } from './hooks/useShooting';
 import { usePlayerControls } from './hooks/usePlayerControls';
 import { useGameSocket } from './hooks/useGameSocket';
 import { Player, PlayerAnimationData, CollisionBox, GameMode } from './types';
-import { PLAYER_HEIGHT } from './constants';
+import { pushOutOfCollision } from './map/collision';
+import { PLAYER_HEIGHT, PLAYER_RADIUS } from './constants';
 
 interface GameWorldProps {
     wallet: string;
@@ -38,7 +39,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const collisionBoxesRef = useRef<CollisionBox[]>([]);
     const gameStatusRef = useRef<'waiting' | 'playing' | 'ended'>('playing');
     const isMouseDownRef = useRef(false);
-    const updateMovementRef = useRef<(deltaTime: number) => void>(() => {});
+    const updateMovementRef = useRef<(deltaTime: number) => void>(() => { });
     const previousPositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
     const [sceneReady, setSceneReady] = useState(false);
 
@@ -215,7 +216,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         const model = playersRef.current.get(victimId);
         if (model) {
             model.visible = false;
-            
+
             const fallAnimation = () => {
                 if (model.position.y > 0) {
                     model.position.y -= 0.1;
@@ -230,6 +231,18 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const handlePlayerRespawned = useCallback((id: string, position: any) => {
         if (id === socket?.id && cameraRef.current) {
             cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
+
+            // НОВОЕ: Проверяем и выталкиваем если застряли
+            const pushed = pushOutOfCollision(
+                position.x,
+                position.z,
+                collisionBoxesRef.current,
+                PLAYER_RADIUS
+            );
+
+            if (pushed.x !== position.x || pushed.z !== position.z) {
+                cameraRef.current.position.set(pushed.x, PLAYER_HEIGHT, pushed.z);
+            }
         } else {
             const model = playersRef.current.get(id);
             if (model) {
@@ -278,8 +291,8 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onPlayerHit: handlePlayerHit,
         onPlayerKilled: handlePlayerKilled,
         onPlayerRespawned: handlePlayerRespawned,
-        onPlayerJoined: () => {},
-        onPlayerLeft: () => {},
+        onPlayerJoined: () => { },
+        onPlayerLeft: () => { },
         onPlayerMoved: handlePlayerMoved,
         onSpawnPosition: handleSpawnPosition,
         onPositionCorrection: handlePositionCorrection
@@ -306,12 +319,12 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                     if (previousPos) {
                         const currentPos = playerModel.position;
                         const distance = previousPos.distanceTo(currentPos);
-                        
+
                         animData.isMoving = distance > 0.01;
-                        
+
                         previousPositionsRef.current.set(playerId, currentPos.clone());
                     }
-                    
+
                     PlayerModel.animate(playerModel, animData, deltaTime);
                 }
             });
