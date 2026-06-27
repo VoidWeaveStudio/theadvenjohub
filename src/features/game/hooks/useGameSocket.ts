@@ -17,6 +17,7 @@ interface UseGameSocketProps {
     onReturnToLobby: () => void;
     onPlayerShot: (origin: any, direction: any) => void;
     onPlayerHit: (targetId: string, health: number) => void;
+    onPlayerKilled: (victimId: string) => void;
     onPlayerRespawned: (id: string, position: any) => void;
     onPlayerJoined: (player: Player, index: number) => void;
     onPlayerLeft: (playerId: string) => void;
@@ -39,6 +40,7 @@ export function useGameSocket({
     onReturnToLobby,
     onPlayerShot,
     onPlayerHit,
+    onPlayerKilled,
     onPlayerRespawned,
     onPlayerJoined,
     onPlayerLeft,
@@ -59,7 +61,6 @@ export function useGameSocket({
         });
 
         const handleJoinedGameRoom = (data: any) => {
-            console.log('📥 Received joinedGameRoom:', data.players.length, 'players');
             onPlayersUpdate(data.players);
             onHealthUpdate(data.player.health);
             myKillsRef.current = data.player.kills;
@@ -71,26 +72,22 @@ export function useGameSocket({
 
             data.players.forEach((player: Player, index: number) => {
                 if (player.id !== socket.id) {
-                    console.log('👤 Creating model for existing player:', player.username);
                     onPlayerJoined(player, index);
                 }
             });
         };
 
         const handlePlayerJoined = (player: Player) => {
-            console.log('👤 Player joined game (5v5):', player.username);
             onPlayersUpdate((prev: Player[]) => [...prev, player]);
             onPlayerJoined(player, 0);
         };
 
         const handlePlayerJoinedFFA = (player: Player) => {
-            console.log('👤 Player joined FFA game:', player.username);
             onPlayersUpdate((prev: Player[]) => [...prev, player]);
             onPlayerJoined(player, 0);
         };
 
         const handlePlayerLeft = (playerId: string) => {
-            console.log('👋 Player left:', playerId);
             onPlayersUpdate((prev: Player[]) => prev.filter((p: Player) => p.id !== playerId));
             onPlayerLeft(playerId);
         };
@@ -117,6 +114,8 @@ export function useGameSocket({
                 onDeathsUpdate(myDeathsRef.current);
             }
             if (data.scores) onScoresUpdate(data.scores);
+            
+            onPlayerKilled(data.victimId);
         };
 
         const handlePlayerRespawned = (data: any) => {

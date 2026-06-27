@@ -11,7 +11,7 @@ export class PlayerModel {
         mode: '5v5' | 'ffa'
     ): THREE.Group {
         const group = new THREE.Group();
-        group.userData.playerId = player.id; 
+        group.userData.playerId = player.id;
         
         const bodyColor = this.getBodyColor(player, index, mode);
         const body = this.createBody(bodyColor);
@@ -88,10 +88,19 @@ export class PlayerModel {
         animData: PlayerAnimationData,
         deltaTime: number
     ): void {
-        animData.walkPhase += deltaTime * 8;
+        if (animData.isMoving) {
+            animData.walkPhase += deltaTime * 8;
+        } else {
+            animData.walkPhase *= 0.9;
+            if (Math.abs(animData.walkPhase) < 0.01) {
+                animData.walkPhase = 0;
+            }
+        }
 
         const body = playerModel.getObjectByName('body') as THREE.Mesh;
-        if (body) body.position.y = 0.8 + Math.abs(Math.sin(animData.walkPhase)) * 0.05;
+        if (body) {
+            body.position.y = 0.8 + Math.abs(Math.sin(animData.walkPhase)) * 0.05;
+        }
 
         const leftArm = playerModel.getObjectByName('leftArm') as THREE.Mesh;
         const rightArm = playerModel.getObjectByName('rightArm') as THREE.Mesh;
@@ -120,6 +129,11 @@ export class PlayerModel {
     }
 
     static createAnimationData(): PlayerAnimationData {
-        return { walkPhase: Math.random() * Math.PI * 2, isMoving: false, hitFlash: 0, deathAnimation: 0 };
+        return {
+            walkPhase: Math.random() * Math.PI * 2,
+            isMoving: false,
+            hitFlash: 0,
+            deathAnimation: 0
+        };
     }
 }
