@@ -1,8 +1,7 @@
 //src\features\game\models\PlayerModelLoader.ts
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-// @ts-ignore
-import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export class PlayerModelLoader {
     private static loader = new FBXLoader();
@@ -85,7 +84,7 @@ export class PlayerModelLoader {
         }
 
         try {
-            const clone = SkeletonUtils.clone(this.modelCache) as THREE.Group;
+            const clone = (SkeletonUtils as any).clone(this.modelCache) as THREE.Group;
             console.log(`📦 Model cloned successfully, children: ${clone.children.length}`);
             return clone;
         } catch (err) {
