@@ -1,4 +1,4 @@
-//src\features\game\hooks\useGameSocket.ts
+// src/features/game/hooks/useGameSocket.ts
 import { useEffect, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { Player } from '../types';
@@ -18,12 +18,13 @@ interface UseGameSocketProps {
     onPlayerShot: (origin: any, direction: any) => void;
     onPlayerHit: (targetId: string, health: number) => void;
     onPlayerKilled: (victimId: string) => void;
-    onPlayerRespawned: (id: string, position: any) => void;
+    onPlayerRespawned: (id: string, position: any, spawnProtectionUntil?: number) => void;
     onPlayerJoined: (player: Player, index: number) => void;
     onPlayerLeft: (playerId: string) => void;
     onPlayerMoved: (id: string, position: any, rotation: any) => void;
     onSpawnPosition: (position: any) => void;
     onPositionCorrection: (position: any, rotation: any) => void;
+    onMatchEndTime?: (endTime: number) => void;
 }
 
 function unpackPosition(pos: any): { x: number; y: number; z: number } {
@@ -53,7 +54,8 @@ export function useGameSocket({
     onPlayerLeft,
     onPlayerMoved,
     onSpawnPosition,
-    onPositionCorrection
+    onPositionCorrection,
+    onMatchEndTime
 }: UseGameSocketProps) {
     const myKillsRef = useRef(0);
     const myDeathsRef = useRef(0);
@@ -76,6 +78,7 @@ export function useGameSocket({
             onDeathsUpdate(data.player.deaths);
             if (data.scores) onScoresUpdate(data.scores);
             if (data.player.position) onSpawnPosition(unpackPosition(data.player.position));
+            if (data.matchEndTime && onMatchEndTime) onMatchEndTime(data.matchEndTime);
 
             data.players.forEach((player: Player, index: number) => {
                 if (player.id !== socket.id) {
@@ -132,8 +135,12 @@ export function useGameSocket({
 
         const handlePlayerRespawned = (data: any) => {
             const pos = unpackPosition(data.position);
-            onPlayerRespawned(data.id, pos);
-            if (data.id === socket.id) onHealthUpdate(100);
+            onPlayerRespawned(data.id, pos, data.spawnProtectionUntil);
+            if (data.id === socket.id) {
+                onHealthUpdate(100);
+                if (data.spawnProtectionUntil) {
+                }
+            }
         };
         const handlePlayerStatsUpdate = (data: any) => {
             onPlayersUpdate((prev: Player[]) => {
@@ -176,7 +183,6 @@ export function useGameSocket({
         socket.on('returnedToLobby', handleReturnedToLobby);
         socket.on('positionCorrection', handlePositionCorrection);
         socket.on('playerKilled', handlePlayerStatsUpdate);
-
 
         return () => {
             socket.off('joinedGameRoom', handleJoinedGameRoom);

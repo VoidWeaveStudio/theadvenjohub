@@ -1,16 +1,43 @@
-//src\features\game\SoundManager.ts
+// src/features/game/SoundManager.ts
 export class SoundManager {
     private audioContext: AudioContext | null = null;
     private masterGain: GainNode | null = null;
     private enabled: boolean = true;
+    
+    private shootBuffer: AudioBuffer | null = null;
+    private hitBuffer: AudioBuffer | null = null;
+    private deathBuffer: AudioBuffer | null = null;
+    private reloadBuffer: AudioBuffer | null = null;
+    private footstepBuffer: AudioBuffer | null = null;
 
     constructor() {
         if (typeof window !== 'undefined') {
             this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
             this.masterGain = this.audioContext.createGain();
-            this.masterGain.gain.value = 0.3; 
+            this.masterGain.gain.value = 0.3;
             this.masterGain.connect(this.audioContext.destination);
+            
+            this.createBuffers();
         }
+    }
+
+    private createBuffers() {
+        if (!this.audioContext) return;
+        
+        const ctx = this.audioContext;
+        
+        this.shootBuffer = this.createNoiseBuffer(ctx, 0.1, 2);
+        this.footstepBuffer = this.createNoiseBuffer(ctx, 0.05, 3);
+    }
+
+    private createNoiseBuffer(ctx: AudioContext, duration: number, decayPower: number): AudioBuffer {
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, decayPower);
+        }
+        return buffer;
     }
 
     private ensureContext() {
@@ -20,21 +47,14 @@ export class SoundManager {
     }
 
     playShoot() {
-        if (!this.enabled || !this.audioContext || !this.masterGain) return;
+        if (!this.enabled || !this.audioContext || !this.masterGain || !this.shootBuffer) return;
         this.ensureContext();
 
         const ctx = this.audioContext;
         const now = ctx.currentTime;
 
-        const bufferSize = ctx.sampleRate * 0.1; 
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
-        }
-
         const noise = ctx.createBufferSource();
-        noise.buffer = buffer;
+        noise.buffer = this.shootBuffer;
 
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
@@ -127,21 +147,14 @@ export class SoundManager {
     }
 
     playFootstep() {
-        if (!this.enabled || !this.audioContext || !this.masterGain) return;
+        if (!this.enabled || !this.audioContext || !this.masterGain || !this.footstepBuffer) return;
         this.ensureContext();
 
         const ctx = this.audioContext;
         const now = ctx.currentTime;
 
-        const bufferSize = ctx.sampleRate * 0.05;
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
-        }
-
         const noise = ctx.createBufferSource();
-        noise.buffer = buffer;
+        noise.buffer = this.footstepBuffer;
 
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
@@ -166,5 +179,7 @@ export class SoundManager {
             this.audioContext.close();
             this.audioContext = null;
         }
+        this.shootBuffer = null;
+        this.footstepBuffer = null;
     }
 }

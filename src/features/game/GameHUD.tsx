@@ -1,5 +1,7 @@
-//src\features\game\GameHUD.tsx
+// src/features/game/GameHUD.tsx
 "use client";
+
+import { useEffect, useState } from 'react';
 
 interface Player {
   id: string;
@@ -22,6 +24,8 @@ interface GameHUDProps {
   mode: '5v5' | 'ffa';
   scores: any;
   myUsername: string;
+  matchEndTime: number | null;
+  spawnProtectionUntil: number;
 }
 
 export function GameHUD({
@@ -35,9 +39,51 @@ export function GameHUD({
   players,
   mode,
   scores,
-  myUsername
+  myUsername,
+  matchEndTime,
+  spawnProtectionUntil
 }: GameHUDProps) {
   const sortedPlayers = [...players].sort((a, b) => b.kills - a.kills);
+  const [timeLeft, setTimeLeft] = useState<string>('');
+  const [hasSpawnProtection, setHasSpawnProtection] = useState(false);
+
+  useEffect(() => {
+    if (!matchEndTime) return;
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const remaining = Math.max(0, matchEndTime - now);
+      
+      if (remaining <= 0) {
+        setTimeLeft('0:00');
+        return;
+      }
+
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      setTimeLeft(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [matchEndTime]);
+
+  useEffect(() => {
+    if (!spawnProtectionUntil) {
+      setHasSpawnProtection(false);
+      return;
+    }
+
+    const checkProtection = () => {
+      const now = Date.now();
+      setHasSpawnProtection(now < spawnProtectionUntil);
+    };
+
+    checkProtection();
+    const interval = setInterval(checkProtection, 100);
+    return () => clearInterval(interval);
+  }, [spawnProtectionUntil]);
 
   return (
     <>
@@ -48,6 +94,11 @@ export function GameHUD({
         </div>
       </div>
 
+      {hasSpawnProtection && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-blue-600/80 backdrop-blur px-4 py-2 rounded-lg animate-pulse">
+          <div className="text-white text-sm font-bold">🛡️ SPAWN PROTECTION</div>
+        </div>
+      )}
 
       <div className="absolute bottom-8 left-8 space-y-2">
         <div className="bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
@@ -91,6 +142,13 @@ export function GameHUD({
         </div>
       )}
 
+      {timeLeft && (
+        <div className="absolute top-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
+          <div className="text-zinc-400 text-xs">Time Left</div>
+          <div className="text-white font-mono font-bold text-xl">{timeLeft}</div>
+        </div>
+      )}
+
       <div className="absolute top-8 left-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
         <div className="flex gap-4">
           <div>
@@ -104,7 +162,7 @@ export function GameHUD({
         </div>
       </div>
 
-      {roomId && (
+      {roomId && !timeLeft && (
         <div className="absolute top-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
           <div className="text-zinc-400 text-xs">Room</div>
           <div className="text-white font-mono font-bold">{roomId}</div>
