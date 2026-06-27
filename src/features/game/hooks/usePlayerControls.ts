@@ -18,6 +18,8 @@ interface UsePlayerControlsProps {
     stopAutoFire: () => void;
     reload: () => void;
     isMouseDownRef: React.MutableRefObject<boolean>;
+    onThirdPersonToggle?: (enabled: boolean) => void;
+    playerModelRef?: React.MutableRefObject<THREE.Group | null>;
 }
 
 export function usePlayerControls({
@@ -31,7 +33,9 @@ export function usePlayerControls({
     startAutoFire,
     stopAutoFire,
     reload,
-    isMouseDownRef
+    isMouseDownRef,
+    onThirdPersonToggle,
+    playerModelRef
 }: UsePlayerControlsProps) {
     const keysRef = useRef<Set<string>>(new Set());
     const isLockedRef = useRef(false);
@@ -40,6 +44,10 @@ export function usePlayerControls({
     const footstepTimerRef = useRef(0);
     const soundManagerRef = useRef<any>(null);
     const lastMoveTimeRef = useRef(0);
+
+    const isThirdPersonRef = useRef(false);
+    const thirdPersonOrbitRef = useRef({ theta: 0, phi: Math.PI / 3, radius: 4 });
+    const previousMouseMovementRef = useRef({ x: 0, y: 0 });
 
     useEffect(() => {
         const container = containerRef.current;
@@ -66,10 +74,43 @@ export function usePlayerControls({
             if (e.code === 'KeyR' && gameStatusRef.current === 'playing') {
                 reload();
             }
+
+            if (e.code === 'KeyT' && gameStatusRef.current === 'playing') {
+                if (!isThirdPersonRef.current) {
+                    isThirdPersonRef.current = true;
+                    onThirdPersonToggle?.(true);
+
+                    if (cameraRef.current && playerModelRef?.current) {
+                        const playerPos = playerModelRef.current.position;
+                        cameraRef.current.position.set(
+                            playerPos.x,
+                            playerPos.y + 1.5,
+                            playerPos.z + 4
+                        );
+                    }
+                }
+            }
         };
 
         const handleKeyUp = (e: KeyboardEvent) => {
             keysRef.current.delete(e.code);
+
+            if (e.code === 'KeyT') {
+                if (isThirdPersonRef.current) {
+                    isThirdPersonRef.current = false;
+                    onThirdPersonToggle?.(false);
+
+                    if (cameraRef.current && playerModelRef?.current) {
+                        const playerPos = playerModelRef.current.position;
+                        cameraRef.current.position.set(
+                            playerPos.x,
+                            PLAYER_HEIGHT,
+                            playerPos.z
+                        );
+                        cameraRef.current.rotation.x = 0;
+                    }
+                }
+            }
         };
 
         const handleMouseDown = (e: MouseEvent) => {
@@ -103,12 +144,20 @@ export function usePlayerControls({
         const handleMouseMove = (e: MouseEvent) => {
             if (!isLockedRef.current || !cameraRef.current) return;
 
-            cameraRef.current.rotation.y -= e.movementX * MOUSE_SENSITIVITY;
-            cameraRef.current.rotation.x -= e.movementY * MOUSE_SENSITIVITY;
-            cameraRef.current.rotation.x = Math.max(
-                -MAX_PITCH,
-                Math.min(MAX_PITCH, cameraRef.current.rotation.x)
-            );
+            if (isThirdPersonRef.current) {
+                const sensitivity = 0.005;
+                thirdPersonOrbitRef.current.theta -= e.movementX * sensitivity;
+                thirdPersonOrbitRef.current.phi -= e.movementY * sensitivity;
+
+                thirdPersonOrbitRef.current.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, thirdPersonOrbitRef.current.phi));
+            } else {
+                cameraRef.current.rotation.y -= e.movementX * MOUSE_SENSITIVITY;
+                cameraRef.current.rotation.x -= e.movementY * MOUSE_SENSITIVITY;
+                cameraRef.current.rotation.x = Math.max(
+                    -MAX_PITCH,
+                    Math.min(MAX_PITCH, cameraRef.current.rotation.x)
+                );
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -126,7 +175,7 @@ export function usePlayerControls({
             document.removeEventListener('pointerlockchange', handlePointerLockChange);
             document.removeEventListener('mousemove', handleMouseMove);
         };
-    }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef]);
+    }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onThirdPersonToggle, playerModelRef]);
 
     const updateMovement = (deltaTime: number) => {
         if (!cameraRef.current) return;
@@ -153,17 +202,24 @@ export function usePlayerControls({
 
         if (isMoving && gameStatusRef.current === 'playing') {
             moveDirection.normalize();
-            moveDirection.applyQuaternion(cameraRef.current.quaternion);
+
+            if (isThirdPersonRef.current) {
+                moveDirection.applyQuaternion(cameraRef.current.quaternion);
+            } else {
+                moveDirection.applyQuaternion(cameraRef.current.quaternion);
+            }
+
             moveDirection.y = 0;
             moveDirection.normalize();
 
-            const newX = cameraRef.current.position.x + moveDirection.x * MOVE_SPEED;
-            const newZ = cameraRef.current.position.z + moveDirection.z * MOVE_SPEED;
+            const speed = MOVE_SPEED;
 
+            const newX = cameraRef.current.position.x + moveDirection.x * speed;
             if (!checkCollision(newX, cameraRef.current.position.z, collisionBoxes, PLAYER_RADIUS)) {
                 cameraRef.current.position.x = newX;
             }
 
+            const newZ = cameraRef.current.position.z + moveDirection.z * speed;
             if (!checkCollision(cameraRef.current.position.x, newZ, collisionBoxes, PLAYER_RADIUS)) {
                 cameraRef.current.position.z = newZ;
             }
@@ -185,12 +241,25 @@ export function usePlayerControls({
                     rotation: [
                         cameraRef.current.rotation.x,
                         cameraRef.current.rotation.y,
-                        0
+                        cameraRef.current.rotation.z
                     ]
                 });
                 lastMoveTimeRef.current = now;
             }
         }
+    };
+
+    const updateThirdPersonCamera = (playerPosition: THREE.Vector3) => {
+        if (!isThirdPersonRef.current || !cameraRef.current) return;
+
+        const orbit = thirdPersonOrbitRef.current;
+
+        const x = playerPosition.x + orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta);
+        const y = playerPosition.y + 1.5 + orbit.radius * Math.cos(orbit.phi);
+        const z = playerPosition.z + orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta);
+
+        cameraRef.current.position.set(x, y, z);
+        cameraRef.current.lookAt(playerPosition.x, playerPosition.y + 1.5, playerPosition.z);
     };
 
     return {
@@ -200,6 +269,8 @@ export function usePlayerControls({
         isOnGroundRef,
         footstepTimerRef,
         soundManagerRef,
-        updateMovement
+        updateMovement,
+        isThirdPersonRef,
+        updateThirdPersonCamera
     };
 }

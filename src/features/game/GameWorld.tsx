@@ -56,6 +56,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [scores, setScores] = useState<any>(mode === '5v5' ? { 1: 0, 2: 0 } : {});
     const [winner, setWinner] = useState<any>(null);
 
+    const playerModelRef = useRef<THREE.Group | null>(null);
+    const [isThirdPerson, setIsThirdPerson] = useState(false);
+
     useEffect(() => {
         gameStatusRef.current = gameStatus;
     }, [gameStatus]);
@@ -121,6 +124,21 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         WeaponModel.create(camera);
         scene.add(camera);
 
+        const localPlayerModel = PlayerModel.create(scene, {
+            id: socket?.id || 'local',
+            username: `Player_${wallet.substring(0, 4)}`,
+            team: 0,
+            position: { x: -20, y: 0, z: -45 },
+            rotation: { x: 0, y: 0, z: 0 },
+            health: 100,
+            kills: 0,
+            deaths: 0,
+            isAlive: true
+        }, 0, mode);
+        localPlayerModel.visible = false;
+        scene.add(localPlayerModel);
+        playerModelRef.current = localPlayerModel;
+
         const handleResize = () => {
             if (!cameraRef.current || !rendererRef.current) return;
             cameraRef.current.aspect = window.innerWidth / (window.innerHeight - 64);
@@ -176,7 +194,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onReloadChange: setIsReloading
     });
 
-    const { updateMovement } = usePlayerControls({
+    const { updateMovement, isThirdPersonRef, updateThirdPersonCamera } = usePlayerControls({
         containerRef,
         cameraRef,
         socket,
@@ -187,7 +205,14 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         startAutoFire,
         stopAutoFire,
         reload,
-        isMouseDownRef
+        isMouseDownRef,
+        onThirdPersonToggle: (enabled) => {
+            setIsThirdPerson(enabled);
+            if (playerModelRef.current) {
+                playerModelRef.current.visible = enabled;
+            }
+        },
+        playerModelRef
     });
 
     useEffect(() => {
@@ -331,12 +356,23 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
             if (cameraRef.current && cameraRef.current.userData.correctPosition) {
                 const target = cameraRef.current.userData.correctPosition as THREE.Vector3;
-                cameraRef.current.position.lerp(target, 0.2);
+                cameraRef.current.position.lerp(target, 0.1);
 
                 if (cameraRef.current.position.distanceTo(target) < 0.05) {
                     delete cameraRef.current.userData.correctPosition;
                     delete cameraRef.current.userData.correctRotation;
                 }
+            }
+
+            if (playerModelRef.current && isThirdPersonRef.current) {
+                playerModelRef.current.position.x = cameraRef.current.position.x;
+                playerModelRef.current.position.z = cameraRef.current.position.z;
+                
+                updateThirdPersonCamera(playerModelRef.current.position);
+                
+                const cameraDir = new THREE.Vector3();
+                cameraRef.current.getWorldDirection(cameraDir);
+                playerModelRef.current.rotation.y = Math.atan2(cameraDir.x, cameraDir.z);
             }
 
             playerAnimationDataRef.current.forEach((animData, playerId) => {
