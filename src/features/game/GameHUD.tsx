@@ -37,15 +37,12 @@ export function GameHUD({
   scores,
   myUsername
 }: GameHUDProps) {
-  // Сортировка игроков по убийствам для FFA
   const sortedPlayers = [...players].sort((a, b) => b.kills - a.kills);
 
-  // Находим место игрока в FFA
   const myPlace = mode === 'ffa' ? sortedPlayers.findIndex(p => p.username === myUsername) + 1 : null;
 
   return (
     <>
-      {/* Прицел */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
         <div className="w-6 h-6 relative">
           <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white -translate-y-1/2" />
@@ -53,7 +50,6 @@ export function GameHUD({
         </div>
       </div>
 
-      {/* НИКНЕЙМ ИГРОКА - ВЕРХНИЙ ЦЕНТР */}
       <div className="absolute top-28 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-2 rounded-lg">
         <div className="flex items-center gap-3">
           <div className={`w-3 h-3 rounded-full ${mode === '5v5' ? 'bg-blue-500' : 'bg-yellow-500'}`} />
@@ -66,7 +62,6 @@ export function GameHUD({
         </div>
       </div>
 
-      {/* HP и патроны */}
       <div className="absolute bottom-8 left-8 space-y-2">
         <div className="bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
           <div className="text-white text-sm mb-1">Health</div>
@@ -92,7 +87,6 @@ export function GameHUD({
         </div>
       </div>
 
-      {/* Счёт вверху - зависит от режима */}
       {mode === '5v5' ? (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg">
           <div className="flex items-center gap-8">
@@ -117,7 +111,6 @@ export function GameHUD({
         </div>
       )}
 
-      {/* Личная статистика */}
       <div className="absolute top-8 left-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
         <div className="flex gap-4">
           <div>
@@ -131,7 +124,6 @@ export function GameHUD({
         </div>
       </div>
 
-      {/* Room ID */}
       {roomId && (
         <div className="absolute top-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
           <div className="text-zinc-400 text-xs">Room</div>
@@ -139,7 +131,6 @@ export function GameHUD({
         </div>
       )}
 
-      {/* Таблица игроков */}
       <div className="absolute top-32 right-8 bg-black/70 backdrop-blur px-4 py-3 rounded-lg max-w-xs">
         <div className="text-white font-semibold mb-2">
           {mode === '5v5' ? 'Players' : 'Leaderboard'} ({players.length})
@@ -176,7 +167,6 @@ export function GameHUD({
         </div>
       </div>
 
-      {/* Подсказки управления */}
       <div className="absolute bottom-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg text-xs text-zinc-400">
         <div>Click - Shoot</div>
         <div>R - Reload</div>

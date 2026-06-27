@@ -1,3 +1,4 @@
+//src\features\game\map\collision.ts
 import { CollisionBox } from '../types';
 import { PLAYER_RADIUS } from '../constants';
 

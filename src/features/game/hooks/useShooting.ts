@@ -1,3 +1,4 @@
+//src\features\game\hooks\useShooting.ts
 import { useCallback, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
@@ -12,6 +13,7 @@ interface UseShootingProps {
     soundManagerRef: React.MutableRefObject<SoundManager | null>;
     gameStatusRef: React.MutableRefObject<'waiting' | 'playing' | 'ended'>;
     isMouseDownRef: React.MutableRefObject<boolean>;
+    playersRef: React.MutableRefObject<Map<string, THREE.Group>>; // Передаем модели игроков
     onAmmoChange: (ammo: number) => void;
     onReloadChange: (isReloading: boolean) => void;
 }
@@ -23,6 +25,7 @@ export function useShooting({
     soundManagerRef,
     gameStatusRef,
     isMouseDownRef,
+    playersRef,
     onAmmoChange,
     onReloadChange
 }: UseShootingProps) {
@@ -46,9 +49,7 @@ export function useShooting({
             !socket ||
             gameStatusRef.current !== 'playing'
         ) {
-            if (ammoRef.current <= 0) {
-                stopAutoFire();
-            }
+            if (ammoRef.current <= 0) stopAutoFire();
             return;
         }
 
@@ -67,18 +68,43 @@ export function useShooting({
         const direction = new THREE.Vector3(0, 0, -1);
         direction.applyQuaternion(cameraRef.current.quaternion);
 
+        const raycaster = new THREE.Raycaster();
+        raycaster.set(new THREE.Vector3(origin.x, origin.y, origin.z), direction);
+        
+        const playerMeshes: THREE.Object3D[] = [];
+        playersRef.current.forEach((model, playerId) => {
+            if (playerId !== socket.id) { 
+                model.traverse((child) => {
+                    if (child instanceof THREE.Mesh) playerMeshes.push(child);
+                });
+            }
+        });
+
+        const intersects = raycaster.intersectObjects(playerMeshes, true);
+        let targetId: string | undefined = undefined;
+
+        if (intersects.length > 0) {
+            let current: THREE.Object3D | null = intersects[0].object;
+            while (current) {
+                if (current.userData?.playerId) {
+                    targetId = current.userData.playerId;
+                    break;
+                }
+                current = current.parent;
+            }
+        }
+
         socket.emit('shoot', {
             origin,
             direction: { x: direction.x, y: direction.y, z: direction.z },
-            damage: 25
+            damage: 25,
+            targetId
         });
 
         bulletPoolRef.current?.fire(origin, direction);
 
-        if (newAmmo <= 0) {
-            stopAutoFire();
-        }
-    }, [socket, cameraRef, bulletPoolRef, soundManagerRef, gameStatusRef, onAmmoChange, stopAutoFire]);
+        if (newAmmo <= 0) stopAutoFire();
+    }, [socket, cameraRef, bulletPoolRef, soundManagerRef, gameStatusRef, playersRef, onAmmoChange, stopAutoFire]);
 
     const startAutoFire = useCallback(() => {
         if (shootIntervalRef.current) return;
@@ -103,17 +129,8 @@ export function useShooting({
     }, [soundManagerRef, stopAutoFire, onAmmoChange, onReloadChange]);
 
     useEffect(() => {
-        return () => {
-            stopAutoFire();
-        };
+        return () => stopAutoFire();
     }, [stopAutoFire]);
 
-    return {
-        ammoRef,
-        isReloadingRef,
-        shootIntervalRef,
-        startAutoFire,
-        stopAutoFire,
-        reload
-    };
+    return { ammoRef, isReloadingRef, shootIntervalRef, startAutoFire, stopAutoFire, reload };
 }

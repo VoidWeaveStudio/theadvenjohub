@@ -1,4 +1,4 @@
-// Исправленный Dust2Map.ts
+// src\features\game\map\Dust2Map.ts
 import * as THREE from 'three';
 import { CollisionBox } from '../types';
 

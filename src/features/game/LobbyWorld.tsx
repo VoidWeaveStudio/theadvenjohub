@@ -1,3 +1,4 @@
+//src\features\game\LobbyWorld.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -28,6 +29,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     const animationFrameRef = useRef<number | null>(null);
     const portalRef = useRef<THREE.Mesh | null>(null);
     const portalPositionRef = useRef(new THREE.Vector3(0, 3, -15));
+    const lastMoveTimeRef = useRef(0);
 
     const nearPortalRef = useRef(false);
     const queueModeRef = useRef<string | null>(null);
@@ -398,7 +400,8 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
 
             cameraRef.current.position.add(direction.multiplyScalar(speed));
 
-            if (socket?.connected) {
+            const now = Date.now();
+            if (socket?.connected && now - lastMoveTimeRef.current > 50) {
                 socket.emit("lobbyMove", {
                     position: {
                         x: cameraRef.current.position.x,
@@ -411,17 +414,15 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                         z: cameraRef.current.rotation.z
                     }
                 });
+                lastMoveTimeRef.current = now;
             }
         }
 
-        if (portalRef.current) {
-            portalRef.current.rotation.z += 0.01;
-        }
+        if (portalRef.current) portalRef.current.rotation.z += 0.01;
 
         if (cameraRef.current) {
             const distance = cameraRef.current.position.distanceTo(portalPositionRef.current);
             const isNear = distance < 6;
-            
             nearPortalRef.current = isNear;
             setNearPortal(isNear);
         }
@@ -439,7 +440,6 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             delete (window as any).__lobbyCleanup;
         }
 
-        // ✅ ИСПРАВЛЕНИЕ: НЕ отключаем сокет здесь, только убираем слушатели
         if (socket) {
             socket.off("connect");
             socket.off("lobbyJoined");

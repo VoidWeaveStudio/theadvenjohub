@@ -1,3 +1,4 @@
+//src\features\game\hooks\usePlayerControls.ts
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
@@ -38,6 +39,7 @@ export function usePlayerControls({
     const isOnGroundRef = useRef(true);
     const footstepTimerRef = useRef(0);
     const soundManagerRef = useRef<any>(null);
+    const lastMoveTimeRef = useRef(0);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -48,9 +50,7 @@ export function usePlayerControls({
 
             if (e.code === 'Escape') {
                 stopAutoFire();
-                if (document.pointerLockElement) {
-                    document.exitPointerLock();
-                }
+                if (document.pointerLockElement) document.exitPointerLock();
                 onExit();
                 return;
             }
@@ -61,14 +61,10 @@ export function usePlayerControls({
                 isOnGroundRef.current = false;
             }
 
-            if (e.code === 'KeyR' && gameStatusRef.current === 'playing') {
-                reload();
-            }
+            if (e.code === 'KeyR' && gameStatusRef.current === 'playing') reload();
         };
 
-        const handleKeyUp = (e: KeyboardEvent) => {
-            keysRef.current.delete(e.code);
-        };
+        const handleKeyUp = (e: KeyboardEvent) => keysRef.current.delete(e.code);
 
         const handleMouseDown = (e: MouseEvent) => {
             if (e.button !== 0) return;
@@ -93,9 +89,7 @@ export function usePlayerControls({
             const locked = document.pointerLockElement === container;
             isLockedRef.current = locked;
             onLockChange(locked);
-            if (!locked) {
-                stopAutoFire();
-            }
+            if (!locked) stopAutoFire();
         };
 
         const handleMouseMove = (e: MouseEvent) => {
@@ -129,7 +123,6 @@ export function usePlayerControls({
     const updateMovement = (deltaTime: number) => {
         if (!cameraRef.current) return;
 
-        // Гравитация
         if (!isOnGroundRef.current) {
             velocityYRef.current += GRAVITY;
             cameraRef.current.position.y += velocityYRef.current;
@@ -141,7 +134,6 @@ export function usePlayerControls({
             }
         }
 
-        // Движение
         const moveDirection = new THREE.Vector3();
 
         if (keysRef.current.has('KeyW')) moveDirection.z -= 1;
@@ -167,15 +159,14 @@ export function usePlayerControls({
                 cameraRef.current.position.z = newZ;
             }
 
-            // Шаги
             footstepTimerRef.current += deltaTime;
             if (footstepTimerRef.current > 0.35) {
                 soundManagerRef.current?.playFootstep();
                 footstepTimerRef.current = 0;
             }
 
-            // Отправка позиции
-            if (socket?.connected) {
+            const now = Date.now();
+            if (socket?.connected && now - lastMoveTimeRef.current > 50) {
                 socket.emit('playerMove', {
                     position: {
                         x: cameraRef.current.position.x,
@@ -188,6 +179,7 @@ export function usePlayerControls({
                         z: cameraRef.current.rotation.z
                     }
                 });
+                lastMoveTimeRef.current = now;
             }
         }
     };

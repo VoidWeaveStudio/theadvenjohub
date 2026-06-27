@@ -1,6 +1,7 @@
+//src\features\game\GameWorld.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
 import { GameHUD } from './GameHUD';
@@ -50,7 +51,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
     useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
 
-    // Инициализация Three.js
     useEffect(() => {
         if (!containerRef.current) return;
 
@@ -98,7 +98,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Карта
         const map = new Dust2Map();
         map.build(scene);
         collisionBoxesRef.current = map.getCollisionBoxes();
@@ -120,7 +119,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         };
     }, [roomId]);
 
-    // Хук стрельбы
     const { ammoRef, isReloadingRef, startAutoFire, stopAutoFire, reload } = useShooting({
         socket,
         cameraRef,
@@ -128,11 +126,11 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         soundManagerRef,
         gameStatusRef,
         isMouseDownRef,
+        playersRef,  
         onAmmoChange: setAmmo,
         onReloadChange: setIsReloading
     });
 
-    // Хук управления
     const { updateMovement } = usePlayerControls({
         containerRef,
         cameraRef,
@@ -147,7 +145,13 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         isMouseDownRef
     });
 
-    // Хук сокета
+    const handlePositionCorrection = useCallback((position: any, rotation: any) => {
+        if (cameraRef.current) {
+            cameraRef.current.position.set(position.x, position.y, position.z);
+            cameraRef.current.rotation.set(rotation.x, rotation.y, rotation.z);
+        }
+    }, []);
+
     useGameSocket({
         socket,
         wallet,
@@ -173,9 +177,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         },
         onPlayerHit: (targetId, health) => {
             const animData = playerAnimationDataRef.current.get(targetId);
-            if (animData) {
-                animData.hitFlash = 0.3;
-            }
+            if (animData) animData.hitFlash = 0.3;
         },
         onPlayerRespawned: (id, position) => {
             if (id === socket?.id && cameraRef.current) {
@@ -207,10 +209,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             if (cameraRef.current) {
                 cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
             }
-        }
+        },
+        onPositionCorrection: handlePositionCorrection  
     });
 
-    // Игровой цикл
     useEffect(() => {
         let lastTime = 0;
 
@@ -225,12 +227,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             updateMovement(deltaTime);
             bulletPoolRef.current?.update(deltaTime);
 
-            // Анимация игроков
             playerAnimationDataRef.current.forEach((animData, playerId) => {
                 const playerModel = playersRef.current.get(playerId);
-                if (playerModel) {
-                    PlayerModel.animate(playerModel, animData, deltaTime);
-                }
+                if (playerModel) PlayerModel.animate(playerModel, animData, deltaTime);
             });
 
             rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -239,13 +238,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         animate();
 
         return () => {
-            if (animationFrameRef.current !== null) {
-                cancelAnimationFrame(animationFrameRef.current);
-            }
+            if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
         };
     }, [updateMovement]);
 
-    // Очистка
     useEffect(() => {
         return () => {
             stopAutoFire();
@@ -260,9 +256,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 }
             }
 
-            if (document.pointerLockElement) {
-                document.exitPointerLock();
-            }
+            if (document.pointerLockElement) document.exitPointerLock();
         };
     }, [stopAutoFire]);
 

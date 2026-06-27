@@ -1,3 +1,4 @@
+//src\features\game\hooks\useGameSocket.ts
 import { useEffect, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { Player } from '../types';
@@ -21,6 +22,7 @@ interface UseGameSocketProps {
     onPlayerLeft: (playerId: string) => void;
     onPlayerMoved: (id: string, position: any, rotation: any) => void;
     onSpawnPosition: (position: any) => void;
+    onPositionCorrection: (position: any, rotation: any) => void;
 }
 
 export function useGameSocket({
@@ -41,7 +43,8 @@ export function useGameSocket({
     onPlayerJoined,
     onPlayerLeft,
     onPlayerMoved,
-    onSpawnPosition
+    onSpawnPosition,
+    onPositionCorrection
 }: UseGameSocketProps) {
     const myKillsRef = useRef(0);
     const myDeathsRef = useRef(0);
@@ -49,7 +52,6 @@ export function useGameSocket({
     useEffect(() => {
         if (!socket) return;
 
-        // Подключение к комнате
         socket.emit('joinGameRoom', {
             wallet,
             username: `Player_${wallet.substring(0, 4)}`,
@@ -57,7 +59,6 @@ export function useGameSocket({
         });
 
         const handleJoinedGameRoom = (data: any) => {
-            console.log('Joined game room:', data);
             onPlayersUpdate(data.players);
             onHealthUpdate(data.player.health);
             myKillsRef.current = data.player.kills;
@@ -68,9 +69,7 @@ export function useGameSocket({
             if (data.player.position) onSpawnPosition(data.player.position);
 
             data.players.forEach((player: Player, index: number) => {
-                if (player.id !== socket.id) {
-                    onPlayerJoined(player, index);
-                }
+                if (player.id !== socket.id) onPlayerJoined(player, index);
             });
         };
 
@@ -84,13 +83,8 @@ export function useGameSocket({
             onPlayerLeft(playerId);
         };
 
-        const handlePlayerMoved = (data: any) => {
-            onPlayerMoved(data.id, data.position, data.rotation);
-        };
-
-        const handlePlayerShot = (data: any) => {
-            onPlayerShot(data.origin, data.direction);
-        };
+        const handlePlayerMoved = (data: any) => onPlayerMoved(data.id, data.position, data.rotation);
+        const handlePlayerShot = (data: any) => onPlayerShot(data.origin, data.direction);
 
         const handlePlayerHit = (data: any) => {
             if (data.targetId === socket.id) {
@@ -115,19 +109,19 @@ export function useGameSocket({
 
         const handlePlayerRespawned = (data: any) => {
             onPlayerRespawned(data.id, data.position);
-            if (data.id === socket.id) {
-                onHealthUpdate(100);
-            }
+            if (data.id === socket.id) onHealthUpdate(100);
         };
 
         const handleGameEnded = (data: any) => {
-            console.log('Game ended!', data);
             onGameEnd(data.winner, data.scores);
         };
 
         const handleReturnedToLobby = () => {
-            console.log('Returned to lobby');
             onReturnToLobby();
+        };
+
+        const handlePositionCorrection = (data: any) => {
+            onPositionCorrection(data.position, data.rotation);
         };
 
         socket.on('joinedGameRoom', handleJoinedGameRoom);
@@ -140,6 +134,7 @@ export function useGameSocket({
         socket.on('playerRespawned', handlePlayerRespawned);
         socket.on('gameEnded', handleGameEnded);
         socket.on('returnedToLobby', handleReturnedToLobby);
+        socket.on('positionCorrection', handlePositionCorrection);
 
         return () => {
             socket.off('joinedGameRoom', handleJoinedGameRoom);
@@ -152,6 +147,7 @@ export function useGameSocket({
             socket.off('playerRespawned', handlePlayerRespawned);
             socket.off('gameEnded', handleGameEnded);
             socket.off('returnedToLobby', handleReturnedToLobby);
+            socket.off('positionCorrection', handlePositionCorrection);
         };
     }, [socket, wallet, roomId, mode]);
 

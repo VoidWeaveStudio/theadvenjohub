@@ -1,3 +1,4 @@
+//src\features\game\components\GameOverlay.tsx
 'use client';
 
 interface GameOverlayProps {
@@ -27,14 +28,12 @@ export function GameOverlay({
 }: GameOverlayProps) {
     return (
         <>
-            {/* Предупреждение о пустых патронах */}
             {ammo === 0 && !isReloading && gameStatus === 'playing' && (
                 <div className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-red-900/80 backdrop-blur px-6 py-3 rounded-lg animate-pulse pointer-events-none">
                     <div className="text-red-300 text-lg font-bold">NO AMMO - Press R to Reload</div>
                 </div>
             )}
 
-            {/* Индикатор перезарядки */}
             {isReloading && (
                 <div className="absolute bottom-40 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg pointer-events-none">
                     <div className="text-white text-lg font-bold">Reloading...</div>
@@ -52,7 +51,6 @@ export function GameOverlay({
                 </div>
             )}
 
-            {/* Ожидание игроков */}
             {gameStatus === 'waiting' && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/80 p-8 rounded-lg">
@@ -64,7 +62,6 @@ export function GameOverlay({
                 </div>
             )}
 
-            {/* Конец игры */}
             {gameStatus === 'ended' && winner && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/80 p-8 rounded-lg">
@@ -92,7 +89,6 @@ export function GameOverlay({
                 </div>
             )}
 
-            {/* Захват мыши */}
             {!isLocked && gameStatus === 'playing' && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center bg-black/70 p-8 rounded-lg">

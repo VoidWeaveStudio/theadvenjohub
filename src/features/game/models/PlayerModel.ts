@@ -1,3 +1,4 @@
+//src\features\game\models\PlayerModel.ts
 import * as THREE from 'three';
 import { Player, PlayerAnimationData } from '../types';
 import { FFA_COLORS } from '../constants';
@@ -10,17 +11,15 @@ export class PlayerModel {
         mode: '5v5' | 'ffa'
     ): THREE.Group {
         const group = new THREE.Group();
+        group.userData.playerId = player.id; 
+        
         const bodyColor = this.getBodyColor(player, index, mode);
-
-        // Тело
         const body = this.createBody(bodyColor);
         group.add(body);
 
-        // Голова
         const head = this.createHead();
         group.add(head);
 
-        // Руки
         const leftArm = this.createArm(bodyColor);
         leftArm.position.set(-0.55, 0.8, 0);
         leftArm.name = 'leftArm';
@@ -31,7 +30,6 @@ export class PlayerModel {
         rightArm.name = 'rightArm';
         group.add(rightArm);
 
-        // Ноги
         const leftLeg = this.createLeg();
         leftLeg.position.set(-0.2, 0.0, 0);
         leftLeg.name = 'leftLeg';
@@ -49,9 +47,7 @@ export class PlayerModel {
     }
 
     private static getBodyColor(player: Player, index: number, mode: '5v5' | 'ffa'): number {
-        if (mode === '5v5') {
-            return player.team === 1 ? 0x0000ff : 0xff0000;
-        }
+        if (mode === '5v5') return player.team === 1 ? 0x0000ff : 0xff0000;
         return FFA_COLORS[index % FFA_COLORS.length];
     }
 
@@ -95,9 +91,7 @@ export class PlayerModel {
         animData.walkPhase += deltaTime * 8;
 
         const body = playerModel.getObjectByName('body') as THREE.Mesh;
-        if (body) {
-            body.position.y = 0.8 + Math.abs(Math.sin(animData.walkPhase)) * 0.05;
-        }
+        if (body) body.position.y = 0.8 + Math.abs(Math.sin(animData.walkPhase)) * 0.05;
 
         const leftArm = playerModel.getObjectByName('leftArm') as THREE.Mesh;
         const rightArm = playerModel.getObjectByName('rightArm') as THREE.Mesh;
@@ -126,11 +120,6 @@ export class PlayerModel {
     }
 
     static createAnimationData(): PlayerAnimationData {
-        return {
-            walkPhase: Math.random() * Math.PI * 2,
-            isMoving: false,
-            hitFlash: 0,
-            deathAnimation: 0
-        };
+        return { walkPhase: Math.random() * Math.PI * 2, isMoving: false, hitFlash: 0, deathAnimation: 0 };
     }
 }
