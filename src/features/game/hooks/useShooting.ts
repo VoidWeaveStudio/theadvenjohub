@@ -6,6 +6,7 @@ import { BulletPool } from '../BulletPool';
 import { SoundManager } from '../SoundManager';
 import { WeaponModel } from '../models/WeaponModel';
 import { FIRE_RATE, MAX_AMMO, RELOAD_TIME } from '../constants';
+import { PlayerAnimationData } from '../types';
 
 interface UseShootingProps {
     socket: Socket | null;
@@ -15,6 +16,7 @@ interface UseShootingProps {
     gameStatusRef: React.MutableRefObject<'waiting' | 'playing' | 'ended'>;
     isMouseDownRef: React.MutableRefObject<boolean>;
     playersRef: React.MutableRefObject<Map<string, THREE.Group>>;
+    playerAnimationDataRef: React.MutableRefObject<Map<string, PlayerAnimationData>>;
     onAmmoChange: (ammo: number) => void;
     onReloadChange: (isReloading: boolean) => void;
 }
@@ -27,6 +29,7 @@ export function useShooting({
     gameStatusRef,
     isMouseDownRef,
     playersRef,
+    playerAnimationDataRef,
     onAmmoChange,
     onReloadChange
 }: UseShootingProps) {
@@ -107,6 +110,16 @@ export function useShooting({
 
         bulletPoolRef.current?.fire(origin, direction);
 
+        if (socket.id) {
+            const animData = playerAnimationDataRef.current.get(socket.id);
+            if (animData) {
+                animData.isShooting = true;
+                setTimeout(() => {
+                    if (animData) animData.isShooting = false;
+                }, 200);
+            }
+        }
+
         const weapon = cameraRef.current.getObjectByName('weapon') as THREE.Group;
         if (weapon) {
             const body = weapon.children[0] as THREE.Mesh;
@@ -119,7 +132,7 @@ export function useShooting({
         }
 
         if (newAmmo <= 0) stopAutoFire();
-    }, [socket, cameraRef, bulletPoolRef, soundManagerRef, gameStatusRef, playersRef, onAmmoChange, stopAutoFire]);
+    }, [socket, cameraRef, bulletPoolRef, soundManagerRef, gameStatusRef, playersRef, playerAnimationDataRef, onAmmoChange, stopAutoFire]);
 
     const startAutoFire = useCallback(() => {
         if (shootIntervalRef.current) return;
@@ -135,13 +148,27 @@ export function useShooting({
         stopAutoFire();
         soundManagerRef.current?.playReload();
 
+        if (socket?.id) {
+            const animData = playerAnimationDataRef.current.get(socket.id);
+            if (animData) {
+                animData.isReloading = true;
+            }
+        }
+
         setTimeout(() => {
             ammoRef.current = MAX_AMMO;
             onAmmoChange(MAX_AMMO);
             isReloadingRef.current = false;
             onReloadChange(false);
+
+            if (socket?.id) {
+                const animData = playerAnimationDataRef.current.get(socket.id);
+                if (animData) {
+                    animData.isReloading = false;
+                }
+            }
         }, RELOAD_TIME);
-    }, [soundManagerRef, stopAutoFire, onAmmoChange, onReloadChange]);
+    }, [soundManagerRef, stopAutoFire, onAmmoChange, onReloadChange, socket, playerAnimationDataRef]);
 
     useEffect(() => {
         return () => stopAutoFire();

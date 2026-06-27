@@ -15,7 +15,7 @@ interface UseGameSocketProps {
     onScoresUpdate: (scores: any) => void;
     onGameEnd: (winner: any, scores: any) => void;
     onReturnToLobby: () => void;
-    onPlayerShot: (origin: any, direction: any) => void;
+    onPlayerShot: (shooterId: string, origin: any, direction: any) => void;
     onPlayerHit: (targetId: string, health: number) => void;
     onPlayerKilled: (victimId: string) => void;
     onPlayerRespawned: (id: string, position: any, spawnProtectionUntil?: number) => void;
@@ -108,7 +108,7 @@ export function useGameSocket({
             onPlayerMoved(data.id, pos, rot);
         };
 
-        const handlePlayerShot = (data: any) => onPlayerShot(data.origin, data.direction);
+        const handlePlayerShot = (data: any) => onPlayerShot(data.shooterId, data.origin, data.direction);
 
         const handlePlayerHit = (data: any) => {
             if (data.targetId === socket.id) {
@@ -138,10 +138,9 @@ export function useGameSocket({
             onPlayerRespawned(data.id, pos, data.spawnProtectionUntil);
             if (data.id === socket.id) {
                 onHealthUpdate(100);
-                if (data.spawnProtectionUntil) {
-                }
             }
         };
+
         const handlePlayerStatsUpdate = (data: any) => {
             onPlayersUpdate((prev: Player[]) => {
                 return prev.map(player => {

@@ -6,12 +6,18 @@ export interface Player {
     position: { x: number; y: number; z: number };
     rotation: { x: number; y: number; z: number };
     health: number;
+    isShooting: boolean;   
+    isReloading: boolean;  
+    isDead: boolean; 
     kills: number;
     deaths: number;
     isAlive: boolean;
 }
 
 export interface PlayerAnimationData {
+    isShooting: boolean;     
+    isReloading: boolean;    
+    isDead: boolean;
     walkPhase: number;
     isMoving: boolean;
     hitFlash: number;

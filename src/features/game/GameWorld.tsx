@@ -10,6 +10,7 @@ import { BulletPool } from './BulletPool';
 import { SoundManager } from './SoundManager';
 import { Dust2Map } from './map/Dust2Map';
 import { PlayerModel } from './models/PlayerModel';
+import { PlayerModelLoader } from './models/PlayerModelLoader';
 import { WeaponModel } from './models/WeaponModel';
 import { useShooting } from './hooks/useShooting';
 import { usePlayerControls } from './hooks/usePlayerControls';
@@ -84,6 +85,12 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     useEffect(() => {
         gameStatusRef.current = gameStatus;
     }, [gameStatus]);
+
+    useEffect(() => {
+        PlayerModelLoader.preload().catch(err => {
+            console.warn('⚠️ Player model preload failed, using fallback:', err);
+        });
+    }, []);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -206,6 +213,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         gameStatusRef,
         isMouseDownRef,
         playersRef,
+        playerAnimationDataRef, 
         onAmmoChange: setAmmo,
         onReloadChange: setIsReloading
     });
@@ -249,8 +257,16 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onExit();
     }, [stopAutoFire, onExit]);
 
-    const handlePlayerShot = useCallback((origin: any, direction: any) => {
+    const handlePlayerShot = useCallback((shooterId: string, origin: any, direction: any) => {
         bulletPoolRef.current?.fire(origin, direction);
+        
+        const animData = playerAnimationDataRef.current.get(shooterId);
+        if (animData) {
+            animData.isShooting = true;
+            setTimeout(() => {
+                if (animData) animData.isShooting = false;
+            }, 300);
+        }
     }, []);
 
     const handlePlayerHit = useCallback((targetId: string, health: number) => {
@@ -260,21 +276,25 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
     const handlePlayerKilled = useCallback((victimId: string) => {
         const model = playersRef.current.get(victimId);
+        const animData = playerAnimationDataRef.current.get(victimId);
+        
+        if (animData) {
+            animData.isDead = true;
+        }
+        
         if (model) {
-            model.visible = false;
-
-            const fallAnimation = () => {
-                if (model.position.y > 0) {
-                    model.position.y -= 0.1;
-                    model.rotation.x += 0.1;
-                    requestAnimationFrame(fallAnimation);
-                }
-            };
-            fallAnimation();
+            setTimeout(() => {
+                model.visible = false;
+            }, 2000);
         }
     }, []);
 
     const handlePlayerRespawned = useCallback((id: string, position: any, spawnProtectionUntil?: number) => {
+        const animData = playerAnimationDataRef.current.get(id);
+        if (animData) {
+            animData.isDead = false;
+        }
+        
         if (id === socket?.id && cameraRef.current) {
             cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
 
@@ -368,7 +388,13 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 setHudPlayers(playersOrUpdater);
             } else {
                 playersDataRef.current.clear();
-                playersOrUpdater.forEach(p => playersDataRef.current.set(p.id, p));
+                playersOrUpdater.forEach(p => {
+                    playersDataRef.current.set(p.id, p);
+                    
+                    if (!playerAnimationDataRef.current.has(p.id)) {
+                        playerAnimationDataRef.current.set(p.id, PlayerModel.createAnimationData());
+                    }
+                });
                 setHudPlayers(playersOrUpdater);
             }
         },
@@ -382,8 +408,24 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onPlayerHit: handlePlayerHit,
         onPlayerKilled: handlePlayerKilled,
         onPlayerRespawned: handlePlayerRespawned,
-        onPlayerJoined: () => { },
-        onPlayerLeft: () => { },
+        onPlayerJoined: (player: Player, index: number) => {
+            if (!sceneRef.current) return;
+            
+            const model = PlayerModel.create(sceneRef.current, player, index, mode);
+            playersRef.current.set(player.id, model);
+            
+            playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
+        },
+        onPlayerLeft: (playerId: string) => {
+            const model = playersRef.current.get(playerId);
+            if (model && sceneRef.current) {
+                sceneRef.current.remove(model);
+            }
+            playersRef.current.delete(playerId);
+            playerAnimationDataRef.current.delete(playerId);
+            previousPositionsRef.current.delete(playerId);
+            extrapolationDataRef.current.delete(playerId);
+        },
         onPlayerMoved: handlePlayerMoved,
         onSpawnPosition: handleSpawnPosition,
         onPositionCorrection: handlePositionCorrection,

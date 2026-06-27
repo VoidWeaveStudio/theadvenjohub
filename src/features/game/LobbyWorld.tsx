@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { Socket } from "socket.io-client";
 import { LobbyUI } from "./components/LobbyUI";
 import { UsernameSprite } from "./utils/UsernameSprite";
+import { PlayerModelLoader } from './models/PlayerModelLoader';
 
 interface LobbyWorldProps {
     wallet: string;
