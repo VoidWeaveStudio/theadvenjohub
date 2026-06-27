@@ -50,14 +50,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [scores, setScores] = useState<any>(mode === '5v5' ? { 1: 0, 2: 0 } : {});
     const [winner, setWinner] = useState<any>(null);
 
-    console.log('🎮 GameWorld render - players:', players.length, 'sceneReady:', sceneReady);
-
     useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
 
     useEffect(() => {
         if (!containerRef.current) return;
-
-        console.log('🏗️ Initializing Three.js scene...');
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xd4a574);
@@ -120,7 +116,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         window.addEventListener('resize', handleResize);
         
         setSceneReady(true);
-        console.log('✅ Three.js scene initialized');
 
         return () => {
             window.removeEventListener('resize', handleResize);
@@ -128,17 +123,17 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     }, [roomId]);
 
     useEffect(() => {
-        if (!sceneReady || !sceneRef.current) {
-            console.log('⏳ Waiting for scene to be ready...');
-            return;
-        }
-
-        console.log('🔄 Syncing player models - players:', players.length);
+        if (!sceneReady || !sceneRef.current) return;
 
         const currentScene = sceneRef.current;
         const currentPlayers = playersRef.current;
 
         players.forEach((player, index) => {
+            if (player.id === socket?.id) {
+                console.log(`⏭️ Skipping model creation for self: ${player.username}`);
+                return;
+            }
+
             if (!currentPlayers.has(player.id)) {
                 console.log(`✅ Creating model for player: ${player.username} (${player.id})`);
                 const model = PlayerModel.create(currentScene, player, index, mode);
@@ -155,7 +150,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 playerAnimationDataRef.current.delete(playerId);
             }
         });
-    }, [players, sceneReady, mode]);
+    }, [players, sceneReady, mode, socket?.id]);
 
     const { ammoRef, isReloadingRef, startAutoFire, stopAutoFire, reload } = useShooting({
         socket,
