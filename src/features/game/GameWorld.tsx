@@ -17,6 +17,8 @@ import { useGameSocket } from './hooks/useGameSocket';
 import { Player, PlayerAnimationData, CollisionBox, GameMode } from './types';
 import { pushOutOfCollision } from './map/collision';
 import { PLAYER_HEIGHT, PLAYER_RADIUS } from './constants';
+import { VoiceChat } from './components/VoiceChat';
+import { TextChat } from './components/TextChat';
 
 interface GameWorldProps {
     wallet: string;
@@ -68,6 +70,16 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
     const playerModelRef = useRef<THREE.Group | null>(null);
     const [isThirdPerson, setIsThirdPerson] = useState(false);
+    
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const isChatOpenRef = useRef(false);
+    
+    useEffect(() => {
+        isChatOpenRef.current = isChatOpen;
+    }, [isChatOpen]);
+
+    const myUsername = `Player_${wallet.substring(0, 4)}`;
+    const myTeam = hudPlayers.find(p => p.id === socket?.id)?.team;
 
     useEffect(() => {
         gameStatusRef.current = gameStatus;
@@ -216,7 +228,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 playerModelRef.current.visible = enabled;
             }
         },
-        playerModelRef
+        playerModelRef,
+        onChatToggle: setIsChatOpen,
+        isChatOpenRef
     });
 
     useEffect(() => {
@@ -491,9 +505,22 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 players={hudPlayers}
                 mode={mode}
                 scores={scores}
-                myUsername={`Player_${wallet.substring(0, 4)}`}
+                myUsername={myUsername}
                 matchEndTime={matchEndTime}
                 spawnProtectionUntil={spawnProtectionUntil}
+            />
+
+            <VoiceChat
+                socket={socket}
+                roomId={roomId}
+                myUsername={myUsername}
+            />
+
+            <TextChat
+                socket={socket}
+                roomId={roomId}
+                myUsername={myUsername}
+                myTeam={myTeam}
             />
 
             <GameOverlay

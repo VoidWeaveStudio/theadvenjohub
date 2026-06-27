@@ -1,4 +1,4 @@
-//src\features\game\LobbyWorld.tsx
+// src/features/game/LobbyWorld.tsx
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -205,6 +205,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight - 64);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         containerRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
@@ -539,8 +540,8 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             />
 
             {showModeSelect && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto">
-                    <div className="bg-zinc-900 border border-cyan-500/30 rounded-xl p-8 max-w-md w-full space-y-6">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm pointer-events-auto z-50">
+                    <div className="bg-zinc-900 border border-cyan-500/30 rounded-xl p-8 max-w-md w-full space-y-6 shadow-2xl">
                         <div className="text-center">
                             <h2 className="text-3xl font-bold text-cyan-400 mb-2">SELECT MODE</h2>
                             <p className="text-zinc-400 text-sm">Choose your battle mode</p>
@@ -553,10 +554,10 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                             >
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-white text-xl font-bold">5 vs 5</span>
-                                    <span className="text-cyan-400 text-sm">{queues['5v5'].count}/{queues['5v5'].max}</span>
+                                    <span className="text-cyan-400 text-sm font-mono">{queues['5v5'].count}/{queues['5v5'].max}</span>
                                 </div>
                                 <div className="text-zinc-400 text-sm">Team Deathmatch</div>
-                                <div className="text-zinc-500 text-xs mt-1">10 players • 50 kills to win</div>
+                                <div className="text-zinc-500 text-xs mt-1">10 players • 50 kills to win • 10 min</div>
                             </button>
 
                             <button
@@ -565,10 +566,10 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                             >
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-white text-xl font-bold">Survival</span>
-                                    <span className="text-cyan-400 text-sm">{queues['ffa'].count}/{queues['ffa'].max}</span>
+                                    <span className="text-cyan-400 text-sm font-mono">{queues['ffa'].count}/{queues['ffa'].max}</span>
                                 </div>
                                 <div className="text-zinc-400 text-sm">Free-for-All • Every man for himself</div>
-                                <div className="text-zinc-500 text-xs mt-1">20 players • 50 kills to win • #1 place</div>
+                                <div className="text-zinc-500 text-xs mt-1">20 players • 50 kills to win • 10 min</div>
                             </button>
                         </div>
 
@@ -583,18 +584,21 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             )}
 
             {queueMode && (
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg">
+                <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md px-6 py-4 rounded-xl border border-cyan-500/30 shadow-2xl">
                     <div className="text-white text-lg">
                         Queue: <span className="text-cyan-400 font-bold">{queueMode === '5v5' ? '5 vs 5' : 'Survival'}</span>
                     </div>
-                    <div className="text-zinc-400 text-sm">Position: {queuePosition}</div>
-                    <div className="text-zinc-500 text-xs mt-1">Press Q to leave queue</div>
+                    <div className="text-zinc-400 text-sm mt-1">Position: <span className="text-white font-bold">#{queuePosition}</span></div>
+                    <div className="text-zinc-500 text-xs mt-2 flex items-center gap-2">
+                        <kbd className="px-2 py-0.5 bg-zinc-700 rounded text-white font-mono">Q</kbd>
+                        <span>to leave queue</span>
+                    </div>
                 </div>
             )}
 
             {!isLocked && !showModeSelect && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="text-center bg-black/70 p-8 rounded-lg">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
+                    <div className="text-center bg-black/80 backdrop-blur-md p-8 rounded-xl border border-white/10 shadow-2xl">
                         <div className="text-white text-3xl font-bold mb-4 animate-pulse">
                             Click to Start
                         </div>

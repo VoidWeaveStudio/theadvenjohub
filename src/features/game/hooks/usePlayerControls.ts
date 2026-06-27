@@ -1,4 +1,4 @@
-//src\features\game\hooks\usePlayerControls.ts
+// src/features/game/hooks/usePlayerControls.ts
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
@@ -20,6 +20,8 @@ interface UsePlayerControlsProps {
     isMouseDownRef: React.MutableRefObject<boolean>;
     onThirdPersonToggle?: (enabled: boolean) => void;
     playerModelRef?: React.MutableRefObject<THREE.Group | null>;
+    onChatToggle?: (open: boolean) => void;
+    isChatOpenRef?: React.MutableRefObject<boolean>;
 }
 
 export function usePlayerControls({
@@ -35,7 +37,9 @@ export function usePlayerControls({
     reload,
     isMouseDownRef,
     onThirdPersonToggle,
-    playerModelRef
+    playerModelRef,
+    onChatToggle,
+    isChatOpenRef
 }: UsePlayerControlsProps) {
     const keysRef = useRef<Set<string>>(new Set());
     const isLockedRef = useRef(false);
@@ -54,10 +58,18 @@ export function usePlayerControls({
         if (!container) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (isChatOpenRef?.current && e.code !== 'Escape') {
+                return;
+            }
+
             keysRef.current.add(e.code);
 
             if (e.code === 'Escape') {
                 stopAutoFire();
+                if (isChatOpenRef?.current) {
+                    onChatToggle?.(false);
+                    return;
+                }
                 if (document.pointerLockElement) {
                     document.exitPointerLock();
                 }
@@ -90,6 +102,20 @@ export function usePlayerControls({
                     }
                 }
             }
+
+            if (e.code === 'KeyY' && gameStatusRef.current === 'playing') {
+                const newState = !isChatOpenRef?.current;
+                onChatToggle?.(newState);
+                
+                if (newState) {
+                    stopAutoFire();
+                    if (document.pointerLockElement) {
+                        document.exitPointerLock();
+                    }
+                } else {
+                    container.requestPointerLock();
+                }
+            }
         };
 
         const handleKeyUp = (e: KeyboardEvent) => {
@@ -115,6 +141,8 @@ export function usePlayerControls({
 
         const handleMouseDown = (e: MouseEvent) => {
             if (e.button !== 0) return;
+
+            if (isChatOpenRef?.current) return;
 
             if (!document.pointerLockElement) {
                 container.requestPointerLock();
@@ -142,6 +170,7 @@ export function usePlayerControls({
         };
 
         const handleMouseMove = (e: MouseEvent) => {
+            if (isChatOpenRef?.current) return;
             if (!isLockedRef.current || !cameraRef.current) return;
 
             if (isThirdPersonRef.current) {
@@ -175,10 +204,12 @@ export function usePlayerControls({
             document.removeEventListener('pointerlockchange', handlePointerLockChange);
             document.removeEventListener('mousemove', handleMouseMove);
         };
-    }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onThirdPersonToggle, playerModelRef]);
+    }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onThirdPersonToggle, playerModelRef, onChatToggle, isChatOpenRef]);
 
     const updateMovement = (deltaTime: number) => {
         if (!cameraRef.current) return;
+        
+        if (isChatOpenRef?.current) return;
 
         if (!isOnGroundRef.current) {
             velocityYRef.current += GRAVITY;
