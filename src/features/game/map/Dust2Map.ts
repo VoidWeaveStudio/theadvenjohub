@@ -1,10 +1,16 @@
 // src\features\game\map\Dust2Map.ts
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CollisionBox } from '../types';
 
 export class Dust2Map {
     private collisionBoxes: CollisionBox[] = [];
     private scene: THREE.Scene | null = null;
+
+    private wallGeometries: THREE.BufferGeometry[] = [];
+    private boxGeometries: THREE.BufferGeometry[] = [];
+    private darkWallGeometries: THREE.BufferGeometry[] = [];
+    private concreteGeometries: THREE.BufferGeometry[] = [];
 
     private readonly wallMaterial = new THREE.MeshStandardMaterial({ color: 0xd4a574, flatShading: true });
     private readonly wallDarkMaterial = new THREE.MeshStandardMaterial({ color: 0xb89060, flatShading: true });
@@ -18,30 +24,17 @@ export class Dust2Map {
     getSpawnPoints(): { team1: { x: number; z: number }[]; team2: { x: number; z: number }[]; ffa: { x: number; z: number }[] } {
         return {
             team1: [
-                { x: -20, z: -50 },
-                { x: -15, z: -50 },
-                { x: -25, z: -50 },
-                { x: -18, z: -48 },
-                { x: -22, z: -48 }
+                { x: -20, z: -50 }, { x: -15, z: -50 }, { x: -25, z: -50 },
+                { x: -18, z: -48 }, { x: -22, z: -48 }
             ],
             team2: [
-                { x: 20, z: -50 },
-                { x: 15, z: -50 },
-                { x: 25, z: -50 },
-                { x: 18, z: -48 },
-                { x: 22, z: -48 }
+                { x: 20, z: -50 }, { x: 15, z: -50 }, { x: 25, z: -50 },
+                { x: 18, z: -48 }, { x: 22, z: -48 }
             ],
             ffa: [
-                { x: 0, z: -45 },
-                { x: -10, z: -40 },
-                { x: 10, z: -40 },
-                { x: -20, z: -35 },
-                { x: 20, z: -35 },
-                { x: -30, z: -30 },
-                { x: 30, z: -30 },
-                { x: 0, z: -30 },
-                { x: -15, z: -25 },
-                { x: 15, z: -25 }
+                { x: 0, z: -45 }, { x: -10, z: -40 }, { x: 10, z: -40 },
+                { x: -20, z: -35 }, { x: 20, z: -35 }, { x: -30, z: -30 },
+                { x: 30, z: -30 }, { x: 0, z: -30 }, { x: -15, z: -25 }, { x: 15, z: -25 }
             ]
         };
     }
@@ -49,6 +42,10 @@ export class Dust2Map {
     build(scene: THREE.Scene): void {
         this.scene = scene;
         this.collisionBoxes = [];
+        this.wallGeometries = [];
+        this.boxGeometries = [];
+        this.darkWallGeometries = [];
+        this.concreteGeometries = [];
 
         this.addBorders();
         this.addTSpawn();
@@ -62,40 +59,41 @@ export class Dust2Map {
         this.addCTConnections();
         this.addExtraCover();
         this.addZoneMarkers();
+
+        this.mergeAndAddMeshes();
     }
 
-    private addWall(x: number, z: number, width: number, depth: number, height: number = 5, material?: THREE.MeshStandardMaterial): void {
-        if (!this.scene) return;
-        const geometry = new THREE.BoxGeometry(width, height, depth);
-        const wall = new THREE.Mesh(geometry, material || this.wallMaterial);
-        wall.position.set(x, height / 2, z);
-        wall.castShadow = true;
-        wall.receiveShadow = true;
-        this.scene.add(wall);
+    private addWall(
+        x: number, z: number, width: number, depth: number,
+        height: number = 5,
+        material?: THREE.MeshStandardMaterial
+    ): void {
+        const geo = new THREE.BoxGeometry(width, height, depth);
+        geo.translate(x, height / 2, z);
+
+        if (material === this.wallDarkMaterial) {
+            this.darkWallGeometries.push(geo);
+        } else if (material === this.concreteMaterial) {
+            this.concreteGeometries.push(geo);
+        } else {
+            this.wallGeometries.push(geo);
+        }
 
         this.collisionBoxes.push({
-            minX: x - width / 2,
-            maxX: x + width / 2,
-            minZ: z - depth / 2,
-            maxZ: z + depth / 2
+            minX: x - width / 2, maxX: x + width / 2,
+            minZ: z - depth / 2, maxZ: z + depth / 2
         });
     }
 
     private addBox(x: number, z: number, size: number = 2, height?: number): void {
-        if (!this.scene) return;
         const h = height || size;
-        const geometry = new THREE.BoxGeometry(size, h, size);
-        const box = new THREE.Mesh(geometry, this.boxMaterial);
-        box.position.set(x, h / 2, z);
-        box.castShadow = true;
-        box.receiveShadow = true;
-        this.scene.add(box);
+        const geo = new THREE.BoxGeometry(size, h, size);
+        geo.translate(x, h / 2, z);
+        this.boxGeometries.push(geo);
 
         this.collisionBoxes.push({
-            minX: x - size / 2,
-            maxX: x + size / 2,
-            minZ: z - size / 2,
-            maxZ: z + size / 2
+            minX: x - size / 2, maxX: x + size / 2,
+            minZ: z - size / 2, maxZ: z + size / 2
         });
     }
 
@@ -199,5 +197,29 @@ export class Dust2Map {
             marker.position.set(position[0], position[1], position[2]);
             this.scene!.add(marker);
         });
+    }
+
+    private mergeAndAddMeshes(): void {
+        if (!this.scene) return;
+
+        const createMergedMesh = (
+            geometries: THREE.BufferGeometry[],
+            material: THREE.MeshStandardMaterial
+        ) => {
+            if (geometries.length === 0) return;
+
+            const merged = mergeGeometries(geometries, false);
+            const mesh = new THREE.Mesh(merged, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            this.scene!.add(mesh);
+
+            geometries.forEach(g => g.dispose());
+        };
+
+        createMergedMesh(this.wallGeometries, this.wallMaterial);
+        createMergedMesh(this.boxGeometries, this.boxMaterial);
+        createMergedMesh(this.darkWallGeometries, this.wallDarkMaterial);
+        createMergedMesh(this.concreteGeometries, this.concreteMaterial);
     }
 }

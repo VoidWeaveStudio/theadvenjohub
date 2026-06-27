@@ -26,6 +26,13 @@ interface UseGameSocketProps {
     onPositionCorrection: (position: any, rotation: any) => void;
 }
 
+function unpackPosition(pos: any): { x: number; y: number; z: number } {
+    if (Array.isArray(pos)) {
+        return { x: pos[0], y: pos[1], z: pos[2] };
+    }
+    return pos;
+}
+
 export function useGameSocket({
     socket,
     wallet,
@@ -68,7 +75,7 @@ export function useGameSocket({
             onKillsUpdate(data.player.kills);
             onDeathsUpdate(data.player.deaths);
             if (data.scores) onScoresUpdate(data.scores);
-            if (data.player.position) onSpawnPosition(data.player.position);
+            if (data.player.position) onSpawnPosition(unpackPosition(data.player.position));
 
             data.players.forEach((player: Player, index: number) => {
                 if (player.id !== socket.id) {
@@ -92,7 +99,12 @@ export function useGameSocket({
             onPlayerLeft(playerId);
         };
 
-        const handlePlayerMoved = (data: any) => onPlayerMoved(data.id, data.position, data.rotation);
+        const handlePlayerMoved = (data: any) => {
+            const pos = unpackPosition(data.position);
+            const rot = unpackPosition(data.rotation);
+            onPlayerMoved(data.id, pos, rot);
+        };
+
         const handlePlayerShot = (data: any) => onPlayerShot(data.origin, data.direction);
 
         const handlePlayerHit = (data: any) => {
@@ -114,12 +126,13 @@ export function useGameSocket({
                 onDeathsUpdate(myDeathsRef.current);
             }
             if (data.scores) onScoresUpdate(data.scores);
-            
+
             onPlayerKilled(data.victimId);
         };
 
         const handlePlayerRespawned = (data: any) => {
-            onPlayerRespawned(data.id, data.position);
+            const pos = unpackPosition(data.position);
+            onPlayerRespawned(data.id, pos);
             if (data.id === socket.id) onHealthUpdate(100);
         };
 
@@ -132,7 +145,9 @@ export function useGameSocket({
         };
 
         const handlePositionCorrection = (data: any) => {
-            onPositionCorrection(data.position, data.rotation);
+            const pos = unpackPosition(data.position);
+            const rot = unpackPosition(data.rotation);
+            onPositionCorrection(pos, rot);
         };
 
         socket.on('joinedGameRoom', handleJoinedGameRoom);

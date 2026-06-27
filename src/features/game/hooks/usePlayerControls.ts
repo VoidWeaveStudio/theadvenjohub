@@ -163,7 +163,7 @@ export function usePlayerControls({
             if (!checkCollision(newX, cameraRef.current.position.z, collisionBoxes, PLAYER_RADIUS)) {
                 cameraRef.current.position.x = newX;
             }
-            
+
             if (!checkCollision(cameraRef.current.position.x, newZ, collisionBoxes, PLAYER_RADIUS)) {
                 cameraRef.current.position.z = newZ;
             }
@@ -177,16 +177,16 @@ export function usePlayerControls({
             const now = Date.now();
             if (socket?.connected && now - lastMoveTimeRef.current > 50) {
                 socket.emit('playerMove', {
-                    position: {
-                        x: cameraRef.current.position.x,
-                        y: cameraRef.current.position.y,
-                        z: cameraRef.current.position.z
-                    },
-                    rotation: {
-                        x: cameraRef.current.rotation.x,
-                        y: cameraRef.current.rotation.y,
-                        z: cameraRef.current.rotation.z
-                    }
+                    position: [
+                        cameraRef.current.position.x,
+                        cameraRef.current.position.y,
+                        cameraRef.current.position.z
+                    ],
+                    rotation: [
+                        cameraRef.current.rotation.x,
+                        cameraRef.current.rotation.y,
+                        cameraRef.current.rotation.z
+                    ]
                 });
                 lastMoveTimeRef.current = now;
             }

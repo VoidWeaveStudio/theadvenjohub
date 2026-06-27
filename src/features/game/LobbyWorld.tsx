@@ -27,6 +27,11 @@ interface PlayerData {
     rotation: { x: number; y: number; z: number };
 }
 
+function unpackPosition(pos: any): { x: number; y: number; z: number } {
+    if (Array.isArray(pos)) return { x: pos[0], y: pos[1], z: pos[2] };
+    return pos;
+}
+
 export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: LobbyWorldProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
@@ -275,8 +280,10 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         const handlePlayerMovedInLobby = (data: any) => {
             const playerModel = playersRef.current.get(data.id);
             if (playerModel) {
-                playerModel.position.set(data.position.x, data.position.y, data.position.z);
-                playerModel.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
+                const pos = unpackPosition(data.position);
+                const rot = unpackPosition(data.rotation);
+                playerModel.position.set(pos.x, pos.y, pos.z);
+                playerModel.rotation.set(rot.x, rot.y, rot.z);
             }
         };
 
@@ -449,16 +456,16 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                 const now = Date.now();
                 if (socket?.connected && now - lastMoveTimeRef.current > 50) {
                     socket.emit("lobbyMove", {
-                        position: {
-                            x: cameraRef.current.position.x,
-                            y: cameraRef.current.position.y,
-                            z: cameraRef.current.position.z
-                        },
-                        rotation: {
-                            x: cameraRef.current.rotation.x,
-                            y: cameraRef.current.rotation.y,
-                            z: cameraRef.current.rotation.z
-                        }
+                        position: [
+                            cameraRef.current.position.x,
+                            cameraRef.current.position.y,
+                            cameraRef.current.position.z
+                        ],
+                        rotation: [
+                            cameraRef.current.rotation.x,
+                            cameraRef.current.rotation.y,
+                            cameraRef.current.rotation.z
+                        ]
                     });
                     lastMoveTimeRef.current = now;
                 }
@@ -471,7 +478,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             if (cameraRef.current) {
                 const distance = cameraRef.current.position.distanceTo(portalPositionRef.current);
                 const isNear = distance < 6;
-                
+
                 nearPortalRef.current = isNear;
                 setNearPortal(isNear);
             }
