@@ -178,7 +178,12 @@ export function usePlayerControls({
     }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onThirdPersonToggle, playerModelRef]);
 
     const updateMovement = (deltaTime: number) => {
-        if (!cameraRef.current) return;
+        if (!cameraRef.current) {
+            console.log('❌ No camera');
+            return;
+        }
+
+        console.log('🎮 updateMovement called, keys:', Array.from(keysRef.current));
 
         if (!isOnGroundRef.current) {
             velocityYRef.current += GRAVITY;
@@ -202,25 +207,20 @@ export function usePlayerControls({
 
         if (isMoving && gameStatusRef.current === 'playing') {
             moveDirection.normalize();
-
-            if (isThirdPersonRef.current) {
-                moveDirection.applyQuaternion(cameraRef.current.quaternion);
-            } else {
-                moveDirection.applyQuaternion(cameraRef.current.quaternion);
-            }
-
+            moveDirection.applyQuaternion(cameraRef.current.quaternion);
             moveDirection.y = 0;
             moveDirection.normalize();
 
-            const speed = MOVE_SPEED;
+            const newX = cameraRef.current.position.x + moveDirection.x * MOVE_SPEED;
+            const newZ = cameraRef.current.position.z + moveDirection.z * MOVE_SPEED;
 
-            const newX = cameraRef.current.position.x + moveDirection.x * speed;
-            if (!checkCollision(newX, cameraRef.current.position.z, collisionBoxes, PLAYER_RADIUS)) {
+            const collisionX = checkCollision(newX, cameraRef.current.position.z, collisionBoxes, PLAYER_RADIUS);
+            const collisionZ = checkCollision(cameraRef.current.position.x, newZ, collisionBoxes, PLAYER_RADIUS);
+
+            if (!collisionX) {
                 cameraRef.current.position.x = newX;
             }
-
-            const newZ = cameraRef.current.position.z + moveDirection.z * speed;
-            if (!checkCollision(cameraRef.current.position.x, newZ, collisionBoxes, PLAYER_RADIUS)) {
+            if (!collisionZ) {
                 cameraRef.current.position.z = newZ;
             }
 
@@ -233,16 +233,16 @@ export function usePlayerControls({
             const now = Date.now();
             if (socket?.connected && now - lastMoveTimeRef.current > 50) {
                 socket.emit('playerMove', {
-                    position: [
-                        cameraRef.current.position.x,
-                        cameraRef.current.position.y,
-                        cameraRef.current.position.z
-                    ],
-                    rotation: [
-                        cameraRef.current.rotation.x,
-                        cameraRef.current.rotation.y,
-                        cameraRef.current.rotation.z
-                    ]
+                    position: {
+                        x: cameraRef.current.position.x,
+                        y: cameraRef.current.position.y,
+                        z: cameraRef.current.position.z
+                    },
+                    rotation: {
+                        x: cameraRef.current.rotation.x,
+                        y: cameraRef.current.rotation.y,
+                        z: cameraRef.current.rotation.z
+                    }
                 });
                 lastMoveTimeRef.current = now;
             }

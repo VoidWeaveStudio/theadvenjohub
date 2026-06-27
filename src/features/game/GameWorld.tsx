@@ -155,30 +155,33 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     useEffect(() => {
         if (!sceneReady || !sceneRef.current) return;
 
-        const currentScene = sceneRef.current;
-        const currentPlayers = playersRef.current;
+        setTimeout(() => {
+            if (!sceneRef.current) return;
 
-        hudPlayers.forEach((player, index) => {
-            if (player.id === socket?.id) return;
+            collisionBoxesRef.current.forEach((box, i) => {
+                const width = box.maxX - box.minX;
+                const depth = box.maxZ - box.minZ;
+                const height = 5;
 
-            if (!currentPlayers.has(player.id)) {
-                const playerOnGround = { ...player, position: { x: player.position.x, y: 0, z: player.position.z } };
-                const model = PlayerModel.create(currentScene, playerOnGround, index, mode);
-                currentPlayers.set(player.id, model);
-                playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
-                previousPositionsRef.current.set(player.id, model.position.clone());
-            }
-        });
+                const geo = new THREE.BoxGeometry(width, height, depth);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: 0xff0000,
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.3
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(
+                    box.minX + width / 2,
+                    height / 2,
+                    box.minZ + depth / 2
+                );
+                sceneRef.current!.add(mesh);
+            });
 
-        currentPlayers.forEach((model, playerId) => {
-            if (!hudPlayers.find(p => p.id === playerId)) {
-                currentScene.remove(model);
-                currentPlayers.delete(playerId);
-                playerAnimationDataRef.current.delete(playerId);
-                previousPositionsRef.current.delete(playerId);
-            }
-        });
-    }, [hudPlayers, sceneReady, mode, socket?.id]);
+            console.log(`🔴 Visualized ${collisionBoxesRef.current.length} collision boxes`);
+        }, 2000);
+    }, [sceneReady]);
 
     const { ammoRef, isReloadingRef, startAutoFire, stopAutoFire, reload } = useShooting({
         socket,

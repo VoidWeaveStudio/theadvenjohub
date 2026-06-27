@@ -41,39 +41,51 @@ export class Dust2Map {
         };
     }
 
-   
+
     async loadModel(scene: THREE.Scene, modelPath: string = '/maps/dust_2_cs_1.6.glb'): Promise<void> {
         this.scene = scene;
         this.collisionBoxes = [];
 
         return new Promise((resolve, reject) => {
             const loader = new GLTFLoader();
-            
+
             loader.load(
                 modelPath,
                 (gltf) => {
                     const model = gltf.scene;
                     this.mapModel = model;
 
-        
-                    model.scale.set(1, 1, 1);
-                    
-                    model.position.set(0, 0, 0);
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = new THREE.Vector3();
+                    box.getSize(size);
+                    const center = new THREE.Vector3();
+                    box.getCenter(center);
+
+                    console.log('📏 Model size:', size);
+                    console.log('📍 Model center:', center);
+                    console.log('📦 Model bounds:', { min: box.min, max: box.max });
+
+                    if (size.x > 200 || size.z > 200) {
+                        const scale = 200 / Math.max(size.x, size.z);
+                        model.scale.set(scale, scale, scale);
+                        console.log(`🔧 Auto-scaled to ${scale}`);
+                    }
+
+                    model.position.set(-center.x * model.scale.x, 0, -center.z * model.scale.z);
+                    console.log('🎯 Model centered at:', model.position);
 
                     let meshCount = 0;
                     model.traverse((child) => {
                         if (child instanceof THREE.Mesh) {
                             meshCount++;
-                            
                             child.castShadow = true;
                             child.receiveShadow = true;
-                            
                             this.extractCollisionFromMesh(child);
                         }
                     });
 
                     scene.add(model);
-                    
+
                     console.log(`✅ Dust 2 GLB loaded: ${meshCount} meshes, ${this.collisionBoxes.length} collision boxes`);
                     resolve();
                 },
@@ -85,8 +97,6 @@ export class Dust2Map {
                 },
                 (error) => {
                     console.error('❌ Failed to load GLB map:', error);
-                    console.warn('⚠️ Falling back to programmatic map generation');
-                    
                     this.build(scene);
                     resolve();
                 }
@@ -94,17 +104,17 @@ export class Dust2Map {
         });
     }
 
- 
+
     private extractCollisionFromMesh(mesh: THREE.Mesh): void {
         mesh.updateMatrixWorld(true);
-        
+
         const box = new THREE.Box3().setFromObject(mesh);
-        
+
         const size = new THREE.Vector3();
         box.getSize(size);
-        
+
         if (size.x < 0.5 || size.z < 0.5) return;
-        
+
         if (size.y < 0.2 && size.x > 10 && size.z > 10) return;
 
         this.collisionBoxes.push({
