@@ -39,8 +39,6 @@ export function GameHUD({
 }: GameHUDProps) {
   const sortedPlayers = [...players].sort((a, b) => b.kills - a.kills);
 
-  const myPlace = mode === 'ffa' ? sortedPlayers.findIndex(p => p.username === myUsername) + 1 : null;
-
   return (
     <>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
@@ -50,17 +48,6 @@ export function GameHUD({
         </div>
       </div>
 
-      <div className="absolute top-28 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-2 rounded-lg">
-        <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${mode === '5v5' ? 'bg-blue-500' : 'bg-yellow-500'}`} />
-          <span className="text-white font-bold text-lg">{myUsername}</span>
-          {mode === 'ffa' && myPlace && (
-            <span className={`font-bold ${myPlace === 1 ? 'text-yellow-400' : myPlace === 2 ? 'text-zinc-300' : myPlace === 3 ? 'text-orange-400' : 'text-zinc-500'}`}>
-              #{myPlace}
-            </span>
-          )}
-        </div>
-      </div>
 
       <div className="absolute bottom-8 left-8 space-y-2">
         <div className="bg-black/70 backdrop-blur px-4 py-2 rounded-lg">
@@ -87,7 +74,7 @@ export function GameHUD({
         </div>
       </div>
 
-      {mode === '5v5' ? (
+      {mode === '5v5' && (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg">
           <div className="flex items-center gap-8">
             <div className="text-center">
@@ -101,13 +88,6 @@ export function GameHUD({
             </div>
           </div>
           <div className="text-center text-xs text-zinc-500 mt-1">First to 50</div>
-        </div>
-      ) : (
-        <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg">
-          <div className="text-center">
-            <div className="text-yellow-400 text-sm font-bold">SURVIVAL</div>
-            <div className="text-white font-bold text-xl">First to 50 kills</div>
-          </div>
         </div>
       )}
 
@@ -135,7 +115,7 @@ export function GameHUD({
         <div className="text-white font-semibold mb-2">
           {mode === '5v5' ? 'Players' : 'Leaderboard'} ({players.length})
         </div>
-        <div className="space-y-1 text-sm">
+        <div className="space-y-1 text-sm max-h-64 overflow-y-auto">
           {mode === '5v5' ? (
             <>
               {players.filter(p => p.team === 1).map((player) => (
@@ -160,7 +140,10 @@ export function GameHUD({
                   #{index + 1}
                 </span>
                 <span className="text-white flex-1 truncate">{player.username}</span>
-                <span className="text-green-400 font-bold">{player.kills}</span>
+                <div className="flex gap-2">
+                  <span className="text-green-400 font-bold">{player.kills}</span>
+                  <span className="text-red-400 text-xs">/{player.deaths}</span>
+                </div>
               </div>
             ))
           )}

@@ -152,7 +152,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         head.castShadow = true;
         group.add(head);
 
-        group.position.set(player.position.x, player.position.y, player.position.z);
+        group.position.set(player.position.x, 0, player.position.z);
         sceneRef.current.add(group);
         playersRef.current.set(player.id, group);
 
@@ -282,7 +282,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             if (playerModel) {
                 const pos = unpackPosition(data.position);
                 const rot = unpackPosition(data.rotation);
-                playerModel.position.set(pos.x, pos.y, pos.z);
+                playerModel.position.set(pos.x, 0, pos.z);
                 playerModel.rotation.set(rot.x, rot.y, rot.z);
             }
         };

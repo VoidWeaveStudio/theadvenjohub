@@ -44,7 +44,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [sceneReady, setSceneReady] = useState(false);
 
     const playersDataRef = useRef<Map<string, Player>>(new Map());
-    const [hudPlayers, setHudPlayers] = useState<Player[]>([]); 
+    const [hudPlayers, setHudPlayers] = useState<Player[]>([]);
 
     const [myHealth, setMyHealth] = useState(100);
     const [myKills, setMyKills] = useState(0);
@@ -146,7 +146,8 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             if (player.id === socket?.id) return;
 
             if (!currentPlayers.has(player.id)) {
-                const model = PlayerModel.create(currentScene, player, index, mode);
+                const playerOnGround = { ...player, position: { x: player.position.x, y: 0, z: player.position.z } };
+                const model = PlayerModel.create(currentScene, playerOnGround, index, mode);
                 currentPlayers.set(player.id, model);
                 playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
                 previousPositionsRef.current.set(player.id, model.position.clone());
@@ -248,9 +249,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             const model = playersRef.current.get(id);
             if (model) {
                 model.visible = true;
-                model.userData.targetPosition = new THREE.Vector3(position.x, position.y, position.z);
+                model.userData.targetPosition = new THREE.Vector3(position.x, 0, position.z);
                 model.userData.targetRotation = new THREE.Euler(0, 0, 0);
-                model.position.set(position.x, position.y, position.z);
+                model.position.set(position.x, 0, position.z);
                 previousPositionsRef.current.set(id, model.position.clone());
             }
         }
@@ -259,7 +260,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const handlePlayerMoved = useCallback((id: string, position: any, rotation: any) => {
         const model = playersRef.current.get(id);
         if (model) {
-            model.userData.targetPosition = new THREE.Vector3(position.x, position.y, position.z);
+            model.userData.targetPosition = new THREE.Vector3(position.x, 0, position.z);
             model.userData.targetRotation = new THREE.Euler(rotation.x, rotation.y, rotation.z);
         }
     }, []);

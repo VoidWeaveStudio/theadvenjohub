@@ -135,6 +135,19 @@ export function useGameSocket({
             onPlayerRespawned(data.id, pos);
             if (data.id === socket.id) onHealthUpdate(100);
         };
+        const handlePlayerStatsUpdate = (data: any) => {
+            onPlayersUpdate((prev: Player[]) => {
+                return prev.map(player => {
+                    if (player.id === data.killerId) {
+                        return { ...player, kills: data.killerKills };
+                    }
+                    if (player.id === data.victimId) {
+                        return { ...player, deaths: (player.deaths || 0) + 1 };
+                    }
+                    return player;
+                });
+            });
+        };
 
         const handleGameEnded = (data: any) => {
             onGameEnd(data.winner, data.scores);
@@ -162,6 +175,8 @@ export function useGameSocket({
         socket.on('gameEnded', handleGameEnded);
         socket.on('returnedToLobby', handleReturnedToLobby);
         socket.on('positionCorrection', handlePositionCorrection);
+        socket.on('playerKilled', handlePlayerStatsUpdate);
+
 
         return () => {
             socket.off('joinedGameRoom', handleJoinedGameRoom);
@@ -176,6 +191,7 @@ export function useGameSocket({
             socket.off('gameEnded', handleGameEnded);
             socket.off('returnedToLobby', handleReturnedToLobby);
             socket.off('positionCorrection', handlePositionCorrection);
+            socket.off('playerKilled', handlePlayerStatsUpdate);
         };
     }, [socket, wallet, roomId, mode]);
 

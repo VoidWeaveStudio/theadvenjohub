@@ -12,7 +12,7 @@ export class PlayerModel {
     ): THREE.Group {
         const group = new THREE.Group();
         group.userData.playerId = player.id;
-        
+
         const bodyColor = this.getBodyColor(player, index, mode);
         const body = this.createBody(bodyColor);
         group.add(body);
@@ -40,7 +40,7 @@ export class PlayerModel {
         rightLeg.name = 'rightLeg';
         group.add(rightLeg);
 
-        group.position.set(player.position.x, player.position.y, player.position.z);
+        group.position.set(player.position.x, 0, player.position.z);
         scene.add(group);
 
         return group;
