@@ -112,8 +112,6 @@ export function usePlayerControls({
                     if (document.pointerLockElement) {
                         document.exitPointerLock();
                     }
-                } else {
-                    container.requestPointerLock();
                 }
             }
         };

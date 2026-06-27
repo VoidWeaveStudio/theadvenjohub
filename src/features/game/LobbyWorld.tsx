@@ -205,7 +205,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight - 64);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
         containerRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 

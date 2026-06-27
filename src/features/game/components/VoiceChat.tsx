@@ -8,15 +8,49 @@ interface VoiceChatProps {
   socket: Socket | null;
   roomId: string | null;
   myUsername: string;
+  isChatOpenRef?: React.MutableRefObject<boolean>;
 }
 
-export function VoiceChat({ socket, roomId, myUsername }: VoiceChatProps) {
+export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceChatProps) {
   const [isTalking, setIsTalking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [talkingPlayers, setTalkingPlayers] = useState<Set<string>>(new Set());
+  const [hasPermission, setHasPermission] = useState(false);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const isTalkingRef = useRef(false);
+
+  useEffect(() => {
+    const initMicrophone = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        localStreamRef.current = stream;
+        setHasPermission(true);
+        stream.getTracks().forEach(track => track.stop());
+        localStreamRef.current = null;
+      } catch (err) {
+        console.error('Microphone permission denied:', err);
+        setHasPermission(false);
+      }
+    };
+
+    if (socket && roomId) {
+      initMicrophone();
+    }
+
+    return () => {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [socket, roomId]);
 
   useEffect(() => {
     if (!socket || !roomId) return;
@@ -104,50 +138,77 @@ export function VoiceChat({ socket, roomId, myUsername }: VoiceChatProps) {
     return pc;
   };
 
-  const startVoiceChat = async () => {
+  const startTalking = async () => {
+    if (isTalkingRef.current || isMuted || isChatOpenRef?.current) return;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
+      if (!localStreamRef.current) {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        localStreamRef.current = stream;
+      }
+
+      localStreamRef.current.getTracks().forEach(track => {
+        track.enabled = true;
       });
-      localStreamRef.current = stream;
+
+      isTalkingRef.current = true;
       setIsTalking(true);
       socket?.emit('startVoiceChat', { roomId });
     } catch (err) {
-      console.error('Failed to get microphone:', err);
-      alert('Не удалось получить доступ к микрофону. Проверьте разрешения браузера.');
+      console.error('Failed to start talking:', err);
     }
   };
 
-  const stopVoiceChat = () => {
+  const stopTalking = () => {
+    if (!isTalkingRef.current) return;
+
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
+      localStreamRef.current.getTracks().forEach(track => {
+        track.enabled = false;
+      });
     }
-    peerConnectionsRef.current.forEach(pc => pc.close());
-    peerConnectionsRef.current.clear();
-    audioElementsRef.current.forEach(audio => {
-      audio.pause();
-      audio.srcObject = null;
-    });
-    audioElementsRef.current.clear();
+
+    isTalkingRef.current = false;
     setIsTalking(false);
-    setIsMuted(false);
     socket?.emit('stopVoiceChat', { roomId });
   };
 
   const toggleMute = () => {
-    if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsMuted(!audioTrack.enabled);
-      }
+    setIsMuted(!isMuted);
+    if (isTalkingRef.current && !isMuted) {
+      stopTalking();
     }
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'KeyV' && !e.repeat && !isChatOpenRef?.current) {
+        e.preventDefault();
+        startTalking();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'KeyV') {
+        e.preventDefault();
+        stopTalking();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isMuted, isChatOpenRef]);
 
   useEffect(() => {
     return () => {
@@ -163,23 +224,29 @@ export function VoiceChat({ socket, roomId, myUsername }: VoiceChatProps) {
   }, []);
 
   return (
-    <div className="absolute bottom-32 left-8 bg-black/80 backdrop-blur-md px-4 py-3 rounded-xl shadow-2xl border border-white/10">
+    <div className="absolute bottom-8 left-8 bg-black/80 backdrop-blur-md px-4 py-3 rounded-xl shadow-2xl border border-white/10">
       <div className="flex items-center gap-3">
-        <button
-          onClick={isTalking ? stopVoiceChat : startVoiceChat}
-          className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-            isTalking
-              ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/50'
-              : 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/50'
-          }`}
-        >
-          {isTalking ? '🔴 Stop' : '🎤 Start'}
-        </button>
+        <div className={`w-3 h-3 rounded-full ${
+          isTalking ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500/50' : 
+          hasPermission ? 'bg-zinc-500' : 'bg-red-500'
+        }`} />
 
-        {isTalking && (
+        <div className="text-white text-sm">
+          {isTalking ? (
+            <span className="text-green-400 font-semibold">🎤 Talking...</span>
+          ) : isMuted ? (
+            <span className="text-yellow-400">🔇 Muted</span>
+          ) : hasPermission ? (
+            <span className="text-zinc-400">Hold <kbd className="px-1.5 py-0.5 bg-zinc-700 rounded text-white font-mono text-xs">V</kbd> to talk</span>
+          ) : (
+            <span className="text-red-400">🎤 No mic access</span>
+          )}
+        </div>
+
+        {hasPermission && (
           <button
             onClick={toggleMute}
-            className={`px-3 py-2 rounded-lg font-semibold transition-all ${
+            className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
               isMuted
                 ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
                 : 'bg-zinc-700 hover:bg-zinc-600 text-white'
@@ -191,9 +258,9 @@ export function VoiceChat({ socket, roomId, myUsername }: VoiceChatProps) {
         )}
 
         {talkingPlayers.size > 0 && (
-          <div className="flex items-center gap-1 ml-2">
+          <div className="flex items-center gap-1 ml-2 px-2 py-1 bg-green-900/50 rounded-lg border border-green-500/30">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-white text-sm">{talkingPlayers.size} talking</span>
+            <span className="text-green-400 text-xs font-semibold">{talkingPlayers.size}</span>
           </div>
         )}
       </div>

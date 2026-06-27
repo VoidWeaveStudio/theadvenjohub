@@ -70,10 +70,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
     const playerModelRef = useRef<THREE.Group | null>(null);
     const [isThirdPerson, setIsThirdPerson] = useState(false);
-    
+
     const [isChatOpen, setIsChatOpen] = useState(false);
     const isChatOpenRef = useRef(false);
-    
+
     useEffect(() => {
         isChatOpenRef.current = isChatOpen;
     }, [isChatOpen]);
@@ -107,7 +107,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight - 64);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
         container.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
@@ -514,6 +514,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 socket={socket}
                 roomId={roomId}
                 myUsername={myUsername}
+                isChatOpenRef={isChatOpenRef}
             />
 
             <TextChat
@@ -521,6 +522,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 roomId={roomId}
                 myUsername={myUsername}
                 myTeam={myTeam}
+                mode={mode}
             />
 
             <GameOverlay
