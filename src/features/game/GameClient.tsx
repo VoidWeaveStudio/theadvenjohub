@@ -84,6 +84,15 @@ export function GameClient({ slug }: GameClientProps) {
 
     const handleExitGame = () => {
         console.log('Returning to lobby');
+        
+        if (socketRef.current && currentRoomId) {
+            socketRef.current.emit('leaveGame', { 
+                roomId: currentRoomId,
+                wallet: userWallet,
+                username: `Player_${(userWallet || '').substring(0, 4)}`
+            });
+        }
+        
         setGameState('lobby');
         setCurrentRoomId(null);
         setCurrentMode('5v5');

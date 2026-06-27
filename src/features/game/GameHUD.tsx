@@ -233,7 +233,7 @@ export function GameHUD({
             <span>Reload</span>
           </div>
           <div className="flex items-center gap-2">
-            <kbd className="px-2 py-0.5 bg-zinc-700 rounded text-white font-mono">T</kbd>
+            <kbd className="px-2 py-0.5 bg-zinc-700 rounded text-white font-mono">V</kbd>
             <span>Voice Chat</span>
           </div>
           <div className="flex items-center gap-2">

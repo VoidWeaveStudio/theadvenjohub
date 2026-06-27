@@ -19,12 +19,13 @@ interface TextChatProps {
   myUsername: string;
   myTeam?: number;
   mode: '5v5' | 'ffa';
+  isOpen: boolean;                
+  onToggle: (open: boolean) => void;   
 }
 
-export function TextChat({ socket, roomId, myUsername, myTeam, mode }: TextChatProps) {
+export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onToggle }: TextChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
   const [isTeamChat, setIsTeamChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +51,8 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode }: TextChatP
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
+    } else {
+      setInputMessage('');
     }
   }, [isOpen]);
 
@@ -65,15 +68,16 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode }: TextChatP
     });
 
     setInputMessage('');
-    setIsOpen(false);
+    onToggle(false); 
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       sendMessage();
     } else if (e.key === 'Escape') {
-      setIsOpen(false);
-      setInputMessage('');
+      e.preventDefault();
+      onToggle(false); 
     }
   };
 

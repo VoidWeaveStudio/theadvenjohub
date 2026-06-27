@@ -22,35 +22,12 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
   const isTalkingRef = useRef(false);
 
   useEffect(() => {
-    const initMicrophone = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
-        });
-        localStreamRef.current = stream;
-        setHasPermission(true);
-        stream.getTracks().forEach(track => track.stop());
-        localStreamRef.current = null;
-      } catch (err) {
-        console.error('Microphone permission denied:', err);
-        setHasPermission(false);
-      }
-    };
-
-    if (socket && roomId) {
-      initMicrophone();
-    }
-
     return () => {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [socket, roomId]);
+  }, []);
 
   useEffect(() => {
     if (!socket || !roomId) return;
@@ -151,6 +128,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
           }
         });
         localStreamRef.current = stream;
+        setHasPermission(true);
       }
 
       localStreamRef.current.getTracks().forEach(track => {
@@ -162,6 +140,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
       socket?.emit('startVoiceChat', { roomId });
     } catch (err) {
       console.error('Failed to start talking:', err);
+      setHasPermission(false);
     }
   };
 
@@ -180,8 +159,9 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
   };
 
   const toggleMute = () => {
-    setIsMuted(!isMuted);
-    if (isTalkingRef.current && !isMuted) {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    if (isTalkingRef.current && newMuted) {
       stopTalking();
     }
   };
@@ -224,7 +204,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
   }, []);
 
   return (
-    <div className="absolute bottom-8 left-8 bg-black/80 backdrop-blur-md px-4 py-3 rounded-xl shadow-2xl border border-white/10">
+    <div className="absolute bottom-32 left-8 bg-black/80 backdrop-blur-md px-4 py-3 rounded-xl shadow-2xl border border-white/10">
       <div className="flex items-center gap-3">
         <div className={`w-3 h-3 rounded-full ${
           isTalking ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500/50' : 
@@ -239,7 +219,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
           ) : hasPermission ? (
             <span className="text-zinc-400">Hold <kbd className="px-1.5 py-0.5 bg-zinc-700 rounded text-white font-mono text-xs">V</kbd> to talk</span>
           ) : (
-            <span className="text-red-400">🎤 No mic access</span>
+            <span className="text-zinc-400">Press <kbd className="px-1.5 py-0.5 bg-zinc-700 rounded text-white font-mono text-xs">V</kbd> to enable mic</span>
           )}
         </div>
 

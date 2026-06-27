@@ -523,6 +523,8 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 myUsername={myUsername}
                 myTeam={myTeam}
                 mode={mode}
+                isOpen={isChatOpen}
+                onToggle={setIsChatOpen}
             />
 
             <GameOverlay
