@@ -114,19 +114,12 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         ground.receiveShadow = true;
         scene.add(ground);
 
+        // ИСПРАВЛЕНИЕ: Используем процедурную карту вместо GLB
         const map = new Dust2Map();
-        const mapRef = { current: map };
-
-        map.loadModel(scene, '/maps/dust_2_cs_1.6.glb')
-            .then(() => {
-                collisionBoxesRef.current = map.getCollisionBoxes();
-                console.log(`🗺️ Map ready: ${collisionBoxesRef.current.length} collision boxes`);
-            })
-            .catch((error) => {
-                console.error('Map load error:', error);
-                map.build(scene);
-                collisionBoxesRef.current = map.getCollisionBoxes();
-            });
+        map.build(scene);
+        collisionBoxesRef.current = map.getCollisionBoxes();
+        
+        console.log(`🗺️ Procedural Dust 2 map built: ${collisionBoxesRef.current.length} collision boxes`);
 
         bulletPoolRef.current = new BulletPool(scene, 50);
         soundManagerRef.current = new SoundManager();
@@ -146,9 +139,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
         return () => {
             window.removeEventListener('resize', handleResize);
-            if (mapRef.current) {
-                mapRef.current.dispose();
-            }
+            map.dispose();
         };
     }, [roomId]);
 
@@ -162,6 +153,8 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 const width = box.maxX - box.minX;
                 const depth = box.maxZ - box.minZ;
                 const height = 5;
+
+                if (width < 0.1 || depth < 0.1) return;
 
                 const geo = new THREE.BoxGeometry(width, height, depth);
                 const mat = new THREE.MeshBasicMaterial({

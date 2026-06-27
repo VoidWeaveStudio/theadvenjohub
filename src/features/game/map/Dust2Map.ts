@@ -1,23 +1,23 @@
 // src\features\game\map\Dust2Map.ts
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CollisionBox } from '../types';
 
 export class Dust2Map {
     private collisionBoxes: CollisionBox[] = [];
     private scene: THREE.Scene | null = null;
-    private mapModel: THREE.Group | null = null;
 
     private wallGeometries: THREE.BufferGeometry[] = [];
     private boxGeometries: THREE.BufferGeometry[] = [];
     private darkWallGeometries: THREE.BufferGeometry[] = [];
     private concreteGeometries: THREE.BufferGeometry[] = [];
+    private doorGeometries: THREE.BufferGeometry[] = [];
 
     private readonly wallMaterial = new THREE.MeshStandardMaterial({ color: 0xd4a574, flatShading: true });
     private readonly wallDarkMaterial = new THREE.MeshStandardMaterial({ color: 0xb89060, flatShading: true });
     private readonly boxMaterial = new THREE.MeshStandardMaterial({ color: 0x8b6f47, flatShading: true });
     private readonly concreteMaterial = new THREE.MeshStandardMaterial({ color: 0xa0a090, flatShading: true });
+    private readonly doorMaterial = new THREE.MeshStandardMaterial({ color: 0x654321, flatShading: true });
 
     getCollisionBoxes(): CollisionBox[] {
         return this.collisionBoxes;
@@ -30,108 +30,18 @@ export class Dust2Map {
                 { x: -18, z: -48 }, { x: -22, z: -48 }
             ],
             team2: [
-                { x: 20, z: -50 }, { x: 15, z: -50 }, { x: 25, z: -50 },
-                { x: 18, z: -48 }, { x: 22, z: -48 }
+                { x: 20, z: 55 }, { x: 15, z: 55 }, { x: 25, z: 55 },
+                { x: 18, z: 53 }, { x: 22, z: 53 }
             ],
             ffa: [
                 { x: 0, z: -45 }, { x: -10, z: -40 }, { x: 10, z: -40 },
                 { x: -20, z: -35 }, { x: 20, z: -35 }, { x: -30, z: -30 },
-                { x: 30, z: -30 }, { x: 0, z: -30 }, { x: -15, z: -25 }, { x: 15, z: -25 }
+                { x: 30, z: -30 }, { x: 0, z: -30 }, { x: -15, z: -25 }, { x: 15, z: -25 },
+                { x: -40, z: -20 }, { x: 40, z: -20 }, { x: -50, z: -10 },
+                { x: 50, z: -10 }, { x: -45, z: 0 }, { x: 45, z: 0 },
+                { x: -35, z: 10 }, { x: 35, z: 10 }, { x: -25, z: 20 }, { x: 25, z: 20 }
             ]
         };
-    }
-
-    async loadModel(scene: THREE.Scene, modelPath: string = '/maps/dust_2_cs_1.6.glb'): Promise<void> {
-        this.scene = scene;
-        this.collisionBoxes = [];
-
-        return new Promise((resolve, reject) => {
-            const loader = new GLTFLoader();
-            
-            loader.load(
-                modelPath,
-                (gltf) => {
-                    const model = gltf.scene;
-                    this.mapModel = model;
-
-                    const box = new THREE.Box3().setFromObject(model);
-                    const size = new THREE.Vector3();
-                    box.getSize(size);
-                    const center = new THREE.Vector3();
-                    box.getCenter(center);
-                    
-                    console.log('📏 Model size:', size);
-                    console.log('📍 Model center:', center);
-                    console.log('📦 Model bounds:', { min: box.min, max: box.max });
-
-                
-                    const maxDimension = Math.max(size.x, size.y, size.z);
-                    if (maxDimension > 300) {
-                        const scale = 200 / maxDimension;
-                        model.scale.set(scale, scale, scale);
-                        console.log(`🔧 Auto-scaled to ${scale.toFixed(3)}`);
-                    } else if (maxDimension < 50) {
-                        const scale = 150 / maxDimension;
-                        model.scale.set(scale, scale, scale);
-                        console.log(`🔧 Auto-scaled UP to ${scale.toFixed(3)}`);
-                    }
-                    
-                    model.position.set(
-                        -center.x * model.scale.x,
-                        -box.min.y * model.scale.y, 
-                        -center.z * model.scale.z
-                    );
-                    console.log('🎯 Model positioned at:', model.position);
-
-                    let meshCount = 0;
-                    model.traverse((child) => {
-                        if (child instanceof THREE.Mesh) {
-                            meshCount++;
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                            
-                            const meshBox = new THREE.Box3().setFromObject(child);
-                            const meshSize = new THREE.Vector3();
-                            meshBox.getSize(meshSize);
-                            console.log(`🔷 Mesh #${meshCount}: "${child.name}", size:`, meshSize);
-                            
-                            this.extractCollisionFromMesh(child);
-                        }
-                    });
-
-                    scene.add(model);
-                    
-                    console.log(`✅ Dust 2 GLB loaded: ${meshCount} meshes, ${this.collisionBoxes.length} collision boxes`);
-                    resolve();
-                },
-                (progress) => {
-                    if (progress.total > 0) {
-                        const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                        console.log(`📥 Loading Dust 2: ${percent}%`);
-                    }
-                },
-                (error) => {
-                    console.error('❌ Failed to load GLB map:', error);
-                    this.build(scene);
-                    resolve();
-                }
-            );
-        });
-    }
-
-    private extractCollisionFromMesh(mesh: THREE.Mesh): void {
-        mesh.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(mesh);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        
-    
-        this.collisionBoxes.push({
-            minX: box.min.x,
-            maxX: box.max.x,
-            minZ: box.min.z,
-            maxZ: box.max.z
-        });
     }
 
     build(scene: THREE.Scene): void {
@@ -141,14 +51,15 @@ export class Dust2Map {
         this.boxGeometries = [];
         this.darkWallGeometries = [];
         this.concreteGeometries = [];
+        this.doorGeometries = [];
 
         this.addBorders();
         this.addTSpawn();
-        this.addMid();
         this.addLongA();
         this.addShortA();
-        this.addSiteA();
+        this.addMid();
         this.addBTunnels();
+        this.addSiteA();
         this.addSiteB();
         this.addCTSpawn();
         this.addCTConnections();
@@ -170,6 +81,8 @@ export class Dust2Map {
             this.darkWallGeometries.push(geo);
         } else if (material === this.concreteMaterial) {
             this.concreteGeometries.push(geo);
+        } else if (material === this.doorMaterial) {
+            this.doorGeometries.push(geo);
         } else {
             this.wallGeometries.push(geo);
         }
@@ -202,31 +115,58 @@ export class Dust2Map {
     private addTSpawn(): void {
         this.addWall(-25, -50, 2, 20, 5, this.wallDarkMaterial);
         this.addWall(25, -50, 2, 20, 5, this.wallDarkMaterial);
+        this.addWall(0, -60, 50, 2, 5, this.wallDarkMaterial);
+        
         this.addBox(-20, -55, 2);
         this.addBox(20, -55, 2);
+        
         this.addWall(-8, -35, 2, 12);
         this.addWall(8, -35, 2, 12);
     }
 
-    private addMid(): void {
-        this.addWall(-18, -10, 2, 30);
-        this.addWall(18, -10, 2, 30);
-        this.addBox(-5, -15, 2.5);
-        this.addBox(5, -15, 2.5);
-        this.addBox(0, -5, 2);
-    }
-
     private addLongA(): void {
+        
         this.addWall(-35, -15, 2, 30);
         this.addWall(-25, -15, 2, 30);
+        
         this.addBox(-30, -25, 2);
         this.addBox(-30, -5, 2);
         this.addBox(-30, 5, 2.5, 1.5);
+        
+        this.addWall(-30, 0, 10, 1, 4, this.doorMaterial);
     }
 
     private addShortA(): void {
         this.addWall(-20, 10, 12, 2);
         this.addWall(-20, 18, 12, 2);
+        
+        this.addBox(-20, 14, 3, 1);
+        this.addBox(-20, 16, 3, 2);
+    }
+
+    private addMid(): void {
+        this.addWall(-18, -10, 2, 30);
+        this.addWall(18, -10, 2, 30);
+        
+        this.addBox(-5, -15, 2.5);
+        this.addBox(5, -15, 2.5);
+        this.addBox(0, -5, 2);
+        
+        this.addWall(0, -10, 1, 8, 4, this.doorMaterial);
+        
+        this.addWall(-10, -20, 8, 2);
+        this.addWall(10, -20, 8, 2);
+    }
+
+    private addBTunnels(): void {
+        this.addWall(35, -15, 2, 30);
+        this.addWall(25, -15, 2, 30);
+        
+        this.addBox(30, -25, 2);
+        this.addBox(30, -5, 2);
+        this.addBox(30, 5, 2.5, 1.5);
+        
+        this.addWall(30, 0, 10, 1, 4, this.doorMaterial);
     }
 
     private addSiteA(): void {
@@ -234,17 +174,12 @@ export class Dust2Map {
         this.addWall(-45, 45, 20, 2);
         this.addWall(-55, 35, 2, 20);
         this.addWall(-35, 35, 2, 10);
+        
         this.addBox(-45, 35, 3, 2);
         this.addBox(-50, 30, 2);
         this.addBox(-40, 40, 2);
-    }
-
-    private addBTunnels(): void {
-        this.addWall(35, -15, 2, 30);
-        this.addWall(25, -15, 2, 30);
-        this.addBox(30, -25, 2);
-        this.addBox(30, -5, 2);
-        this.addBox(30, 5, 2.5, 1.5);
+        
+        this.addBox(-45, 35, 1, 0.5);
     }
 
     private addSiteB(): void {
@@ -252,15 +187,19 @@ export class Dust2Map {
         this.addWall(45, 45, 20, 2);
         this.addWall(55, 35, 2, 20);
         this.addWall(35, 35, 2, 10);
+        
         this.addBox(45, 35, 3, 2);
         this.addBox(50, 30, 2);
         this.addBox(40, 40, 2);
+        
+        this.addBox(45, 35, 1, 0.5);
     }
 
     private addCTSpawn(): void {
         this.addWall(-15, 55, 2, 16, 5, this.wallDarkMaterial);
         this.addWall(15, 55, 2, 16, 5, this.wallDarkMaterial);
         this.addWall(0, 50, 20, 2, 5, this.wallDarkMaterial);
+        
         this.addBox(-10, 58, 2);
         this.addBox(10, 58, 2);
     }
@@ -268,22 +207,32 @@ export class Dust2Map {
     private addCTConnections(): void {
         this.addWall(-25, 50, 2, 12);
         this.addWall(25, 50, 2, 12);
+        
+        this.addWall(-30, 45, 10, 2);
+        this.addWall(30, 45, 10, 2);
     }
 
     private addExtraCover(): void {
         this.addBox(-12, 0, 2);
         this.addBox(12, 0, 2);
         this.addBox(0, 15, 2.5);
+        
+        this.addBox(-8, -25, 1.5);
+        this.addBox(8, -25, 1.5);
+        
+        this.addBox(-28, -20, 1.5);
+        
+        this.addBox(-15, 12, 1.5);
     }
 
     private addZoneMarkers(): void {
         if (!this.scene) return;
         const markerGeometry = new THREE.BoxGeometry(4, 0.05, 4);
         const markers = [
-            { color: 0xff4444, position: [0, 0.03, -50] },
-            { color: 0x4444ff, position: [0, 0.03, 55] },
-            { color: 0xffff00, position: [-45, 0.03, 35] },
-            { color: 0x00ff00, position: [45, 0.03, 35] }
+            { color: 0xff4444, position: [0, 0.03, -50] },  
+            { color: 0x4444ff, position: [0, 0.03, 55] },   
+            { color: 0xffff00, position: [-45, 0.03, 35] }, 
+            { color: 0x00ff00, position: [45, 0.03, 35] }   
         ];
 
         markers.forEach(({ color, position }) => {
@@ -316,24 +265,11 @@ export class Dust2Map {
         createMergedMesh(this.boxGeometries, this.boxMaterial);
         createMergedMesh(this.darkWallGeometries, this.wallDarkMaterial);
         createMergedMesh(this.concreteGeometries, this.concreteMaterial);
+        createMergedMesh(this.doorGeometries, this.doorMaterial);
     }
 
     dispose(): void {
-        if (this.mapModel) {
-            this.mapModel.traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                    child.geometry.dispose();
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(m => m.dispose());
-                    } else {
-                        child.material.dispose();
-                    }
-                }
-            });
-            this.scene?.remove(this.mapModel);
-            this.mapModel = null;
-        }
-
-        [this.wallMaterial, this.wallDarkMaterial, this.boxMaterial, this.concreteMaterial].forEach(m => m.dispose());
+        [this.wallMaterial, this.wallDarkMaterial, this.boxMaterial, this.concreteMaterial, this.doorMaterial]
+            .forEach(m => m.dispose());
     }
 }

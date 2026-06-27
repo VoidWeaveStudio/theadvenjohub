@@ -178,12 +178,7 @@ export function usePlayerControls({
     }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onThirdPersonToggle, playerModelRef]);
 
     const updateMovement = (deltaTime: number) => {
-        if (!cameraRef.current) {
-            console.log('❌ No camera');
-            return;
-        }
-
-        console.log('🎮 updateMovement called, keys:', Array.from(keysRef.current));
+        if (!cameraRef.current) return;
 
         if (!isOnGroundRef.current) {
             velocityYRef.current += GRAVITY;
