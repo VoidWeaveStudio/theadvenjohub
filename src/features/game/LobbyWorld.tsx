@@ -1,7 +1,7 @@
 //src\features\game\LobbyWorld.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { Socket } from "socket.io-client";
 import { LobbyUI } from "./components/LobbyUI";
@@ -61,76 +61,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     useEffect(() => { showModeSelectRef.current = showModeSelect; }, [showModeSelect]);
     useEffect(() => { nearPortalRef.current = nearPortal; }, [nearPortal]);
 
-    useEffect(() => {
-        if (!containerRef.current) return;
-
-        initThreeJS();
-        initSocket();
-        initControls();
-        animate();
-
-        return () => cleanup();
-    }, []);
-
-    const initThreeJS = () => {
-        if (!containerRef.current) return;
-
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e);
-        scene.fog = new THREE.Fog(0x1a1a2e, 0, 100);
-        sceneRef.current = scene;
-
-        const camera = new THREE.PerspectiveCamera(
-            75,
-            window.innerWidth / window.innerHeight,
-            0.1,
-            1000
-        );
-        camera.position.set(0, 1.6, 0);
-        camera.rotation.order = 'YXZ';
-        cameraRef.current = camera;
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight - 64);
-        renderer.shadowMap.enabled = true;
-        containerRef.current.appendChild(renderer.domElement);
-        rendererRef.current = renderer;
-
-        const ambientLight = new THREE.AmbientLight(0x404080, 0.5);
-        scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-        directionalLight.position.set(50, 100, 50);
-        directionalLight.castShadow = true;
-        scene.add(directionalLight);
-
-        const portalLight = new THREE.PointLight(0x00ffff, 2, 20);
-        portalLight.position.set(0, 3, -15);
-        scene.add(portalLight);
-
-        const groundGeometry = new THREE.BoxGeometry(100, 1, 100);
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x2a2a4e,
-            flatShading: true
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.position.y = -0.5;
-        ground.receiveShadow = true;
-        scene.add(ground);
-
-        createPortal(scene);
-
-        const handleResize = () => {
-            if (!cameraRef.current || !rendererRef.current) return;
-            cameraRef.current.aspect = window.innerWidth / (window.innerHeight - 64);
-            cameraRef.current.updateProjectionMatrix();
-            rendererRef.current.setSize(window.innerWidth, window.innerHeight - 64);
-        };
-
-        window.addEventListener("resize", handleResize);
-    };
-
-    const createPortal = (scene: THREE.Scene) => {
+    const createPortal = useCallback((scene: THREE.Scene) => {
         const torusGeometry = new THREE.TorusGeometry(3, 0.3, 16, 32);
         const torusMaterial = new THREE.MeshStandardMaterial({
             color: 0x00ffff,
@@ -187,9 +118,9 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         sprite.position.set(0, 7, -15);
         sprite.scale.set(8, 2, 1);
         scene.add(sprite);
-    };
+    }, []);
 
-    const createPlayerModel = (player: PlayerData) => {
+    const createPlayerModel = useCallback((player: PlayerData) => {
         if (!sceneRef.current) return;
 
         const group = new THREE.Group();
@@ -223,9 +154,9 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         const usernameSprite = UsernameSprite.create(player.username, 0x00ffff);
         group.add(usernameSprite);
         usernameSpritesRef.current.set(player.id, usernameSprite);
-    };
+    }, []);
 
-    const removePlayerModel = (playerId: string) => {
+    const removePlayerModel = useCallback((playerId: string) => {
         const model = playersRef.current.get(playerId);
         if (model && sceneRef.current) {
             sceneRef.current.remove(model);
@@ -239,24 +170,86 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             material.dispose();
             usernameSpritesRef.current.delete(playerId);
         }
-    };
+    }, []);
 
-    const updatePlayerUsername = (playerId: string, username: string) => {
+    const updatePlayerUsername = useCallback((playerId: string, username: string) => {
         const sprite = usernameSpritesRef.current.get(playerId);
         if (sprite) {
             UsernameSprite.update(sprite, username, 0x00ffff);
         }
-    };
+    }, []);
 
-    const initSocket = () => {
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+        scene.fog = new THREE.Fog(0x1a1a2e, 0, 100);
+        sceneRef.current = scene;
+
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 1.6, 0);
+        camera.rotation.order = 'YXZ';
+        cameraRef.current = camera;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight - 64);
+        renderer.shadowMap.enabled = true;
+        containerRef.current.appendChild(renderer.domElement);
+        rendererRef.current = renderer;
+
+        const ambientLight = new THREE.AmbientLight(0x404080, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight.position.set(50, 100, 50);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        const portalLight = new THREE.PointLight(0x00ffff, 2, 20);
+        portalLight.position.set(0, 3, -15);
+        scene.add(portalLight);
+
+        const groundGeometry = new THREE.BoxGeometry(100, 1, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2a2a4e,
+            flatShading: true
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.position.y = -0.5;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        createPortal(scene);
+
+        const handleResize = () => {
+            if (!cameraRef.current || !rendererRef.current) return;
+            cameraRef.current.aspect = window.innerWidth / (window.innerHeight - 64);
+            cameraRef.current.updateProjectionMatrix();
+            rendererRef.current.setSize(window.innerWidth, window.innerHeight - 64);
+        };
+
+        window.addEventListener("resize", handleResize);
+
+        return () => {
+            window.removeEventListener("resize", handleResize);
+        };
+    }, [createPortal]);
+
+    useEffect(() => {
         if (!socket) return;
 
-        socket.on("connect", () => {
+        const handleConnect = () => {
             console.log("Connected to server");
             socket.emit("joinLobby", { wallet, username: currentUsername });
-        });
+        };
 
-        socket.on("lobbyJoined", (data) => {
+        const handleLobbyJoined = (data: any) => {
             setPlayers(data.players);
             setQueues(data.queues);
             setQueuePosition(data.queuePosition);
@@ -267,64 +260,97 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                     createPlayerModel(player);
                 }
             });
-        });
+        };
 
-        socket.on("playerJoinedLobby", (player: PlayerData) => {
+        const handlePlayerJoinedLobby = (player: PlayerData) => {
             setPlayers((prev) => [...prev, player]);
             createPlayerModel(player);
-        });
+        };
 
-        socket.on("playerLeftLobby", (playerId: string) => {
+        const handlePlayerLeftLobby = (playerId: string) => {
             setPlayers((prev) => prev.filter((p) => p.id !== playerId));
             removePlayerModel(playerId);
-        });
+        };
 
-        socket.on("playerMovedInLobby", (data: any) => {
+        const handlePlayerMovedInLobby = (data: any) => {
             const playerModel = playersRef.current.get(data.id);
             if (playerModel) {
                 playerModel.position.set(data.position.x, data.position.y, data.position.z);
                 playerModel.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
             }
-        });
+        };
 
-        socket.on("playerUsernameChanged", (data: { id: string; username: string }) => {
+        const handlePlayerUsernameChanged = (data: { id: string; username: string }) => {
             setPlayers((prev) => prev.map(p => p.id === data.id ? { ...p, username: data.username } : p));
             updatePlayerUsername(data.id, data.username);
-        });
+        };
 
-        socket.on("queuesStatusUpdate", (newQueues: any) => {
+        const handleQueuesStatusUpdate = (newQueues: any) => {
             setQueues(newQueues);
-        });
+        };
 
-        socket.on("joinedQueue", (data: { mode: string; position: number }) => {
+        const handleJoinedQueue = (data: { mode: string; position: number }) => {
             setQueueMode(data.mode);
             setQueuePosition(data.position);
             setShowModeSelect(false);
-        });
+        };
 
-        socket.on("queuePositionUpdate", (data: { position: number }) => {
+        const handleQueuePositionUpdate = (data: { position: number }) => {
             setQueuePosition(data.position);
-        });
+        };
 
-        socket.on("leftQueue", () => {
+        const handleLeftQueue = () => {
             setQueuePosition(null);
             setQueueMode(null);
-        });
+        };
 
-        socket.on("gameStarted", (data: any) => {
+        const handleGameStarted = (data: any) => {
             onEnterGame(data.roomId, data.mode, data.players);
-        });
+        };
 
-        socket.on("joinedFFAGame", (data: any) => {
+        const handleJoinedFFAGame = (data: any) => {
             onEnterGame(data.roomId, data.mode, data.players);
-        });
+        };
 
-        socket.on("queueError", (message: string) => {
+        const handleQueueError = (message: string) => {
             alert(message);
-        });
-    };
+        };
 
-    const initControls = () => {
+        socket.on("connect", handleConnect);
+        socket.on("lobbyJoined", handleLobbyJoined);
+        socket.on("playerJoinedLobby", handlePlayerJoinedLobby);
+        socket.on("playerLeftLobby", handlePlayerLeftLobby);
+        socket.on("playerMovedInLobby", handlePlayerMovedInLobby);
+        socket.on("playerUsernameChanged", handlePlayerUsernameChanged);
+        socket.on("queuesStatusUpdate", handleQueuesStatusUpdate);
+        socket.on("joinedQueue", handleJoinedQueue);
+        socket.on("queuePositionUpdate", handleQueuePositionUpdate);
+        socket.on("leftQueue", handleLeftQueue);
+        socket.on("gameStarted", handleGameStarted);
+        socket.on("joinedFFAGame", handleJoinedFFAGame);
+        socket.on("queueError", handleQueueError);
+
+        return () => {
+            socket.off("connect", handleConnect);
+            socket.off("lobbyJoined", handleLobbyJoined);
+            socket.off("playerJoinedLobby", handlePlayerJoinedLobby);
+            socket.off("playerLeftLobby", handlePlayerLeftLobby);
+            socket.off("playerMovedInLobby", handlePlayerMovedInLobby);
+            socket.off("playerUsernameChanged", handlePlayerUsernameChanged);
+            socket.off("queuesStatusUpdate", handleQueuesStatusUpdate);
+            socket.off("joinedQueue", handleJoinedQueue);
+            socket.off("queuePositionUpdate", handleQueuePositionUpdate);
+            socket.off("leftQueue", handleLeftQueue);
+            socket.off("gameStarted", handleGameStarted);
+            socket.off("joinedFFAGame", handleJoinedFFAGame);
+            socket.off("queueError", handleQueueError);
+        };
+    }, [socket, wallet, currentUsername, onEnterGame, createPlayerModel, removePlayerModel, updatePlayerUsername]);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
         const handleKeyDown = (e: KeyboardEvent) => {
             keysRef.current.add(e.code);
 
@@ -357,26 +383,17 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             keysRef.current.delete(e.code);
         };
 
-        window.addEventListener("keydown", handleKeyDown);
-        window.addEventListener("keyup", handleKeyUp);
-
         const handleClick = () => {
             if (!document.pointerLockElement) {
-                containerRef.current?.requestPointerLock();
+                container.requestPointerLock();
             }
         };
 
-        if (containerRef.current) {
-            containerRef.current.addEventListener("click", handleClick);
-        }
-
         const handlePointerLockChange = () => {
-            const locked = document.pointerLockElement === containerRef.current;
+            const locked = document.pointerLockElement === container;
             isLockedRef.current = locked;
             setIsLocked(locked);
         };
-
-        document.addEventListener("pointerlockchange", handlePointerLockChange);
 
         const handleMouseMove = (e: MouseEvent) => {
             if (!isLockedRef.current || !cameraRef.current) return;
@@ -392,127 +409,116 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             );
         };
 
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("keyup", handleKeyUp);
+        container.addEventListener("click", handleClick);
+        document.addEventListener("pointerlockchange", handlePointerLockChange);
         document.addEventListener("mousemove", handleMouseMove);
 
-        (window as any).__lobbyCleanup = () => {
+        return () => {
             window.removeEventListener("keydown", handleKeyDown);
             window.removeEventListener("keyup", handleKeyUp);
-            if (containerRef.current) {
-                containerRef.current.removeEventListener("click", handleClick);
-            }
+            container.removeEventListener("click", handleClick);
             document.removeEventListener("pointerlockchange", handlePointerLockChange);
             document.removeEventListener("mousemove", handleMouseMove);
         };
-    };
+    }, [socket, onExit]);
 
-    const joinQueue = (mode: string) => {
+    useEffect(() => {
+        const animate = () => {
+            animationFrameRef.current = requestAnimationFrame(animate);
+
+            if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
+
+            const speed = 0.2;
+            const direction = new THREE.Vector3();
+
+            if (keysRef.current.has("KeyW")) direction.z -= 1;
+            if (keysRef.current.has("KeyS")) direction.z += 1;
+            if (keysRef.current.has("KeyA")) direction.x -= 1;
+            if (keysRef.current.has("KeyD")) direction.x += 1;
+
+            if (direction.length() > 0) {
+                direction.normalize();
+                direction.applyQuaternion(cameraRef.current.quaternion);
+                direction.y = 0;
+                direction.normalize();
+
+                cameraRef.current.position.add(direction.multiplyScalar(speed));
+
+                const now = Date.now();
+                if (socket?.connected && now - lastMoveTimeRef.current > 50) {
+                    socket.emit("lobbyMove", {
+                        position: {
+                            x: cameraRef.current.position.x,
+                            y: cameraRef.current.position.y,
+                            z: cameraRef.current.position.z
+                        },
+                        rotation: {
+                            x: cameraRef.current.rotation.x,
+                            y: cameraRef.current.rotation.y,
+                            z: cameraRef.current.rotation.z
+                        }
+                    });
+                    lastMoveTimeRef.current = now;
+                }
+            }
+
+            if (portalRef.current) {
+                portalRef.current.rotation.z += 0.01;
+            }
+
+            if (cameraRef.current) {
+                const distance = cameraRef.current.position.distanceTo(portalPositionRef.current);
+                const isNear = distance < 6;
+                
+                nearPortalRef.current = isNear;
+                setNearPortal(isNear);
+            }
+
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
+        };
+
+        animate();
+
+        return () => {
+            if (animationFrameRef.current !== null) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+    }, [socket]);
+
+    useEffect(() => {
+        return () => {
+            usernameSpritesRef.current.forEach((sprite) => {
+                const material = sprite.material as THREE.SpriteMaterial;
+                if (material.map) material.map.dispose();
+                material.dispose();
+            });
+            usernameSpritesRef.current.clear();
+
+            if (rendererRef.current) {
+                rendererRef.current.dispose();
+                if (containerRef.current && rendererRef.current.domElement.parentNode === containerRef.current) {
+                    containerRef.current.removeChild(rendererRef.current.domElement);
+                }
+            }
+
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+        };
+    }, []);
+
+    const joinQueue = useCallback((mode: string) => {
         console.log("Joining queue:", mode);
         socket?.emit("joinQueue", { mode, wallet, username: currentUsername });
-    };
+    }, [socket, wallet, currentUsername]);
 
-    const handleUsernameChange = (newUsername: string) => {
+    const handleUsernameChange = useCallback((newUsername: string) => {
         setCurrentUsername(newUsername);
         socket?.emit("changeUsername", { username: newUsername });
-    };
-
-    const animate = () => {
-        animationFrameRef.current = requestAnimationFrame(animate);
-
-        if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
-
-        const speed = 0.2;
-        const direction = new THREE.Vector3();
-
-        if (keysRef.current.has("KeyW")) direction.z -= 1;
-        if (keysRef.current.has("KeyS")) direction.z += 1;
-        if (keysRef.current.has("KeyA")) direction.x -= 1;
-        if (keysRef.current.has("KeyD")) direction.x += 1;
-
-        if (direction.length() > 0) {
-            direction.normalize();
-            direction.applyQuaternion(cameraRef.current.quaternion);
-            direction.y = 0;
-            direction.normalize();
-
-            cameraRef.current.position.add(direction.multiplyScalar(speed));
-
-            const now = Date.now();
-            if (socket?.connected && now - lastMoveTimeRef.current > 50) {
-                socket.emit("lobbyMove", {
-                    position: {
-                        x: cameraRef.current.position.x,
-                        y: cameraRef.current.position.y,
-                        z: cameraRef.current.position.z
-                    },
-                    rotation: {
-                        x: cameraRef.current.rotation.x,
-                        y: cameraRef.current.rotation.y,
-                        z: cameraRef.current.rotation.z
-                    }
-                });
-                lastMoveTimeRef.current = now;
-            }
-        }
-
-        if (portalRef.current) {
-            portalRef.current.rotation.z += 0.01;
-        }
-
-        if (cameraRef.current) {
-            const distance = cameraRef.current.position.distanceTo(portalPositionRef.current);
-            const isNear = distance < 6;
-            
-            nearPortalRef.current = isNear;
-            setNearPortal(isNear);
-        }
-
-        rendererRef.current.render(sceneRef.current, cameraRef.current);
-    };
-
-    const cleanup = () => {
-        if (animationFrameRef.current !== null) {
-            cancelAnimationFrame(animationFrameRef.current);
-        }
-
-        if ((window as any).__lobbyCleanup) {
-            (window as any).__lobbyCleanup();
-            delete (window as any).__lobbyCleanup;
-        }
-
-        if (socket) {
-            socket.off("connect");
-            socket.off("lobbyJoined");
-            socket.off("playerJoinedLobby");
-            socket.off("playerLeftLobby");
-            socket.off("playerMovedInLobby");
-            socket.off("playerUsernameChanged");
-            socket.off("queuesStatusUpdate");
-            socket.off("joinedQueue");
-            socket.off("queuePositionUpdate");
-            socket.off("leftQueue");
-            socket.off("gameStarted");
-            socket.off("joinedFFAGame");
-            socket.off("queueError");
-        }
-
-        usernameSpritesRef.current.forEach((sprite) => {
-            const material = sprite.material as THREE.SpriteMaterial;
-            if (material.map) material.map.dispose();
-            material.dispose();
-        });
-        usernameSpritesRef.current.clear();
-
-        if (rendererRef.current) {
-            rendererRef.current.dispose();
-            if (containerRef.current && rendererRef.current.domElement.parentNode === containerRef.current) {
-                containerRef.current.removeChild(rendererRef.current.domElement);
-            }
-        }
-
-        if (document.pointerLockElement) {
-            document.exitPointerLock();
-        }
-    };
+    }, [socket]);
 
     return (
         <div className="relative w-full h-full">

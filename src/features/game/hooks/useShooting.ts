@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
 import { BulletPool } from '../BulletPool';
 import { SoundManager } from '../SoundManager';
+import { WeaponModel } from '../models/WeaponModel';
 import { FIRE_RATE, MAX_AMMO, RELOAD_TIME } from '../constants';
 
 interface UseShootingProps {
@@ -13,7 +14,7 @@ interface UseShootingProps {
     soundManagerRef: React.MutableRefObject<SoundManager | null>;
     gameStatusRef: React.MutableRefObject<'waiting' | 'playing' | 'ended'>;
     isMouseDownRef: React.MutableRefObject<boolean>;
-    playersRef: React.MutableRefObject<Map<string, THREE.Group>>; // Передаем модели игроков
+    playersRef: React.MutableRefObject<Map<string, THREE.Group>>;
     onAmmoChange: (ammo: number) => void;
     onReloadChange: (isReloading: boolean) => void;
 }
@@ -59,21 +60,24 @@ export function useShooting({
 
         soundManagerRef.current?.playShoot();
 
-        const origin = {
-            x: cameraRef.current.position.x,
-            y: cameraRef.current.position.y,
-            z: cameraRef.current.position.z
-        };
+        const origin = WeaponModel.getMuzzlePosition(cameraRef.current);
 
         const direction = new THREE.Vector3(0, 0, -1);
         direction.applyQuaternion(cameraRef.current.quaternion);
 
         const raycaster = new THREE.Raycaster();
-        raycaster.set(new THREE.Vector3(origin.x, origin.y, origin.z), direction);
+        raycaster.set(
+            new THREE.Vector3(
+                cameraRef.current.position.x,
+                cameraRef.current.position.y,
+                cameraRef.current.position.z
+            ),
+            direction
+        );
         
         const playerMeshes: THREE.Object3D[] = [];
         playersRef.current.forEach((model, playerId) => {
-            if (playerId !== socket.id) { 
+            if (playerId !== socket.id) {
                 model.traverse((child) => {
                     if (child instanceof THREE.Mesh) playerMeshes.push(child);
                 });
@@ -95,13 +99,24 @@ export function useShooting({
         }
 
         socket.emit('shoot', {
-            origin,
+            origin, 
             direction: { x: direction.x, y: direction.y, z: direction.z },
             damage: 25,
             targetId
         });
 
         bulletPoolRef.current?.fire(origin, direction);
+
+        const weapon = cameraRef.current.getObjectByName('weapon') as THREE.Group;
+        if (weapon) {
+            const body = weapon.children[0] as THREE.Mesh;
+            if (body) {
+                body.position.z = -0.25;
+                setTimeout(() => {
+                    if (body) body.position.z = -0.3; 
+                }, 50);
+            }
+        }
 
         if (newAmmo <= 0) stopAutoFire();
     }, [socket, cameraRef, bulletPoolRef, soundManagerRef, gameStatusRef, playersRef, onAmmoChange, stopAutoFire]);

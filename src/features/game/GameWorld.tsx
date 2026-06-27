@@ -10,6 +10,7 @@ import { BulletPool } from './BulletPool';
 import { SoundManager } from './SoundManager';
 import { Dust2Map } from './map/Dust2Map';
 import { PlayerModel } from './models/PlayerModel';
+import { WeaponModel } from './models/WeaponModel';
 import { useShooting } from './hooks/useShooting';
 import { usePlayerControls } from './hooks/usePlayerControls';
 import { useGameSocket } from './hooks/useGameSocket';
@@ -37,6 +38,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const collisionBoxesRef = useRef<CollisionBox[]>([]);
     const gameStatusRef = useRef<'waiting' | 'playing' | 'ended'>('playing');
     const isMouseDownRef = useRef(false);
+    const updateMovementRef = useRef<(deltaTime: number) => void>(() => {});
     const [sceneReady, setSceneReady] = useState(false);
 
     const [players, setPlayers] = useState<Player[]>([]);
@@ -50,10 +52,13 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [scores, setScores] = useState<any>(mode === '5v5' ? { 1: 0, 2: 0 } : {});
     const [winner, setWinner] = useState<any>(null);
 
-    useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
+    useEffect(() => {
+        gameStatusRef.current = gameStatus;
+    }, [gameStatus]);
 
     useEffect(() => {
-        if (!containerRef.current) return;
+        const container = containerRef.current;
+        if (!container) return;
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xd4a574);
@@ -73,7 +78,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight - 64);
         renderer.shadowMap.enabled = true;
-        containerRef.current.appendChild(renderer.domElement);
+        container.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
         const ambientLight = new THREE.AmbientLight(0xffeedd, 0.5);
@@ -93,7 +98,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         scene.add(sunLight);
 
         const groundGeometry = new THREE.BoxGeometry(200, 1, 200);
-        const groundMaterial = new THREE.MeshStandardMaterial({ color: 0xc2956b, flatShading: true });
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0xc2956b,
+            flatShading: true
+        });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.position.y = -0.5;
         ground.receiveShadow = true;
@@ -106,6 +114,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         bulletPoolRef.current = new BulletPool(scene, 50);
         soundManagerRef.current = new SoundManager();
 
+        WeaponModel.create(camera);
+        scene.add(camera);
+
         const handleResize = () => {
             if (!cameraRef.current || !rendererRef.current) return;
             cameraRef.current.aspect = window.innerWidth / (window.innerHeight - 64);
@@ -114,7 +125,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         };
 
         window.addEventListener('resize', handleResize);
-        
         setSceneReady(true);
 
         return () => {
@@ -129,13 +139,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         const currentPlayers = playersRef.current;
 
         players.forEach((player, index) => {
-            if (player.id === socket?.id) {
-                console.log(`⏭️ Skipping model creation for self: ${player.username}`);
-                return;
-            }
+            if (player.id === socket?.id) return;
 
             if (!currentPlayers.has(player.id)) {
-                console.log(`✅ Creating model for player: ${player.username} (${player.id})`);
                 const model = PlayerModel.create(currentScene, player, index, mode);
                 currentPlayers.set(player.id, model);
                 playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
@@ -144,7 +150,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
         currentPlayers.forEach((model, playerId) => {
             if (!players.find(p => p.id === playerId)) {
-                console.log(`❌ Removing model for player: ${playerId}`);
                 currentScene.remove(model);
                 currentPlayers.delete(playerId);
                 playerAnimationDataRef.current.delete(playerId);
@@ -178,6 +183,51 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         isMouseDownRef
     });
 
+    useEffect(() => {
+        updateMovementRef.current = updateMovement;
+    }, [updateMovement]);
+
+    const handleGameEnd = useCallback((winnerData: any, scoresData: any) => {
+        setGameStatus('ended');
+        setWinner(winnerData);
+        setScores(scoresData);
+        stopAutoFire();
+    }, [stopAutoFire]);
+
+    const handleReturnToLobby = useCallback(() => {
+        stopAutoFire();
+        onExit();
+    }, [stopAutoFire, onExit]);
+
+    const handlePlayerShot = useCallback((origin: any, direction: any) => {
+        bulletPoolRef.current?.fire(origin, direction);
+    }, []);
+
+    const handlePlayerHit = useCallback((targetId: string, health: number) => {
+        const animData = playerAnimationDataRef.current.get(targetId);
+        if (animData) animData.hitFlash = 0.3;
+    }, []);
+
+    const handlePlayerRespawned = useCallback((id: string, position: any) => {
+        if (id === socket?.id && cameraRef.current) {
+            cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
+        }
+    }, [socket?.id]);
+
+    const handlePlayerMoved = useCallback((id: string, position: any, rotation: any) => {
+        const model = playersRef.current.get(id);
+        if (model) {
+            model.position.set(position.x, position.y, position.z);
+            model.rotation.set(rotation.x, rotation.y, rotation.z);
+        }
+    }, []);
+
+    const handleSpawnPosition = useCallback((position: any) => {
+        if (cameraRef.current) {
+            cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
+        }
+    }, []);
+
     const handlePositionCorrection = useCallback((position: any, rotation: any) => {
         if (cameraRef.current) {
             cameraRef.current.position.set(position.x, position.y, position.z);
@@ -195,46 +245,15 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onKillsUpdate: setMyKills,
         onDeathsUpdate: setMyDeaths,
         onScoresUpdate: setScores,
-        onGameEnd: (winner, scores) => {
-            setGameStatus('ended');
-            setWinner(winner);
-            setScores(scores);
-            stopAutoFire();
-        },
-        onReturnToLobby: () => {
-            stopAutoFire();
-            onExit();
-        },
-        onPlayerShot: (origin, direction) => {
-            bulletPoolRef.current?.fire(origin, direction);
-        },
-        onPlayerHit: (targetId, health) => {
-            const animData = playerAnimationDataRef.current.get(targetId);
-            if (animData) animData.hitFlash = 0.3;
-        },
-        onPlayerRespawned: (id, position) => {
-            if (id === socket?.id && cameraRef.current) {
-                cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
-            }
-        },
-        onPlayerJoined: (player, index) => {
-            console.log(`📞 onPlayerJoined callback called for: ${player.username}`);
-        },
-        onPlayerLeft: (playerId) => {
-            console.log(`📞 onPlayerLeft callback called for: ${playerId}`);
-        },
-        onPlayerMoved: (id, position, rotation) => {
-            const model = playersRef.current.get(id);
-            if (model) {
-                model.position.set(position.x, position.y, position.z);
-                model.rotation.set(rotation.x, rotation.y, rotation.z);
-            }
-        },
-        onSpawnPosition: (position) => {
-            if (cameraRef.current) {
-                cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
-            }
-        },
+        onGameEnd: handleGameEnd,
+        onReturnToLobby: handleReturnToLobby,
+        onPlayerShot: handlePlayerShot,
+        onPlayerHit: handlePlayerHit,
+        onPlayerRespawned: handlePlayerRespawned,
+        onPlayerJoined: () => {},
+        onPlayerLeft: () => {},
+        onPlayerMoved: handlePlayerMoved,
+        onSpawnPosition: handleSpawnPosition,
         onPositionCorrection: handlePositionCorrection
     });
 
@@ -249,7 +268,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             const deltaTime = lastTime ? (currentTime - lastTime) / 1000 : 0.016;
             lastTime = currentTime;
 
-            updateMovement(deltaTime);
+            updateMovementRef.current(deltaTime);
             bulletPoolRef.current?.update(deltaTime);
 
             playerAnimationDataRef.current.forEach((animData, playerId) => {
@@ -263,9 +282,11 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         animate();
 
         return () => {
-            if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+            if (animationFrameRef.current !== null) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
         };
-    }, [updateMovement]);
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -281,14 +302,16 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 }
             }
 
-            if (document.pointerLockElement) document.exitPointerLock();
+            if (document.pointerLockElement) {
+                document.exitPointerLock();
+            }
         };
     }, [stopAutoFire]);
 
     return (
         <div className="relative w-full h-full">
             <div ref={containerRef} className="w-full h-full cursor-pointer" />
-            
+
             <GameHUD
                 health={myHealth}
                 kills={myKills}
