@@ -89,15 +89,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     useEffect(() => {
         PlayerModelLoader.preload()
             .then(() => {
-                console.log('✅ Model loaded, recreating player models with FBX...');
-
+                console.log('✅ Model loaded, recreating ALL player models with FBX...');
+                
                 let index = 0;
                 playersDataRef.current.forEach((player) => {
-                    if (player.id === socket?.id) {
-                        index++;
-                        return; 
-                    }
-
                     const oldModel = playersRef.current.get(player.id);
                     if (oldModel && sceneRef.current) {
                         sceneRef.current.remove(oldModel);
@@ -107,6 +102,20 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                     if (sceneRef.current) {
                         const newModel = PlayerModel.create(sceneRef.current, player, index, mode);
                         playersRef.current.set(player.id, newModel);
+                        
+                        if (player.id === socket?.id) {
+                            playerModelRef.current = newModel;
+                            console.log(`✅ Saved MY model reference`);
+                        }
+                        
+                        extrapolationDataRef.current.set(player.id, {
+                            targetPosition: new THREE.Vector3(player.position.x, 0, player.position.z),
+                            targetRotation: new THREE.Euler(0, player.rotation.y, 0),
+                            velocity: new THREE.Vector3(0, 0, 0),
+                            lastUpdateTime: Date.now()
+                        });
+                        previousPositionsRef.current.set(player.id, new THREE.Vector3(player.position.x, 0, player.position.z));
+                        
                         console.log(`✅ Created FBX model for ${player.username}`);
                     }
 
@@ -354,9 +363,17 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         const model = playersRef.current.get(id);
         if (model) {
             const now = Date.now();
-            const extrapolationData = extrapolationDataRef.current.get(id);
+            let extrapolationData = extrapolationDataRef.current.get(id);
 
-            if (extrapolationData) {
+            if (!extrapolationData) {
+                extrapolationData = {
+                    targetPosition: new THREE.Vector3(position.x, 0, position.z),
+                    targetRotation: new THREE.Euler(rotation.x, rotation.y, rotation.z),
+                    velocity: new THREE.Vector3(0, 0, 0),
+                    lastUpdateTime: now
+                };
+                extrapolationDataRef.current.set(id, extrapolationData);
+            } else {
                 const deltaTime = (now - extrapolationData.lastUpdateTime) / 1000;
                 if (deltaTime > 0) {
                     extrapolationData.velocity.set(
@@ -365,19 +382,11 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                         (position.z - extrapolationData.targetPosition.z) / deltaTime
                     );
                 }
-            } else {
-                extrapolationDataRef.current.set(id, {
-                    targetPosition: new THREE.Vector3(position.x, 0, position.z),
-                    targetRotation: new THREE.Euler(rotation.x, rotation.y, rotation.z),
-                    velocity: new THREE.Vector3(0, 0, 0),
-                    lastUpdateTime: now
-                });
             }
 
-            const data = extrapolationDataRef.current.get(id)!;
-            data.targetPosition.set(position.x, 0, position.z);
-            data.targetRotation.set(rotation.x, rotation.y, rotation.z);
-            data.lastUpdateTime = now;
+            extrapolationData.targetPosition.set(position.x, 0, position.z);
+            extrapolationData.targetRotation.set(rotation.x, rotation.y, rotation.z);
+            extrapolationData.lastUpdateTime = now;
 
             PlayerModel.updateTilt(model, { x: rotation.x, y: rotation.y });
         }
@@ -441,6 +450,14 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             playersRef.current.set(player.id, model);
 
             playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
+            
+            extrapolationDataRef.current.set(player.id, {
+                targetPosition: new THREE.Vector3(player.position.x, 0, player.position.z),
+                targetRotation: new THREE.Euler(0, player.rotation.y, 0),
+                velocity: new THREE.Vector3(0, 0, 0),
+                lastUpdateTime: Date.now()
+            });
+            previousPositionsRef.current.set(player.id, new THREE.Vector3(player.position.x, 0, player.position.z));
         },
         onPlayerLeft: (playerId: string) => {
             const model = playersRef.current.get(playerId);
@@ -495,33 +512,35 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
             extrapolationDataRef.current.forEach((data, playerId) => {
                 const playerModel = playersRef.current.get(playerId);
-                if (playerModel) {
-                    const timeSinceUpdate = (Date.now() - data.lastUpdateTime) / 1000;
+                if (!playerModel) return;
+                
+                const animData = playerAnimationDataRef.current.get(playerId);
+                if (!animData) return;
 
-                    if (timeSinceUpdate > 0.1 && data.velocity.length() > 0.1) {
-                        const extrapolatedPos = data.targetPosition.clone().add(
-                            data.velocity.clone().multiplyScalar(Math.min(timeSinceUpdate, 0.5))
-                        );
-                        playerModel.position.lerp(extrapolatedPos, 0.25);
-                    } else {
-                        playerModel.position.lerp(data.targetPosition, 0.25);
-                    }
+                const timeSinceUpdate = (Date.now() - data.lastUpdateTime) / 1000;
 
-                    if (data.targetRotation) {
-                        const targetRot = data.targetRotation as THREE.Euler;
-                        playerModel.rotation.y += (targetRot.y - playerModel.rotation.y) * 0.25;
-                    }
-
-                    const previousPos = previousPositionsRef.current.get(playerId);
-                    const animData = playerAnimationDataRef.current.get(playerId);
-                    if (previousPos && animData) {
-                        const distance = playerModel.position.distanceTo(previousPos);
-                        animData.isMoving = distance > 0.01;
-                        previousPositionsRef.current.set(playerId, playerModel.position.clone());
-
-                        PlayerModel.animate(playerModel, animData, deltaTime);
-                    }
+                if (timeSinceUpdate > 0.1 && data.velocity.length() > 0.1) {
+                    const extrapolatedPos = data.targetPosition.clone().add(
+                        data.velocity.clone().multiplyScalar(Math.min(timeSinceUpdate, 0.5))
+                    );
+                    playerModel.position.lerp(extrapolatedPos, 0.25);
+                } else {
+                    playerModel.position.lerp(data.targetPosition, 0.25);
                 }
+
+                if (data.targetRotation) {
+                    const targetRot = data.targetRotation as THREE.Euler;
+                    playerModel.rotation.y += (targetRot.y - playerModel.rotation.y) * 0.25;
+                }
+
+                const previousPos = previousPositionsRef.current.get(playerId);
+                if (previousPos) {
+                    const distance = playerModel.position.distanceTo(previousPos);
+                    animData.isMoving = distance > 0.01;
+                }
+                previousPositionsRef.current.set(playerId, playerModel.position.clone());
+
+                PlayerModel.animate(playerModel, animData, deltaTime);
             });
 
             rendererRef.current.render(sceneRef.current, cameraRef.current);

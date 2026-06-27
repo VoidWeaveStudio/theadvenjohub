@@ -47,6 +47,7 @@ export class PlayerModel {
         scene.add(group);
         return group;
     }
+
     static animate(
         playerModel: THREE.Group,
         animData: PlayerAnimationData,
@@ -78,6 +79,7 @@ export class PlayerModel {
     static updateTilt(playerModel: THREE.Group, cameraRotation: { x: number, y: number }) {
         playerModel.rotation.y = cameraRotation.y;
     }
+
     private static addTeamIndicator(model: THREE.Group, color: number) {
         const indicator = new THREE.Mesh(
             new THREE.RingGeometry(0.4, 0.55, 32),

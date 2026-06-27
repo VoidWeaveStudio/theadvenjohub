@@ -12,8 +12,14 @@ export class PlayerAnimator {
         this.mixer = new THREE.AnimationMixer(model);
 
         const animations = PlayerModelLoader.getAllAnimations();
+        console.log(`🎬 Creating animator with ${Object.keys(animations).length} animations`);
         
         for (const [name, clip] of Object.entries(animations)) {
+            if (!clip) {
+                console.warn(`⚠️ Clip "${name}" is null, skipping`);
+                continue;
+            }
+            
             try {
                 const action = this.mixer.clipAction(clip);
                 
@@ -25,6 +31,7 @@ export class PlayerAnimator {
                 }
                 
                 this.actions.set(name, action);
+                console.log(`✅ Action "${name}" created, tracks: ${clip.tracks.length}`);
             } catch (err) {
                 console.warn(`⚠️ Failed to create action for "${name}":`, err);
             }
