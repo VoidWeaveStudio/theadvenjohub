@@ -37,6 +37,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const collisionBoxesRef = useRef<CollisionBox[]>([]);
     const gameStatusRef = useRef<'waiting' | 'playing' | 'ended'>('playing');
     const isMouseDownRef = useRef(false);
+    const [sceneReady, setSceneReady] = useState(false);
 
     const [players, setPlayers] = useState<Player[]>([]);
     const [myHealth, setMyHealth] = useState(100);
@@ -113,11 +114,38 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         };
 
         window.addEventListener('resize', handleResize);
+        
+        setSceneReady(true);
 
         return () => {
             window.removeEventListener('resize', handleResize);
         };
     }, [roomId]);
+
+    useEffect(() => {
+        if (!sceneReady || !sceneRef.current) return;
+
+        const currentScene = sceneRef.current;
+        const currentPlayers = playersRef.current;
+
+        players.forEach((player, index) => {
+            if (!currentPlayers.has(player.id)) {
+                const model = PlayerModel.create(currentScene, player, index, mode);
+                currentPlayers.set(player.id, model);
+                playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
+                console.log(`✅ Created model for player: ${player.username} (${player.id})`);
+            }
+        });
+
+        currentPlayers.forEach((model, playerId) => {
+            if (!players.find(p => p.id === playerId)) {
+                currentScene.remove(model);
+                currentPlayers.delete(playerId);
+                playerAnimationDataRef.current.delete(playerId);
+                console.log(`❌ Removed model for player: ${playerId}`);
+            }
+        });
+    }, [players, sceneReady, mode]);
 
     const { ammoRef, isReloadingRef, startAutoFire, stopAutoFire, reload } = useShooting({
         socket,
@@ -126,7 +154,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         soundManagerRef,
         gameStatusRef,
         isMouseDownRef,
-        playersRef,  
+        playersRef,
         onAmmoChange: setAmmo,
         onReloadChange: setIsReloading
     });
@@ -185,18 +213,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             }
         },
         onPlayerJoined: (player, index) => {
-            if (!sceneRef.current) return;
-            const model = PlayerModel.create(sceneRef.current, player, index, mode);
-            playersRef.current.set(player.id, model);
-            playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
+            console.log(`👤 Player joined: ${player.username} (${player.id})`);
         },
         onPlayerLeft: (playerId) => {
-            const model = playersRef.current.get(playerId);
-            if (model && sceneRef.current) {
-                sceneRef.current.remove(model);
-                playersRef.current.delete(playerId);
-                playerAnimationDataRef.current.delete(playerId);
-            }
+            console.log(`👋 Player left: ${playerId}`);
         },
         onPlayerMoved: (id, position, rotation) => {
             const model = playersRef.current.get(id);
@@ -210,7 +230,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
             }
         },
-        onPositionCorrection: handlePositionCorrection  
+        onPositionCorrection: handlePositionCorrection
     });
 
     useEffect(() => {
