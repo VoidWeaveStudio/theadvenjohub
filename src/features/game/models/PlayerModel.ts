@@ -14,21 +14,29 @@ export class PlayerModel {
     ): THREE.Group {
         let group: THREE.Group;
 
+        console.log(`🎮 Creating model for ${player.username}, isLoaded: ${PlayerModelLoader.isLoaded()}`);
+
         if (PlayerModelLoader.isLoaded()) {
             const clonedModel = PlayerModelLoader.getModelClone();
+            console.log(`📦 Clone result:`, clonedModel ? 'SUCCESS' : 'FAILED');
+
             if (clonedModel) {
                 group = clonedModel;
-                
+
                 const teamColor = this.getTeamColor(player, index, mode);
                 this.addTeamIndicator(group, teamColor);
 
                 const animator = new PlayerAnimator(group);
                 group.userData.animator = animator;
                 animator.play('idle');
+
+                console.log(`✅ FBX model created for ${player.username}`);
             } else {
+                console.warn(`⚠️ Clone failed, using fallback for ${player.username}`);
                 group = this.createFallbackModel(player, index, mode);
             }
         } else {
+            console.warn(`⚠️ Model not loaded yet, using fallback for ${player.username}`);
             group = this.createFallbackModel(player, index, mode);
         }
 
@@ -39,14 +47,13 @@ export class PlayerModel {
         scene.add(group);
         return group;
     }
-
     static animate(
         playerModel: THREE.Group,
         animData: PlayerAnimationData,
         deltaTime: number
     ): void {
         const animator = playerModel.userData.animator as PlayerAnimator | undefined;
-        
+
         if (animator) {
             animator.update(deltaTime);
 
@@ -74,8 +81,8 @@ export class PlayerModel {
     private static addTeamIndicator(model: THREE.Group, color: number) {
         const indicator = new THREE.Mesh(
             new THREE.RingGeometry(0.4, 0.55, 32),
-            new THREE.MeshBasicMaterial({ 
-                color, 
+            new THREE.MeshBasicMaterial({
+                color,
                 side: THREE.DoubleSide,
                 transparent: true,
                 opacity: 0.8

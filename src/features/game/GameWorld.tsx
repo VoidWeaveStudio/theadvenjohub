@@ -87,10 +87,36 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     }, [gameStatus]);
 
     useEffect(() => {
-        PlayerModelLoader.preload().catch(err => {
-            console.warn('⚠️ Player model preload failed, using fallback:', err);
-        });
-    }, []);
+        PlayerModelLoader.preload()
+            .then(() => {
+                console.log('✅ Model loaded, recreating player models with FBX...');
+
+                let index = 0;
+                playersDataRef.current.forEach((player) => {
+                    if (player.id === socket?.id) {
+                        index++;
+                        return; 
+                    }
+
+                    const oldModel = playersRef.current.get(player.id);
+                    if (oldModel && sceneRef.current) {
+                        sceneRef.current.remove(oldModel);
+                        console.log(`🗑️ Removed old model for ${player.username}`);
+                    }
+
+                    if (sceneRef.current) {
+                        const newModel = PlayerModel.create(sceneRef.current, player, index, mode);
+                        playersRef.current.set(player.id, newModel);
+                        console.log(`✅ Created FBX model for ${player.username}`);
+                    }
+
+                    index++;
+                });
+            })
+            .catch(err => {
+                console.warn('⚠️ Player model preload failed, using fallback:', err);
+            });
+    }, [socket?.id, mode]);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -213,7 +239,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         gameStatusRef,
         isMouseDownRef,
         playersRef,
-        playerAnimationDataRef, 
+        playerAnimationDataRef,
         onAmmoChange: setAmmo,
         onReloadChange: setIsReloading
     });
@@ -259,7 +285,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
     const handlePlayerShot = useCallback((shooterId: string, origin: any, direction: any) => {
         bulletPoolRef.current?.fire(origin, direction);
-        
+
         const animData = playerAnimationDataRef.current.get(shooterId);
         if (animData) {
             animData.isShooting = true;
@@ -277,11 +303,11 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const handlePlayerKilled = useCallback((victimId: string) => {
         const model = playersRef.current.get(victimId);
         const animData = playerAnimationDataRef.current.get(victimId);
-        
+
         if (animData) {
             animData.isDead = true;
         }
-        
+
         if (model) {
             setTimeout(() => {
                 model.visible = false;
@@ -294,7 +320,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         if (animData) {
             animData.isDead = false;
         }
-        
+
         if (id === socket?.id && cameraRef.current) {
             cameraRef.current.position.set(position.x, PLAYER_HEIGHT, position.z);
 
@@ -390,7 +416,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 playersDataRef.current.clear();
                 playersOrUpdater.forEach(p => {
                     playersDataRef.current.set(p.id, p);
-                    
+
                     if (!playerAnimationDataRef.current.has(p.id)) {
                         playerAnimationDataRef.current.set(p.id, PlayerModel.createAnimationData());
                     }
@@ -410,10 +436,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onPlayerRespawned: handlePlayerRespawned,
         onPlayerJoined: (player: Player, index: number) => {
             if (!sceneRef.current) return;
-            
+
             const model = PlayerModel.create(sceneRef.current, player, index, mode);
             playersRef.current.set(player.id, model);
-            
+
             playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
         },
         onPlayerLeft: (playerId: string) => {

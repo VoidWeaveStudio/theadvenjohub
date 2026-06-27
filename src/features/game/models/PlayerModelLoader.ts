@@ -1,6 +1,8 @@
 //src\features\game\models\PlayerModelLoader.ts
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+// @ts-ignore
+import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export class PlayerModelLoader {
     private static loader = new FBXLoader();
@@ -13,9 +15,11 @@ export class PlayerModelLoader {
 
         this.loadPromise = (async () => {
             try {
+                console.log('📦 Loading player model...');
+
                 const character = await this.loadFBX('/models/player/character.fbx');
                 character.scale.setScalar(0.01);
-                
+
                 character.traverse((child) => {
                     if (child instanceof THREE.SkinnedMesh) {
                         child.castShadow = true;
@@ -24,6 +28,7 @@ export class PlayerModelLoader {
                 });
 
                 this.modelCache = character;
+                console.log('✅ Character loaded');
 
                 const animationFiles = {
                     idle: '/models/player/animations/idle.fbx',
@@ -36,8 +41,13 @@ export class PlayerModelLoader {
                 const entries = Object.entries(animationFiles);
                 const results = await Promise.all(
                     entries.map(async ([name, url]) => {
-                        const fbx = await this.loadFBX(url);
-                        return { name, clip: fbx.animations[0] };
+                        try {
+                            const fbx = await this.loadFBX(url);
+                            return { name, clip: fbx.animations[0] };
+                        } catch (err) {
+                            console.warn(`⚠️ Failed to load animation "${name}":`, err);
+                            return { name, clip: null };
+                        }
                     })
                 );
 
@@ -69,14 +79,19 @@ export class PlayerModelLoader {
     }
 
     static getModelClone(): THREE.Group | null {
-        if (!this.modelCache) return null;
-        
-        const { SkeletonUtils } = require('three/examples/jsm/utils/SkeletonUtils.js');
-        return SkeletonUtils.clone(this.modelCache);
-    }
+        if (!this.modelCache) {
+            console.warn('⚠️ Model cache is empty!');
+            return null;
+        }
 
-    static getAnimation(name: string): THREE.AnimationClip | null {
-        return this.animationCache.get(name) || null;
+        try {
+            const clone = SkeletonUtils.clone(this.modelCache) as THREE.Group;
+            console.log(`📦 Model cloned successfully, children: ${clone.children.length}`);
+            return clone;
+        } catch (err) {
+            console.error('❌ Failed to clone model:', err);
+            return null;
+        }
     }
 
     static getAllAnimations(): Record<string, THREE.AnimationClip> {
