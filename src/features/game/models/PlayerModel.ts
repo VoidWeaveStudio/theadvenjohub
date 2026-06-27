@@ -12,75 +12,63 @@ export class PlayerModel {
     ): THREE.Group {
         const group = new THREE.Group();
         group.userData.playerId = player.id;
-
+        
         const bodyColor = this.getBodyColor(player, index, mode);
-
+        
+        const hips = new THREE.Group();
+        hips.position.y = 0.75;
+        group.add(hips);
+        
+        const leftLeg = this.createLeg(bodyColor);
+        leftLeg.position.set(-0.2, 0.375, 0);
+        hips.add(leftLeg);
+        
+        const rightLeg = this.createLeg(bodyColor);
+        rightLeg.position.set(0.2, 0.375, 0);
+        hips.add(rightLeg);
+        
         const torso = this.createTorso(bodyColor);
-        torso.position.y = 0.9;
+        torso.position.y = 1.55;
         group.add(torso);
-
+        
         const head = this.createHead();
-        head.position.y = 1.95;
+        head.position.y = 2.35;
         group.add(head);
-
+        
         const shoulders = new THREE.Group();
-        shoulders.position.y = 1.6;
+        shoulders.position.y = 2.0;
         group.add(shoulders);
-
+        
         const leftArm = this.createArm(bodyColor);
-        leftArm.position.set(-0.5, 0, 0);
+        leftArm.position.set(-0.55, 0, 0);
         leftArm.name = 'leftUpperArm';
         shoulders.add(leftArm);
-
+        
         const leftForearm = this.createForearm(bodyColor);
-        leftForearm.position.set(0, -0.45, 0);
+        leftForearm.position.set(0, -0.35, 0);
         leftForearm.name = 'leftForearm';
         leftArm.add(leftForearm);
-
+        
         const rightArm = this.createArm(bodyColor);
-        rightArm.position.set(0.5, 0, 0);
+        rightArm.position.set(0.55, 0, 0);
         rightArm.name = 'rightUpperArm';
         shoulders.add(rightArm);
-
+        
         const rightForearm = this.createForearm(bodyColor);
-        rightForearm.position.set(0, -0.45, 0);
+        rightForearm.position.set(0, -0.35, 0);
         rightForearm.name = 'rightForearm';
         rightArm.add(rightForearm);
-
+        
         const weapon = this.createWeapon();
-        weapon.position.set(0, -0.5, 0.1);
+        weapon.position.set(0, -0.35, 0.15);
         weapon.rotation.x = -Math.PI / 2;
         rightForearm.add(weapon);
-
-        const hips = new THREE.Group();
-        hips.position.y = 0.4;
-        group.add(hips);
-
-        const leftLeg = this.createThigh();
-        leftLeg.position.set(-0.25, 0, 0);
-        leftLeg.name = 'leftThigh';
-        hips.add(leftLeg);
-
-        const leftShin = this.createShin();
-        leftShin.position.set(0, -0.5, 0);
-        leftShin.name = 'leftShin';
-        leftLeg.add(leftShin);
-
-        const rightLeg = this.createThigh();
-        rightLeg.position.set(0.25, 0, 0);
-        rightLeg.name = 'rightThigh';
-        hips.add(rightLeg);
-
-        const rightShin = this.createShin();
-        rightShin.position.set(0, -0.5, 0);
-        rightShin.name = 'rightShin';
-        rightLeg.add(rightShin);
-
+        
         group.position.set(player.position.x, 0, player.position.z);
-        group.rotation.set(player.rotation.x, player.rotation.y, player.rotation.z);
-
+        group.rotation.set(0, player.rotation.y, 0);
+        
         scene.add(group);
-
+        
         return group;
     }
 
@@ -89,10 +77,14 @@ export class PlayerModel {
         return FFA_COLORS[index % FFA_COLORS.length];
     }
 
-
+    
     private static createTorso(color: number): THREE.Mesh {
-        const geometry = new THREE.BoxGeometry(0.7, 0.8, 0.4);
-        const material = new THREE.MeshStandardMaterial({ color, flatShading: true });
+        const geometry = new THREE.CylinderGeometry(0.25, 0.2, 0.7, 12);
+        const material = new THREE.MeshStandardMaterial({ 
+            color, 
+            flatShading: false,
+            roughness: 0.7 
+        });
         const torso = new THREE.Mesh(geometry, material);
         torso.castShadow = true;
         torso.name = 'torso';
@@ -100,71 +92,121 @@ export class PlayerModel {
     }
 
     private static createHead(): THREE.Mesh {
-        const geometry = new THREE.BoxGeometry(0.45, 0.5, 0.45);
-        const material = new THREE.MeshStandardMaterial({ color: 0xffdbac, flatShading: true });
+        const geometry = new THREE.SphereGeometry(0.2, 16, 16);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0xffdbac, 
+            flatShading: false,
+            roughness: 0.6 
+        });
         const head = new THREE.Mesh(geometry, material);
-        head.position.y = 0.25;
         head.castShadow = true;
         head.name = 'head';
         return head;
     }
 
-    private static createArm(color: number): THREE.Mesh {
-        const geometry = new THREE.BoxGeometry(0.18, 0.45, 0.18);
-        const material = new THREE.MeshStandardMaterial({ color, flatShading: true });
-        return new THREE.Mesh(geometry, material);
+    private static createArm(color: number): THREE.Group {
+        const arm = new THREE.Group();
+        
+        const upperArm = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.08, 0.07, 0.35, 10),
+            new THREE.MeshStandardMaterial({ color, flatShading: false })
+        );
+        upperArm.position.y = -0.175;
+        upperArm.castShadow = true;
+        arm.add(upperArm);
+        
+        return arm;
     }
 
-    private static createForearm(color: number): THREE.Mesh {
-        const geometry = new THREE.BoxGeometry(0.16, 0.45, 0.16);
-        const material = new THREE.MeshStandardMaterial({ color, flatShading: true });
-        const forearm = new THREE.Mesh(geometry, material);
-        forearm.position.y = -0.225;
+    private static createForearm(color: number): THREE.Group {
+        const forearm = new THREE.Group();
+        
+        const lowerArm = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.07, 0.06, 0.35, 10),
+            new THREE.MeshStandardMaterial({ color, flatShading: false })
+        );
+        lowerArm.position.y = -0.175;
+        lowerArm.castShadow = true;
+        forearm.add(lowerArm);
+        
+        const hand = new THREE.Mesh(
+            new THREE.SphereGeometry(0.065, 8, 8),
+            new THREE.MeshStandardMaterial({ color: 0xffdbac, flatShading: false })
+        );
+        hand.position.y = -0.35;
+        hand.castShadow = true;
+        forearm.add(hand);
+        
         return forearm;
     }
 
-    private static createThigh(): THREE.Mesh {
-        const geometry = new THREE.BoxGeometry(0.22, 0.5, 0.22);
-        const material = new THREE.MeshStandardMaterial({ color: 0x333333, flatShading: true });
-        return new THREE.Mesh(geometry, material);
-    }
-
-    private static createShin(): THREE.Mesh {
-        const geometry = new THREE.BoxGeometry(0.2, 0.5, 0.2);
-        const material = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, flatShading: true });
-        const shin = new THREE.Mesh(geometry, material);
-        shin.position.y = -0.25;
-        return shin;
+    private static createLeg(color: number): THREE.Group {
+        const leg = new THREE.Group();
+        
+        const thigh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.11, 0.09, 0.4, 10),
+            new THREE.MeshStandardMaterial({ color: 0x2a2a2a, flatShading: false })
+        );
+        thigh.position.y = -0.2;
+        thigh.castShadow = true;
+        leg.add(thigh);
+        
+        const shin = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.09, 0.08, 0.4, 10),
+            new THREE.MeshStandardMaterial({ color: 0x222222, flatShading: false })
+        );
+        shin.position.y = -0.4;
+        shin.castShadow = true;
+        leg.add(shin);
+        
+        const foot = new THREE.Mesh(
+            new THREE.BoxGeometry(0.12, 0.08, 0.2),
+            new THREE.MeshStandardMaterial({ color: 0x1a1a1a, flatShading: false })
+        );
+        foot.position.set(0, -0.6, 0.05);
+        foot.castShadow = true;
+        leg.add(foot);
+        
+        return leg;
     }
 
     private static createWeapon(): THREE.Group {
         const weapon = new THREE.Group();
-
+        
         const body = new THREE.Mesh(
-            new THREE.BoxGeometry(0.08, 0.1, 0.5),
-            new THREE.MeshStandardMaterial({ color: 0x2a2a2a, flatShading: true })
+            new THREE.BoxGeometry(0.08, 0.12, 0.5),
+            new THREE.MeshStandardMaterial({ color: 0x2a2a2a, flatShading: false })
         );
         body.position.z = -0.1;
+        body.castShadow = true;
         weapon.add(body);
-
+        
         const barrel = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8),
-            new THREE.MeshStandardMaterial({ color: 0x1a1a1a, flatShading: true })
+            new THREE.CylinderGeometry(0.025, 0.025, 0.35, 8),
+            new THREE.MeshStandardMaterial({ color: 0x1a1a1a, flatShading: false })
         );
         barrel.rotation.x = Math.PI / 2;
-        barrel.position.z = -0.4;
-        barrel.position.y = 0.02;
+        barrel.position.set(0, 0.02, -0.45);
+        barrel.castShadow = true;
         weapon.add(barrel);
-
+        
         const grip = new THREE.Mesh(
-            new THREE.BoxGeometry(0.06, 0.15, 0.08),
-            new THREE.MeshStandardMaterial({ color: 0x3a3a3a, flatShading: true })
+            new THREE.BoxGeometry(0.05, 0.15, 0.08),
+            new THREE.MeshStandardMaterial({ color: 0x3a3a3a, flatShading: false })
         );
-        grip.position.y = -0.12;
-        grip.position.z = 0.1;
+        grip.position.set(0, -0.12, 0.1);
         grip.rotation.x = -0.3;
+        grip.castShadow = true;
         weapon.add(grip);
-
+        
+        const stock = new THREE.Mesh(
+            new THREE.BoxGeometry(0.06, 0.1, 0.2),
+            new THREE.MeshStandardMaterial({ color: 0x4a3a2a, flatShading: false })
+        );
+        stock.position.set(0, 0, 0.3);
+        stock.castShadow = true;
+        weapon.add(stock);
+        
         return weapon;
     }
 
@@ -174,7 +216,7 @@ export class PlayerModel {
         deltaTime: number
     ): void {
         if (animData.isMoving) {
-            animData.walkPhase += deltaTime * 8;
+            animData.walkPhase += deltaTime * 10;
         } else {
             animData.walkPhase *= 0.9;
             if (Math.abs(animData.walkPhase) < 0.01) {
@@ -182,51 +224,59 @@ export class PlayerModel {
             }
         }
 
-        const walkAmount = Math.sin(animData.walkPhase);
-
-        const leftThigh = playerModel.getObjectByName('leftThigh') as THREE.Mesh;
-        const rightThigh = playerModel.getObjectByName('rightThigh') as THREE.Mesh;
-        const leftShin = playerModel.getObjectByName('leftShin') as THREE.Mesh;
-        const rightShin = playerModel.getObjectByName('rightShin') as THREE.Mesh;
-
-        if (leftThigh && rightThigh) {
-            leftThigh.rotation.x = walkAmount * 0.6;
-            rightThigh.rotation.x = -walkAmount * 0.6;
+        const walkCycle = Math.sin(animData.walkPhase);
+        
+        const hips = playerModel.children.find(c => c.type === 'Group' && c.position.y === 0.75);
+        if (hips) {
+            const leftLeg = hips.children.find(c => c.position.x === -0.2) as THREE.Group;
+            const rightLeg = hips.children.find(c => c.position.x === 0.2) as THREE.Group;
+            
+            if (leftLeg) {
+                leftLeg.rotation.x = walkCycle * 0.7;
+                if (leftLeg.children[1]) {
+                    (leftLeg.children[1] as THREE.Mesh).rotation.x = Math.max(0, walkCycle * 0.9);
+                }
+            }
+            
+            if (rightLeg) {
+                rightLeg.rotation.x = -walkCycle * 0.7;
+                if (rightLeg.children[1]) {
+                    (rightLeg.children[1] as THREE.Mesh).rotation.x = Math.max(0, -walkCycle * 0.9);
+                }
+            }
         }
 
-        if (leftShin && rightShin) {
-            leftShin.rotation.x = Math.max(0, walkAmount * 0.8);
-            rightShin.rotation.x = Math.max(0, -walkAmount * 0.8);
-        }
-
-        const leftUpperArm = playerModel.getObjectByName('leftUpperArm') as THREE.Mesh;
-        const rightUpperArm = playerModel.getObjectByName('rightUpperArm') as THREE.Mesh;
-        const leftForearm = playerModel.getObjectByName('leftForearm') as THREE.Mesh;
-        const rightForearm = playerModel.getObjectByName('rightForearm') as THREE.Mesh;
-
-        if (leftUpperArm && rightUpperArm) {
-            leftUpperArm.rotation.x = -walkAmount * 0.5;
-            rightUpperArm.rotation.x = walkAmount * 0.5;
-        }
-
-        if (leftForearm && rightForearm) {
-            leftForearm.rotation.x = 0.2;
-            rightForearm.rotation.x = 0.2;
+        const shoulders = playerModel.children.find(c => c.type === 'Group' && c.position.y === 2.0);
+        if (shoulders) {
+            const leftArm = shoulders.children.find(c => c.position.x === -0.55) as THREE.Group;
+            const rightArm = shoulders.children.find(c => c.position.x === 0.55) as THREE.Group;
+            
+            if (leftArm) {
+                leftArm.rotation.x = -walkCycle * 0.6;
+                if (leftArm.children[0]) {
+                    (leftArm.children[0] as THREE.Group).rotation.x = 0.3;
+                }
+            }
+            
+            if (rightArm) {
+                rightArm.rotation.x = walkCycle * 0.6;
+                if (rightArm.children[0]) {
+                    (rightArm.children[0] as THREE.Group).rotation.x = 0.3;
+                }
+            }
         }
 
         const torso = playerModel.getObjectByName('torso') as THREE.Mesh;
         const head = playerModel.getObjectByName('head') as THREE.Mesh;
-        const shoulders = playerModel.children.find(c => c.type === 'Group' && c.position.y === 1.6);
-
-        if (torso && shoulders) {
-            const tiltAmount = playerModel.userData.tiltAmount || 0;
-            torso.rotation.x = tiltAmount * 0.5;
-            shoulders.rotation.x = tiltAmount * 0.3;
+        
+        if (torso && playerModel.userData.tiltAmount !== undefined) {
+            const tilt = playerModel.userData.tiltAmount;
+            torso.rotation.x = THREE.MathUtils.lerp(torso.rotation.x, tilt * 0.3, 0.1);
         }
-
-        if (head) {
-            const lookAmount = playerModel.userData.lookAmount || 0;
-            head.rotation.x = lookAmount * 0.7;
+        
+        if (head && playerModel.userData.lookAmount !== undefined) {
+            const look = playerModel.userData.lookAmount;
+            head.rotation.x = THREE.MathUtils.lerp(head.rotation.x, look * 0.5, 0.1);
         }
 
         if (animData.hitFlash > 0) {
@@ -244,7 +294,7 @@ export class PlayerModel {
     static updateTilt(playerModel: THREE.Group, cameraRotation: { x: number, y: number }) {
         playerModel.userData.tiltAmount = cameraRotation.x;
         playerModel.userData.lookAmount = cameraRotation.x;
-        playerModel.userData.rotationY = cameraRotation.y;
+        playerModel.rotation.y = cameraRotation.y;
     }
 
     static createAnimationData(): PlayerAnimationData {
