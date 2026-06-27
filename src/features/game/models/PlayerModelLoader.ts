@@ -1,9 +1,10 @@
 //src\features\game\models\PlayerModelLoader.ts
 import * as THREE from 'three';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export class PlayerModelLoader {
-    private static loader = new FBXLoader();
+    private static loader = new GLTFLoader();
     private static modelCache: THREE.Group | null = null;
     private static animationCache: Map<string, THREE.AnimationClip> = new Map();
     private static loadPromise: Promise<void> | null = null;
@@ -13,11 +14,15 @@ export class PlayerModelLoader {
 
         this.loadPromise = (async () => {
             try {
-                console.log('📦 Loading player model...');
-                
-                const character = await this.loadFBX('/models/player/character.fbx');
-                character.scale.setScalar(0.01);
-                
+                console.log('📦 Loading player model (GLB)...');
+
+                const gltf = await this.loadGLB('/models/player/character.glb');
+                const character = gltf.scene;
+
+                const box = new THREE.Box3().setFromObject(character);
+                const size = box.getSize(new THREE.Vector3());
+                console.log(`📏 GLB model size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+
                 character.traverse((child) => {
                     if (child instanceof THREE.SkinnedMesh) {
                         child.castShadow = true;
@@ -29,26 +34,28 @@ export class PlayerModelLoader {
                 console.log('✅ Character loaded');
 
                 const animationFiles = {
-                    idle: '/models/player/animations/idle.fbx',
-                    running: '/models/player/animations/running.fbx',
-                    shooting: '/models/player/animations/shooting.fbx',
-                    reloading: '/models/player/animations/reloading.fbx',
-                    death: '/models/player/animations/death.fbx'
+                    idle: '/models/player/animations/idle.glb',
+                    running: '/models/player/animations/running.glb',
+                    shooting: '/models/player/animations/shooting.glb',
+                    reloading: '/models/player/animations/reloading.glb',
+                    death: '/models/player/animations/death.glb'
                 };
 
                 const entries = Object.entries(animationFiles);
                 const results = await Promise.all(
                     entries.map(async ([name, url]) => {
                         try {
-                            const fbx = await this.loadFBX(url);
-                            console.log(`📦 Animation "${name}" loaded, clips: ${fbx.animations.length}`);
-                            
-                            if (fbx.animations.length === 0) {
+                            const gltfAnim = await this.loadGLB(url);
+                            console.log(`📦 Animation "${name}" loaded, clips: ${gltfAnim.animations.length}`);
+
+                            if (gltfAnim.animations.length === 0) {
                                 console.warn(`⚠️ Animation "${name}" has no clips!`);
                                 return { name, clip: null };
                             }
-                            
-                            return { name, clip: fbx.animations[0] };
+
+                            const clip = gltfAnim.animations[0];
+                            console.log(`📦 Animation "${name}" tracks: ${clip.tracks.length}`);
+                            return { name, clip };
                         } catch (err) {
                             console.warn(`⚠️ Failed to load animation "${name}":`, err);
                             return { name, clip: null };
@@ -73,13 +80,20 @@ export class PlayerModelLoader {
         return this.loadPromise;
     }
 
-    private static loadFBX(url: string): Promise<THREE.Group> {
+    private static loadGLB(url: string): Promise<GLTF> {
         return new Promise((resolve, reject) => {
             this.loader.load(
                 url,
-                (fbx) => resolve(fbx),
-                undefined,
-                reject
+                (gltf) => {
+                    console.log(`✅ GLB loaded: ${url}`);
+                    resolve(gltf);
+                },
+                (progress) => {
+                },
+                (error) => {
+                    console.error(`❌ Failed to load GLB: ${url}`, error);
+                    reject(error);
+                }
             );
         });
     }
@@ -89,7 +103,7 @@ export class PlayerModelLoader {
             console.warn('⚠️ Model cache is empty!');
             return null;
         }
-        
+
         try {
             const clone = this.modelCache.clone(true) as THREE.Group;
             console.log(`📦 Model cloned successfully, children: ${clone.children.length}`);
