@@ -262,6 +262,8 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         if (model) {
             model.userData.targetPosition = new THREE.Vector3(position.x, 0, position.z);
             model.userData.targetRotation = new THREE.Euler(rotation.x, rotation.y, rotation.z);
+
+            PlayerModel.updateTilt(model, { x: rotation.x, y: rotation.y });
         }
     }, []);
 
@@ -345,7 +347,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                     }
                     if (playerModel.userData.targetRotation) {
                         const targetRot = playerModel.userData.targetRotation as THREE.Euler;
-                        playerModel.rotation.x += (targetRot.x - playerModel.rotation.x) * 0.25;
                         playerModel.rotation.y += (targetRot.y - playerModel.rotation.y) * 0.25;
                     }
 

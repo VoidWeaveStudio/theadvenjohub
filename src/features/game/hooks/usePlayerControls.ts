@@ -185,7 +185,7 @@ export function usePlayerControls({
                     rotation: [
                         cameraRef.current.rotation.x,
                         cameraRef.current.rotation.y,
-                        cameraRef.current.rotation.z
+                        0
                     ]
                 });
                 lastMoveTimeRef.current = now;
