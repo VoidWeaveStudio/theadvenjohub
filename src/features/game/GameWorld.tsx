@@ -50,10 +50,14 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [scores, setScores] = useState<any>(mode === '5v5' ? { 1: 0, 2: 0 } : {});
     const [winner, setWinner] = useState<any>(null);
 
+    console.log('🎮 GameWorld render - players:', players.length, 'sceneReady:', sceneReady);
+
     useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
 
     useEffect(() => {
         if (!containerRef.current) return;
+
+        console.log('🏗️ Initializing Three.js scene...');
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xd4a574);
@@ -116,6 +120,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         window.addEventListener('resize', handleResize);
         
         setSceneReady(true);
+        console.log('✅ Three.js scene initialized');
 
         return () => {
             window.removeEventListener('resize', handleResize);
@@ -123,26 +128,31 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     }, [roomId]);
 
     useEffect(() => {
-        if (!sceneReady || !sceneRef.current) return;
+        if (!sceneReady || !sceneRef.current) {
+            console.log('⏳ Waiting for scene to be ready...');
+            return;
+        }
+
+        console.log('🔄 Syncing player models - players:', players.length);
 
         const currentScene = sceneRef.current;
         const currentPlayers = playersRef.current;
 
         players.forEach((player, index) => {
             if (!currentPlayers.has(player.id)) {
+                console.log(`✅ Creating model for player: ${player.username} (${player.id})`);
                 const model = PlayerModel.create(currentScene, player, index, mode);
                 currentPlayers.set(player.id, model);
                 playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
-                console.log(`✅ Created model for player: ${player.username} (${player.id})`);
             }
         });
 
         currentPlayers.forEach((model, playerId) => {
             if (!players.find(p => p.id === playerId)) {
+                console.log(`❌ Removing model for player: ${playerId}`);
                 currentScene.remove(model);
                 currentPlayers.delete(playerId);
                 playerAnimationDataRef.current.delete(playerId);
-                console.log(`❌ Removed model for player: ${playerId}`);
             }
         });
     }, [players, sceneReady, mode]);
@@ -213,10 +223,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             }
         },
         onPlayerJoined: (player, index) => {
-            console.log(`👤 Player joined: ${player.username} (${player.id})`);
+            console.log(`📞 onPlayerJoined callback called for: ${player.username}`);
         },
         onPlayerLeft: (playerId) => {
-            console.log(`👋 Player left: ${playerId}`);
+            console.log(`📞 onPlayerLeft callback called for: ${playerId}`);
         },
         onPlayerMoved: (id, position, rotation) => {
             const model = playersRef.current.get(id);

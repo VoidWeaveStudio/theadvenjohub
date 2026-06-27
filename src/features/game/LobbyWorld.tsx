@@ -4,6 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Socket } from "socket.io-client";
+import { LobbyUI } from "./components/LobbyUI";
+import { UsernameSprite } from "./utils/UsernameSprite";
 
 interface LobbyWorldProps {
     wallet: string;
@@ -18,12 +20,20 @@ interface QueueStatus {
     max: number;
 }
 
+interface PlayerData {
+    id: string;
+    username: string;
+    position: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number };
+}
+
 export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: LobbyWorldProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
     const playersRef = useRef<Map<string, THREE.Group>>(new Map());
+    const usernameSpritesRef = useRef<Map<string, THREE.Sprite>>(new Map());
     const keysRef = useRef<Set<string>>(new Set());
     const isLockedRef = useRef(false);
     const animationFrameRef = useRef<number | null>(null);
@@ -35,7 +45,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     const queueModeRef = useRef<string | null>(null);
     const showModeSelectRef = useRef(false);
 
-    const [players, setPlayers] = useState<any[]>([]);
+    const [players, setPlayers] = useState<PlayerData[]>([]);
     const [queues, setQueues] = useState<{ '5v5': QueueStatus; 'ffa': QueueStatus }>({
         '5v5': { count: 0, max: 10 },
         'ffa': { count: 0, max: 20 }
@@ -45,6 +55,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     const [isLocked, setIsLocked] = useState(false);
     const [nearPortal, setNearPortal] = useState(false);
     const [showModeSelect, setShowModeSelect] = useState(false);
+    const [currentUsername, setCurrentUsername] = useState(username);
 
     useEffect(() => { queueModeRef.current = queueMode; }, [queueMode]);
     useEffect(() => { showModeSelectRef.current = showModeSelect; }, [showModeSelect]);
@@ -178,82 +189,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         scene.add(sprite);
     };
 
-    const initSocket = () => {
-        if (!socket) return;
-
-        socket.on("connect", () => {
-            console.log("Connected to server");
-            socket.emit("joinLobby", { wallet, username });
-        });
-
-        socket.on("lobbyJoined", (data) => {
-            setPlayers(data.players);
-            setQueues(data.queues);
-            setQueuePosition(data.queuePosition);
-            setQueueMode(data.queueMode);
-
-            data.players.forEach((player: any) => {
-                if (player.id !== socket.id) {
-                    createPlayerModel(player);
-                }
-            });
-        });
-
-        socket.on("playerJoinedLobby", (player: any) => {
-            setPlayers((prev) => [...prev, player]);
-            createPlayerModel(player);
-        });
-
-        socket.on("playerLeftLobby", (playerId: string) => {
-            setPlayers((prev) => prev.filter((p) => p.id !== playerId));
-            removePlayerModel(playerId);
-        });
-
-        socket.on("playerMovedInLobby", (data: any) => {
-            const playerModel = playersRef.current.get(data.id);
-            if (playerModel) {
-                playerModel.position.set(data.position.x, data.position.y, data.position.z);
-                playerModel.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
-            }
-        });
-
-        socket.on("queuesStatusUpdate", (newQueues: any) => {
-            setQueues(newQueues);
-        });
-
-        socket.on("joinedQueue", (data: { mode: string; position: number }) => {
-            setQueueMode(data.mode);
-            setQueuePosition(data.position);
-            setShowModeSelect(false);
-        });
-
-        socket.on("queuePositionUpdate", (data: { position: number }) => {
-            setQueuePosition(data.position);
-        });
-
-        socket.on("leftQueue", () => {
-            setQueuePosition(null);
-            setQueueMode(null);
-        });
-
-        socket.on("gameStarted", (data: any) => {
-            onEnterGame(data.roomId, data.mode, data.players);
-        });
-
-        socket.on("joinedFFAGame", (data: any) => {
-            onEnterGame(data.roomId, data.mode, data.players);
-        });
-
-        socket.on("playerJoinedFFAGame", (player: any) => {
-            console.log("Player joined FFA game:", player.username);
-        });
-
-        socket.on("queueError", (message: string) => {
-            alert(message);
-        });
-    };
-
-    const createPlayerModel = (player: any) => {
+    const createPlayerModel = (player: PlayerData) => {
         if (!sceneRef.current) return;
 
         const group = new THREE.Group();
@@ -283,6 +219,10 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         group.position.set(player.position.x, player.position.y, player.position.z);
         sceneRef.current.add(group);
         playersRef.current.set(player.id, group);
+
+        const usernameSprite = UsernameSprite.create(player.username, 0x00ffff);
+        group.add(usernameSprite);
+        usernameSpritesRef.current.set(player.id, usernameSprite);
     };
 
     const removePlayerModel = (playerId: string) => {
@@ -291,6 +231,97 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             sceneRef.current.remove(model);
             playersRef.current.delete(playerId);
         }
+
+        const sprite = usernameSpritesRef.current.get(playerId);
+        if (sprite) {
+            const material = sprite.material as THREE.SpriteMaterial;
+            if (material.map) material.map.dispose();
+            material.dispose();
+            usernameSpritesRef.current.delete(playerId);
+        }
+    };
+
+    const updatePlayerUsername = (playerId: string, username: string) => {
+        const sprite = usernameSpritesRef.current.get(playerId);
+        if (sprite) {
+            UsernameSprite.update(sprite, username, 0x00ffff);
+        }
+    };
+
+    const initSocket = () => {
+        if (!socket) return;
+
+        socket.on("connect", () => {
+            console.log("Connected to server");
+            socket.emit("joinLobby", { wallet, username: currentUsername });
+        });
+
+        socket.on("lobbyJoined", (data) => {
+            setPlayers(data.players);
+            setQueues(data.queues);
+            setQueuePosition(data.queuePosition);
+            setQueueMode(data.queueMode);
+
+            data.players.forEach((player: PlayerData) => {
+                if (player.id !== socket.id) {
+                    createPlayerModel(player);
+                }
+            });
+        });
+
+        socket.on("playerJoinedLobby", (player: PlayerData) => {
+            setPlayers((prev) => [...prev, player]);
+            createPlayerModel(player);
+        });
+
+        socket.on("playerLeftLobby", (playerId: string) => {
+            setPlayers((prev) => prev.filter((p) => p.id !== playerId));
+            removePlayerModel(playerId);
+        });
+
+        socket.on("playerMovedInLobby", (data: any) => {
+            const playerModel = playersRef.current.get(data.id);
+            if (playerModel) {
+                playerModel.position.set(data.position.x, data.position.y, data.position.z);
+                playerModel.rotation.set(data.rotation.x, data.rotation.y, data.rotation.z);
+            }
+        });
+
+        socket.on("playerUsernameChanged", (data: { id: string; username: string }) => {
+            setPlayers((prev) => prev.map(p => p.id === data.id ? { ...p, username: data.username } : p));
+            updatePlayerUsername(data.id, data.username);
+        });
+
+        socket.on("queuesStatusUpdate", (newQueues: any) => {
+            setQueues(newQueues);
+        });
+
+        socket.on("joinedQueue", (data: { mode: string; position: number }) => {
+            setQueueMode(data.mode);
+            setQueuePosition(data.position);
+            setShowModeSelect(false);
+        });
+
+        socket.on("queuePositionUpdate", (data: { position: number }) => {
+            setQueuePosition(data.position);
+        });
+
+        socket.on("leftQueue", () => {
+            setQueuePosition(null);
+            setQueueMode(null);
+        });
+
+        socket.on("gameStarted", (data: any) => {
+            onEnterGame(data.roomId, data.mode, data.players);
+        });
+
+        socket.on("joinedFFAGame", (data: any) => {
+            onEnterGame(data.roomId, data.mode, data.players);
+        });
+
+        socket.on("queueError", (message: string) => {
+            alert(message);
+        });
     };
 
     const initControls = () => {
@@ -376,7 +407,12 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
 
     const joinQueue = (mode: string) => {
         console.log("Joining queue:", mode);
-        socket?.emit("joinQueue", { mode, wallet, username });
+        socket?.emit("joinQueue", { mode, wallet, username: currentUsername });
+    };
+
+    const handleUsernameChange = (newUsername: string) => {
+        setCurrentUsername(newUsername);
+        socket?.emit("changeUsername", { username: newUsername });
     };
 
     const animate = () => {
@@ -418,11 +454,14 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             }
         }
 
-        if (portalRef.current) portalRef.current.rotation.z += 0.01;
+        if (portalRef.current) {
+            portalRef.current.rotation.z += 0.01;
+        }
 
         if (cameraRef.current) {
             const distance = cameraRef.current.position.distanceTo(portalPositionRef.current);
             const isNear = distance < 6;
+            
             nearPortalRef.current = isNear;
             setNearPortal(isNear);
         }
@@ -446,15 +485,22 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             socket.off("playerJoinedLobby");
             socket.off("playerLeftLobby");
             socket.off("playerMovedInLobby");
+            socket.off("playerUsernameChanged");
             socket.off("queuesStatusUpdate");
             socket.off("joinedQueue");
             socket.off("queuePositionUpdate");
             socket.off("leftQueue");
             socket.off("gameStarted");
             socket.off("joinedFFAGame");
-            socket.off("playerJoinedFFAGame");
             socket.off("queueError");
         }
+
+        usernameSpritesRef.current.forEach((sprite) => {
+            const material = sprite.material as THREE.SpriteMaterial;
+            if (material.map) material.map.dispose();
+            material.dispose();
+        });
+        usernameSpritesRef.current.clear();
 
         if (rendererRef.current) {
             rendererRef.current.dispose();
@@ -472,30 +518,12 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         <div className="relative w-full h-full">
             <div ref={containerRef} className="w-full h-full cursor-pointer" />
 
-            <div className="absolute top-8 left-8 bg-black/70 backdrop-blur px-4 py-3 rounded-lg">
-                <div className="text-cyan-400 text-xl font-bold">TANJO LOBBY</div>
-                <div className="text-zinc-400 text-sm">Players online: {players.length}</div>
-            </div>
-
-            <div className="absolute top-8 right-8 bg-black/70 backdrop-blur px-4 py-3 rounded-lg space-y-2">
-                <div className="text-white font-bold mb-2">Queues</div>
-                <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                    <span className="text-white text-sm">5v5:</span>
-                    <span className="text-cyan-400 font-bold">{queues['5v5'].count}/{queues['5v5'].max}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                    <span className="text-white text-sm">FFA:</span>
-                    <span className="text-cyan-400 font-bold">{queues['ffa'].count}/{queues['ffa'].max}</span>
-                </div>
-            </div>
-
-            {nearPortal && !queueMode && !showModeSelect && (
-                <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-3 rounded-lg animate-pulse">
-                    <div className="text-cyan-400 text-lg font-bold">Press E to enter Queue</div>
-                </div>
-            )}
+            <LobbyUI
+                username={currentUsername}
+                onUsernameChange={handleUsernameChange}
+                playersCount={players.length}
+                queues={queues}
+            />
 
             {showModeSelect && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-auto">
@@ -550,12 +578,6 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                     <div className="text-zinc-500 text-xs mt-1">Press Q to leave queue</div>
                 </div>
             )}
-
-            <div className="absolute bottom-8 right-8 bg-black/70 backdrop-blur px-4 py-2 rounded-lg text-xs text-zinc-400">
-                <div>WASD - Move</div>
-                <div>E - Interact</div>
-                <div>ESC - Exit</div>
-            </div>
 
             {!isLocked && !showModeSelect && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

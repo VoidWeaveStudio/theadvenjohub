@@ -59,6 +59,7 @@ export function useGameSocket({
         });
 
         const handleJoinedGameRoom = (data: any) => {
+            console.log('📥 Received joinedGameRoom:', data.players.length, 'players');
             onPlayersUpdate(data.players);
             onHealthUpdate(data.player.health);
             myKillsRef.current = data.player.kills;
@@ -69,16 +70,27 @@ export function useGameSocket({
             if (data.player.position) onSpawnPosition(data.player.position);
 
             data.players.forEach((player: Player, index: number) => {
-                if (player.id !== socket.id) onPlayerJoined(player, index);
+                if (player.id !== socket.id) {
+                    console.log('👤 Creating model for existing player:', player.username);
+                    onPlayerJoined(player, index);
+                }
             });
         };
 
         const handlePlayerJoined = (player: Player) => {
+            console.log('👤 Player joined game (5v5):', player.username);
+            onPlayersUpdate((prev: Player[]) => [...prev, player]);
+            onPlayerJoined(player, 0);
+        };
+
+        const handlePlayerJoinedFFA = (player: Player) => {
+            console.log('👤 Player joined FFA game:', player.username);
             onPlayersUpdate((prev: Player[]) => [...prev, player]);
             onPlayerJoined(player, 0);
         };
 
         const handlePlayerLeft = (playerId: string) => {
+            console.log('👋 Player left:', playerId);
             onPlayersUpdate((prev: Player[]) => prev.filter((p: Player) => p.id !== playerId));
             onPlayerLeft(playerId);
         };
@@ -126,6 +138,7 @@ export function useGameSocket({
 
         socket.on('joinedGameRoom', handleJoinedGameRoom);
         socket.on('playerJoinedGame', handlePlayerJoined);
+        socket.on('playerJoinedFFAGame', handlePlayerJoinedFFA);
         socket.on('playerLeft', handlePlayerLeft);
         socket.on('playerMoved', handlePlayerMoved);
         socket.on('playerShot', handlePlayerShot);
@@ -139,6 +152,7 @@ export function useGameSocket({
         return () => {
             socket.off('joinedGameRoom', handleJoinedGameRoom);
             socket.off('playerJoinedGame', handlePlayerJoined);
+            socket.off('playerJoinedFFAGame', handlePlayerJoinedFFA);
             socket.off('playerLeft', handlePlayerLeft);
             socket.off('playerMoved', handlePlayerMoved);
             socket.off('playerShot', handlePlayerShot);
