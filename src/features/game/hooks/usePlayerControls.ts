@@ -33,6 +33,7 @@ const MOUSE_SENSITIVITY = 0.003;
 const MOVE_SPEED = 0.12;
 const ROTATION_LERP = 0.25;
 const CAMERA_COLLISION_RADIUS = 0.3;
+const FOCUS_POINT_OFFSET = 0.8;
 
 export function usePlayerControls({
     containerRef,
@@ -174,21 +175,18 @@ export function usePlayerControls({
         const pitch = cameraPitchRef.current;
 
         const focusPoint = new THREE.Vector3(
-            player.position.x,
+            player.position.x + Math.cos(yaw) * FOCUS_POINT_OFFSET,
             player.position.y + CAMERA_HEIGHT_OFFSET,
-            player.position.z
+            player.position.z - Math.sin(yaw) * FOCUS_POINT_OFFSET
         );
 
         const offsetX = Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
         const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
         const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
 
-        const shoulderOffsetX = Math.cos(yaw) * 0.8;
-        const shoulderOffsetZ = -Math.sin(yaw) * 0.8;
-
-        let targetX = focusPoint.x + offsetX + shoulderOffsetX;
+        let targetX = focusPoint.x + offsetX;
         let targetY = focusPoint.y + offsetY;
-        let targetZ = focusPoint.z + offsetZ + shoulderOffsetZ;
+        let targetZ = focusPoint.z + offsetZ;
 
         const desiredPosition = new THREE.Vector3(targetX, targetY, targetZ);
         const direction = desiredPosition.clone().sub(focusPoint).normalize();
@@ -216,9 +214,9 @@ export function usePlayerControls({
         }
 
         if (collisionDistance < distance) {
-            targetX = focusPoint.x + direction.x * collisionDistance + shoulderOffsetX;
+            targetX = focusPoint.x + direction.x * collisionDistance;
             targetY = focusPoint.y + direction.y * collisionDistance;
-            targetZ = focusPoint.z + direction.z * collisionDistance + shoulderOffsetZ;
+            targetZ = focusPoint.z + direction.z * collisionDistance;
         }
 
         const lerpFactor = 1 - Math.exp(-12 * deltaTime);
