@@ -180,30 +180,28 @@ export function usePlayerControls({
         const pitch = cameraPitchRef.current;
 
         const focusPoint = new THREE.Vector3(
-            player.position.x - Math.sin(yaw) * FOCUS_POINT_OFFSET,
+            player.position.x,
             player.position.y + CAMERA_HEIGHT_OFFSET,
-            player.position.z - Math.cos(yaw) * FOCUS_POINT_OFFSET
+            player.position.z
         );
 
-        const offsetX = Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
-        const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
-        const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
+        const desiredPosition = new THREE.Vector3();
+        desiredPosition.x = player.position.x - Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
+        desiredPosition.y = player.position.y + CAMERA_HEIGHT_OFFSET - Math.sin(pitch) * CAMERA_DISTANCE;
+        desiredPosition.z = player.position.z - Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
 
-        let targetX = focusPoint.x + offsetX;
-        let targetY = focusPoint.y + offsetY;
-        let targetZ = focusPoint.z + offsetZ;
+        desiredPosition.y = Math.max(desiredPosition.y, 0.5); // минимум 0.5 над землёй
 
-        const desiredPosition = new THREE.Vector3(targetX, targetY, targetZ);
         const direction = desiredPosition.clone().sub(focusPoint).normalize();
         const distance = focusPoint.distanceTo(desiredPosition);
 
-        let collisionDistance = distance;
-        const rayOrigin = focusPoint.clone();
+        let finalPosition = desiredPosition.clone();
+        let collisionDetected = false;
 
-        const steps = 10;
+        const steps = 15;
         for (let i = 1; i <= steps; i++) {
             const t = i / steps;
-            const checkPos = rayOrigin.clone().add(direction.clone().multiplyScalar(distance * t));
+            const checkPos = focusPoint.clone().add(direction.clone().multiplyScalar(distance * t));
 
             const hasCollision = checkCollision(
                 checkPos.x,
@@ -213,23 +211,26 @@ export function usePlayerControls({
             );
 
             if (hasCollision) {
-                collisionDistance = distance * (t - 1 / steps) - CAMERA_COLLISION_RADIUS;
+                const safeT = Math.max(0, (i - 1.5) / steps);
+                finalPosition.copy(focusPoint).add(direction.clone().multiplyScalar(distance * safeT));
+                collisionDetected = true;
                 break;
             }
         }
 
-        if (collisionDistance < distance) {
-            targetX = focusPoint.x + direction.x * collisionDistance;
-            targetY = focusPoint.y + direction.y * collisionDistance;
-            targetZ = focusPoint.z + direction.z * collisionDistance;
+        if (collisionDetected && distance * 0.1 < CAMERA_COLLISION_RADIUS) {
+            finalPosition.set(
+                player.position.x,
+                player.position.y + CAMERA_HEIGHT_OFFSET + 1.0,
+                player.position.z
+            );
+            cameraRef.current.position.copy(finalPosition);
+            cameraRef.current.lookAt(focusPoint);
+            return;
         }
 
         const lerpFactor = 1 - Math.exp(-12 * deltaTime);
-        cameraRef.current.position.lerp(
-            new THREE.Vector3(targetX, targetY, targetZ),
-            lerpFactor
-        );
-
+        cameraRef.current.position.lerp(finalPosition, lerpFactor);
         cameraRef.current.lookAt(focusPoint);
     };
 
