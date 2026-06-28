@@ -121,7 +121,7 @@ function createAtmosphericEnvironment(scene: THREE.Scene): {
     const particles = new THREE.Points(particlesGeometry, particlesMaterial);
     scene.add(particles);
 
- 
+
     const columnPositions = [
         { x: -25, z: -25 }, { x: 25, z: -25 },
         { x: -25, z: 25 }, { x: 25, z: 25 },
@@ -163,7 +163,7 @@ function createAtmosphericEnvironment(scene: THREE.Scene): {
     if (columnGeometries.length > 0) {
         const mergedColumns = mergeGeometries(columnGeometries, false);
         const columnsMesh = new THREE.Mesh(mergedColumns, columnMaterial);
-        columnsMesh.castShadow = false;  
+        columnsMesh.castShadow = false;
         columnsMesh.receiveShadow = true;
         scene.add(columnsMesh);
         columnGeometries.forEach(g => g.dispose());
@@ -171,10 +171,13 @@ function createAtmosphericEnvironment(scene: THREE.Scene): {
 
     const platformGeometry = new THREE.CylinderGeometry(15, 16, 0.5, 24);
     const platformMaterial = new THREE.MeshStandardMaterial({
-        color: 0x3a3a5e, 
+        color: 0x3a3a5e,
         metalness: 0.6,
         roughness: 0.4,
-        flatShading: true
+        flatShading: true,
+        polygonOffset: true,          
+        polygonOffsetFactor: -1,     
+        polygonOffsetUnits: -1
     });
     const platform = new THREE.Mesh(platformGeometry, platformMaterial);
     platform.position.set(0, -0.25, 0);
@@ -190,7 +193,7 @@ function createAtmosphericEnvironment(scene: THREE.Scene): {
     });
     const platformRing = new THREE.Mesh(ringGeometry, ringMaterial);
     platformRing.rotation.x = Math.PI / 2;
-    platformRing.position.y = 0.05;
+    platformRing.position.y = 0.1;
     scene.add(platformRing);
 
     const innerRingGeometry = new THREE.TorusGeometry(8, 0.1, 6, 24);
@@ -215,7 +218,7 @@ function createAtmosphericEnvironment(scene: THREE.Scene): {
             flatShading: true
         });
         const line = new THREE.Mesh(lineGeometry, lineMaterial);
-        line.position.set(Math.cos(angle) * 11, 0.03, Math.sin(angle) * 11);
+        line.position.set(Math.cos(angle) * 11, 0.08, Math.sin(angle) * 11);
         line.rotation.y = angle + Math.PI / 2;
         scene.add(line);
     }
@@ -396,7 +399,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     const clockRef = useRef(new THREE.Clock());
     const frameCountRef = useRef(0);
 
-  
+
     const animatablesRef = useRef<{
         crystals: THREE.Mesh[];
         particles: THREE.Points | null;
@@ -593,7 +596,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         }
     }, []);
 
- 
+
     useEffect(() => {
         if (!containerRef.current) return;
 
@@ -605,7 +608,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             75,
             window.innerWidth / window.innerHeight,
             0.1,
-            500 
+            500
         );
         camera.position.set(0, PLAYER_HEIGHT, 0);
         camera.rotation.order = 'YXZ';
@@ -622,8 +625,8 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         containerRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
-       
-        
+
+
         const ambientLight = new THREE.AmbientLight(0x8080c0, 0.9);
         scene.add(ambientLight);
 
@@ -633,7 +636,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         const moonLight = new THREE.DirectionalLight(0xc0c0ff, 0.8);
         moonLight.position.set(50, 100, 50);
         moonLight.castShadow = true;
-        moonLight.shadow.mapSize.width = 1024; 
+        moonLight.shadow.mapSize.width = 1024;
         moonLight.shadow.mapSize.height = 1024;
         moonLight.shadow.camera.near = 0.5;
         moonLight.shadow.camera.far = 150;
@@ -648,11 +651,15 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             color: 0x3a3a5e,
             metalness: 0.2,
             roughness: 0.9,
-            flatShading: true
+            flatShading: true,
+            side: THREE.DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
-        ground.position.y = 0;
+        ground.position.y = -0.51;
         ground.receiveShadow = true;
         scene.add(ground);
 
@@ -877,7 +884,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         };
     }, [socket, onExit]);
 
- 
+
     useEffect(() => {
         const animate = () => {
             animationFrameRef.current = requestAnimationFrame(animate);
@@ -952,7 +959,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                 }
             }
 
-       
+
             const anim = animatablesRef.current;
 
             if (anim.portalRing) anim.portalRing.rotation.z = elapsedTime * 0.5;

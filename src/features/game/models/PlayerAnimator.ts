@@ -7,13 +7,29 @@ export class PlayerAnimator {
     private actions: Map<string, THREE.AnimationAction> = new Map();
     private currentAction: THREE.AnimationAction | null = null;
     private currentAnimName: string = '';
+    
+    private boneNames: Set<string> = new Set();
+    private rootBoneName: string = '';
 
     constructor(private model: THREE.Group) {
         this.mixer = new THREE.AnimationMixer(model);
-        console.log(`🎬 Mixer created for model`);
+        
+        this.model.traverse((child) => {
+            if (child instanceof THREE.Bone) {
+                this.boneNames.add(child.name);
+            }
+        });
+        
+        this.model.traverse((child) => {
+            if (child instanceof THREE.Bone && !(child.parent instanceof THREE.Bone)) {
+                this.rootBoneName = child.name;
+            }
+        });
+        
+        console.log(`🎬 Animator: root="${this.rootBoneName}", bones=${this.boneNames.size}`);
 
         const animations = PlayerModelLoader.getAllAnimations();
-        console.log(`🎬 Creating animator with ${Object.keys(animations).length} animations`);
+        console.log(`🎬 Loading ${Object.keys(animations).length} animations`);
         
         for (const [name, clip] of Object.entries(animations)) {
             if (!clip) {
@@ -22,7 +38,21 @@ export class PlayerAnimator {
             }
             
             try {
-                const action = this.mixer.clipAction(clip);
+                const clonedClip = clip.clone();
+                
+                if (clonedClip.tracks.length > 0) {
+                    console.log(`📋 Clip "${name}": ${clonedClip.tracks.length} tracks, ${clonedClip.duration.toFixed(2)}s`);
+                    console.log(`   Before: "${clonedClip.tracks[0].name}"`);
+                } else {
+                    console.warn(`⚠️ Clip "${name}" has NO tracks!`);
+                    continue;
+                }
+                
+                this.remapClipTracks(clonedClip, name);
+                
+                console.log(`   After:  "${clonedClip.tracks[0].name}"`);
+                
+                const action = this.mixer.clipAction(clonedClip);
                 
                 if (name === 'death') {
                     action.loop = THREE.LoopOnce;
@@ -35,14 +65,60 @@ export class PlayerAnimator {
                 action.setEffectiveTimeScale(1);
                 
                 this.actions.set(name, action);
-                console.log(`✅ Action "${name}" created, loop: ${name === 'death' ? 'once' : 'repeat'}`);
+                console.log(`✅ Action "${name}" created`);
             } catch (err) {
                 console.warn(`⚠️ Failed to create action for "${name}":`, err);
             }
         }
         
-        console.log('🎬 Starting idle animation...');
+        console.log('🎬 Starting idle...');
         this.play('idle', 0);
+    }
+    
+    private remapClipTracks(clip: THREE.AnimationClip, clipName: string) {
+        if (clip.tracks.length === 0) return;
+        
+        let unknownCount = 0;
+        for (const track of clip.tracks) {
+            const firstName = track.name.split('.')[0];
+            if (!this.boneNames.has(firstName)) {
+                unknownCount++;
+            }
+        }
+        
+        if (unknownCount === 0) {
+            console.log(`   ✓ All track names match model bones`);
+            return;
+        }
+        
+        console.log(`🔧 Remapping "${clipName}": ${unknownCount}/${clip.tracks.length} unknown`);
+        
+        const sampleName = clip.tracks[0].name;
+        const parts = sampleName.split('.');
+        
+        if (parts.length >= 3) {
+            if (!this.boneNames.has(parts[0])) {
+                clip.tracks = clip.tracks.map(track => {
+                    const trackParts = track.name.split('.');
+                    if (trackParts.length >= 3 && !this.boneNames.has(trackParts[0])) {
+                        trackParts.shift(); 
+                    }
+                    track.name = trackParts.join('.');
+                    return track;
+                });
+            }
+        } else if (parts.length === 2 && !this.boneNames.has(parts[0])) {
+            if (this.rootBoneName) {
+                clip.tracks = clip.tracks.map(track => {
+                    const trackParts = track.name.split('.');
+                    if (trackParts.length >= 2 && !this.boneNames.has(trackParts[0])) {
+                        trackParts[0] = this.rootBoneName;
+                    }
+                    track.name = trackParts.join('.');
+                    return track;
+                });
+            }
+        }
     }
 
     play(name: string, fadeDuration: number = 0.2) {
@@ -57,7 +133,7 @@ export class PlayerAnimator {
             return;
         }
 
-        console.log(`🎭 Switching animation: ${this.currentAnimName || 'none'} → ${name}`);
+        console.log(`🎭 Switch: ${this.currentAnimName || 'none'} → ${name}`);
         
         const oldAction = this.currentAction;
         
