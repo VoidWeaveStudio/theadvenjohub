@@ -79,7 +79,6 @@ export class PlayerModel {
 
         this.updateHitFlash(playerModel, animData, deltaTime);
     }
-
     static updateTilt(playerModel: THREE.Group, cameraRotation: { x: number, y: number }) {
         playerModel.rotation.y = cameraRotation.y;
     }
