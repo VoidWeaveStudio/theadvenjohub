@@ -57,19 +57,23 @@ export class PlayerModel {
         if (animator) {
             animator.update(deltaTime);
 
+            let targetAnim = 'idle';
+
             if (animData.isDead) {
-                animator.play('death');
+                targetAnim = 'death';
             } else if (animData.isShooting) {
-                animator.play('shooting');
+                targetAnim = 'shooting';
             } else if (animData.isReloading) {
-                animator.play('reloading');
+                targetAnim = 'reloading';
             } else if (animData.isMoving) {
-                animator.play('running');
-            } else {
-                animator.play('idle');
+                targetAnim = 'running';
+            }
+
+            const currentAnim = animator.getCurrentAnimation();
+            if (currentAnim !== targetAnim) {
+                animator.play(targetAnim);
             }
         } else {
-            console.warn('⚠️ No animator found in animate()!');
             this.animateFallback(playerModel, animData, deltaTime);
         }
 
