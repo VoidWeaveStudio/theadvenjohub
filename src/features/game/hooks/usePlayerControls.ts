@@ -173,65 +173,66 @@ export function usePlayerControls({
     }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onChatToggle, isChatOpenRef]);
 
     const updateThirdPersonCamera = (deltaTime: number) => {
-    if (!cameraRef.current || !playerModelRef.current) return;
+        if (!cameraRef.current || !playerModelRef.current) return;
 
-    const player = playerModelRef.current;
-    const yaw = cameraYawRef.current;
-    const pitch = cameraPitchRef.current;
+        const player = playerModelRef.current;
+        const yaw = cameraYawRef.current;
+        const pitch = cameraPitchRef.current;
 
-    const focusDistance = 10; 
-    const focusPoint = new THREE.Vector3();
-    focusPoint.x = cameraRef.current.position.x - Math.sin(yaw) * Math.cos(pitch) * focusDistance;
-    focusPoint.y = cameraRef.current.position.y - Math.sin(pitch) * focusDistance;
-    focusPoint.z = cameraRef.current.position.z - Math.cos(yaw) * Math.cos(pitch) * focusDistance;
-
-    const offsetX = Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
-    const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
-    const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
-
-    let targetX = player.position.x + Math.cos(yaw) * FOCUS_POINT_OFFSET + offsetX;
-    let targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
-    let targetZ = player.position.z - Math.sin(yaw) * FOCUS_POINT_OFFSET + offsetZ;
-
-    const desiredPosition = new THREE.Vector3(targetX, targetY, targetZ);
-    const direction = desiredPosition.clone().sub(focusPoint).normalize();
-    const distance = focusPoint.distanceTo(desiredPosition);
-
-    let collisionDistance = distance;
-    const rayOrigin = focusPoint.clone();
-
-    const steps = 10;
-    for (let i = 1; i <= steps; i++) {
-        const t = i / steps;
-        const checkPos = rayOrigin.clone().add(direction.clone().multiplyScalar(distance * t));
-
-        const hasCollision = checkCollision(
-            checkPos.x,
-            checkPos.z,
-            collisionBoxes,
-            CAMERA_COLLISION_RADIUS
+        const focusPoint = new THREE.Vector3(
+            player.position.x,
+            player.position.y + CAMERA_HEIGHT_OFFSET,
+            player.position.z
         );
 
-        if (hasCollision) {
-            collisionDistance = distance * (t - 1 / steps) - CAMERA_COLLISION_RADIUS;
-            break;
+        const desiredPosition = new THREE.Vector3();
+        desiredPosition.x = player.position.x - Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
+        desiredPosition.y = player.position.y + CAMERA_HEIGHT_OFFSET - Math.sin(pitch) * CAMERA_DISTANCE;
+        desiredPosition.z = player.position.z - Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
+
+        desiredPosition.y = Math.max(desiredPosition.y, 0.5); // минимум 0.5 над землёй
+
+        const direction = desiredPosition.clone().sub(focusPoint).normalize();
+        const distance = focusPoint.distanceTo(desiredPosition);
+
+        let finalPosition = desiredPosition.clone();
+        let collisionDetected = false;
+
+        const steps = 15;
+        for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            const checkPos = focusPoint.clone().add(direction.clone().multiplyScalar(distance * t));
+
+            const hasCollision = checkCollision(
+                checkPos.x,
+                checkPos.z,
+                collisionBoxes,
+                CAMERA_COLLISION_RADIUS
+            );
+
+            if (hasCollision) {
+                const safeT = Math.max(0, (i - 1.5) / steps);
+                finalPosition.copy(focusPoint).add(direction.clone().multiplyScalar(distance * safeT));
+                collisionDetected = true;
+                break;
+            }
         }
-    }
 
-    if (collisionDistance < distance) {
-        targetX = focusPoint.x + direction.x * collisionDistance;
-        targetY = focusPoint.y + direction.y * collisionDistance;
-        targetZ = focusPoint.z + direction.z * collisionDistance;
-    }
+        if (collisionDetected && distance * 0.1 < CAMERA_COLLISION_RADIUS) {
+            finalPosition.set(
+                player.position.x,
+                player.position.y + CAMERA_HEIGHT_OFFSET + 1.0,
+                player.position.z
+            );
+            cameraRef.current.position.copy(finalPosition);
+            cameraRef.current.lookAt(focusPoint);
+            return;
+        }
 
-    const lerpFactor = 1 - Math.exp(-12 * deltaTime);
-    cameraRef.current.position.lerp(
-        new THREE.Vector3(targetX, targetY, targetZ),
-        lerpFactor
-    );
-
-    cameraRef.current.lookAt(focusPoint);
-};
+        const lerpFactor = 1 - Math.exp(-12 * deltaTime);
+        cameraRef.current.position.lerp(finalPosition, lerpFactor);
+        cameraRef.current.lookAt(focusPoint);
+    };
 
     const updateMovement = (deltaTime: number) => {
         if (!cameraRef.current || !playerModelRef.current) return;
