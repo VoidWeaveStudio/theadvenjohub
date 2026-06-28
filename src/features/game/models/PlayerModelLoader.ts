@@ -2,7 +2,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export class PlayerModelLoader {
     private static loader = new GLTFLoader();
@@ -26,13 +25,22 @@ export class PlayerModelLoader {
                 const size = box.getSize(new THREE.Vector3());
                 console.log(`📏 GLB model size AFTER scaling: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
                 
+                let boneCount = 0;
                 character.traverse((child: THREE.Object3D) => {
+                    if (child instanceof THREE.Bone) {
+                        boneCount++;
+                    }
                     if (child instanceof THREE.SkinnedMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
                     }
                 });
-
+                console.log(`🦴 Original model has ${boneCount} bones`);
+                
+                if (boneCount === 0) {
+                    console.warn('⚠️ Original model has NO bones! Animations will not work!');
+                }
+                
                 this.modelCache = character;
                 console.log('✅ Character loaded and scaled');
 
@@ -97,7 +105,22 @@ export class PlayerModelLoader {
         }
         
         try {
-            const clone = cloneSkeleton(this.modelCache) as THREE.Group;
+            const clone = this.modelCache.clone(true) as THREE.Group;
+            
+            let boneCount = 0;
+            clone.traverse((child) => {
+                if (child instanceof THREE.Bone) {
+                    boneCount++;
+                }
+            });
+            
+            console.log(`📦 Clone created with ${boneCount} bones`);
+            
+            if (boneCount === 0) {
+                console.error('❌ Clone has NO bones! Something is wrong with the model!');
+                return null;
+            }
+            
             return clone;
         } catch (err) {
             console.error('❌ Failed to clone model:', err);

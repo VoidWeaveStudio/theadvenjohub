@@ -27,6 +27,11 @@ export class PlayerAnimator {
         });
         
         console.log(`🎬 Animator: root="${this.rootBoneName}", bones=${this.boneNames.size}`);
+        
+        if (this.boneNames.size === 0) {
+            console.error('❌ Model has NO bones! Animations will not work!');
+            return;
+        }
 
         const animations = PlayerModelLoader.getAllAnimations();
         console.log(`🎬 Loading ${Object.keys(animations).length} animations`);
@@ -101,7 +106,7 @@ export class PlayerAnimator {
                 clip.tracks = clip.tracks.map(track => {
                     const trackParts = track.name.split('.');
                     if (trackParts.length >= 3 && !this.boneNames.has(trackParts[0])) {
-                        trackParts.shift(); 
+                        trackParts.shift();
                     }
                     track.name = trackParts.join('.');
                     return track;

@@ -175,8 +175,8 @@ function createAtmosphericEnvironment(scene: THREE.Scene): {
         metalness: 0.6,
         roughness: 0.4,
         flatShading: true,
-        polygonOffset: true,          
-        polygonOffsetFactor: -1,     
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
         polygonOffsetUnits: -1
     });
     const platform = new THREE.Mesh(platformGeometry, platformMaterial);
@@ -396,7 +396,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     const portalPositionRef = useRef(new THREE.Vector3(0, 3, -15));
     const lastMoveTimeRef = useRef(0);
     const lastSentPosRef = useRef<THREE.Vector3 | null>(null);
-    const clockRef = useRef(new THREE.Clock());
+    const timerRef = useRef(new THREE.Timer());
     const frameCountRef = useRef(0);
 
 
@@ -891,8 +891,9 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
 
             if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
 
-            const deltaTime = Math.min(clockRef.current.getDelta(), 0.1);
-            const elapsedTime = clockRef.current.getElapsedTime();
+            timerRef.current.update();
+            const deltaTime = Math.min(timerRef.current.getDelta(), 0.1);
+            const elapsedTime = timerRef.current.getElapsed();
             frameCountRef.current++;
             const frame = frameCountRef.current;
 
