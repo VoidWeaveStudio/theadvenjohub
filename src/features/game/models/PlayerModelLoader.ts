@@ -9,6 +9,8 @@ export class PlayerModelLoader {
     private static modelCache: THREE.Group | null = null;
     private static animationCache: Map<string, THREE.AnimationClip> = new Map();
     private static loadPromise: Promise<void> | null = null;
+    
+    private static groundOffset: number = 0;
 
     static async preload(): Promise<void> {
         if (this.loadPromise) return this.loadPromise;
@@ -32,7 +34,10 @@ export class PlayerModelLoader {
                 const finalSize = finalBox.getSize(new THREE.Vector3());
                 console.log(`📏 Final size: ${finalSize.x.toFixed(2)} x ${finalSize.y.toFixed(2)} x ${finalSize.z.toFixed(2)}`);
                 
-                character.position.y = -finalBox.min.y;
+                this.groundOffset = -finalBox.min.y;
+                console.log(`📍 Ground offset: ${this.groundOffset.toFixed(3)}`);
+                
+                character.position.y = 0;
                 
                 let boneCount = 0;
                 character.traverse((child: THREE.Object3D) => {
@@ -114,6 +119,10 @@ export class PlayerModelLoader {
             console.error('❌ Failed to clone model:', err);
             return null;
         }
+    }
+
+    static getGroundOffset(): number {
+        return this.groundOffset;
     }
 
     static getAllAnimations(): Record<string, THREE.AnimationClip> {

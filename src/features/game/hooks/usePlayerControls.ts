@@ -179,31 +179,27 @@ export function usePlayerControls({
         const yaw = cameraYawRef.current;
         const pitch = cameraPitchRef.current;
 
-        const focusDistance = 10;
-        const focusPoint = new THREE.Vector3();
-        focusPoint.x = cameraRef.current.position.x - Math.sin(yaw) * Math.cos(pitch) * focusDistance;
-        focusPoint.y = cameraRef.current.position.y - Math.sin(pitch) * focusDistance;
-        focusPoint.z = cameraRef.current.position.z - Math.cos(yaw) * Math.cos(pitch) * focusDistance;
+        const focusPoint = new THREE.Vector3(
+            player.position.x - Math.sin(yaw) * FOCUS_POINT_OFFSET,
+            player.position.y + CAMERA_HEIGHT_OFFSET,
+            player.position.z - Math.cos(yaw) * FOCUS_POINT_OFFSET
+        );
 
-        const offsetX = Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
-        const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
-        const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
+        const desiredPosition = new THREE.Vector3(
+            player.position.x + Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE,
+            player.position.y + CAMERA_HEIGHT_OFFSET + Math.sin(pitch) * CAMERA_DISTANCE,
+            player.position.z + Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE
+        );
 
-        let targetX = player.position.x + Math.cos(yaw) * FOCUS_POINT_OFFSET + offsetX;
-        let targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
-        let targetZ = player.position.z - Math.sin(yaw) * FOCUS_POINT_OFFSET + offsetZ;
-
-        const desiredPosition = new THREE.Vector3(targetX, targetY, targetZ);
         const direction = desiredPosition.clone().sub(focusPoint).normalize();
         const distance = focusPoint.distanceTo(desiredPosition);
 
         let collisionDistance = distance;
-        const rayOrigin = focusPoint.clone();
+        const steps = 20;
 
-        const steps = 10;
         for (let i = 1; i <= steps; i++) {
             const t = i / steps;
-            const checkPos = rayOrigin.clone().add(direction.clone().multiplyScalar(distance * t));
+            const checkPos = focusPoint.clone().add(direction.clone().multiplyScalar(distance * t));
 
             const hasCollision = checkCollision(
                 checkPos.x,
@@ -213,15 +209,26 @@ export function usePlayerControls({
             );
 
             if (hasCollision) {
-                collisionDistance = distance * (t - 1 / steps) - CAMERA_COLLISION_RADIUS;
+                collisionDistance = Math.max(0.1, distance * (t - 1 / steps) - CAMERA_COLLISION_RADIUS);
                 break;
             }
         }
 
-        if (collisionDistance < distance) {
+        let targetX, targetY, targetZ;
+
+        if (collisionDistance < distance - 0.1) {
             targetX = focusPoint.x + direction.x * collisionDistance;
             targetY = focusPoint.y + direction.y * collisionDistance;
             targetZ = focusPoint.z + direction.z * collisionDistance;
+        } else {
+            targetX = desiredPosition.x;
+            targetY = desiredPosition.y;
+            targetZ = desiredPosition.z;
+        }
+
+        const MIN_CAMERA_HEIGHT = 0.5;
+        if (targetY < MIN_CAMERA_HEIGHT) {
+            targetY = MIN_CAMERA_HEIGHT;
         }
 
         const lerpFactor = 1 - Math.exp(-12 * deltaTime);

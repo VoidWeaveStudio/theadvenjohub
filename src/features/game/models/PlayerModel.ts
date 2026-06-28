@@ -30,8 +30,12 @@ export class PlayerModel {
         }
 
         group.userData.playerId = player.id;
-        group.position.set(player.position.x, 0, player.position.z);
+        
+        const groundOffset = PlayerModelLoader.getGroundOffset();
+        group.position.set(player.position.x, groundOffset, player.position.z);
         group.rotation.set(0, player.rotation.y, 0);
+        
+        console.log(`🎯 Player model created at (${player.position.x.toFixed(2)}, ${groundOffset.toFixed(2)}, ${player.position.z.toFixed(2)})`);
 
         scene.add(group);
         return group;
