@@ -247,7 +247,6 @@ export function usePlayerControls({
         const player = playerModelRef.current;
 
         if (!isOnGroundRef.current) {
-            // v = v0 + a*t
             velocityYRef.current += GRAVITY * deltaTime;
             player.position.y += velocityYRef.current * deltaTime;
 
