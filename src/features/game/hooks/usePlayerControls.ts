@@ -27,12 +27,11 @@ interface UsePlayerControlsProps {
 
 const CAMERA_DISTANCE = 5;
 const CAMERA_HEIGHT_OFFSET = 1.8;
-const CAMERA_MIN_PHI = 0.1;
-const CAMERA_MAX_PHI = 1.4;
+const CAMERA_MIN_PHI = -1.2; 
+const CAMERA_MAX_PHI = 1.2;  
 const MOUSE_SENSITIVITY = 0.003;
 const MOVE_SPEED = 0.12;
 const ROTATION_LERP = 0.15;
-const SHOULDER_OFFSET = 0.8;
 
 export function usePlayerControls({
     containerRef,
@@ -62,7 +61,8 @@ export function usePlayerControls({
     const lastSentPosRef = useRef<THREE.Vector3 | null>(null);
 
     const cameraYawRef = useRef(0);
-    const cameraPitchRef = useRef(0.4);
+    const cameraPitchRef = useRef(0.0);
+    const targetYawRef = useRef(0);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -141,13 +141,9 @@ export function usePlayerControls({
             if (isChatOpenRef?.current) return;
             if (!isLockedRef.current) return;
 
-            // Горизонтальное вращение (yaw)
             cameraYawRef.current += e.movementX * MOUSE_SENSITIVITY;
             
-            // Вертикальное вращение (pitch) - ИНВЕРСИЯ для правильного движения вверх/вниз
             cameraPitchRef.current -= e.movementY * MOUSE_SENSITIVITY;
-            
-            // Ограничение вертикального угла
             cameraPitchRef.current = Math.max(
                 CAMERA_MIN_PHI,
                 Math.min(CAMERA_MAX_PHI, cameraPitchRef.current)
@@ -171,13 +167,42 @@ export function usePlayerControls({
         };
     }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onChatToggle, isChatOpenRef]);
 
+    const updateThirdPersonCamera = (deltaTime: number) => {
+        if (!cameraRef.current || !playerModelRef.current) return;
+
+        const player = playerModelRef.current;
+        const yaw = cameraYawRef.current;
+        const pitch = cameraPitchRef.current;
+
+        const boomPitch = 0.2; 
+
+        const offsetX = Math.sin(yaw) * Math.cos(boomPitch) * CAMERA_DISTANCE;
+        const offsetY = Math.sin(boomPitch) * CAMERA_DISTANCE;
+        const offsetZ = Math.cos(yaw) * Math.cos(boomPitch) * CAMERA_DISTANCE;
+
+        const shoulderOffsetX = Math.cos(yaw) * 0.8;
+        const shoulderOffsetZ = -Math.sin(yaw) * 0.8;
+
+        const targetX = player.position.x + offsetX + shoulderOffsetX;
+        const targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
+        const targetZ = player.position.z + offsetZ + shoulderOffsetZ;
+
+        const lerpFactor = 1 - Math.exp(-10 * deltaTime);
+        cameraRef.current.position.lerp(
+            new THREE.Vector3(targetX, targetY, targetZ),
+            lerpFactor
+        );
+
+        const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+        cameraRef.current.quaternion.setFromEuler(euler);
+    };
+
     const updateMovement = (deltaTime: number) => {
         if (!cameraRef.current || !playerModelRef.current) return;
         if (isChatOpenRef?.current) return;
 
         const player = playerModelRef.current;
 
-        // Гравитация
         if (!isOnGroundRef.current) {
             velocityYRef.current += GRAVITY;
             player.position.y += velocityYRef.current;
@@ -189,53 +214,35 @@ export function usePlayerControls({
             }
         }
 
-        const yaw = cameraYawRef.current;
-
-        // Вектор "вперед" от камеры к игроку (направление взгляда камеры)
-        const forwardX = -Math.sin(yaw);
-        const forwardZ = -Math.cos(yaw);
-
-        // Вектор "вправо" от камеры
-        const rightX = Math.cos(yaw);
-        const rightZ = -Math.sin(yaw);
-
-        // Направление движения относительно камеры
         const moveDirection = new THREE.Vector3();
-        
-        if (keysRef.current.has('KeyW')) {
-            moveDirection.x += forwardX;
-            moveDirection.z += forwardZ;
-        }
-        if (keysRef.current.has('KeyS')) {
-            moveDirection.x -= forwardX;
-            moveDirection.z -= forwardZ;
-        }
-        if (keysRef.current.has('KeyA')) {
-            moveDirection.x -= rightX;
-            moveDirection.z -= rightZ;
-        }
-        if (keysRef.current.has('KeyD')) {
-            moveDirection.x += rightX;
-            moveDirection.z += rightZ;
-        }
+
+        if (keysRef.current.has('KeyW')) moveDirection.z -= 1;
+        if (keysRef.current.has('KeyS')) moveDirection.z += 1;
+        if (keysRef.current.has('KeyA')) moveDirection.x -= 1;
+        if (keysRef.current.has('KeyD')) moveDirection.x += 1;
 
         const isMoving = moveDirection.length() > 0;
 
         if (isMoving && gameStatusRef.current === 'playing') {
             moveDirection.normalize();
 
-            const newX = player.position.x + moveDirection.x * MOVE_SPEED;
-            const newZ = player.position.z + moveDirection.z * MOVE_SPEED;
+            const yaw = cameraYawRef.current;
+            const sin = Math.sin(yaw);
+            const cos = Math.cos(yaw);
 
-            // Проверка коллизий
+            const worldDirX = moveDirection.x * cos + moveDirection.z * sin;
+            const worldDirZ = -moveDirection.x * sin + moveDirection.z * cos;
+
+            const newX = player.position.x + worldDirX * MOVE_SPEED;
+            const newZ = player.position.z + worldDirZ * MOVE_SPEED;
+
             const collisionX = checkCollision(newX, player.position.z, collisionBoxes, PLAYER_RADIUS);
             const collisionZ = checkCollision(player.position.x, newZ, collisionBoxes, PLAYER_RADIUS);
 
             if (!collisionX) player.position.x = newX;
             if (!collisionZ) player.position.z = newZ;
 
-            // Поворот модели в направлении движения
-            const targetRotation = Math.atan2(moveDirection.x, moveDirection.z);
+            const targetRotation = cameraYawRef.current;
             let currentRotation = player.rotation.y;
 
             let diff = targetRotation - currentRotation;
@@ -244,14 +251,12 @@ export function usePlayerControls({
 
             player.rotation.y += diff * ROTATION_LERP;
 
-            // Звуки шагов
             footstepTimerRef.current += deltaTime;
             if (footstepTimerRef.current > 0.35 && isOnGroundRef.current) {
                 soundManagerRef.current?.playFootstep();
                 footstepTimerRef.current = 0;
             }
 
-            // Отправка позиции на сервер
             const now = Date.now();
             const currentPos = player.position;
             const lastSent = lastSentPosRef.current;
@@ -270,8 +275,7 @@ export function usePlayerControls({
                 inputHistoryRef.current.addInput(moveDirection, false);
             }
         } else {
-            // Поворот модели в направлении камеры (даже без движения)
-            const targetRotation = Math.atan2(forwardX, forwardZ);
+            const targetRotation = cameraYawRef.current;
             let currentRotation = player.rotation.y;
 
             let diff = targetRotation - currentRotation;
@@ -283,46 +287,7 @@ export function usePlayerControls({
             }
         }
 
-        updateThirdPersonCamera();
-    };
-
-    const updateThirdPersonCamera = () => {
-        if (!cameraRef.current || !playerModelRef.current) return;
-
-        const player = playerModelRef.current;
-        const yaw = cameraYawRef.current;
-        const pitch = cameraPitchRef.current;
-
-        // Сферические координаты для позиции камеры
-        const offsetX = Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
-        const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
-        const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
-
-        // Камера СЗАДИ игрока (сложение offset, а не вычитание)
-        let targetX = player.position.x + offsetX;
-        let targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
-        let targetZ = player.position.z + offsetZ;
-
-        // Смещение за ПРАВОЕ плечо (относительно направления камеры)
-        const rightX = Math.cos(yaw);
-        const rightZ = -Math.sin(yaw);
-        
-        targetX += rightX * SHOULDER_OFFSET;
-        targetZ += rightZ * SHOULDER_OFFSET;
-
-        // Плавное движение камеры
-        cameraRef.current.position.lerp(
-            new THREE.Vector3(targetX, targetY, targetZ),
-            0.2
-        );
-
-        // Камера смотрит на игрока
-        const lookTarget = new THREE.Vector3(
-            player.position.x,
-            player.position.y + CAMERA_HEIGHT_OFFSET,
-            player.position.z
-        );
-        cameraRef.current.lookAt(lookTarget);
+        updateThirdPersonCamera(deltaTime);
     };
 
     return {
