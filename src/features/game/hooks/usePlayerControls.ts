@@ -176,22 +176,22 @@ export function usePlayerControls({
         if (!cameraRef.current || !playerModelRef.current) return;
 
         const player = playerModelRef.current;
-        const yaw = player.rotation.y;
+        const yaw = cameraYawRef.current;
         const pitch = cameraPitchRef.current;
 
-        const focusPoint = new THREE.Vector3(
-            player.position.x + Math.cos(yaw) * FOCUS_POINT_OFFSET,
-            player.position.y + CAMERA_HEIGHT_OFFSET,
-            player.position.z - Math.sin(yaw) * FOCUS_POINT_OFFSET
-        );
+        const focusDistance = 10;
+        const focusPoint = new THREE.Vector3();
+        focusPoint.x = cameraRef.current.position.x - Math.sin(yaw) * Math.cos(pitch) * focusDistance;
+        focusPoint.y = cameraRef.current.position.y - Math.sin(pitch) * focusDistance;
+        focusPoint.z = cameraRef.current.position.z - Math.cos(yaw) * Math.cos(pitch) * focusDistance;
 
         const offsetX = Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
         const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
         const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
 
-        let targetX = focusPoint.x + offsetX;
-        let targetY = focusPoint.y + offsetY;
-        let targetZ = focusPoint.z + offsetZ;
+        let targetX = player.position.x + Math.cos(yaw) * FOCUS_POINT_OFFSET + offsetX;
+        let targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
+        let targetZ = player.position.z - Math.sin(yaw) * FOCUS_POINT_OFFSET + offsetZ;
 
         const desiredPosition = new THREE.Vector3(targetX, targetY, targetZ);
         const direction = desiredPosition.clone().sub(focusPoint).normalize();
