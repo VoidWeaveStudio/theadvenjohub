@@ -15,15 +15,15 @@ interface ChatMessage {
 
 interface TextChatProps {
   socket: Socket | null;
-  roomId: string | null;
+  channelId: string | null;
   myUsername: string;
   myTeam?: number;
-  mode: '5v5' | 'ffa';
-  isOpen: boolean;                
-  onToggle: (open: boolean) => void;   
+  mode: '5v5' | 'ffa' | 'lobby';
+  isOpen: boolean;
+  onToggle: (open: boolean) => void;
 }
 
-export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onToggle }: TextChatProps) {
+export function TextChat({ socket, channelId, myUsername, myTeam, mode, isOpen, onToggle }: TextChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTeamChat, setIsTeamChat] = useState(false);
@@ -31,7 +31,7 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onT
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!socket || !roomId) return;
+    if (!socket || !channelId) return;
 
     const handleChatMessage = (data: ChatMessage) => {
       setMessages(prev => [...prev.slice(-50), data]);
@@ -42,7 +42,7 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onT
     return () => {
       socket.off('chatMessage', handleChatMessage);
     };
-  }, [socket, roomId]);
+  }, [socket, channelId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -57,10 +57,10 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onT
   }, [isOpen]);
 
   const sendMessage = () => {
-    if (!inputMessage.trim() || !socket || !roomId) return;
+    if (!inputMessage.trim() || !socket || !channelId) return;
 
     socket.emit('chatMessage', {
-      roomId,
+      channelId,
       message: inputMessage.trim(),
       username: myUsername,
       team: myTeam,
@@ -68,7 +68,7 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onT
     });
 
     setInputMessage('');
-    onToggle(false); 
+    onToggle(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -77,13 +77,14 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onT
       sendMessage();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      onToggle(false); 
+      onToggle(false);
     }
   };
 
   return (
     <>
-      <div className="absolute bottom-32 left-8 w-96 max-w-[400px] pointer-events-none">
+      {/* Превью сообщений */}
+      <div className="absolute bottom-32 left-8 w-96 max-w-[400px] pointer-events-none z-30">
         <div className="space-y-1 max-h-64 overflow-hidden">
           {messages.slice(-8).map((msg) => (
             <div 
@@ -109,6 +110,7 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onT
         </div>
       </div>
 
+      {/* Окно ввода */}
       {isOpen && (
         <div className="absolute bottom-8 left-8 w-[500px] max-w-[90vw] pointer-events-auto z-50">
           <div className="bg-black/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 overflow-hidden">
@@ -116,8 +118,9 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onT
               <div className="flex items-center gap-3">
                 <span className="text-white font-bold text-sm flex items-center gap-2">
                   <span>💬</span>
-                  <span>Chat</span>
+                  <span>{mode === 'lobby' ? 'Lobby Chat' : 'Chat'}</span>
                 </span>
+                {/* ✅ Показываем кнопку Team/All только в игре 5v5 */}
                 {mode === '5v5' && (
                   <button
                     onClick={() => setIsTeamChat(!isTeamChat)}
@@ -143,7 +146,13 @@ export function TextChat({ socket, roomId, myUsername, myTeam, mode, isOpen, onT
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={isTeamChat && mode === '5v5' ? 'Message to team...' : 'Message to all...'}
+                placeholder={
+                  mode === 'lobby' 
+                    ? 'Message to lobby...' 
+                    : isTeamChat && mode === '5v5' 
+                      ? 'Message to team...' 
+                      : 'Message to all...'
+                }
                 className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
                 maxLength={200}
                 autoComplete="off"

@@ -6,12 +6,12 @@ import { Socket } from 'socket.io-client';
 
 interface VoiceChatProps {
   socket: Socket | null;
-  roomId: string | null;
+  channelId: string | null; 
   myUsername: string;
   isChatOpenRef?: React.MutableRefObject<boolean>;
 }
 
-export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceChatProps) {
+export function VoiceChat({ socket, channelId, myUsername, isChatOpenRef }: VoiceChatProps) {
   const [isTalking, setIsTalking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [talkingPlayers, setTalkingPlayers] = useState<Set<string>>(new Set());
@@ -30,7 +30,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
   }, []);
 
   useEffect(() => {
-    if (!socket || !roomId) return;
+    if (!socket || !channelId) return;
 
     const handleVoiceSignal = async (data: any) => {
       const { type, senderId, description, candidate } = data;
@@ -48,14 +48,10 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
           });
         } else if (type === 'answer') {
           const pc = peerConnectionsRef.current.get(senderId);
-          if (pc) {
-            await pc.setRemoteDescription(new RTCSessionDescription(description));
-          }
+          if (pc) await pc.setRemoteDescription(new RTCSessionDescription(description));
         } else if (type === 'candidate') {
           const pc = peerConnectionsRef.current.get(senderId);
-          if (pc) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          }
+          if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate));
         }
       } catch (err) {
         console.error('Voice signal error:', err);
@@ -65,11 +61,8 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
     const handlePlayerTalking = (data: { playerId: string; isTalking: boolean }) => {
       setTalkingPlayers(prev => {
         const next = new Set(prev);
-        if (data.isTalking) {
-          next.add(data.playerId);
-        } else {
-          next.delete(data.playerId);
-        }
+        if (data.isTalking) next.add(data.playerId);
+        else next.delete(data.playerId);
         return next;
       });
     };
@@ -81,7 +74,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
       socket.off('voiceSignal', handleVoiceSignal);
       socket.off('playerTalking', handlePlayerTalking);
     };
-  }, [socket, roomId]);
+  }, [socket, channelId]);
 
   const createPeerConnection = (peerId: string) => {
     const pc = new RTCPeerConnection({
@@ -116,7 +109,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
   };
 
   const startTalking = async () => {
-    if (isTalkingRef.current || isMuted || isChatOpenRef?.current) return;
+    if (isTalkingRef.current || isMuted || isChatOpenRef?.current || !channelId) return;
 
     try {
       if (!localStreamRef.current) {
@@ -137,7 +130,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
 
       isTalkingRef.current = true;
       setIsTalking(true);
-      socket?.emit('startVoiceChat', { roomId });
+      socket?.emit('startVoiceChat', { channelId });
     } catch (err) {
       console.error('Failed to start talking:', err);
       setHasPermission(false);
@@ -155,15 +148,13 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
 
     isTalkingRef.current = false;
     setIsTalking(false);
-    socket?.emit('stopVoiceChat', { roomId });
+    socket?.emit('stopVoiceChat', { channelId });
   };
 
   const toggleMute = () => {
     const newMuted = !isMuted;
     setIsMuted(newMuted);
-    if (isTalkingRef.current && newMuted) {
-      stopTalking();
-    }
+    if (isTalkingRef.current && newMuted) stopTalking();
   };
 
   useEffect(() => {
@@ -188,7 +179,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isMuted, isChatOpenRef]);
+  }, [isMuted, isChatOpenRef, channelId]);
 
   useEffect(() => {
     return () => {
@@ -204,7 +195,7 @@ export function VoiceChat({ socket, roomId, myUsername, isChatOpenRef }: VoiceCh
   }, []);
 
   return (
-    <div className="absolute bottom-32 left-8 bg-black/80 backdrop-blur-md px-4 py-3 rounded-xl shadow-2xl border border-white/10">
+    <div className="absolute bottom-32 left-8 bg-black/80 backdrop-blur-md px-4 py-3 rounded-xl shadow-2xl border border-white/10 z-30">
       <div className="flex items-center gap-3">
         <div className={`w-3 h-3 rounded-full ${
           isTalking ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500/50' : 

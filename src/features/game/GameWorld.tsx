@@ -334,7 +334,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
         if (targetId === socket?.id && cameraRef.current) {
             const angle = Math.random() * 360;
-            
+
             setDamageIndicators(prev => [...prev, {
                 id: `dmg_${Date.now()}_${Math.random()}`,
                 angle,
@@ -360,7 +360,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
         const killer = hudPlayers.find(p => p.id === socket?.id);
         const victim = hudPlayers.find(p => p.id === victimId);
-        
+
         if (killer && victim) {
             setKillFeed(prev => [...prev, {
                 id: `kill_${Date.now()}_${Math.random()}`,
@@ -666,14 +666,14 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
             <VoiceChat
                 socket={socket}
-                roomId={roomId}
+                channelId={roomId}
                 myUsername={myUsername}
                 isChatOpenRef={isChatOpenRef}
             />
 
             <TextChat
                 socket={socket}
-                roomId={roomId}
+                channelId={roomId}
                 myUsername={myUsername}
                 myTeam={myTeam}
                 mode={mode}
