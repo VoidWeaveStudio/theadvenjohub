@@ -25,10 +25,10 @@ interface UsePlayerControlsProps {
     inputHistoryRef?: React.MutableRefObject<InputHistory | null>;
 }
 
-const CAMERA_DISTANCE = 4.5;
-const CAMERA_HEIGHT_OFFSET = 1.6;
-const CAMERA_MIN_PHI = 0.3;
-const CAMERA_MAX_PHI = 1.4;
+const CAMERA_DISTANCE = 5;
+const CAMERA_HEIGHT_OFFSET = 1.8;
+const CAMERA_MIN_PHI = 0.2;
+const CAMERA_MAX_PHI = 1.5;
 const MOUSE_SENSITIVITY = 0.003;
 const MOVE_SPEED = 0.12;
 const ROTATION_LERP = 0.15;
@@ -141,8 +141,8 @@ export function usePlayerControls({
             if (isChatOpenRef?.current) return;
             if (!isLockedRef.current) return;
 
-            cameraYawRef.current -= e.movementX * MOUSE_SENSITIVITY;
-            cameraPitchRef.current -= e.movementY * MOUSE_SENSITIVITY;
+            cameraYawRef.current += e.movementX * MOUSE_SENSITIVITY;
+            cameraPitchRef.current += e.movementY * MOUSE_SENSITIVITY;
             cameraPitchRef.current = Math.max(
                 CAMERA_MIN_PHI,
                 Math.min(CAMERA_MAX_PHI, cameraPitchRef.current)
@@ -211,7 +211,7 @@ export function usePlayerControls({
             if (!collisionX) player.position.x = newX;
             if (!collisionZ) player.position.z = newZ;
 
-            const targetRotation = Math.atan2(worldDirX, worldDirZ);
+            const targetRotation = -cameraYawRef.current;
             let currentRotation = player.rotation.y;
 
             let diff = targetRotation - currentRotation;
@@ -244,7 +244,7 @@ export function usePlayerControls({
                 inputHistoryRef.current.addInput(moveDirection, false);
             }
         } else {
-            const targetRotation = cameraYawRef.current;
+            const targetRotation = -cameraYawRef.current;
             let currentRotation = player.rotation.y;
 
             let diff = targetRotation - currentRotation;
@@ -270,9 +270,9 @@ export function usePlayerControls({
         const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
         const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
 
-        const targetX = player.position.x - offsetX;
+        const targetX = player.position.x - offsetX + Math.cos(yaw) * 0.8;
         const targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
-        const targetZ = player.position.z - offsetZ;
+        const targetZ = player.position.z - offsetZ + Math.sin(yaw) * 0.8;
 
         cameraRef.current.position.lerp(
             new THREE.Vector3(targetX, targetY, targetZ),
