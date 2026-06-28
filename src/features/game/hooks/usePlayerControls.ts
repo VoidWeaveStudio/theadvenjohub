@@ -25,10 +25,10 @@ interface UsePlayerControlsProps {
     inputHistoryRef?: React.MutableRefObject<InputHistory | null>;
 }
 
-const CAMERA_DISTANCE = 5;
-const CAMERA_HEIGHT_OFFSET = 1.8;
-const CAMERA_MIN_PHI = -1.2; 
-const CAMERA_MAX_PHI = 1.2;  
+const CAMERA_DISTANCE = 2.5;
+const CAMERA_HEIGHT_OFFSET = 0.9;
+const CAMERA_MIN_PHI = -1.2;
+const CAMERA_MAX_PHI = 1.2;
 const MOUSE_SENSITIVITY = 0.003;
 const MOVE_SPEED = 0.12;
 const ROTATION_LERP = 0.15;
@@ -141,7 +141,7 @@ export function usePlayerControls({
             if (isChatOpenRef?.current) return;
             if (!isLockedRef.current) return;
 
-            cameraYawRef.current += e.movementX * MOUSE_SENSITIVITY;
+            cameraYawRef.current -= e.movementX * MOUSE_SENSITIVITY;
             
             cameraPitchRef.current -= e.movementY * MOUSE_SENSITIVITY;
             cameraPitchRef.current = Math.max(
@@ -174,9 +174,9 @@ export function usePlayerControls({
         const yaw = cameraYawRef.current;
         const pitch = cameraPitchRef.current;
 
-        const boomPitch = 0.2; 
+        const boomPitch = 0.2;
 
-        const offsetX = Math.sin(yaw) * Math.cos(boomPitch) * CAMERA_DISTANCE;
+        const offsetX = -Math.sin(yaw) * Math.cos(boomPitch) * CAMERA_DISTANCE;
         const offsetY = Math.sin(boomPitch) * CAMERA_DISTANCE;
         const offsetZ = Math.cos(yaw) * Math.cos(boomPitch) * CAMERA_DISTANCE;
 
