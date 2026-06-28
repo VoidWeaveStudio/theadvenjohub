@@ -14,28 +14,18 @@ export class PlayerModel {
     ): THREE.Group {
         let group: THREE.Group;
 
-        console.log(`🎮 Creating model for ${player.username}, isLoaded: ${PlayerModelLoader.isLoaded()}`);
-
         if (PlayerModelLoader.isLoaded()) {
             const clonedModel = PlayerModelLoader.getModelClone();
-            console.log(`📦 Clone result:`, clonedModel ? 'SUCCESS' : 'FAILED');
-
             if (clonedModel) {
                 group = clonedModel;
-
                 const teamColor = this.getTeamColor(player, index, mode);
                 this.addTeamIndicator(group, teamColor);
-
                 const animator = new PlayerAnimator(group);
                 group.userData.animator = animator;
-
-                console.log(`✅ FBX model created for ${player.username}`);
             } else {
-                console.warn(`⚠️ Clone failed, using fallback for ${player.username}`);
                 group = this.createFallbackModel(player, index, mode);
             }
         } else {
-            console.warn(`⚠️ Model not loaded yet, using fallback for ${player.username}`);
             group = this.createFallbackModel(player, index, mode);
         }
 
@@ -58,27 +48,20 @@ export class PlayerModel {
             animator.update(deltaTime);
 
             let targetAnim = 'idle';
-
-            if (animData.isDead) {
-                targetAnim = 'death';
-            } else if (animData.isShooting) {
-                targetAnim = 'shooting';
-            } else if (animData.isReloading) {
-                targetAnim = 'reloading';
-            } else if (animData.isMoving) {
-                targetAnim = 'running';
-            }
+            if (animData.isDead) targetAnim = 'death';
+            else if (animData.isShooting) targetAnim = 'shooting';
+            else if (animData.isReloading) targetAnim = 'reloading';
+            else if (animData.isMoving) targetAnim = 'running';
 
             const currentAnim = animator.getCurrentAnimation();
-            if (currentAnim !== targetAnim) {
-                animator.play(targetAnim);
-            }
+            if (currentAnim !== targetAnim) animator.play(targetAnim);
         } else {
             this.animateFallback(playerModel, animData, deltaTime);
         }
 
         this.updateHitFlash(playerModel, animData, deltaTime);
     }
+
     static updateTilt(playerModel: THREE.Group, cameraRotation: { x: number, y: number }) {
         playerModel.rotation.y = cameraRotation.y;
     }
@@ -87,10 +70,7 @@ export class PlayerModel {
         const indicator = new THREE.Mesh(
             new THREE.RingGeometry(0.4, 0.55, 32),
             new THREE.MeshBasicMaterial({
-                color,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.8
+                color, side: THREE.DoubleSide, transparent: true, opacity: 0.8
             })
         );
         indicator.rotation.x = -Math.PI / 2;
@@ -105,9 +85,7 @@ export class PlayerModel {
     }
 
     private static createFallbackModel(
-        player: Player,
-        index: number,
-        mode: '5v5' | 'ffa'
+        player: Player, index: number, mode: '5v5' | 'ffa'
     ): THREE.Group {
         const group = new THREE.Group();
         const bodyColor = this.getTeamColor(player, index, mode);

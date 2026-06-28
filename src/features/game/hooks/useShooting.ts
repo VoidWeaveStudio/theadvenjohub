@@ -11,6 +11,7 @@ import { PlayerAnimationData } from '../types';
 interface UseShootingProps {
     socket: Socket | null;
     cameraRef: React.MutableRefObject<THREE.PerspectiveCamera | null>;
+    playerModelRef: React.MutableRefObject<THREE.Group | null>;  // ✅ Добавлено
     bulletPoolRef: React.MutableRefObject<BulletPool | null>;
     soundManagerRef: React.MutableRefObject<SoundManager | null>;
     gameStatusRef: React.MutableRefObject<'waiting' | 'playing' | 'ended'>;
@@ -22,9 +23,17 @@ interface UseShootingProps {
 }
 
 export function useShooting({
-    socket, cameraRef, bulletPoolRef, soundManagerRef,
-    gameStatusRef, isMouseDownRef, playersRef, playerAnimationDataRef,
-    onAmmoChange, onReloadChange
+    socket, 
+    cameraRef, 
+    playerModelRef,  
+    bulletPoolRef, 
+    soundManagerRef,
+    gameStatusRef, 
+    isMouseDownRef, 
+    playersRef, 
+    playerAnimationDataRef,
+    onAmmoChange, 
+    onReloadChange
 }: UseShootingProps) {
     const ammoRef = useRef(MAX_AMMO);
     const isReloadingRef = useRef(false);
@@ -56,10 +65,12 @@ export function useShooting({
 
         soundManagerRef.current?.playShoot();
 
-        const origin = WeaponModel.getMuzzlePosition(cameraRef.current);
+        // ✅ ИСПРАВЛЕНО: используем playerModelRef вместо cameraRef
+        const origin = WeaponModel.getMuzzlePosition(playerModelRef.current);
 
         const direction = new THREE.Vector3(0, 0, -1);
         direction.applyQuaternion(cameraRef.current.quaternion);
+        direction.normalize();
 
         socket.emit('shoot', {
             origin,
@@ -79,19 +90,8 @@ export function useShooting({
             }
         }
 
-        const weapon = cameraRef.current.getObjectByName('weapon') as THREE.Group;
-        if (weapon) {
-            const body = weapon.children[0] as THREE.Mesh;
-            if (body) {
-                body.position.z = -0.25;
-                setTimeout(() => {
-                    if (body) body.position.z = -0.3;
-                }, 50);
-            }
-        }
-
         if (newAmmo <= 0) stopAutoFire();
-    }, [socket, cameraRef, bulletPoolRef, soundManagerRef, gameStatusRef, 
+    }, [socket, cameraRef, playerModelRef, bulletPoolRef, soundManagerRef, gameStatusRef,
         playerAnimationDataRef, onAmmoChange, stopAutoFire]);
 
     const startAutoFire = useCallback(() => {

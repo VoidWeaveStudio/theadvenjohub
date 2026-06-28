@@ -4,12 +4,13 @@ import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
 import { CollisionBox } from '../types';
 import { checkCollision } from '../map/collision';
-import { GRAVITY, JUMP_FORCE, MAX_PITCH, MOVE_SPEED, MOUSE_SENSITIVITY, PLAYER_HEIGHT, PLAYER_RADIUS } from '../constants';
+import { GRAVITY, JUMP_FORCE, PLAYER_HEIGHT, PLAYER_RADIUS } from '../constants';
 import { InputHistory } from '../network/InputHistory';
 
 interface UsePlayerControlsProps {
     containerRef: React.RefObject<HTMLDivElement | null>;
     cameraRef: React.MutableRefObject<THREE.PerspectiveCamera | null>;
+    playerModelRef: React.MutableRefObject<THREE.Group | null>;
     socket: Socket | null;
     collisionBoxes: CollisionBox[];
     gameStatusRef: React.MutableRefObject<'waiting' | 'playing' | 'ended'>;
@@ -19,16 +20,23 @@ interface UsePlayerControlsProps {
     stopAutoFire: () => void;
     reload: () => void;
     isMouseDownRef: React.MutableRefObject<boolean>;
-    onThirdPersonToggle?: (enabled: boolean) => void;
-    playerModelRef?: React.MutableRefObject<THREE.Group | null>;
     onChatToggle?: (open: boolean) => void;
     isChatOpenRef?: React.MutableRefObject<boolean>;
     inputHistoryRef?: React.MutableRefObject<InputHistory | null>;
 }
 
+const CAMERA_DISTANCE = 4.5;
+const CAMERA_HEIGHT_OFFSET = 1.6;
+const CAMERA_MIN_PHI = 0.3;
+const CAMERA_MAX_PHI = 1.4;
+const MOUSE_SENSITIVITY = 0.003;
+const MOVE_SPEED = 0.12;
+const ROTATION_LERP = 0.15;
+
 export function usePlayerControls({
     containerRef,
     cameraRef,
+    playerModelRef,
     socket,
     collisionBoxes,
     gameStatusRef,
@@ -38,8 +46,6 @@ export function usePlayerControls({
     stopAutoFire,
     reload,
     isMouseDownRef,
-    onThirdPersonToggle,
-    playerModelRef,
     onChatToggle,
     isChatOpenRef,
     inputHistoryRef
@@ -50,22 +56,20 @@ export function usePlayerControls({
     const isOnGroundRef = useRef(true);
     const footstepTimerRef = useRef(0);
     const soundManagerRef = useRef<any>(null);
-    
+
     const lastMoveTimeRef = useRef(0);
     const lastSentPosRef = useRef<THREE.Vector3 | null>(null);
 
-    const isThirdPersonRef = useRef(false);
-    const thirdPersonOrbitRef = useRef({ theta: 0, phi: Math.PI / 3, radius: 4 });
-    const previousMouseMovementRef = useRef({ x: 0, y: 0 });
+    const cameraYawRef = useRef(0);
+    const cameraPitchRef = useRef(0.4);
+    const targetYawRef = useRef(0);
 
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (isChatOpenRef?.current && e.code !== 'Escape') {
-                return;
-            }
+            if (isChatOpenRef?.current && e.code !== 'Escape') return;
 
             keysRef.current.add(e.code);
 
@@ -92,59 +96,22 @@ export function usePlayerControls({
                 reload();
             }
 
-            if (e.code === 'KeyT' && gameStatusRef.current === 'playing') {
-                if (!isThirdPersonRef.current) {
-                    isThirdPersonRef.current = true;
-                    onThirdPersonToggle?.(true);
-
-                    if (cameraRef.current && playerModelRef?.current) {
-                        const playerPos = playerModelRef.current.position;
-                        cameraRef.current.position.set(
-                            playerPos.x,
-                            playerPos.y + 1.5,
-                            playerPos.z + 4
-                        );
-                    }
-                }
-            }
-
             if (e.code === 'KeyY' && gameStatusRef.current === 'playing') {
                 const newState = !isChatOpenRef?.current;
                 onChatToggle?.(newState);
-                
                 if (newState) {
                     stopAutoFire();
-                    if (document.pointerLockElement) {
-                        document.exitPointerLock();
-                    }
+                    if (document.pointerLockElement) document.exitPointerLock();
                 }
             }
         };
 
         const handleKeyUp = (e: KeyboardEvent) => {
             keysRef.current.delete(e.code);
-
-            if (e.code === 'KeyT') {
-                if (isThirdPersonRef.current) {
-                    isThirdPersonRef.current = false;
-                    onThirdPersonToggle?.(false);
-
-                    if (cameraRef.current && playerModelRef?.current) {
-                        const playerPos = playerModelRef.current.position;
-                        cameraRef.current.position.set(
-                            playerPos.x,
-                            PLAYER_HEIGHT,
-                            playerPos.z
-                        );
-                        cameraRef.current.rotation.x = 0;
-                    }
-                }
-            }
         };
 
         const handleMouseDown = (e: MouseEvent) => {
             if (e.button !== 0) return;
-
             if (isChatOpenRef?.current) return;
 
             if (!document.pointerLockElement) {
@@ -167,29 +134,19 @@ export function usePlayerControls({
             const locked = document.pointerLockElement === container;
             isLockedRef.current = locked;
             onLockChange(locked);
-            if (!locked) {
-                stopAutoFire();
-            }
+            if (!locked) stopAutoFire();
         };
 
         const handleMouseMove = (e: MouseEvent) => {
             if (isChatOpenRef?.current) return;
-            if (!isLockedRef.current || !cameraRef.current) return;
+            if (!isLockedRef.current) return;
 
-            if (isThirdPersonRef.current) {
-                const sensitivity = 0.005;
-                thirdPersonOrbitRef.current.theta -= e.movementX * sensitivity;
-                thirdPersonOrbitRef.current.phi -= e.movementY * sensitivity;
-
-                thirdPersonOrbitRef.current.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, thirdPersonOrbitRef.current.phi));
-            } else {
-                cameraRef.current.rotation.y -= e.movementX * MOUSE_SENSITIVITY;
-                cameraRef.current.rotation.x -= e.movementY * MOUSE_SENSITIVITY;
-                cameraRef.current.rotation.x = Math.max(
-                    -MAX_PITCH,
-                    Math.min(MAX_PITCH, cameraRef.current.rotation.x)
-                );
-            }
+            cameraYawRef.current -= e.movementX * MOUSE_SENSITIVITY;
+            cameraPitchRef.current -= e.movementY * MOUSE_SENSITIVITY;
+            cameraPitchRef.current = Math.max(
+                CAMERA_MIN_PHI,
+                Math.min(CAMERA_MAX_PHI, cameraPitchRef.current)
+            );
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -207,19 +164,20 @@ export function usePlayerControls({
             document.removeEventListener('pointerlockchange', handlePointerLockChange);
             document.removeEventListener('mousemove', handleMouseMove);
         };
-    }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onThirdPersonToggle, playerModelRef, onChatToggle, isChatOpenRef]);
+    }, [containerRef, cameraRef, socket, collisionBoxes, gameStatusRef, onLockChange, onExit, startAutoFire, stopAutoFire, reload, isMouseDownRef, onChatToggle, isChatOpenRef]);
 
     const updateMovement = (deltaTime: number) => {
-        if (!cameraRef.current) return;
-        
+        if (!cameraRef.current || !playerModelRef.current) return;
         if (isChatOpenRef?.current) return;
+
+        const player = playerModelRef.current;
 
         if (!isOnGroundRef.current) {
             velocityYRef.current += GRAVITY;
-            cameraRef.current.position.y += velocityYRef.current;
+            player.position.y += velocityYRef.current;
 
-            if (cameraRef.current.position.y <= PLAYER_HEIGHT) {
-                cameraRef.current.position.y = PLAYER_HEIGHT;
+            if (player.position.y <= 0) {
+                player.position.y = 0;
                 velocityYRef.current = 0;
                 isOnGroundRef.current = true;
             }
@@ -236,22 +194,31 @@ export function usePlayerControls({
 
         if (isMoving && gameStatusRef.current === 'playing') {
             moveDirection.normalize();
-            moveDirection.applyQuaternion(cameraRef.current.quaternion);
-            moveDirection.y = 0;
-            moveDirection.normalize();
 
-            const newX = cameraRef.current.position.x + moveDirection.x * MOVE_SPEED;
-            const newZ = cameraRef.current.position.z + moveDirection.z * MOVE_SPEED;
+            const yaw = cameraYawRef.current;
+            const sin = Math.sin(yaw);
+            const cos = Math.cos(yaw);
 
-            const collisionX = checkCollision(newX, cameraRef.current.position.z, collisionBoxes, PLAYER_RADIUS);
-            const collisionZ = checkCollision(cameraRef.current.position.x, newZ, collisionBoxes, PLAYER_RADIUS);
+            const worldDirX = moveDirection.x * cos - moveDirection.z * sin;
+            const worldDirZ = moveDirection.x * sin + moveDirection.z * cos;
 
-            if (!collisionX) {
-                cameraRef.current.position.x = newX;
-            }
-            if (!collisionZ) {
-                cameraRef.current.position.z = newZ;
-            }
+            const newX = player.position.x + worldDirX * MOVE_SPEED;
+            const newZ = player.position.z + worldDirZ * MOVE_SPEED;
+
+            const collisionX = checkCollision(newX, player.position.z, collisionBoxes, PLAYER_RADIUS);
+            const collisionZ = checkCollision(player.position.x, newZ, collisionBoxes, PLAYER_RADIUS);
+
+            if (!collisionX) player.position.x = newX;
+            if (!collisionZ) player.position.z = newZ;
+
+            const targetRotation = Math.atan2(worldDirX, worldDirZ);
+            let currentRotation = player.rotation.y;
+
+            let diff = targetRotation - currentRotation;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            player.rotation.y += diff * ROTATION_LERP;
 
             footstepTimerRef.current += deltaTime;
             if (footstepTimerRef.current > 0.35 && isOnGroundRef.current) {
@@ -260,27 +227,15 @@ export function usePlayerControls({
             }
 
             const now = Date.now();
-            const currentPos = cameraRef.current.position;
+            const currentPos = player.position;
             const lastSent = lastSentPosRef.current;
-            
-            const distMoved = lastSent 
-                ? currentPos.distanceTo(lastSent) 
-                : Infinity;
+            const distMoved = lastSent ? currentPos.distanceTo(lastSent) : Infinity;
 
             if (socket?.connected && (now - lastMoveTimeRef.current > 100 || distMoved > 0.1)) {
                 socket.emit('playerMove', {
-                    position: [
-                        currentPos.x,
-                        currentPos.y,
-                        currentPos.z
-                    ],
-                    rotation: [
-                        cameraRef.current.rotation.x,
-                        cameraRef.current.rotation.y,
-                        cameraRef.current.rotation.z
-                    ]
+                    position: [currentPos.x, currentPos.y, currentPos.z],
+                    rotation: [0, player.rotation.y, 0]
                 });
-                
                 lastMoveTimeRef.current = now;
                 lastSentPosRef.current = currentPos.clone();
             }
@@ -288,20 +243,48 @@ export function usePlayerControls({
             if (inputHistoryRef?.current) {
                 inputHistoryRef.current.addInput(moveDirection, false);
             }
+        } else {
+            const targetRotation = cameraYawRef.current;
+            let currentRotation = player.rotation.y;
+
+            let diff = targetRotation - currentRotation;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+
+            if (Math.abs(diff) > 0.01) {
+                player.rotation.y += diff * ROTATION_LERP * 0.5;
+            }
         }
+
+        updateThirdPersonCamera();
     };
 
-    const updateThirdPersonCamera = (playerPosition: THREE.Vector3) => {
-        if (!isThirdPersonRef.current || !cameraRef.current) return;
+    const updateThirdPersonCamera = () => {
+        if (!cameraRef.current || !playerModelRef.current) return;
 
-        const orbit = thirdPersonOrbitRef.current;
+        const player = playerModelRef.current;
+        const yaw = cameraYawRef.current;
+        const pitch = cameraPitchRef.current;
 
-        const x = playerPosition.x + orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta);
-        const y = playerPosition.y + 1.5 + orbit.radius * Math.cos(orbit.phi);
-        const z = playerPosition.z + orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta);
+        const offsetX = Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
+        const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
+        const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
 
-        cameraRef.current.position.set(x, y, z);
-        cameraRef.current.lookAt(playerPosition.x, playerPosition.y + 1.5, playerPosition.z);
+        const targetX = player.position.x - offsetX;
+        const targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
+        const targetZ = player.position.z - offsetZ;
+
+        cameraRef.current.position.lerp(
+            new THREE.Vector3(targetX, targetY, targetZ),
+            0.2
+        );
+
+        const lookTarget = new THREE.Vector3(
+            player.position.x,
+            player.position.y + CAMERA_HEIGHT_OFFSET,
+            player.position.z
+        );
+        cameraRef.current.lookAt(lookTarget);
     };
 
     return {
@@ -312,7 +295,7 @@ export function usePlayerControls({
         footstepTimerRef,
         soundManagerRef,
         updateMovement,
-        isThirdPersonRef,
-        updateThirdPersonCamera
+        cameraYawRef,
+        cameraPitchRef
     };
 }
