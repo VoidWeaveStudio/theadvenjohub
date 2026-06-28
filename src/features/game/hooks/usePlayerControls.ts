@@ -31,7 +31,7 @@ const CAMERA_MIN_PHI = -1.2;
 const CAMERA_MAX_PHI = 1.2;
 const MOUSE_SENSITIVITY = 0.003;
 const MOVE_SPEED = 0.12;
-const ROTATION_LERP = 0.15;
+const ROTATION_LERP = 0.25;
 
 export function usePlayerControls({
     containerRef,
@@ -62,7 +62,6 @@ export function usePlayerControls({
 
     const cameraYawRef = useRef(0);
     const cameraPitchRef = useRef(0.0);
-    const targetYawRef = useRef(0);
 
     useEffect(() => {
         const container = containerRef.current;
@@ -142,7 +141,6 @@ export function usePlayerControls({
             if (!isLockedRef.current) return;
 
             cameraYawRef.current -= e.movementX * MOUSE_SENSITIVITY;
-            
             cameraPitchRef.current -= e.movementY * MOUSE_SENSITIVITY;
             cameraPitchRef.current = Math.max(
                 CAMERA_MIN_PHI,
@@ -171,7 +169,8 @@ export function usePlayerControls({
         if (!cameraRef.current || !playerModelRef.current) return;
 
         const player = playerModelRef.current;
-        const yaw = cameraYawRef.current;
+        
+        const yaw = player.rotation.y;
         const pitch = cameraPitchRef.current;
 
         const boomPitch = 0.2;
@@ -187,7 +186,7 @@ export function usePlayerControls({
         const targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
         const targetZ = player.position.z + offsetZ + shoulderOffsetZ;
 
-        const lerpFactor = 1 - Math.exp(-10 * deltaTime);
+        const lerpFactor = 1 - Math.exp(-12 * deltaTime);
         cameraRef.current.position.lerp(
             new THREE.Vector3(targetX, targetY, targetZ),
             lerpFactor
@@ -283,7 +282,7 @@ export function usePlayerControls({
             while (diff < -Math.PI) diff += Math.PI * 2;
 
             if (Math.abs(diff) > 0.01) {
-                player.rotation.y += diff * ROTATION_LERP * 0.5;
+                player.rotation.y += diff * ROTATION_LERP;
             }
         }
 
