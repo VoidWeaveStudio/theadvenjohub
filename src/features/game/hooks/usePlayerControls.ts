@@ -143,7 +143,7 @@ export function usePlayerControls({
             if (!isLockedRef.current) return;
 
             cameraYawRef.current -= e.movementX * MOUSE_SENSITIVITY;
-            cameraPitchRef.current -= e.movementY * MOUSE_SENSITIVITY;
+            cameraPitchRef.current += e.movementY * MOUSE_SENSITIVITY;
             cameraPitchRef.current = Math.max(
                 CAMERA_MIN_PHI,
                 Math.min(CAMERA_MAX_PHI, cameraPitchRef.current)
