@@ -1,6 +1,14 @@
-//src\features\game\models\PlayerAnimator.ts
+// src/features/game/models/PlayerAnimator.ts
 import * as THREE from 'three';
 import { PlayerModelLoader } from './PlayerModelLoader';
+import { ProceduralAnimation } from './ProceduralAnimation';
+
+export interface ProceduralAnimationData {
+    isMoving: boolean;
+    moveSpeed: number;
+    strafeInput: number;
+    aimDirection?: THREE.Vector3;
+}
 
 export class PlayerAnimator {
     private mixer: THREE.AnimationMixer;
@@ -10,6 +18,9 @@ export class PlayerAnimator {
     
     private boneNames: Set<string> = new Set();
     private boneNameToMixamo: Map<string, string> = new Map();
+    
+    private procedural: ProceduralAnimation;
+    private enableProcedural: boolean = true;
 
     constructor(private model: THREE.Group) {
         this.mixer = new THREE.AnimationMixer(model);
@@ -24,6 +35,8 @@ export class PlayerAnimator {
         console.log(`🦴 Bone names:`, Array.from(this.boneNames).slice(0, 10).join(', '), '...');
         
         this.buildMixamoMapping();
+        
+        this.procedural = new ProceduralAnimation(model);
         
         if (this.boneNames.size === 0) {
             console.error('❌ Model has NO bones!');
@@ -170,8 +183,27 @@ export class PlayerAnimator {
         this.currentAnimName = name;
     }
 
-    update(deltaTime: number) {
+    update(deltaTime: number, proceduralData?: ProceduralAnimationData) {
         this.mixer.update(deltaTime);
+        
+        if (this.enableProcedural && proceduralData) {
+            if (proceduralData.isMoving) {
+                this.procedural.animateWalk(proceduralData.moveSpeed, deltaTime);
+            } else {
+                this.procedural.animateIdle(deltaTime);
+            }
+            
+            if (Math.abs(proceduralData.strafeInput) > 0.1) {
+                this.procedural.animateLean(proceduralData.strafeInput);
+            }
+            
+            if (proceduralData.aimDirection) {
+                this.procedural.animateAim(proceduralData.aimDirection);
+                this.procedural.animateHeadLook(proceduralData.aimDirection);
+            }
+            
+            this.procedural.updateSkeleton();
+        }
     }
 
     getCurrentAnimation(): string {
@@ -180,5 +212,13 @@ export class PlayerAnimator {
 
     getMixer(): THREE.AnimationMixer {
         return this.mixer;
+    }
+
+    setProceduralEnabled(enabled: boolean) {
+        this.enableProcedural = enabled;
+    }
+
+    getProcedural(): ProceduralAnimation {
+        return this.procedural;
     }
 }

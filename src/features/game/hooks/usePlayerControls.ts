@@ -6,6 +6,7 @@ import { CollisionBox } from '../types';
 import { checkCollision } from '../map/collision';
 import { GRAVITY, JUMP_FORCE, PLAYER_HEIGHT, PLAYER_RADIUS } from '../constants';
 import { InputHistory } from '../network/InputHistory';
+import { ProceduralAnimationData } from '../models/PlayerAnimator';
 
 interface UsePlayerControlsProps {
     containerRef: React.RefObject<HTMLDivElement | null>;
@@ -23,6 +24,7 @@ interface UsePlayerControlsProps {
     onChatToggle?: (open: boolean) => void;
     isChatOpenRef?: React.MutableRefObject<boolean>;
     inputHistoryRef?: React.MutableRefObject<InputHistory | null>;
+    onProceduralDataUpdate?: (data: ProceduralAnimationData) => void;
 }
 
 const CAMERA_DISTANCE = 2.5;
@@ -50,7 +52,8 @@ export function usePlayerControls({
     isMouseDownRef,
     onChatToggle,
     isChatOpenRef,
-    inputHistoryRef
+    inputHistoryRef,
+    onProceduralDataUpdate
 }: UsePlayerControlsProps) {
     const keysRef = useRef<Set<string>>(new Set());
     const isLockedRef = useRef(false);
@@ -253,6 +256,24 @@ export function usePlayerControls({
         if (keysRef.current.has('KeyD')) moveDirection.x += 1;
 
         const isMoving = moveDirection.length() > 0;
+
+        const strafeInput = (keysRef.current.has('KeyA') ? -1 : 0) + 
+                            (keysRef.current.has('KeyD') ? 1 : 0);
+
+        const aimDirection = new THREE.Vector3(
+            -Math.sin(cameraYawRef.current),
+            -Math.sin(cameraPitchRef.current),
+            -Math.cos(cameraYawRef.current)
+        ).normalize();
+
+        if (onProceduralDataUpdate) {
+            onProceduralDataUpdate({
+                isMoving: isMoving && gameStatusRef.current === 'playing',
+                moveSpeed: isMoving ? 1 : 0,
+                strafeInput: strafeInput,
+                aimDirection: aimDirection
+            });
+        }
 
         if (isMoving && gameStatusRef.current === 'playing') {
             moveDirection.normalize();

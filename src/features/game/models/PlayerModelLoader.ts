@@ -1,4 +1,4 @@
-//src\features\game\models\PlayerModelLoader.ts
+// src/features/game/models/PlayerModelLoader.ts
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';

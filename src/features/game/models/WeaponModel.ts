@@ -1,4 +1,4 @@
-//src\features\game\models\WeaponModel.ts
+// src/features/game/models/WeaponModel.ts
 import * as THREE from 'three';
 
 export class WeaponModel {

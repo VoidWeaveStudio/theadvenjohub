@@ -1,9 +1,9 @@
-//src\features\game\models\PlayerModel.ts
+// src/features/game/models/PlayerModel.ts
 import * as THREE from 'three';
 import { Player, PlayerAnimationData } from '../types';
 import { FFA_COLORS } from '../constants';
 import { PlayerModelLoader } from './PlayerModelLoader';
-import { PlayerAnimator } from './PlayerAnimator';
+import { PlayerAnimator, ProceduralAnimationData } from './PlayerAnimator';
 
 export class PlayerModel {
     static create(
@@ -40,13 +40,12 @@ export class PlayerModel {
     static animate(
         playerModel: THREE.Group,
         animData: PlayerAnimationData,
-        deltaTime: number
+        deltaTime: number,
+        proceduralData?: ProceduralAnimationData
     ): void {
         const animator = playerModel.userData.animator as PlayerAnimator | undefined;
 
         if (animator) {
-            animator.update(deltaTime);
-
             let targetAnim = 'idle';
             if (animData.isDead) targetAnim = 'death';
             else if (animData.isShooting) targetAnim = 'shooting';
@@ -55,6 +54,8 @@ export class PlayerModel {
 
             const currentAnim = animator.getCurrentAnimation();
             if (currentAnim !== targetAnim) animator.play(targetAnim);
+
+            animator.update(deltaTime, proceduralData);
         } else {
             this.animateFallback(playerModel, animData, deltaTime);
         }
