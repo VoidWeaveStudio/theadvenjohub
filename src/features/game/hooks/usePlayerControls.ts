@@ -26,7 +26,7 @@ interface UsePlayerControlsProps {
 }
 
 const CAMERA_DISTANCE = 2.5;
-const CAMERA_HEIGHT_OFFSET = 0.9;
+const CAMERA_HEIGHT_OFFSET = 1.6;
 const CAMERA_MIN_PHI = -1.2;
 const CAMERA_MAX_PHI = 1.2;
 const MOUSE_SENSITIVITY = 0.003;
