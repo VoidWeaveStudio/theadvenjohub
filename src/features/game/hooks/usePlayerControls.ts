@@ -4,9 +4,21 @@ import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
 import { CollisionBox } from '../types';
 import { checkCollision } from '../map/collision';
-import { GRAVITY, JUMP_FORCE, PLAYER_HEIGHT, PLAYER_RADIUS } from '../constants';
+import { PLAYER_HEIGHT, PLAYER_RADIUS } from '../constants';
 import { InputHistory } from '../network/InputHistory';
 import { ProceduralAnimationData } from '../models/PlayerAnimator';
+
+const CAMERA_DISTANCE = 2.5;
+const CAMERA_HEIGHT_OFFSET = 1.6;
+const CAMERA_MIN_PHI = -1.2;
+const CAMERA_MAX_PHI = 1.2;
+const MOUSE_SENSITIVITY = 0.003;
+const MOVE_SPEED = 7.0;          
+const ROTATION_SMOOTHNESS = 15.0;
+const GRAVITY = -20.0;            
+const JUMP_FORCE = 8.0;           
+const CAMERA_COLLISION_RADIUS = 0.3;
+const FOCUS_POINT_OFFSET = 0.8;
 
 interface UsePlayerControlsProps {
     containerRef: React.RefObject<HTMLDivElement | null>;
@@ -26,16 +38,6 @@ interface UsePlayerControlsProps {
     inputHistoryRef?: React.MutableRefObject<InputHistory | null>;
     onProceduralDataUpdate?: (data: ProceduralAnimationData) => void;
 }
-
-const CAMERA_DISTANCE = 2.5;
-const CAMERA_HEIGHT_OFFSET = 1.6;
-const CAMERA_MIN_PHI = -1.2;
-const CAMERA_MAX_PHI = 1.2;
-const MOUSE_SENSITIVITY = 0.003;
-const MOVE_SPEED = 0.12;
-const ROTATION_LERP = 0.25;
-const CAMERA_COLLISION_RADIUS = 0.3;
-const FOCUS_POINT_OFFSET = 0.8;
 
 export function usePlayerControls({
     containerRef,
@@ -197,12 +199,12 @@ export function usePlayerControls({
 
         let collisionDistance = distance;
         const rayOrigin = focusPoint.clone();
-        
+
         const steps = 10;
         for (let i = 1; i <= steps; i++) {
             const t = i / steps;
             const checkPos = rayOrigin.clone().add(direction.clone().multiplyScalar(distance * t));
-            
+
             const hasCollision = checkCollision(
                 checkPos.x,
                 checkPos.z,
@@ -238,8 +240,9 @@ export function usePlayerControls({
         const player = playerModelRef.current;
 
         if (!isOnGroundRef.current) {
-            velocityYRef.current += GRAVITY;
-            player.position.y += velocityYRef.current;
+            // v = v0 + a*t
+            velocityYRef.current += GRAVITY * deltaTime;
+            player.position.y += velocityYRef.current * deltaTime;
 
             if (player.position.y <= 0) {
                 player.position.y = 0;
@@ -257,7 +260,7 @@ export function usePlayerControls({
 
         const isMoving = moveDirection.length() > 0;
 
-        const strafeInput = (keysRef.current.has('KeyA') ? -1 : 0) + 
+        const strafeInput = (keysRef.current.has('KeyA') ? -1 : 0) +
                             (keysRef.current.has('KeyD') ? 1 : 0);
 
         const aimDirection = new THREE.Vector3(
@@ -285,8 +288,8 @@ export function usePlayerControls({
             const worldDirX = moveDirection.x * cos + moveDirection.z * sin;
             const worldDirZ = -moveDirection.x * sin + moveDirection.z * cos;
 
-            const newX = player.position.x + worldDirX * MOVE_SPEED;
-            const newZ = player.position.z + worldDirZ * MOVE_SPEED;
+            const newX = player.position.x + worldDirX * MOVE_SPEED * deltaTime;
+            const newZ = player.position.z + worldDirZ * MOVE_SPEED * deltaTime;
 
             const collisionX = checkCollision(newX, player.position.z, collisionBoxes, PLAYER_RADIUS);
             const collisionZ = checkCollision(player.position.x, newZ, collisionBoxes, PLAYER_RADIUS);
@@ -301,7 +304,8 @@ export function usePlayerControls({
             while (diff > Math.PI) diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
 
-            player.rotation.y += diff * ROTATION_LERP;
+            const rotationLerp = 1 - Math.exp(-ROTATION_SMOOTHNESS * deltaTime);
+            player.rotation.y += diff * rotationLerp;
 
             footstepTimerRef.current += deltaTime;
             if (footstepTimerRef.current > 0.35 && isOnGroundRef.current) {
@@ -335,7 +339,8 @@ export function usePlayerControls({
             while (diff < -Math.PI) diff += Math.PI * 2;
 
             if (Math.abs(diff) > 0.01) {
-                player.rotation.y += diff * ROTATION_LERP;
+                const rotationLerp = 1 - Math.exp(-ROTATION_SMOOTHNESS * deltaTime);
+                player.rotation.y += diff * rotationLerp;
             }
         }
 
