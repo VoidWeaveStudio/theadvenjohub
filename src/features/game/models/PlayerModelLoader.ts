@@ -15,15 +15,17 @@ export class PlayerModelLoader {
         this.loadPromise = (async () => {
             try {
                 console.log('📦 Loading player model (GLB)...');
-
+                
                 const gltf = await this.loadGLB('/models/player/character.glb');
                 const character = gltf.scene;
-
+                
+                character.scale.setScalar(0.01);
+                
                 const box = new THREE.Box3().setFromObject(character);
                 const size = box.getSize(new THREE.Vector3());
-                console.log(`📏 GLB model size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
-
-                character.traverse((child) => {
+                console.log(`📏 GLB model size AFTER scaling: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+                
+                character.traverse((child: THREE.Object3D) => {
                     if (child instanceof THREE.SkinnedMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
@@ -31,7 +33,7 @@ export class PlayerModelLoader {
                 });
 
                 this.modelCache = character;
-                console.log('✅ Character loaded');
+                console.log('✅ Character loaded and scaled');
 
                 const animationFiles = {
                     idle: '/models/player/animations/idle.glb',
@@ -47,14 +49,14 @@ export class PlayerModelLoader {
                         try {
                             const gltfAnim = await this.loadGLB(url);
                             console.log(`📦 Animation "${name}" loaded, clips: ${gltfAnim.animations.length}`);
-
+                            
                             if (gltfAnim.animations.length === 0) {
                                 console.warn(`⚠️ Animation "${name}" has no clips!`);
                                 return { name, clip: null };
                             }
-
+                            
                             const clip = gltfAnim.animations[0];
-                            console.log(`📦 Animation "${name}" tracks: ${clip.tracks.length}`);
+                            console.log(`📦 Animation "${name}" tracks: ${clip.tracks.length}, duration: ${clip.duration.toFixed(2)}s`);
                             return { name, clip };
                         } catch (err) {
                             console.warn(`⚠️ Failed to load animation "${name}":`, err);
@@ -66,7 +68,7 @@ export class PlayerModelLoader {
                 for (const { name, clip } of results) {
                     if (clip) {
                         this.animationCache.set(name, clip);
-                        console.log(`✅ Animation "${name}" cached, tracks: ${clip.tracks.length}`);
+                        console.log(`✅ Animation "${name}" cached`);
                     }
                 }
 
@@ -103,7 +105,7 @@ export class PlayerModelLoader {
             console.warn('⚠️ Model cache is empty!');
             return null;
         }
-
+        
         try {
             const clone = this.modelCache.clone(true) as THREE.Group;
             console.log(`📦 Model cloned successfully, children: ${clone.children.length}`);

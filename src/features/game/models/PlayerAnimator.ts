@@ -10,6 +10,7 @@ export class PlayerAnimator {
 
     constructor(private model: THREE.Group) {
         this.mixer = new THREE.AnimationMixer(model);
+        console.log(`🎬 Mixer created for model`);
 
         const animations = PlayerModelLoader.getAllAnimations();
         console.log(`🎬 Creating animator with ${Object.keys(animations).length} animations`);
@@ -30,12 +31,18 @@ export class PlayerAnimator {
                     action.loop = THREE.LoopRepeat;
                 }
                 
+                action.setEffectiveWeight(1);
+                action.setEffectiveTimeScale(1);
+                
                 this.actions.set(name, action);
-                console.log(`✅ Action "${name}" created, tracks: ${clip.tracks.length}`);
+                console.log(`✅ Action "${name}" created, loop: ${name === 'death' ? 'once' : 'repeat'}`);
             } catch (err) {
                 console.warn(`⚠️ Failed to create action for "${name}":`, err);
             }
         }
+        
+        console.log('🎬 Starting idle animation...');
+        this.play('idle', 0);
     }
 
     play(name: string, fadeDuration: number = 0.2) {
@@ -43,12 +50,15 @@ export class PlayerAnimator {
 
         const newAction = this.actions.get(name);
         if (!newAction) {
+            console.warn(`⚠️ Action "${name}" not found! Available:`, Array.from(this.actions.keys()));
             if (name !== 'idle') {
                 this.play('idle', fadeDuration);
             }
             return;
         }
 
+        console.log(`🎭 Switching animation: ${this.currentAnimName || 'none'} → ${name}`);
+        
         const oldAction = this.currentAction;
         
         newAction.reset();
@@ -68,19 +78,11 @@ export class PlayerAnimator {
         this.mixer.update(deltaTime);
     }
 
-    setSpeed(speed: number) {
-        if (this.currentAction) {
-            this.currentAction.setEffectiveTimeScale(speed);
-        }
-    }
-
-    stopAll() {
-        this.actions.forEach(action => action.stop());
-        this.currentAction = null;
-        this.currentAnimName = '';
-    }
-
     getCurrentAnimation(): string {
         return this.currentAnimName;
+    }
+
+    getMixer(): THREE.AnimationMixer {
+        return this.mixer;
     }
 }

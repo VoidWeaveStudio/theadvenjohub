@@ -28,7 +28,6 @@ export class PlayerModel {
 
                 const animator = new PlayerAnimator(group);
                 group.userData.animator = animator;
-                animator.play('idle');
 
                 console.log(`✅ FBX model created for ${player.username}`);
             } else {
@@ -70,6 +69,7 @@ export class PlayerModel {
                 animator.play('idle');
             }
         } else {
+            console.warn('⚠️ No animator found in animate()!');
             this.animateFallback(playerModel, animData, deltaTime);
         }
 
