@@ -12,17 +12,9 @@ export class PlayerModel {
         index: number,
         mode: '5v5' | 'ffa'
     ): THREE.Group {
-        console.log('🎯 [PlayerModel] === CREATING PLAYER MODEL ===');
-        console.log('🎯 [PlayerModel] Player ID:', player.id);
-        console.log('🎯 [PlayerModel] Player position:', `X=${player.position.x.toFixed(3)}, Y=${player.position.y.toFixed(3)}, Z=${player.position.z.toFixed(3)}`);
-        console.log('🎯 [PlayerModel] Player rotation:', `X=${player.rotation.x.toFixed(3)}, Y=${player.rotation.y.toFixed(3)}, Z=${player.rotation.z.toFixed(3)}`);
-        console.log('🎯 [PlayerModel] Index:', index);
-        console.log('🎯 [PlayerModel] Mode:', mode);
-
         let group: THREE.Group;
 
         if (PlayerModelLoader.isLoaded()) {
-            console.log('🎯 [PlayerModel] Using loaded model');
             const clonedModel = PlayerModelLoader.getModelClone();
             if (clonedModel) {
                 group = clonedModel;
@@ -31,47 +23,21 @@ export class PlayerModel {
                 const animator = new PlayerAnimator(group);
                 group.userData.animator = animator;
             } else {
-                console.log('🎯 [PlayerModel] Clone failed, using fallback');
                 group = this.createFallbackModel(player, index, mode);
             }
         } else {
-            console.log('🎯 [PlayerModel] Model not loaded, using fallback');
             group = this.createFallbackModel(player, index, mode);
         }
 
         group.userData.playerId = player.id;
         
         const groundOffset = PlayerModelLoader.getGroundOffset();
-        const finalY = player.position.y + groundOffset;
-        
-        console.log('🎯 [PlayerModel] === POSITIONING MODEL ===');
-        console.log('🎯 [PlayerModel] Ground offset:', groundOffset.toFixed(3));
-        console.log('🎯 [PlayerModel] Final Y position:', finalY.toFixed(3));
-        console.log('🎯 [PlayerModel] Setting position to:', `X=${player.position.x.toFixed(3)}, Y=${finalY.toFixed(3)}, Z=${player.position.z.toFixed(3)}`);
-        
-        group.position.set(player.position.x, finalY, player.position.z);
-        
-        console.log('🎯 [PlayerModel] Setting rotation Y to:', player.rotation.y.toFixed(3));
+        group.position.set(player.position.x, groundOffset, player.position.z);
         group.rotation.set(0, player.rotation.y, 0);
         
-        const afterBox = new THREE.Box3().setFromObject(group);
-        const afterSize = afterBox.getSize(new THREE.Vector3());
-        const afterCenter = afterBox.getCenter(new THREE.Vector3());
-        const afterMin = afterBox.min;
-        const afterMax = afterBox.max;
-        
-        console.log('🎯 [PlayerModel] === AFTER POSITIONING ===');
-        console.log('🎯 [PlayerModel] Group position:', `X=${group.position.x.toFixed(3)}, Y=${group.position.y.toFixed(3)}, Z=${group.position.z.toFixed(3)}`);
-        console.log('🎯 [PlayerModel] Group rotation:', `X=${group.rotation.x.toFixed(3)}, Y=${group.rotation.y.toFixed(3)}, Z=${group.rotation.z.toFixed(3)}`);
-        console.log('🎯 [PlayerModel] Group scale:', `X=${group.scale.x.toFixed(3)}, Y=${group.scale.y.toFixed(3)}, Z=${group.scale.z.toFixed(3)}`);
-        console.log('🎯 [PlayerModel] World bounding box size:', `X=${afterSize.x.toFixed(3)}, Y=${afterSize.y.toFixed(3)}, Z=${afterSize.z.toFixed(3)}`);
-        console.log('🎯 [PlayerModel] World bounding box center:', `X=${afterCenter.x.toFixed(3)}, Y=${afterCenter.y.toFixed(3)}, Z=${afterCenter.z.toFixed(3)}`);
-        console.log('🎯 [PlayerModel] World bounding box min:', `X=${afterMin.x.toFixed(3)}, Y=${afterMin.y.toFixed(3)}, Z=${afterMin.z.toFixed(3)}`);
-        console.log('🎯 [PlayerModel] World bounding box max:', `X=${afterMax.x.toFixed(3)}, Y=${afterMax.y.toFixed(3)}, Z=${afterMax.z.toFixed(3)}`);
+        console.log(`🎯 Player model created at (${player.position.x.toFixed(2)}, ${groundOffset.toFixed(2)}, ${player.position.z.toFixed(2)})`);
 
-        console.log('🎯 [PlayerModel] Adding to scene');
         scene.add(group);
-        console.log('✅ [PlayerModel] Player model created successfully');
         return group;
     }
 
