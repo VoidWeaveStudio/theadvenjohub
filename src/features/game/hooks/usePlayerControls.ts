@@ -13,10 +13,10 @@ const CAMERA_HEIGHT_OFFSET = 1.6;
 const CAMERA_MIN_PHI = -1.2;
 const CAMERA_MAX_PHI = 1.2;
 const MOUSE_SENSITIVITY = 0.003;
-const MOVE_SPEED = 7.0;          
+const MOVE_SPEED = 7.0;
 const ROTATION_SMOOTHNESS = 15.0;
-const GRAVITY = -20.0;            
-const JUMP_FORCE = 8.0;           
+const GRAVITY = -20.0;
+const JUMP_FORCE = 8.0;
 const CAMERA_COLLISION_RADIUS = 0.3;
 const FOCUS_POINT_OFFSET = 0.8;
 
@@ -176,22 +176,26 @@ export function usePlayerControls({
         if (!cameraRef.current || !playerModelRef.current) return;
 
         const player = playerModelRef.current;
+
         const yaw = player.rotation.y;
         const pitch = cameraPitchRef.current;
 
         const focusPoint = new THREE.Vector3(
-            player.position.x + Math.cos(yaw) * FOCUS_POINT_OFFSET,
+            player.position.x + Math.sin(yaw) * FOCUS_POINT_OFFSET,
             player.position.y + CAMERA_HEIGHT_OFFSET,
-            player.position.z - Math.sin(yaw) * FOCUS_POINT_OFFSET
+            player.position.z + Math.cos(yaw) * FOCUS_POINT_OFFSET
         );
 
-        const offsetX = Math.sin(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
-        const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
-        const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
+        const cameraDistance = CAMERA_DISTANCE;
 
-        let targetX = focusPoint.x + offsetX;
+        const offsetX = Math.sin(yaw) * cameraDistance;
+        const offsetY = Math.sin(pitch) * cameraDistance;
+        const offsetZ = Math.cos(yaw) * cameraDistance;
+
+
+        let targetX = focusPoint.x - offsetX;
         let targetY = focusPoint.y + offsetY;
-        let targetZ = focusPoint.z + offsetZ;
+        let targetZ = focusPoint.z - offsetZ;
 
         const desiredPosition = new THREE.Vector3(targetX, targetY, targetZ);
         const direction = desiredPosition.clone().sub(focusPoint).normalize();
@@ -261,7 +265,7 @@ export function usePlayerControls({
         const isMoving = moveDirection.length() > 0;
 
         const strafeInput = (keysRef.current.has('KeyA') ? -1 : 0) +
-                            (keysRef.current.has('KeyD') ? 1 : 0);
+            (keysRef.current.has('KeyD') ? 1 : 0);
 
         const aimDirection = new THREE.Vector3(
             -Math.sin(cameraYawRef.current),
