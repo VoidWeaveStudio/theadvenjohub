@@ -169,13 +169,11 @@ export function usePlayerControls({
         if (!cameraRef.current || !playerModelRef.current) return;
 
         const player = playerModelRef.current;
-        
         const yaw = player.rotation.y;
         const pitch = cameraPitchRef.current;
 
         const boomPitch = 0.2;
-
-        const offsetX = -Math.sin(yaw) * Math.cos(boomPitch) * CAMERA_DISTANCE;
+        const offsetX = Math.sin(yaw) * Math.cos(boomPitch) * CAMERA_DISTANCE;
         const offsetY = Math.sin(boomPitch) * CAMERA_DISTANCE;
         const offsetZ = Math.cos(yaw) * Math.cos(boomPitch) * CAMERA_DISTANCE;
 
