@@ -5,6 +5,7 @@ import { Socket } from 'socket.io-client';
 import { CollisionBox } from '../types';
 import { checkCollision } from '../map/collision';
 import { GRAVITY, JUMP_FORCE, MAX_PITCH, MOVE_SPEED, MOUSE_SENSITIVITY, PLAYER_HEIGHT, PLAYER_RADIUS } from '../constants';
+import { InputHistory } from '../network/InputHistory';
 
 interface UsePlayerControlsProps {
     containerRef: React.RefObject<HTMLDivElement | null>;
@@ -22,6 +23,7 @@ interface UsePlayerControlsProps {
     playerModelRef?: React.MutableRefObject<THREE.Group | null>;
     onChatToggle?: (open: boolean) => void;
     isChatOpenRef?: React.MutableRefObject<boolean>;
+    inputHistoryRef?: React.MutableRefObject<InputHistory | null>;
 }
 
 export function usePlayerControls({
@@ -39,7 +41,8 @@ export function usePlayerControls({
     onThirdPersonToggle,
     playerModelRef,
     onChatToggle,
-    isChatOpenRef
+    isChatOpenRef,
+    inputHistoryRef
 }: UsePlayerControlsProps) {
     const keysRef = useRef<Set<string>>(new Set());
     const isLockedRef = useRef(false);
@@ -47,7 +50,9 @@ export function usePlayerControls({
     const isOnGroundRef = useRef(true);
     const footstepTimerRef = useRef(0);
     const soundManagerRef = useRef<any>(null);
+    
     const lastMoveTimeRef = useRef(0);
+    const lastSentPosRef = useRef<THREE.Vector3 | null>(null);
 
     const isThirdPersonRef = useRef(false);
     const thirdPersonOrbitRef = useRef({ theta: 0, phi: Math.PI / 3, radius: 4 });
@@ -255,20 +260,33 @@ export function usePlayerControls({
             }
 
             const now = Date.now();
-            if (socket?.connected && now - lastMoveTimeRef.current > 50) {
+            const currentPos = cameraRef.current.position;
+            const lastSent = lastSentPosRef.current;
+            
+            const distMoved = lastSent 
+                ? currentPos.distanceTo(lastSent) 
+                : Infinity;
+
+            if (socket?.connected && (now - lastMoveTimeRef.current > 100 || distMoved > 0.1)) {
                 socket.emit('playerMove', {
-                    position: {
-                        x: cameraRef.current.position.x,
-                        y: cameraRef.current.position.y,
-                        z: cameraRef.current.position.z
-                    },
-                    rotation: {
-                        x: cameraRef.current.rotation.x,
-                        y: cameraRef.current.rotation.y,
-                        z: cameraRef.current.rotation.z
-                    }
+                    position: [
+                        currentPos.x,
+                        currentPos.y,
+                        currentPos.z
+                    ],
+                    rotation: [
+                        cameraRef.current.rotation.x,
+                        cameraRef.current.rotation.y,
+                        cameraRef.current.rotation.z
+                    ]
                 });
+                
                 lastMoveTimeRef.current = now;
+                lastSentPosRef.current = currentPos.clone();
+            }
+
+            if (inputHistoryRef?.current) {
+                inputHistoryRef.current.addInput(moveDirection, false);
             }
         }
     };

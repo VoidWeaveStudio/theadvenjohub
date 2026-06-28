@@ -20,6 +20,8 @@ import { pushOutOfCollision } from './map/collision';
 import { PLAYER_HEIGHT, PLAYER_RADIUS } from './constants';
 import { VoiceChat } from './components/VoiceChat';
 import { TextChat } from './components/TextChat';
+import { PlayerInterpolator } from './network/PlayerInterpolator';
+import { InputHistory } from './network/InputHistory';
 
 interface GameWorldProps {
     wallet: string;
@@ -36,7 +38,25 @@ interface PlayerExtrapolation {
     lastUpdateTime: number;
 }
 
+interface KillFeedEntry {
+    id: string;
+    killer: string;
+    victim: string;
+    killerTeam: number;
+    victimTeam: number;
+    timestamp: number;
+}
+
+interface DamageIndicator {
+    id: string;
+    angle: number;
+    timestamp: number;
+    damage: number;
+}
+
 export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldProps) {
+    const interpolatorsRef = useRef<Map<string, PlayerInterpolator>>(new Map());
+    const inputHistoryRef = useRef<InputHistory>(new InputHistory());
     const containerRef = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -75,6 +95,11 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [isChatOpen, setIsChatOpen] = useState(false);
     const isChatOpenRef = useRef(false);
 
+    const [killFeed, setKillFeed] = useState<KillFeedEntry[]>([]);
+    const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
+    const [showHitMarker, setShowHitMarker] = useState(false);
+    const [lastHitTime, setLastHitTime] = useState(0);
+
     useEffect(() => {
         isChatOpenRef.current = isChatOpen;
     }, [isChatOpen]);
@@ -90,24 +115,22 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         PlayerModelLoader.preload()
             .then(() => {
                 console.log('✅ Model loaded, recreating ALL player models with FBX...');
-                
+
                 let index = 0;
                 playersDataRef.current.forEach((player) => {
                     const oldModel = playersRef.current.get(player.id);
                     if (oldModel && sceneRef.current) {
                         sceneRef.current.remove(oldModel);
-                        console.log(`🗑️ Removed old model for ${player.username}`);
                     }
 
                     if (sceneRef.current) {
                         const newModel = PlayerModel.create(sceneRef.current, player, index, mode);
                         playersRef.current.set(player.id, newModel);
-                        
+
                         if (player.id === socket?.id) {
                             playerModelRef.current = newModel;
-                            console.log(`✅ Saved MY model reference`);
                         }
-                        
+
                         extrapolationDataRef.current.set(player.id, {
                             targetPosition: new THREE.Vector3(player.position.x, 0, player.position.z),
                             targetRotation: new THREE.Euler(0, player.rotation.y, 0),
@@ -115,8 +138,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                             lastUpdateTime: Date.now()
                         });
                         previousPositionsRef.current.set(player.id, new THREE.Vector3(player.position.x, 0, player.position.z));
-                        
-                        console.log(`✅ Created FBX model for ${player.username}`);
                     }
 
                     index++;
@@ -183,8 +204,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         map.build(scene);
         collisionBoxesRef.current = map.getCollisionBoxes();
 
-        console.log(`🗺️ Procedural Dust 2 map built: ${collisionBoxesRef.current.length} collision boxes`);
-
         bulletPoolRef.current = new BulletPool(scene, 50);
         soundManagerRef.current = new SoundManager();
 
@@ -235,8 +254,6 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 );
                 sceneRef.current!.add(mesh);
             });
-
-            console.log(`🔴 Visualized ${collisionBoxesRef.current.length} collision boxes`);
         }, 2000);
     }, [sceneReady]);
 
@@ -264,6 +281,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         startAutoFire,
         stopAutoFire,
         reload,
+        inputHistoryRef,
         isMouseDownRef,
         onThirdPersonToggle: (enabled) => {
             setIsThirdPerson(enabled);
@@ -307,7 +325,24 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const handlePlayerHit = useCallback((targetId: string, health: number) => {
         const animData = playerAnimationDataRef.current.get(targetId);
         if (animData) animData.hitFlash = 0.3;
-    }, []);
+
+        if (targetId !== socket?.id) {
+            setShowHitMarker(true);
+            setLastHitTime(Date.now());
+            setTimeout(() => setShowHitMarker(false), 200);
+        }
+
+        if (targetId === socket?.id && cameraRef.current) {
+            const angle = Math.random() * 360;
+            
+            setDamageIndicators(prev => [...prev, {
+                id: `dmg_${Date.now()}_${Math.random()}`,
+                angle,
+                timestamp: Date.now(),
+                damage: 25
+            }]);
+        }
+    }, [socket?.id, cameraRef]);
 
     const handlePlayerKilled = useCallback((victimId: string) => {
         const model = playersRef.current.get(victimId);
@@ -322,7 +357,21 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 model.visible = false;
             }, 2000);
         }
-    }, []);
+
+        const killer = hudPlayers.find(p => p.id === socket?.id);
+        const victim = hudPlayers.find(p => p.id === victimId);
+        
+        if (killer && victim) {
+            setKillFeed(prev => [...prev, {
+                id: `kill_${Date.now()}_${Math.random()}`,
+                killer: killer.username,
+                victim: victim.username,
+                killerTeam: killer.team,
+                victimTeam: victim.team,
+                timestamp: Date.now()
+            }]);
+        }
+    }, [hudPlayers, socket?.id]);
 
     const handlePlayerRespawned = useCallback((id: string, position: any, spawnProtectionUntil?: number) => {
         const animData = playerAnimationDataRef.current.get(id);
@@ -359,35 +408,21 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         }
     }, [socket?.id]);
 
-    const handlePlayerMoved = useCallback((id: string, position: any, rotation: any) => {
+    const handlePlayerMoved = useCallback((id: string, position: any, rotation: any, serverTime?: number) => {
+        let interpolator = interpolatorsRef.current.get(id);
+        if (!interpolator) {
+            interpolator = new PlayerInterpolator();
+            interpolatorsRef.current.set(id, interpolator);
+        }
+
+        interpolator.addSnapshot(
+            serverTime || Date.now(),
+            position,
+            rotation
+        );
+
         const model = playersRef.current.get(id);
         if (model) {
-            const now = Date.now();
-            let extrapolationData = extrapolationDataRef.current.get(id);
-
-            if (!extrapolationData) {
-                extrapolationData = {
-                    targetPosition: new THREE.Vector3(position.x, 0, position.z),
-                    targetRotation: new THREE.Euler(rotation.x, rotation.y, rotation.z),
-                    velocity: new THREE.Vector3(0, 0, 0),
-                    lastUpdateTime: now
-                };
-                extrapolationDataRef.current.set(id, extrapolationData);
-            } else {
-                const deltaTime = (now - extrapolationData.lastUpdateTime) / 1000;
-                if (deltaTime > 0) {
-                    extrapolationData.velocity.set(
-                        (position.x - extrapolationData.targetPosition.x) / deltaTime,
-                        0,
-                        (position.z - extrapolationData.targetPosition.z) / deltaTime
-                    );
-                }
-            }
-
-            extrapolationData.targetPosition.set(position.x, 0, position.z);
-            extrapolationData.targetRotation.set(rotation.x, rotation.y, rotation.z);
-            extrapolationData.lastUpdateTime = now;
-
             PlayerModel.updateTilt(model, { x: rotation.x, y: rotation.y });
         }
     }, []);
@@ -398,7 +433,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         }
     }, []);
 
-    const handlePositionCorrection = useCallback((position: any, rotation: any) => {
+    const handlePositionCorrection = useCallback((position: any, rotation: any, serverTime: number) => {
         if (cameraRef.current) {
             cameraRef.current.userData.correctPosition = new THREE.Vector3(
                 position.x, position.y, position.z
@@ -406,6 +441,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             cameraRef.current.userData.correctRotation = new THREE.Euler(
                 rotation.x, rotation.y, rotation.z
             );
+            cameraRef.current.userData.serverTime = serverTime;
+
+            const inputsToReplay = inputHistoryRef.current.getInputsAfter(serverTime);
+            inputHistoryRef.current.removeBefore(serverTime);
         }
     }, []);
 
@@ -418,6 +457,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         wallet,
         roomId,
         mode,
+        onSpawnProtectionUpdate: setSpawnProtectionUntil,
+        onUsernameChanged: (id, username) => {
+            setHudPlayers(prev => prev.map(p => p.id === id ? { ...p, username } : p));
+        },
         onPlayersUpdate: (playersOrUpdater) => {
             if (typeof playersOrUpdater === 'function') {
                 setHudPlayers(playersOrUpdater);
@@ -450,7 +493,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             playersRef.current.set(player.id, model);
 
             playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
-            
+
             extrapolationDataRef.current.set(player.id, {
                 targetPosition: new THREE.Vector3(player.position.x, 0, player.position.z),
                 targetRotation: new THREE.Euler(0, player.rotation.y, 0),
@@ -468,6 +511,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             playerAnimationDataRef.current.delete(playerId);
             previousPositionsRef.current.delete(playerId);
             extrapolationDataRef.current.delete(playerId);
+            interpolatorsRef.current.delete(playerId);
         },
         onPlayerMoved: handlePlayerMoved,
         onSpawnPosition: handleSpawnPosition,
@@ -483,7 +527,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
             if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
 
-            const deltaTime = lastTime ? (currentTime - lastTime) / 1000 : 0.016;
+            const deltaTime = lastTime
+                ? Math.min((currentTime - lastTime) / 1000, 0.1)
+                : 0.016;
             lastTime = currentTime;
 
             updateMovementRef.current(deltaTime);
@@ -491,7 +537,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
             if (cameraRef.current && cameraRef.current.userData.correctPosition) {
                 const target = cameraRef.current.userData.correctPosition as THREE.Vector3;
-                cameraRef.current.position.lerp(target, 0.1);
+                cameraRef.current.position.lerp(target, 0.3);
 
                 if (cameraRef.current.position.distanceTo(target) < 0.05) {
                     delete cameraRef.current.userData.correctPosition;
@@ -502,35 +548,23 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             if (playerModelRef.current && isThirdPersonRef.current) {
                 playerModelRef.current.position.x = cameraRef.current.position.x;
                 playerModelRef.current.position.z = cameraRef.current.position.z;
-
                 updateThirdPersonCamera(playerModelRef.current.position);
-
                 const cameraDir = new THREE.Vector3();
                 cameraRef.current.getWorldDirection(cameraDir);
                 playerModelRef.current.rotation.y = Math.atan2(cameraDir.x, cameraDir.z);
             }
 
-            extrapolationDataRef.current.forEach((data, playerId) => {
+            interpolatorsRef.current.forEach((interpolator, playerId) => {
                 const playerModel = playersRef.current.get(playerId);
                 if (!playerModel) return;
-                
+
                 const animData = playerAnimationDataRef.current.get(playerId);
                 if (!animData) return;
 
-                const timeSinceUpdate = (Date.now() - data.lastUpdateTime) / 1000;
-
-                if (timeSinceUpdate > 0.1 && data.velocity.length() > 0.1) {
-                    const extrapolatedPos = data.targetPosition.clone().add(
-                        data.velocity.clone().multiplyScalar(Math.min(timeSinceUpdate, 0.5))
-                    );
-                    playerModel.position.lerp(extrapolatedPos, 0.25);
-                } else {
-                    playerModel.position.lerp(data.targetPosition, 0.25);
-                }
-
-                if (data.targetRotation) {
-                    const targetRot = data.targetRotation as THREE.Euler;
-                    playerModel.rotation.y += (targetRot.y - playerModel.rotation.y) * 0.25;
+                const state = interpolator.getInterpolatedState();
+                if (state) {
+                    playerModel.position.lerp(state.position, 0.3);
+                    playerModel.rotation.y += (state.rotation.y - playerModel.rotation.y) * 0.3;
                 }
 
                 const previousPos = previousPositionsRef.current.get(playerId);
@@ -563,12 +597,41 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             playerAnimationDataRef.current.clear();
             previousPositionsRef.current.clear();
             extrapolationDataRef.current.clear();
+            interpolatorsRef.current.forEach(i => i.clear());
+            interpolatorsRef.current.clear();
+            inputHistoryRef.current.clear();
+
+            if (sceneRef.current) {
+                sceneRef.current.traverse((obj) => {
+                    if (obj instanceof THREE.Mesh) {
+                        obj.geometry?.dispose();
+                        if (Array.isArray(obj.material)) {
+                            obj.material.forEach(m => {
+                                m.dispose();
+                                if (m.map) m.map.dispose();
+                            });
+                        } else if (obj.material) {
+                            obj.material.dispose();
+                            if ((obj.material as any).map) {
+                                (obj.material as any).map.dispose();
+                            }
+                        }
+                    }
+                    if (obj instanceof THREE.Sprite) {
+                        const mat = obj.material as THREE.SpriteMaterial;
+                        if (mat.map) mat.map.dispose();
+                        mat.dispose();
+                    }
+                });
+            }
 
             if (rendererRef.current) {
                 rendererRef.current.dispose();
+                rendererRef.current.forceContextLoss();
                 if (containerRef.current && rendererRef.current.domElement.parentNode === containerRef.current) {
                     containerRef.current.removeChild(rendererRef.current.domElement);
                 }
+                rendererRef.current = null;
             }
 
             if (document.pointerLockElement) {
@@ -595,6 +658,10 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 myUsername={myUsername}
                 matchEndTime={matchEndTime}
                 spawnProtectionUntil={spawnProtectionUntil}
+                killFeed={killFeed}
+                damageIndicators={damageIndicators}
+                showHitMarker={showHitMarker}
+                lastHitTime={lastHitTime}
             />
 
             <VoiceChat

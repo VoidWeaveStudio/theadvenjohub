@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export class PlayerModelLoader {
     private static loader = new GLTFLoader();
@@ -48,15 +49,11 @@ export class PlayerModelLoader {
                     entries.map(async ([name, url]) => {
                         try {
                             const gltfAnim = await this.loadGLB(url);
-                            console.log(`📦 Animation "${name}" loaded, clips: ${gltfAnim.animations.length}`);
-                            
                             if (gltfAnim.animations.length === 0) {
                                 console.warn(`⚠️ Animation "${name}" has no clips!`);
                                 return { name, clip: null };
                             }
-                            
                             const clip = gltfAnim.animations[0];
-                            console.log(`📦 Animation "${name}" tracks: ${clip.tracks.length}, duration: ${clip.duration.toFixed(2)}s`);
                             return { name, clip };
                         } catch (err) {
                             console.warn(`⚠️ Failed to load animation "${name}":`, err);
@@ -66,10 +63,7 @@ export class PlayerModelLoader {
                 );
 
                 for (const { name, clip } of results) {
-                    if (clip) {
-                        this.animationCache.set(name, clip);
-                        console.log(`✅ Animation "${name}" cached`);
-                    }
+                    if (clip) this.animationCache.set(name, clip);
                 }
 
                 console.log('✅ Player model loaded with animations:', Array.from(this.animationCache.keys()));
@@ -86,12 +80,8 @@ export class PlayerModelLoader {
         return new Promise((resolve, reject) => {
             this.loader.load(
                 url,
-                (gltf) => {
-                    console.log(`✅ GLB loaded: ${url}`);
-                    resolve(gltf);
-                },
-                (progress) => {
-                },
+                (gltf) => resolve(gltf),
+                undefined,
                 (error) => {
                     console.error(`❌ Failed to load GLB: ${url}`, error);
                     reject(error);
@@ -107,8 +97,7 @@ export class PlayerModelLoader {
         }
         
         try {
-            const clone = this.modelCache.clone(true) as THREE.Group;
-            console.log(`📦 Model cloned successfully, children: ${clone.children.length}`);
+            const clone = cloneSkeleton(this.modelCache) as THREE.Group;
             return clone;
         } catch (err) {
             console.error('❌ Failed to clone model:', err);

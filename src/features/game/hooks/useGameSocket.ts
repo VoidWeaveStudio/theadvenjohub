@@ -21,41 +21,27 @@ interface UseGameSocketProps {
     onPlayerRespawned: (id: string, position: any, spawnProtectionUntil?: number) => void;
     onPlayerJoined: (player: Player, index: number) => void;
     onPlayerLeft: (playerId: string) => void;
-    onPlayerMoved: (id: string, position: any, rotation: any) => void;
+    onPlayerMoved: (id: string, position: any, rotation: any, serverTime?: number) => void;
     onSpawnPosition: (position: any) => void;
-    onPositionCorrection: (position: any, rotation: any) => void;
+    onPositionCorrection: (position: any, rotation: any, serverTime: number) => void;
     onMatchEndTime?: (endTime: number) => void;
+    onSpawnProtectionUpdate?: (until: number) => void;
+    onUsernameChanged?: (id: string, username: string) => void;
 }
 
 function unpackPosition(pos: any): { x: number; y: number; z: number } {
-    if (Array.isArray(pos)) {
-        return { x: pos[0], y: pos[1], z: pos[2] };
-    }
+    if (Array.isArray(pos)) return { x: pos[0], y: pos[1], z: pos[2] };
     return pos;
 }
 
 export function useGameSocket({
-    socket,
-    wallet,
-    roomId,
-    mode,
-    onPlayersUpdate,
-    onHealthUpdate,
-    onKillsUpdate,
-    onDeathsUpdate,
-    onScoresUpdate,
-    onGameEnd,
-    onReturnToLobby,
-    onPlayerShot,
-    onPlayerHit,
-    onPlayerKilled,
-    onPlayerRespawned,
-    onPlayerJoined,
-    onPlayerLeft,
-    onPlayerMoved,
-    onSpawnPosition,
-    onPositionCorrection,
-    onMatchEndTime
+    socket, wallet, roomId, mode,
+    onPlayersUpdate, onHealthUpdate, onKillsUpdate, onDeathsUpdate,
+    onScoresUpdate, onGameEnd, onReturnToLobby,
+    onPlayerShot, onPlayerHit, onPlayerKilled, onPlayerRespawned,
+    onPlayerJoined, onPlayerLeft, onPlayerMoved,
+    onSpawnPosition, onPositionCorrection, onMatchEndTime,
+    onSpawnProtectionUpdate, onUsernameChanged
 }: UseGameSocketProps) {
     const myKillsRef = useRef(0);
     const myDeathsRef = useRef(0);
@@ -69,6 +55,26 @@ export function useGameSocket({
             roomId
         });
 
+        const handlePlayerKilled = (data: any) => {
+            if (data.killerId === socket.id) {
+                myKillsRef.current += 1;
+                onKillsUpdate(myKillsRef.current);
+            }
+            if (data.victimId === socket.id) {
+                myDeathsRef.current += 1;
+                onDeathsUpdate(myDeathsRef.current);
+            }
+            if (data.scores) onScoresUpdate(data.scores);
+
+            onPlayersUpdate((prev: Player[]) => prev.map(p => {
+                if (p.id === data.killerId) return { ...p, kills: data.killerKills };
+                if (p.id === data.victimId) return { ...p, deaths: (p.deaths || 0) + 1 };
+                return p;
+            }));
+
+            onPlayerKilled(data.victimId);
+        };
+
         const handleJoinedGameRoom = (data: any) => {
             onPlayersUpdate(data.players);
             onHealthUpdate(data.player.health);
@@ -79,6 +85,10 @@ export function useGameSocket({
             if (data.scores) onScoresUpdate(data.scores);
             if (data.player.position) onSpawnPosition(unpackPosition(data.player.position));
             if (data.matchEndTime && onMatchEndTime) onMatchEndTime(data.matchEndTime);
+            
+            if (data.player.spawnProtectionUntil && onSpawnProtectionUpdate) {
+                onSpawnProtectionUpdate(data.player.spawnProtectionUntil);
+            }
 
             data.players.forEach((player: Player, index: number) => {
                 if (player.id !== socket.id) {
@@ -92,11 +102,6 @@ export function useGameSocket({
             onPlayerJoined(player, 0);
         };
 
-        const handlePlayerJoinedFFA = (player: Player) => {
-            onPlayersUpdate((prev: Player[]) => [...prev, player]);
-            onPlayerJoined(player, 0);
-        };
-
         const handlePlayerLeft = (playerId: string) => {
             onPlayersUpdate((prev: Player[]) => prev.filter((p: Player) => p.id !== playerId));
             onPlayerLeft(playerId);
@@ -105,32 +110,17 @@ export function useGameSocket({
         const handlePlayerMoved = (data: any) => {
             const pos = unpackPosition(data.position);
             const rot = unpackPosition(data.rotation);
-            onPlayerMoved(data.id, pos, rot);
+            onPlayerMoved(data.id, pos, rot, data.serverTime);
         };
 
-        const handlePlayerShot = (data: any) => onPlayerShot(data.shooterId, data.origin, data.direction);
+        const handlePlayerShot = (data: any) => 
+            onPlayerShot(data.shooterId, data.origin, data.direction);
 
         const handlePlayerHit = (data: any) => {
             if (data.targetId === socket.id) {
                 onHealthUpdate(data.health);
-                onPlayerHit(data.targetId, data.health);
-            } else {
-                onPlayerHit(data.targetId, data.health);
             }
-        };
-
-        const handlePlayerKilled = (data: any) => {
-            if (data.killerId === socket.id) {
-                myKillsRef.current += 1;
-                onKillsUpdate(myKillsRef.current);
-            }
-            if (data.victimId === socket.id) {
-                myDeathsRef.current += 1;
-                onDeathsUpdate(myDeathsRef.current);
-            }
-            if (data.scores) onScoresUpdate(data.scores);
-
-            onPlayerKilled(data.victimId);
+            onPlayerHit(data.targetId, data.health);
         };
 
         const handlePlayerRespawned = (data: any) => {
@@ -138,21 +128,10 @@ export function useGameSocket({
             onPlayerRespawned(data.id, pos, data.spawnProtectionUntil);
             if (data.id === socket.id) {
                 onHealthUpdate(100);
+                if (data.spawnProtectionUntil && onSpawnProtectionUpdate) {
+                    onSpawnProtectionUpdate(data.spawnProtectionUntil);
+                }
             }
-        };
-
-        const handlePlayerStatsUpdate = (data: any) => {
-            onPlayersUpdate((prev: Player[]) => {
-                return prev.map(player => {
-                    if (player.id === data.killerId) {
-                        return { ...player, kills: data.killerKills };
-                    }
-                    if (player.id === data.victimId) {
-                        return { ...player, deaths: (player.deaths || 0) + 1 };
-                    }
-                    return player;
-                });
-            });
         };
 
         const handleGameEnded = (data: any) => {
@@ -166,12 +145,19 @@ export function useGameSocket({
         const handlePositionCorrection = (data: any) => {
             const pos = unpackPosition(data.position);
             const rot = unpackPosition(data.rotation);
-            onPositionCorrection(pos, rot);
+            onPositionCorrection(pos, rot, data.serverTime || Date.now());
+        };
+
+        const handleUsernameChanged = (data: { id: string; username: string }) => {
+            onPlayersUpdate((prev: Player[]) => 
+                prev.map(p => p.id === data.id ? { ...p, username: data.username } : p)
+            );
+            onUsernameChanged?.(data.id, data.username);
         };
 
         socket.on('joinedGameRoom', handleJoinedGameRoom);
         socket.on('playerJoinedGame', handlePlayerJoined);
-        socket.on('playerJoinedFFAGame', handlePlayerJoinedFFA);
+        socket.on('playerJoinedFFAGame', handlePlayerJoined);
         socket.on('playerLeft', handlePlayerLeft);
         socket.on('playerMoved', handlePlayerMoved);
         socket.on('playerShot', handlePlayerShot);
@@ -181,12 +167,12 @@ export function useGameSocket({
         socket.on('gameEnded', handleGameEnded);
         socket.on('returnedToLobby', handleReturnedToLobby);
         socket.on('positionCorrection', handlePositionCorrection);
-        socket.on('playerKilled', handlePlayerStatsUpdate);
+        socket.on('playerUsernameChanged', handleUsernameChanged);
 
         return () => {
             socket.off('joinedGameRoom', handleJoinedGameRoom);
             socket.off('playerJoinedGame', handlePlayerJoined);
-            socket.off('playerJoinedFFAGame', handlePlayerJoinedFFA);
+            socket.off('playerJoinedFFAGame', handlePlayerJoined);
             socket.off('playerLeft', handlePlayerLeft);
             socket.off('playerMoved', handlePlayerMoved);
             socket.off('playerShot', handlePlayerShot);
@@ -196,7 +182,7 @@ export function useGameSocket({
             socket.off('gameEnded', handleGameEnded);
             socket.off('returnedToLobby', handleReturnedToLobby);
             socket.off('positionCorrection', handlePositionCorrection);
-            socket.off('playerKilled', handlePlayerStatsUpdate);
+            socket.off('playerUsernameChanged', handleUsernameChanged);
         };
     }, [socket, wallet, roomId, mode]);
 

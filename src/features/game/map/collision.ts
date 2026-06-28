@@ -1,6 +1,22 @@
 //src\features\game\map\collision.ts
 import { CollisionBox } from '../types';
 import { PLAYER_RADIUS } from '../constants';
+import { SpatialGrid } from './SpatialGrid';
+
+let globalGrid: SpatialGrid | null = null;
+
+export function buildCollisionGrid(boxes: CollisionBox[]): SpatialGrid {
+    const grid = new SpatialGrid(10);
+    for (const box of boxes) {
+        grid.insert(box);
+    }
+    globalGrid = grid;
+    return grid;
+}
+
+export function getCollisionGrid(): SpatialGrid | null {
+    return globalGrid;
+}
 
 export function checkCollision(
     x: number,
@@ -8,16 +24,24 @@ export function checkCollision(
     collisionBoxes: CollisionBox[],
     radius: number = PLAYER_RADIUS
 ): boolean {
+    if (globalGrid) {
+        const nearby = globalGrid.query(x, z, radius + 5);
+        for (const box of nearby) {
+            const closestX = Math.max(box.minX, Math.min(x, box.maxX));
+            const closestZ = Math.max(box.minZ, Math.min(z, box.maxZ));
+            const dx = x - closestX;
+            const dz = z - closestZ;
+            if (dx * dx + dz * dz < radius * radius) return true;
+        }
+        return false;
+    }
+
     for (const box of collisionBoxes) {
         const closestX = Math.max(box.minX, Math.min(x, box.maxX));
         const closestZ = Math.max(box.minZ, Math.min(z, box.maxZ));
-
-        const distanceX = x - closestX;
-        const distanceZ = z - closestZ;
-
-        if (distanceX * distanceX + distanceZ * distanceZ < radius * radius) {
-            return true;
-        }
+        const dx = x - closestX;
+        const dz = z - closestZ;
+        if (dx * dx + dz * dz < radius * radius) return true;
     }
     return false;
 }
@@ -36,7 +60,6 @@ export function pushOutOfCollision(
         for (let angle = 0; angle < Math.PI * 2; angle += 0.4) {
             const nx = x + Math.cos(angle) * r;
             const nz = z + Math.sin(angle) * r;
-
             if (!checkCollision(nx, nz, collisionBoxes, radius)) {
                 return { x: nx, z: nz };
             }

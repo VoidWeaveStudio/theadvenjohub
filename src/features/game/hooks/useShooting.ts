@@ -22,16 +22,9 @@ interface UseShootingProps {
 }
 
 export function useShooting({
-    socket,
-    cameraRef,
-    bulletPoolRef,
-    soundManagerRef,
-    gameStatusRef,
-    isMouseDownRef,
-    playersRef,
-    playerAnimationDataRef,
-    onAmmoChange,
-    onReloadChange
+    socket, cameraRef, bulletPoolRef, soundManagerRef,
+    gameStatusRef, isMouseDownRef, playersRef, playerAnimationDataRef,
+    onAmmoChange, onReloadChange
 }: UseShootingProps) {
     const ammoRef = useRef(MAX_AMMO);
     const isReloadingRef = useRef(false);
@@ -68,44 +61,10 @@ export function useShooting({
         const direction = new THREE.Vector3(0, 0, -1);
         direction.applyQuaternion(cameraRef.current.quaternion);
 
-        const raycaster = new THREE.Raycaster();
-        raycaster.set(
-            new THREE.Vector3(
-                cameraRef.current.position.x,
-                cameraRef.current.position.y,
-                cameraRef.current.position.z
-            ),
-            direction
-        );
-        
-        const playerMeshes: THREE.Object3D[] = [];
-        playersRef.current.forEach((model, playerId) => {
-            if (playerId !== socket.id) {
-                model.traverse((child) => {
-                    if (child instanceof THREE.Mesh) playerMeshes.push(child);
-                });
-            }
-        });
-
-        const intersects = raycaster.intersectObjects(playerMeshes, true);
-        let targetId: string | undefined = undefined;
-
-        if (intersects.length > 0) {
-            let current: THREE.Object3D | null = intersects[0].object;
-            while (current) {
-                if (current.userData?.playerId) {
-                    targetId = current.userData.playerId;
-                    break;
-                }
-                current = current.parent;
-            }
-        }
-
         socket.emit('shoot', {
-            origin, 
+            origin,
             direction: { x: direction.x, y: direction.y, z: direction.z },
             damage: 25,
-            targetId
         });
 
         bulletPoolRef.current?.fire(origin, direction);
@@ -126,13 +85,14 @@ export function useShooting({
             if (body) {
                 body.position.z = -0.25;
                 setTimeout(() => {
-                    if (body) body.position.z = -0.3; 
+                    if (body) body.position.z = -0.3;
                 }, 50);
             }
         }
 
         if (newAmmo <= 0) stopAutoFire();
-    }, [socket, cameraRef, bulletPoolRef, soundManagerRef, gameStatusRef, playersRef, playerAnimationDataRef, onAmmoChange, stopAutoFire]);
+    }, [socket, cameraRef, bulletPoolRef, soundManagerRef, gameStatusRef, 
+        playerAnimationDataRef, onAmmoChange, stopAutoFire]);
 
     const startAutoFire = useCallback(() => {
         if (shootIntervalRef.current) return;
@@ -150,9 +110,7 @@ export function useShooting({
 
         if (socket?.id) {
             const animData = playerAnimationDataRef.current.get(socket.id);
-            if (animData) {
-                animData.isReloading = true;
-            }
+            if (animData) animData.isReloading = true;
         }
 
         setTimeout(() => {
@@ -163,9 +121,7 @@ export function useShooting({
 
             if (socket?.id) {
                 const animData = playerAnimationDataRef.current.get(socket.id);
-                if (animData) {
-                    animData.isReloading = false;
-                }
+                if (animData) animData.isReloading = false;
             }
         }, RELOAD_TIME);
     }, [soundManagerRef, stopAutoFire, onAmmoChange, onReloadChange, socket, playerAnimationDataRef]);

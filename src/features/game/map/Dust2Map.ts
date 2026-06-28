@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { CollisionBox } from '../types';
+import { buildCollisionGrid } from './collision';
 
 export class Dust2Map {
     private collisionBoxes: CollisionBox[] = [];
@@ -23,7 +24,7 @@ export class Dust2Map {
         return this.collisionBoxes;
     }
 
-    getSpawnPoints(): { team1: { x: number; z: number }[]; team2: { x: number; z: number }[]; ffa: { x: number; z: number }[] } {
+    getSpawnPoints() {
         return {
             team1: [
                 { x: -20, z: -50 }, { x: -15, z: -50 }, { x: -25, z: -50 },
@@ -67,6 +68,9 @@ export class Dust2Map {
         this.addZoneMarkers();
 
         this.mergeAndAddMeshes();
+        
+        buildCollisionGrid(this.collisionBoxes);
+        console.log(`🗺️ Spatial grid built with ${this.collisionBoxes.length} collision boxes`);
     }
 
     private addWall(
@@ -77,15 +81,10 @@ export class Dust2Map {
         const geo = new THREE.BoxGeometry(width, height, depth);
         geo.translate(x, height / 2, z);
 
-        if (material === this.wallDarkMaterial) {
-            this.darkWallGeometries.push(geo);
-        } else if (material === this.concreteMaterial) {
-            this.concreteGeometries.push(geo);
-        } else if (material === this.doorMaterial) {
-            this.doorGeometries.push(geo);
-        } else {
-            this.wallGeometries.push(geo);
-        }
+        if (material === this.wallDarkMaterial) this.darkWallGeometries.push(geo);
+        else if (material === this.concreteMaterial) this.concreteGeometries.push(geo);
+        else if (material === this.doorMaterial) this.doorGeometries.push(geo);
+        else this.wallGeometries.push(geo);
 
         this.collisionBoxes.push({
             minX: x - width / 2, maxX: x + width / 2,
@@ -116,30 +115,24 @@ export class Dust2Map {
         this.addWall(-25, -50, 2, 20, 5, this.wallDarkMaterial);
         this.addWall(25, -50, 2, 20, 5, this.wallDarkMaterial);
         this.addWall(0, -60, 50, 2, 5, this.wallDarkMaterial);
-        
         this.addBox(-20, -55, 2);
         this.addBox(20, -55, 2);
-        
         this.addWall(-8, -35, 2, 12);
         this.addWall(8, -35, 2, 12);
     }
 
     private addLongA(): void {
-        
         this.addWall(-35, -15, 2, 30);
         this.addWall(-25, -15, 2, 30);
-        
         this.addBox(-30, -25, 2);
         this.addBox(-30, -5, 2);
         this.addBox(-30, 5, 2.5, 1.5);
-        
         this.addWall(-30, 0, 10, 1, 4, this.doorMaterial);
     }
 
     private addShortA(): void {
         this.addWall(-20, 10, 12, 2);
         this.addWall(-20, 18, 12, 2);
-        
         this.addBox(-20, 14, 3, 1);
         this.addBox(-20, 16, 3, 2);
     }
@@ -147,13 +140,10 @@ export class Dust2Map {
     private addMid(): void {
         this.addWall(-18, -10, 2, 30);
         this.addWall(18, -10, 2, 30);
-        
         this.addBox(-5, -15, 2.5);
         this.addBox(5, -15, 2.5);
         this.addBox(0, -5, 2);
-        
         this.addWall(0, -10, 1, 8, 4, this.doorMaterial);
-        
         this.addWall(-10, -20, 8, 2);
         this.addWall(10, -20, 8, 2);
     }
@@ -161,11 +151,9 @@ export class Dust2Map {
     private addBTunnels(): void {
         this.addWall(35, -15, 2, 30);
         this.addWall(25, -15, 2, 30);
-        
         this.addBox(30, -25, 2);
         this.addBox(30, -5, 2);
         this.addBox(30, 5, 2.5, 1.5);
-        
         this.addWall(30, 0, 10, 1, 4, this.doorMaterial);
     }
 
@@ -174,11 +162,9 @@ export class Dust2Map {
         this.addWall(-45, 45, 20, 2);
         this.addWall(-55, 35, 2, 20);
         this.addWall(-35, 35, 2, 10);
-        
         this.addBox(-45, 35, 3, 2);
         this.addBox(-50, 30, 2);
         this.addBox(-40, 40, 2);
-        
         this.addBox(-45, 35, 1, 0.5);
     }
 
@@ -187,11 +173,9 @@ export class Dust2Map {
         this.addWall(45, 45, 20, 2);
         this.addWall(55, 35, 2, 20);
         this.addWall(35, 35, 2, 10);
-        
         this.addBox(45, 35, 3, 2);
         this.addBox(50, 30, 2);
         this.addBox(40, 40, 2);
-        
         this.addBox(45, 35, 1, 0.5);
     }
 
@@ -199,7 +183,6 @@ export class Dust2Map {
         this.addWall(-15, 55, 2, 16, 5, this.wallDarkMaterial);
         this.addWall(15, 55, 2, 16, 5, this.wallDarkMaterial);
         this.addWall(0, 50, 20, 2, 5, this.wallDarkMaterial);
-        
         this.addBox(-10, 58, 2);
         this.addBox(10, 58, 2);
     }
@@ -207,7 +190,6 @@ export class Dust2Map {
     private addCTConnections(): void {
         this.addWall(-25, 50, 2, 12);
         this.addWall(25, 50, 2, 12);
-        
         this.addWall(-30, 45, 10, 2);
         this.addWall(30, 45, 10, 2);
     }
@@ -216,12 +198,9 @@ export class Dust2Map {
         this.addBox(-12, 0, 2);
         this.addBox(12, 0, 2);
         this.addBox(0, 15, 2.5);
-        
         this.addBox(-8, -25, 1.5);
         this.addBox(8, -25, 1.5);
-        
         this.addBox(-28, -20, 1.5);
-        
         this.addBox(-15, 12, 1.5);
     }
 
@@ -229,10 +208,10 @@ export class Dust2Map {
         if (!this.scene) return;
         const markerGeometry = new THREE.BoxGeometry(4, 0.05, 4);
         const markers = [
-            { color: 0xff4444, position: [0, 0.03, -50] },  
-            { color: 0x4444ff, position: [0, 0.03, 55] },   
-            { color: 0xffff00, position: [-45, 0.03, 35] }, 
-            { color: 0x00ff00, position: [45, 0.03, 35] }   
+            { color: 0xff4444, position: [0, 0.03, -50] },
+            { color: 0x4444ff, position: [0, 0.03, 55] },
+            { color: 0xffff00, position: [-45, 0.03, 35] },
+            { color: 0x00ff00, position: [45, 0.03, 35] }
         ];
 
         markers.forEach(({ color, position }) => {
@@ -251,13 +230,11 @@ export class Dust2Map {
             material: THREE.MeshStandardMaterial
         ) => {
             if (geometries.length === 0) return;
-
             const merged = mergeGeometries(geometries, false);
             const mesh = new THREE.Mesh(merged, material);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             this.scene!.add(mesh);
-
             geometries.forEach(g => g.dispose());
         };
 
