@@ -199,8 +199,8 @@ export function usePlayerControls({
             const sin = Math.sin(yaw);
             const cos = Math.cos(yaw);
 
-            const worldDirX = moveDirection.x * cos - moveDirection.z * sin;
-            const worldDirZ = moveDirection.x * sin + moveDirection.z * cos;
+            const worldDirX = moveDirection.x * cos + moveDirection.z * sin;
+            const worldDirZ = -moveDirection.x * sin + moveDirection.z * cos;
 
             const newX = player.position.x + worldDirX * MOVE_SPEED;
             const newZ = player.position.z + worldDirZ * MOVE_SPEED;
@@ -211,7 +211,7 @@ export function usePlayerControls({
             if (!collisionX) player.position.x = newX;
             if (!collisionZ) player.position.z = newZ;
 
-            const targetRotation = -cameraYawRef.current;
+            const targetRotation = cameraYawRef.current;
             let currentRotation = player.rotation.y;
 
             let diff = targetRotation - currentRotation;
@@ -244,7 +244,7 @@ export function usePlayerControls({
                 inputHistoryRef.current.addInput(moveDirection, false);
             }
         } else {
-            const targetRotation = -cameraYawRef.current;
+            const targetRotation = cameraYawRef.current;
             let currentRotation = player.rotation.y;
 
             let diff = targetRotation - currentRotation;
@@ -270,9 +270,9 @@ export function usePlayerControls({
         const offsetY = Math.sin(pitch) * CAMERA_DISTANCE;
         const offsetZ = Math.cos(yaw) * Math.cos(pitch) * CAMERA_DISTANCE;
 
-        const targetX = player.position.x - offsetX + Math.cos(yaw) * 0.8;
+        const targetX = player.position.x + offsetX + Math.cos(yaw) * 0.8;
         const targetY = player.position.y + CAMERA_HEIGHT_OFFSET + offsetY;
-        const targetZ = player.position.z - offsetZ + Math.sin(yaw) * 0.8;
+        const targetZ = player.position.z + offsetZ - Math.sin(yaw) * 0.8;
 
         cameraRef.current.position.lerp(
             new THREE.Vector3(targetX, targetY, targetZ),
