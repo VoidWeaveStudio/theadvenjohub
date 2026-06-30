@@ -4,24 +4,29 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
+
 import { GameHUD } from './GameHUD';
 import { GameOverlay } from './components/GameOverlay';
+import { VoiceChat } from './components/VoiceChat';
+import { TextChat } from './components/TextChat';
+
 import { BulletPool } from './BulletPool';
 import { SoundManager } from './SoundManager';
-import { Dust2Map } from './map/Dust2Map';
+import { MapRegistry } from './map/MapFactory';
+import { GameMap } from './map/GameMap';
+
 import { PlayerModel } from './models/PlayerModel';
 import { PlayerModelLoader } from './models/PlayerModelLoader';
 import { WeaponModel } from './models/WeaponModel';
-import { useShooting } from './hooks/useShooting';
-import { usePlayerControls } from './hooks/usePlayerControls';
+import { ProceduralAnimationData } from './models/PlayerAnimator';
+
+import { useGameController } from './hooks/useGameController';
 import { useGameSocket } from './hooks/useGameSocket';
-import { Player, PlayerAnimationData, CollisionBox, GameMode } from './types';
-import { pushOutOfCollision } from './map/collision';
-import { PLAYER_HEIGHT, PLAYER_RADIUS } from './constants';
-import { VoiceChat } from './components/VoiceChat';
-import { TextChat } from './components/TextChat';
+
 import { PlayerInterpolator } from './network/PlayerInterpolator';
 import { InputHistory } from './network/InputHistory';
+
+import { Player, PlayerAnimationData, GameMode } from './types';
 
 interface GameWorldProps {
     wallet: string;
@@ -48,28 +53,25 @@ interface DamageIndicator {
 }
 
 export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldProps) {
-    const interpolatorsRef = useRef<Map<string, PlayerInterpolator>>(new Map());
-    const inputHistoryRef = useRef<InputHistory>(new InputHistory());
     const containerRef = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+    const playerModelRef = useRef<THREE.Group | null>(null);
+    const weaponModelRef = useRef<WeaponModel | null>(null);
     const playersRef = useRef<Map<string, THREE.Group>>(new Map());
-    const animationFrameRef = useRef<number | null>(null);
+    const interpolatorsRef = useRef<Map<string, PlayerInterpolator>>(new Map());
+    const inputHistoryRef = useRef<InputHistory>(new InputHistory());
     const bulletPoolRef = useRef<BulletPool | null>(null);
     const soundManagerRef = useRef<SoundManager | null>(null);
     const playerAnimationDataRef = useRef<Map<string, PlayerAnimationData>>(new Map());
-    const collisionBoxesRef = useRef<CollisionBox[]>([]);
     const gameStatusRef = useRef<'waiting' | 'playing' | 'ended'>('playing');
     const isMouseDownRef = useRef(false);
-    const updateMovementRef = useRef<(deltaTime: number) => void>(() => { });
+    const isChatOpenRef = useRef(false);
     const previousPositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
-    const [sceneReady, setSceneReady] = useState(false);
-    const modelLoadedRef = useRef(false);
-
     const playersDataRef = useRef<Map<string, Player>>(new Map());
-    const [hudPlayers, setHudPlayers] = useState<Player[]>([]);
     const hudPlayersRef = useRef<Player[]>([]);
+    const mapRef = useRef<GameMap | null>(null);
 
     const [myHealth, setMyHealth] = useState(100);
     const [myKills, setMyKills] = useState(0);
@@ -78,76 +80,62 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [isReloading, setIsReloading] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'ended'>('playing');
-    const [scores, setScores] = useState<any>(mode === '5v5' ? { 1: 0, 2: 0 } : {});
-    const [winner, setWinner] = useState<any>(null);
+    const [scores, setScores] = useState<Record<string, number>>(mode === '5v5' ? { '1': 0, '2': 0 } : {});
+    const [winner, setWinner] = useState<unknown>(null);
     const [matchEndTime, setMatchEndTime] = useState<number | null>(null);
     const [spawnProtectionUntil, setSpawnProtectionUntil] = useState<number>(0);
-
-    const playerModelRef = useRef<THREE.Group | null>(null);
-    const weaponModelRef = useRef<THREE.Group | null>(null);
-
+    const [hudPlayers, setHudPlayers] = useState<Player[]>([]);
     const [isChatOpen, setIsChatOpen] = useState(false);
-    const isChatOpenRef = useRef(false);
-
     const [killFeed, setKillFeed] = useState<KillFeedEntry[]>([]);
     const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
     const [showHitMarker, setShowHitMarker] = useState(false);
-    const [lastHitTime, setLastHitTime] = useState(0);
 
-    useEffect(() => { isChatOpenRef.current = isChatOpen; }, [isChatOpen]);
-    useEffect(() => { hudPlayersRef.current = hudPlayers; }, [hudPlayers]);
+    useEffect(() => {
+        isChatOpenRef.current = isChatOpen;
+    }, [isChatOpen]);
+    useEffect(() => {
+        hudPlayersRef.current = hudPlayers;
+    }, [hudPlayers]);
+    useEffect(() => {
+        gameStatusRef.current = gameStatus;
+    }, [gameStatus]);
 
     const myUsername = `Player_${wallet.substring(0, 4)}`;
-    const myTeam = hudPlayers.find(p => p.id === socket?.id)?.team;
+    const myTeam = hudPlayers.find(p => p.id === socket?.id)?.team ?? 0;
 
-    useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
+    const collisionBoxes = mapRef.current?.getCollisions().getSolidBoxes() ?? [];
 
-    const createPlayerModelSafe = useCallback((player: Player, index: number) => {
-        if (!sceneRef.current) return null;
-        if (playersRef.current.has(player.id)) return playersRef.current.get(player.id)!;
-
-        const model = PlayerModel.create(sceneRef.current, player, index, mode);
-        playersRef.current.set(player.id, model);
-        playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
-        previousPositionsRef.current.set(player.id, new THREE.Vector3(player.position.x, 0, player.position.z));
-
-        if (player.id === socket?.id) {
-            playerModelRef.current = model;
-            if (cameraRef.current) {
-                cameraRef.current.position.set(
-                    player.position.x,
-                    player.position.y + 3,
-                    player.position.z + 5
-                );
+    const controller = useGameController({
+        containerRef,
+        cameraRef,
+        playerModelRef,
+        socket,
+        collisionBoxes: collisionBoxes,
+        gameStatusRef,
+        isChatOpenRef,
+        isMouseDownRef,
+        bulletPoolRef,
+        soundManagerRef,
+        inputHistoryRef,
+        playerAnimationDataRef,
+        playersRef,
+        onLockChange: setIsLocked,
+        onExit,
+        onChatToggle: setIsChatOpen,
+        onAmmoChange: setAmmo,
+        onReloadChange: setIsReloading,
+        onProceduralDataUpdate: (data: ProceduralAnimationData) => {
+            if (playerModelRef.current) {
+                const animator = playerModelRef.current.userData.animator;
+                if (animator) {
+                    animator.update(1 / 60, data);
+                }
             }
-            if (sceneRef.current && !weaponModelRef.current) {
-                const weapon = WeaponModel.createForPlayer(model);
-                weaponModelRef.current = weapon;
-            }
-        }
-
-        return model;
-    }, [mode, socket?.id]);
+        },
+    });
 
     useEffect(() => {
-        PlayerModelLoader.preload()
-            .then(() => {
-                modelLoadedRef.current = true;
-                let index = 0;
-                playersDataRef.current.forEach((player) => {
-                    if (!playersRef.current.has(player.id)) {
-                        createPlayerModelSafe(player, index);
-                    }
-                });
-            })
-            .catch(err => {
-                console.warn('⚠️ Player model preload failed:', err);
-            });
-    }, [socket?.id, mode, createPlayerModelSafe]);
-
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
+        if (!containerRef.current) return;
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xd4a574);
@@ -158,7 +146,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             75,
             window.innerWidth / window.innerHeight,
             0.1,
-            1000
+            1000,
         );
         camera.position.set(0, 5, 10);
         camera.rotation.order = 'YXZ';
@@ -168,17 +156,15 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         renderer.setSize(window.innerWidth, window.innerHeight - 64);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
-        container.appendChild(renderer.domElement);
+        containerRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
-        const ambientLight = new THREE.AmbientLight(0xffeedd, 0.5);
-        scene.add(ambientLight);
+        scene.add(new THREE.AmbientLight(0xffeedd, 0.5));
 
         const sunLight = new THREE.DirectionalLight(0xfff5e0, 1.0);
         sunLight.position.set(30, 80, 20);
         sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.mapSize.set(2048, 2048);
         sunLight.shadow.camera.near = 0.5;
         sunLight.shadow.camera.far = 200;
         sunLight.shadow.camera.left = -80;
@@ -187,19 +173,13 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         sunLight.shadow.camera.bottom = -80;
         scene.add(sunLight);
 
-        const groundGeometry = new THREE.BoxGeometry(200, 1, 200);
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0xc2956b,
-            flatShading: true
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.position.y = -0.5;
-        ground.receiveShadow = true;
-        scene.add(ground);
-
-        const map = new Dust2Map();
-        map.build(scene);
-        collisionBoxesRef.current = map.getCollisionBoxes();
+        const map = MapRegistry.createMapForMode(mode, scene);
+        if (map) {
+            map.build();
+            mapRef.current = map;
+        } else {
+            console.error('Failed to create map for mode:', mode);
+        }
 
         bulletPoolRef.current = new BulletPool(scene, 50);
         soundManagerRef.current = new SoundManager();
@@ -210,68 +190,62 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             cameraRef.current.updateProjectionMatrix();
             rendererRef.current.setSize(window.innerWidth, window.innerHeight - 64);
         };
-
         window.addEventListener('resize', handleResize);
-        setSceneReady(true);
 
         return () => {
             window.removeEventListener('resize', handleResize);
-            map.dispose();
+            map?.dispose();
         };
-    }, [roomId]);
+    }, [roomId, mode]);
 
-    const { ammoRef, isReloadingRef, startAutoFire, stopAutoFire, reload } = useShooting({
-        socket,
-        cameraRef,
-        playerModelRef,  
-        bulletPoolRef,
-        soundManagerRef,
-        gameStatusRef,
-        isMouseDownRef,
-        playersRef,
-        playerAnimationDataRef,
-        onAmmoChange: setAmmo,
-        onReloadChange: setIsReloading
-    });
+    useEffect(() => {
+        PlayerModelLoader.preload()
+            .then(() => {
+                Array.from(playersDataRef.current.values()).forEach((player, index) => {
+                    if (!playersRef.current.has(player.id)) {
+                        createPlayerModelSafe(player, index);
+                    }
+                });
+            })
+            .catch((err: unknown) => console.warn('⚠️ Player model preload failed:', err));
+    }, [socket?.id, mode]);
 
-    const { updateMovement } = usePlayerControls({
-        containerRef,
-        cameraRef,
-        playerModelRef,
-        socket,
-        collisionBoxes: collisionBoxesRef.current,
-        gameStatusRef,
-        onLockChange: setIsLocked,
-        onExit,
-        startAutoFire,
-        stopAutoFire,
-        reload,
-        isMouseDownRef,
-        onChatToggle: setIsChatOpen,
-        isChatOpenRef,
-        inputHistoryRef
-    });
+    const createPlayerModelSafe = useCallback((player: Player, index: number) => {
+        if (!sceneRef.current || playersRef.current.has(player.id)) return null;
 
-    useEffect(() => { updateMovementRef.current = updateMovement; }, [updateMovement]);
+        const model = PlayerModel.create(sceneRef.current, player, index, mode);
+        playersRef.current.set(player.id, model);
+        playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
+        previousPositionsRef.current.set(player.id, new THREE.Vector3(player.position.x, 0, player.position.z));
 
-    const handleGameEnd = useCallback((winnerData: any, scoresData: any) => {
+        if (player.id === socket?.id) {
+            playerModelRef.current = model;
+            if (cameraRef.current) {
+                cameraRef.current.position.set(player.position.x, player.position.y + 3, player.position.z + 5);
+            }
+            if (!weaponModelRef.current) {
+                weaponModelRef.current = new WeaponModel(model);
+            }
+        }
+
+        return model;
+    }, [mode, socket?.id]);
+
+    const handleGameEnd = useCallback((winnerData: unknown, scoresData: unknown) => {
         setGameStatus('ended');
         setWinner(winnerData);
-        setScores(scoresData);
-        stopAutoFire();
-    }, [stopAutoFire]);
+        setScores(scoresData as Record<string, number>);
+        controller.autoFire.stop();
+    }, [controller]);
 
-    const handleReturnToLobby = useCallback(() => {
-        stopAutoFire();
-        onExit();
-    }, [stopAutoFire, onExit]);
-
-    const handlePlayerShot = useCallback((shooterId: string, origin: any, direction: any) => {
-        bulletPoolRef.current?.fire(origin, direction);
+    const handlePlayerShot = useCallback((shooterId: string, origin: unknown, direction: unknown) => {
+        bulletPoolRef.current?.fire(origin as { x: number; y: number; z: number }, direction as { x: number; y: number; z: number });
         const animData = playerAnimationDataRef.current.get(shooterId);
         if (animData) {
             animData.isShooting = true;
-            setTimeout(() => { if (animData) animData.isShooting = false; }, 300);
+            setTimeout(() => {
+                if (animData) animData.isShooting = false;
+            }, 300);
         }
     }, []);
 
@@ -281,15 +255,15 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
         if (targetId !== socket?.id) {
             setShowHitMarker(true);
-            setLastHitTime(Date.now());
             setTimeout(() => setShowHitMarker(false), 200);
         }
 
         if (targetId === socket?.id) {
-            const angle = Math.random() * 360;
             setDamageIndicators(prev => [...prev, {
                 id: `dmg_${Date.now()}_${Math.random()}`,
-                angle, timestamp: Date.now(), damage: 25
+                angle: Math.random() * 360,
+                timestamp: Date.now(),
+                damage: 25,
             }]);
         }
     }, [socket?.id]);
@@ -299,9 +273,9 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         const animData = playerAnimationDataRef.current.get(victimId);
 
         if (animData) animData.isDead = true;
-        if (model) {
-            setTimeout(() => { model.visible = false; }, 2000);
-        }
+        if (model) setTimeout(() => {
+            model.visible = false;
+        }, 2000);
 
         const killer = hudPlayersRef.current.find(p => p.id === socket?.id);
         const victim = hudPlayersRef.current.find(p => p.id === victimId);
@@ -309,35 +283,35 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         if (killer && victim) {
             setKillFeed(prev => [...prev, {
                 id: `kill_${Date.now()}_${Math.random()}`,
-                killer: killer.username, victim: victim.username,
-                killerTeam: killer.team, victimTeam: victim.team,
-                timestamp: Date.now()
+                killer: killer.username,
+                victim: victim.username,
+                killerTeam: killer.team,
+                victimTeam: victim.team,
+                timestamp: Date.now(),
             }]);
         }
     }, [socket?.id]);
 
-    const handlePlayerRespawned = useCallback((id: string, position: any, spawnProtectionUntil?: number) => {
+    const handlePlayerRespawned = useCallback((id: string, position: unknown, spawnProtectionUntil?: number) => {
         const animData = playerAnimationDataRef.current.get(id);
         if (animData) animData.isDead = false;
 
+        const pos = position as { x: number; y: number; z: number };
+
         if (id === socket?.id && playerModelRef.current) {
-            playerModelRef.current.position.set(position.x, 0, position.z);
-            const pushed = pushOutOfCollision(position.x, position.z, collisionBoxesRef.current, PLAYER_RADIUS);
-            if (pushed.x !== position.x || pushed.z !== position.z) {
-                playerModelRef.current.position.set(pushed.x, 0, pushed.z);
-            }
+            playerModelRef.current.position.set(pos.x, 0, pos.z);
             if (spawnProtectionUntil) setSpawnProtectionUntil(spawnProtectionUntil);
         } else {
             const model = playersRef.current.get(id);
             if (model) {
                 model.visible = true;
-                model.position.set(position.x, 0, position.z);
+                model.position.set(pos.x, 0, pos.z);
                 previousPositionsRef.current.set(id, model.position.clone());
             }
         }
     }, [socket?.id]);
 
-    const handlePlayerMoved = useCallback((id: string, position: any, rotation: any, serverTime?: number) => {
+    const handlePlayerMoved = useCallback((id: string, position: unknown, rotation: unknown, serverTime?: number) => {
         if (id === socket?.id) return;
 
         let interpolator = interpolatorsRef.current.get(id);
@@ -345,34 +319,18 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             interpolator = new PlayerInterpolator();
             interpolatorsRef.current.set(id, interpolator);
         }
-
-        interpolator.addSnapshot(serverTime || Date.now(), position, rotation);
+        interpolator.addSnapshot(serverTime || Date.now(), position as { x: number; y: number; z: number }, rotation as { x: number; y: number; z: number });
 
         const model = playersRef.current.get(id);
-        if (model) {
-            PlayerModel.updateTilt(model, { x: rotation.x, y: rotation.y });
-        }
+        const rot = rotation as { x: number; y: number };
+        if (model) PlayerModel.updateTilt(model, { x: rot.x, y: rot.y });
     }, [socket?.id]);
 
-    const handleSpawnPosition = useCallback((position: any) => {
-        if (playerModelRef.current) {
-            playerModelRef.current.position.set(position.x, 0, position.z);
-        }
-    }, []);
-
-    const handlePositionCorrection = useCallback((position: any, rotation: any, serverTime: number) => {
-        if (playerModelRef.current) {
-            playerModelRef.current.userData.correctPosition = new THREE.Vector3(position.x, 0, position.z);
-            inputHistoryRef.current.removeBefore(serverTime);
-        }
-    }, []);
-
-    const handleMatchEndTime = useCallback((endTime: number) => {
-        setMatchEndTime(endTime);
-    }, []);
-
     useGameSocket({
-        socket, wallet, roomId, mode,
+        socket,
+        wallet,
+        roomId,
+        mode,
         onSpawnProtectionUpdate: setSpawnProtectionUntil,
         onUsernameChanged: (id, username) => {
             setHudPlayers(prev => prev.map(p => p.id === id ? { ...p, username } : p));
@@ -387,7 +345,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                     if (!playerAnimationDataRef.current.has(p.id)) {
                         playerAnimationDataRef.current.set(p.id, PlayerModel.createAnimationData());
                     }
-                    if (modelLoadedRef.current && sceneRef.current && !playersRef.current.has(p.id)) {
+                    if (sceneRef.current && !playersRef.current.has(p.id)) {
                         createPlayerModelSafe(p, index);
                     }
                 });
@@ -399,14 +357,16 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onDeathsUpdate: setMyDeaths,
         onScoresUpdate: setScores,
         onGameEnd: handleGameEnd,
-        onReturnToLobby: handleReturnToLobby,
+        onReturnToLobby: () => {
+            controller.autoFire.stop();
+            onExit();
+        },
         onPlayerShot: handlePlayerShot,
         onPlayerHit: handlePlayerHit,
         onPlayerKilled: handlePlayerKilled,
         onPlayerRespawned: handlePlayerRespawned,
         onPlayerJoined: (player: Player, index: number) => {
-            if (!sceneRef.current) return;
-            createPlayerModelSafe(player, index);
+            if (sceneRef.current) createPlayerModelSafe(player, index);
         },
         onPlayerLeft: (playerId: string) => {
             if (playerId === socket?.id) return;
@@ -418,25 +378,42 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             interpolatorsRef.current.delete(playerId);
         },
         onPlayerMoved: handlePlayerMoved,
-        onSpawnPosition: handleSpawnPosition,
-        onPositionCorrection: handlePositionCorrection,
-        onMatchEndTime: handleMatchEndTime
+        onSpawnPosition: (position: unknown) => {
+            const pos = position as { x: number; y: number; z: number };
+            if (playerModelRef.current) {
+                playerModelRef.current.position.set(pos.x, 0, pos.z);
+            }
+        },
+        onPositionCorrection: (position: unknown, rotation: unknown, serverTime: number) => {
+            const pos = position as { x: number; y: number; z: number };
+            if (playerModelRef.current) {
+                playerModelRef.current.userData.correctPosition = new THREE.Vector3(pos.x, 0, pos.z);
+                inputHistoryRef.current.removeBefore(serverTime);
+            }
+        },
+        onMatchEndTime: setMatchEndTime,
     });
 
     useEffect(() => {
         let lastTime = 0;
+        let animId = 0;
 
         const animate = (currentTime: number = 0) => {
-            animationFrameRef.current = requestAnimationFrame(animate);
+            animId = requestAnimationFrame(animate);
             if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
 
             const deltaTime = lastTime ? Math.min((currentTime - lastTime) / 1000, 0.1) : 0.016;
             lastTime = currentTime;
 
-            updateMovementRef.current(deltaTime);
+            controller.update(deltaTime);
+
+            mapRef.current?.update(deltaTime, currentTime / 1000);
+
             bulletPoolRef.current?.update(deltaTime);
 
-            if (playerModelRef.current && playerModelRef.current.userData.correctPosition) {
+            weaponModelRef.current?.updateRecoil(deltaTime);
+
+            if (playerModelRef.current?.userData.correctPosition) {
                 const target = playerModelRef.current.userData.correctPosition as THREE.Vector3;
                 playerModelRef.current.position.lerp(target, 0.3);
                 if (playerModelRef.current.position.distanceTo(target) < 0.05) {
@@ -444,15 +421,15 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 }
             }
 
-            const myAnimData = playerAnimationDataRef.current.get(socket?.id || '');
-            if (myAnimData && playerModelRef.current) {
-                const prevPos = previousPositionsRef.current.get(socket?.id || '');
-                const currPos = playerModelRef.current.position;
-                if (prevPos) {
-                    myAnimData.isMoving = currPos.distanceTo(prevPos) > 0.01;
+            if (playerModelRef.current) {
+                const myAnimData = playerAnimationDataRef.current.get(socket?.id || '');
+                if (myAnimData) {
+                    const prevPos = previousPositionsRef.current.get(socket?.id || '');
+                    const currPos = playerModelRef.current.position;
+                    if (prevPos) myAnimData.isMoving = currPos.distanceTo(prevPos) > 0.01;
+                    previousPositionsRef.current.set(socket?.id || '', currPos.clone());
+                    PlayerModel.animate(playerModelRef.current, myAnimData, deltaTime);
                 }
-                previousPositionsRef.current.set(socket?.id || '', currPos.clone());
-                PlayerModel.animate(playerModelRef.current, myAnimData, deltaTime);
             }
 
             interpolatorsRef.current.forEach((interpolator, playerId) => {
@@ -479,15 +456,13 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             rendererRef.current.render(sceneRef.current, cameraRef.current);
         };
 
-        animate();
-        return () => {
-            if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
-        };
-    }, [socket?.id]);
+        animId = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(animId);
+    }, [controller, socket?.id]);
 
     useEffect(() => {
         return () => {
-            stopAutoFire();
+            controller.autoFire.stop();
             bulletPoolRef.current?.dispose();
             soundManagerRef.current?.dispose();
             playerAnimationDataRef.current.clear();
@@ -501,10 +476,14 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                     if (obj instanceof THREE.Mesh) {
                         obj.geometry?.dispose();
                         if (Array.isArray(obj.material)) {
-                            obj.material.forEach(m => { m.dispose(); if (m.map) m.map.dispose(); });
+                            obj.material.forEach(m => {
+                                m.dispose();
+                                if (m.map) m.map.dispose();
+                            });
                         } else if (obj.material) {
                             obj.material.dispose();
-                            if ((obj.material as any).map) (obj.material as any).map.dispose();
+                            const mat = obj.material as THREE.MeshStandardMaterial;
+                            if (mat.map) mat.map.dispose();
                         }
                     }
                 });
@@ -521,7 +500,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
             if (document.pointerLockElement) document.exitPointerLock();
         };
-    }, [stopAutoFire]);
+    }, [controller]);
 
     return (
         <div className="relative w-full h-full">
@@ -544,11 +523,19 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 killFeed={killFeed}
                 damageIndicators={damageIndicators}
                 showHitMarker={showHitMarker}
-                lastHitTime={lastHitTime}
+                lastHitTime={Date.now()}
             />
 
             <VoiceChat socket={socket} channelId={roomId} myUsername={myUsername} isChatOpenRef={isChatOpenRef} />
-            <TextChat socket={socket} channelId={roomId} myUsername={myUsername} myTeam={myTeam} mode={mode} isOpen={isChatOpen} onToggle={setIsChatOpen} />
+            <TextChat
+                socket={socket}
+                channelId={roomId}
+                myUsername={myUsername}
+                myTeam={myTeam}
+                mode={mode}
+                isOpen={isChatOpen}
+                onToggle={setIsChatOpen}
+            />
 
             <GameOverlay
                 isLocked={isLocked}
