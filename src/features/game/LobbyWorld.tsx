@@ -9,6 +9,7 @@ import { LobbyUI } from "./components/LobbyUI";
 import { UsernameSprite } from "./utils/UsernameSprite";
 import { VoiceChat } from "./components/VoiceChat";
 import { TextChat } from "./components/TextChat";
+import { Reticle } from "./components/Reticle";
 
 import { PlayerModelLoader } from "./models/PlayerModelLoader";
 import { PlayerAnimator, ProceduralAnimationData } from "./models/PlayerAnimator";
@@ -59,9 +60,11 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     const playersRef = useRef<Map<string, LobbyPlayerModel>>(new Map());
     const animationFrameRef = useRef<number | null>(null);
     const animatablesRef = useRef<LobbyAnimatables | null>(null);
-    const timerRef = useRef(new THREE.Timer());
+    const lastTimeRef = useRef<number>(0);
+    const startTimeRef = useRef<number>(0);
     const frameCountRef = useRef(0);
     const isChatOpenRef = useRef(false);
+    const soundManagerRef = useRef<SoundManager | null>(null);
 
     const [players, setPlayers] = useState<LobbyPlayerData[]>([]);
     const [queues, setQueues] = useState<Queues>({
@@ -81,13 +84,21 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     useEffect(() => { isChatOpenRef.current = isChatOpen; }, [isChatOpen]);
 
     useEffect(() => {
+        soundManagerRef.current = new SoundManager();
+        return () => {
+            soundManagerRef.current?.dispose();
+            soundManagerRef.current = null;
+        };
+    }, []);
+
+    useEffect(() => {
         let isMounted = true;
         PlayerModelLoader.preload()
             .then(() => {
                 if (isMounted) setModelLoaded(true);
             })
             .catch(err => console.warn('⚠️ Player model preload failed:', err));
-        
+
         return () => { isMounted = false; };
     }, []);
 
@@ -109,14 +120,19 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             return;
         }
 
+        const groundOffset = PlayerModelLoader.getGroundOffset();
+        console.log(`📍 [LobbyWorld] Ground offset from loader: ${groundOffset.toFixed(4)}`);
+
         const animator = new PlayerAnimator(cloned);
         cloned.userData.animator = animator;
-        cloned.position.set(0, 0, 0);
-        
-       
+        cloned.position.set(0, groundOffset, 0);
+
+        console.log(`📊 [LobbyWorld] Model initial position: (${cloned.position.x.toFixed(2)}, ${cloned.position.y.toFixed(2)}, ${cloned.position.z.toFixed(2)})`);
+        console.log(`📊 [LobbyWorld] Model bounding box minY: ${new THREE.Box3().setFromObject(cloned).min.y.toFixed(4)}`);
+
         sceneRef.current.add(cloned);
         myPlayerModelRef.current = cloned;
-        console.log(`✅ [LobbyWorld] My player model added to scene`);
+        console.log(`✅ [LobbyWorld] My player model added to scene at y=${groundOffset.toFixed(4)}`);
 
     }, [modelLoaded]);
 
@@ -125,7 +141,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         cameraRef,
         playerModelRef: myPlayerModelRef,
         socket,
-        soundManagerRef: useRef<SoundManager | null>(null),
+        soundManagerRef,
         isChatOpenRef,
         bounds: { maxRadius: 45, groundLevel: 0 },
         interaction: {
@@ -175,7 +191,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         },
         onPlayerJoined: (player: LobbyPlayerData) => {
             setPlayers((prev) => [...prev, player]);
-            createOtherPlayerModel(player, players.length);
+            createOtherPlayerModel(player, playersRef.current.size);
         },
         onPlayerLeft: (playerId: string) => {
             setPlayers((prev) => prev.filter((p) => p.id !== playerId));
@@ -222,19 +238,19 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         console.log(`🎬 [LobbyWorld] Initializing lobby scene`);
 
         if (rendererRef.current) {
-             if (containerRef.current.contains(rendererRef.current.domElement)) {
-                 containerRef.current.removeChild(rendererRef.current.domElement);
-             }
-             rendererRef.current.dispose();
-             rendererRef.current = null;
+            if (containerRef.current.contains(rendererRef.current.domElement)) {
+                containerRef.current.removeChild(rendererRef.current.domElement);
+            }
+            rendererRef.current.dispose();
+            rendererRef.current = null;
         }
         if (sceneRef.current) {
             sceneRef.current = null;
         }
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x2a2a4e); 
-        scene.fog = new THREE.FogExp2(0x2a2a4e, 0.02); 
+        scene.background = new THREE.Color(0x2a2a4e);
+        scene.fog = new THREE.FogExp2(0x2a2a4e, 0.02);
         sceneRef.current = scene;
 
         const camera = new THREE.PerspectiveCamera(
@@ -243,7 +259,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             0.1,
             500,
         );
-        camera.position.set(0, 2.5, 6); 
+        camera.position.set(0, 2.5, 6);
         cameraRef.current = camera;
 
         const renderer = new THREE.WebGLRenderer({
@@ -287,13 +303,13 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         });
         const ground = new THREE.Mesh(groundGeo, groundMat);
         ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -0.5; 
+        ground.position.y = -0.5;
         ground.receiveShadow = true;
         scene.add(ground);
 
         const env = createAtmosphericEnvironment(scene);
         const portal = createPortal(scene);
-        
+
         animatablesRef.current = {
             ...env,
             portalRing: portal.portalRing,
@@ -311,17 +327,29 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         };
         window.addEventListener('resize', handleResize);
 
+        startTimeRef.current = performance.now();
+        lastTimeRef.current = performance.now();
+
         const animate = () => {
             animationFrameRef.current = requestAnimationFrame(animate);
 
             if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
 
-            timerRef.current.update();
-            const deltaTime = Math.min(timerRef.current.getDelta(), 0.1);
-            const elapsedTime = timerRef.current.getElapsed();
+            const currentTime = performance.now();
+            const deltaTime = Math.min((currentTime - lastTimeRef.current) / 1000, 0.1);
+            const elapsedTime = (currentTime - startTimeRef.current) / 1000;
+            lastTimeRef.current = currentTime;
             frameCountRef.current++;
 
+            if (myPlayerModelRef.current && frameCountRef.current < 10) {
+                console.log(` [LobbyWorld] Frame ${frameCountRef.current}: BEFORE update - player Y: ${myPlayerModelRef.current.position.y.toFixed(4)}`);
+            }
+
             controller.update(deltaTime);
+
+            if (myPlayerModelRef.current && frameCountRef.current < 10) {
+                console.log(`📊 [LobbyWorld] Frame ${frameCountRef.current}: AFTER update - player Y: ${myPlayerModelRef.current.position.y.toFixed(4)}`);
+            }
 
             playersRef.current.forEach((playerData) => {
                 if (playerData.animator) {
@@ -329,7 +357,6 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                         isMoving: playerData.animData.isMoving,
                         moveSpeed: playerData.animData.isMoving ? 1 : 0,
                         strafeInput: 0,
-                        aimDirection: undefined,
                         isDead: playerData.animData.isDead,
                         isShooting: playerData.animData.isShooting,
                         isReloading: playerData.animData.isReloading,
@@ -356,7 +383,29 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             if (animationFrameRef.current) {
                 cancelAnimationFrame(animationFrameRef.current);
             }
-            
+
+            playersRef.current.forEach((playerData) => {
+                if (sceneRef.current) {
+                    sceneRef.current.remove(playerData.group);
+                    playerData.group.traverse((obj) => {
+                        if (obj instanceof THREE.Mesh) {
+                            obj.geometry?.dispose();
+                            if (Array.isArray(obj.material)) {
+                                obj.material.forEach(m => m.dispose());
+                            } else if (obj.material) {
+                                obj.material.dispose();
+                            }
+                        }
+                    });
+                    if (playerData.sprite) {
+                        const mat = playerData.sprite.material as THREE.SpriteMaterial;
+                        mat.map?.dispose();
+                        mat.dispose();
+                    }
+                }
+            });
+            playersRef.current.clear();
+
             if (containerRef.current && rendererRef.current) {
                 if (containerRef.current.contains(rendererRef.current.domElement)) {
                     containerRef.current.removeChild(rendererRef.current.domElement);
@@ -364,11 +413,11 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                 rendererRef.current.dispose();
                 rendererRef.current = null;
             }
-            
+
             sceneRef.current = null;
             cameraRef.current = null;
         };
-    }, []); 
+    }, []);
 
     const createOtherPlayerModel = useCallback((player: LobbyPlayerData, index: number) => {
         if (!sceneRef.current) return;
@@ -403,7 +452,9 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         group.add(indicator);
 
         group.userData.playerId = player.id;
-        group.position.set(player.position.x, 0, player.position.z);
+
+        const groundOffset = PlayerModelLoader.getGroundOffset();
+        group.position.set(player.position.x, groundOffset, player.position.z);
         group.rotation.set(0, player.rotation.y, 0);
 
         sceneRef.current.add(group);
@@ -499,6 +550,8 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     return (
         <div className="relative w-full h-full">
             <div ref={containerRef} className="w-full h-full cursor-pointer" />
+
+            <Reticle mode="default" size={24} color="#00ffff" opacity={0.6} visible={isLocked && !isChatOpen} />
 
             <LobbyUI
                 username={currentUsername}

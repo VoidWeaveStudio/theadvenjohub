@@ -1,7 +1,9 @@
-// src/features/game/hooks/useGameSocket.ts
+// src/features/game/hooks/network/useGameSocket.ts
+
 import { useEffect, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { Player } from '../types';
+import { unpackPosition, unpackRotation } from '../utils/network';
 
 interface UseGameSocketProps {
     socket: Socket | null;
@@ -27,11 +29,6 @@ interface UseGameSocketProps {
     onMatchEndTime?: (endTime: number) => void;
     onSpawnProtectionUpdate?: (until: number) => void;
     onUsernameChanged?: (id: string, username: string) => void;
-}
-
-function unpackPosition(pos: any): { x: number; y: number; z: number } {
-    if (Array.isArray(pos)) return { x: pos[0], y: pos[1], z: pos[2] };
-    return pos;
 }
 
 export function useGameSocket({
@@ -83,7 +80,7 @@ export function useGameSocket({
             onKillsUpdate(data.player.kills);
             onDeathsUpdate(data.player.deaths);
             if (data.scores) onScoresUpdate(data.scores);
-            if (data.player.position) onSpawnPosition(unpackPosition(data.player.position));
+            if (data.player.position) onSpawnPosition(unpackPosition(data.player.position)); 
             if (data.matchEndTime && onMatchEndTime) onMatchEndTime(data.matchEndTime);
             
             if (data.player.spawnProtectionUntil && onSpawnProtectionUpdate) {
@@ -108,8 +105,8 @@ export function useGameSocket({
         };
 
         const handlePlayerMoved = (data: any) => {
-            const pos = unpackPosition(data.position);
-            const rot = unpackPosition(data.rotation);
+            const pos = unpackPosition(data.position); 
+            const rot = unpackRotation(data.rotation);
             onPlayerMoved(data.id, pos, rot, data.serverTime);
         };
 
@@ -124,7 +121,7 @@ export function useGameSocket({
         };
 
         const handlePlayerRespawned = (data: any) => {
-            const pos = unpackPosition(data.position);
+            const pos = unpackPosition(data.position); 
             onPlayerRespawned(data.id, pos, data.spawnProtectionUntil);
             if (data.id === socket.id) {
                 onHealthUpdate(100);
@@ -143,8 +140,8 @@ export function useGameSocket({
         };
 
         const handlePositionCorrection = (data: any) => {
-            const pos = unpackPosition(data.position);
-            const rot = unpackPosition(data.rotation);
+            const pos = unpackPosition(data.position); 
+            const rot = unpackRotation(data.rotation);
             onPositionCorrection(pos, rot, data.serverTime || Date.now());
         };
 

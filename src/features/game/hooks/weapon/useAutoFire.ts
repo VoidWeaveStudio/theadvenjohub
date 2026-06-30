@@ -1,6 +1,7 @@
 // src/features/game/hooks/weapon/useAutoFire.ts
+
 import { useRef, useCallback, useEffect } from 'react';
-import { FIRE_RATE } from '../../constants';
+import { WEAPON_CONFIG } from '../../config/gameConfig';
 
 export function useAutoFire(onFire: () => void) {
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -11,7 +12,7 @@ export function useAutoFire(onFire: () => void) {
         isActiveRef.current = true;
 
         onFire();
-        intervalRef.current = setInterval(onFire, FIRE_RATE);
+        intervalRef.current = setInterval(onFire, WEAPON_CONFIG.fireRate);
     }, [onFire]);
 
     const stop = useCallback((): void => {

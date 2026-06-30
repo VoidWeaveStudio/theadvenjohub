@@ -1,5 +1,9 @@
 // src/features/game/hooks/physics/usePhysics.ts
+
 import { useRef } from 'react';
+import { PHYSICS_CONFIG, PhysicsConfig } from '../../config/gameConfig';
+
+export type { PhysicsConfig };
 
 export interface PhysicsState {
     velocityY: number;
@@ -7,24 +11,16 @@ export interface PhysicsState {
     positionY: number;
 }
 
-export interface PhysicsConfig {
-    gravity?: number;
-    jumpForce?: number;
-    groundLevel?: number;
-}
 
-const DEFAULT_PHYSICS: Required<PhysicsConfig> = {
-    gravity: -20.0,
-    jumpForce: 8.0,
-    groundLevel: 0,
-};
-
-export function usePhysics(config: PhysicsConfig = {}) {
-    const { gravity, jumpForce, groundLevel } = { ...DEFAULT_PHYSICS, ...config };
+export function usePhysics(config: Partial<PhysicsConfig> = {}) {
+    const finalConfig = { ...PHYSICS_CONFIG, ...config };
+    const { gravity, jumpForce, groundLevel } = finalConfig;
 
     const velocityYRef = useRef(0);
     const isOnGroundRef = useRef(true);
     const positionYRef = useRef(groundLevel);
+    const initializedRef = useRef(false);
+
 
     const update = (deltaTime: number): number => {
         if (!isOnGroundRef.current) {
@@ -40,6 +36,7 @@ export function usePhysics(config: PhysicsConfig = {}) {
         return positionYRef.current;
     };
 
+
     const jump = (): void => {
         if (isOnGroundRef.current) {
             velocityYRef.current = jumpForce;
@@ -47,10 +44,20 @@ export function usePhysics(config: PhysicsConfig = {}) {
         }
     };
 
+
     const reset = (y: number = groundLevel): void => {
         positionYRef.current = y;
         velocityYRef.current = 0;
         isOnGroundRef.current = true;
+        initializedRef.current = true;
+    };
+
+
+    const initialize = (y: number): void => {
+        if (!initializedRef.current) {
+            positionYRef.current = y;
+            initializedRef.current = true;
+        }
     };
 
     return {
@@ -60,5 +67,7 @@ export function usePhysics(config: PhysicsConfig = {}) {
         update,
         jump,
         reset,
+        initialize,
+        config: finalConfig,
     };
 }

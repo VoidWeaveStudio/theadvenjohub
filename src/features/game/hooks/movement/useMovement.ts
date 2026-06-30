@@ -1,27 +1,22 @@
 // src/features/game/hooks/movement/useMovement.ts
+
 import * as THREE from 'three';
 import { CollisionBox } from '../../types';
 import { checkCollision } from '../../map/collision';
-import { PLAYER_RADIUS } from '../../constants';
+import { MOVEMENT_CONFIG, MovementConfig } from '../../config/gameConfig';
+import { COLLISION_CONFIG } from '../../config/gameConfig';
 
-export interface MovementConfig {
-    speed?: number;
-    rotationSmoothness?: number;
-}
+export type { MovementConfig };
 
-const DEFAULT_MOVEMENT: Required<MovementConfig> = {
-    speed: 7.0,
-    rotationSmoothness: 15.0,
-};
 
 export class PlayerMovement {
-    private config: Required<MovementConfig>;
+    private config: MovementConfig;
 
-    constructor(config: MovementConfig = {}) {
-        this.config = { ...DEFAULT_MOVEMENT, ...config };
+    constructor(config: Partial<MovementConfig> = {}) {
+        this.config = { ...MOVEMENT_CONFIG, ...config };
     }
 
-  
+
     getInputDirection(keys: Set<string>): THREE.Vector3 {
         const dir = new THREE.Vector3();
         if (keys.has('KeyW')) dir.z -= 1;
@@ -30,6 +25,7 @@ export class PlayerMovement {
         if (keys.has('KeyD')) dir.x += 1;
         return dir;
     }
+
 
     toWorldDirection(localDir: THREE.Vector3, yaw: number): THREE.Vector3 {
         const sin = Math.sin(yaw);
@@ -41,7 +37,7 @@ export class PlayerMovement {
         );
     }
 
- 
+
     applyMovement(
         player: THREE.Group,
         worldDir: THREE.Vector3,
@@ -56,10 +52,10 @@ export class PlayerMovement {
         const newX = player.position.x + worldDir.x * speed;
         const newZ = player.position.z + worldDir.z * speed;
 
-        if (!checkCollision(newX, player.position.z, collisionBoxes, PLAYER_RADIUS)) {
+        if (!checkCollision(newX, player.position.z, collisionBoxes, COLLISION_CONFIG.playerRadius)) {
             player.position.x = newX;
         }
-        if (!checkCollision(player.position.x, newZ, collisionBoxes, PLAYER_RADIUS)) {
+        if (!checkCollision(player.position.x, newZ, collisionBoxes, COLLISION_CONFIG.playerRadius)) {
             player.position.z = newZ;
         }
     }
@@ -75,8 +71,18 @@ export class PlayerMovement {
         const lerpFactor = 1 - Math.exp(-this.config.rotationSmoothness * deltaTime);
         player.rotation.y += diff * lerpFactor;
     }
+
+
+    getSpeed(): number {
+        return this.config.speed;
+    }
+
+    getRotationSmoothness(): number {
+        return this.config.rotationSmoothness;
+    }
 }
 
-export function useMovement(config: MovementConfig = {}) {
+
+export function useMovement(config: Partial<MovementConfig> = {}) {
     return new PlayerMovement(config);
 }

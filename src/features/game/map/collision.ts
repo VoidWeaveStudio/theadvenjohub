@@ -1,12 +1,13 @@
-//src\features\game\map\collision.ts
+// src/features/game/map/collision.ts
+
 import { CollisionBox } from '../types';
-import { PLAYER_RADIUS } from '../constants';
+import { COLLISION_CONFIG } from '../config/gameConfig';
 import { SpatialGrid } from './SpatialGrid';
 
 let globalGrid: SpatialGrid | null = null;
 
 export function buildCollisionGrid(boxes: CollisionBox[]): SpatialGrid {
-    const grid = new SpatialGrid(10);
+    const grid = new SpatialGrid(COLLISION_CONFIG.gridCellSize);
     for (const box of boxes) {
         grid.insert(box);
     }
@@ -22,7 +23,7 @@ export function checkCollision(
     x: number,
     z: number,
     collisionBoxes: CollisionBox[],
-    radius: number = PLAYER_RADIUS
+    radius: number = COLLISION_CONFIG.playerRadius,
 ): boolean {
     if (globalGrid) {
         const nearby = globalGrid.query(x, z, radius + 5);
@@ -50,7 +51,7 @@ export function pushOutOfCollision(
     x: number,
     z: number,
     collisionBoxes: CollisionBox[],
-    radius: number = PLAYER_RADIUS
+    radius: number = COLLISION_CONFIG.playerRadius,
 ): { x: number; z: number } {
     if (!checkCollision(x, z, collisionBoxes, radius)) {
         return { x, z };
@@ -73,8 +74,8 @@ export function isSpawnPointSafe(
     x: number,
     z: number,
     collisionBoxes: CollisionBox[],
-    radius: number = PLAYER_RADIUS,
-    safetyMargin: number = 1.0
+    radius: number = COLLISION_CONFIG.playerRadius,
+    safetyMargin: number = 1.0,
 ): boolean {
     return !checkCollision(x, z, collisionBoxes, radius + safetyMargin);
 }

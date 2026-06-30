@@ -1,7 +1,9 @@
 // src/features/game/hooks/network/useGameEvents.ts
+
 import { useEffect } from 'react';
 import { Socket } from 'socket.io-client';
 import { Player } from '../../types';
+import { unpackPosition, unpackRotation } from '../../utils/network'; 
 
 export interface GameEventHandlers {
     onPlayersUpdate: (updater: (prev: Player[]) => Player[]) => void;
@@ -18,9 +20,6 @@ export interface GameEventHandlers {
     onPositionCorrection: (position: any, rotation: any, serverTime: number) => void;
 }
 
-function unpackPosition(pos: any): { x: number; y: number; z: number } {
-    return Array.isArray(pos) ? { x: pos[0], y: pos[1], z: pos[2] } : pos;
-}
 
 export function useGameEvents(
     socket: Socket | null,
@@ -47,8 +46,8 @@ export function useGameEvents(
         const handlePlayerMoved = (data: any) => {
             handlers.onPlayerMoved(
                 data.id,
-                unpackPosition(data.position),
-                unpackPosition(data.rotation),
+                unpackPosition(data.position), 
+                unpackRotation(data.rotation),  
                 data.serverTime,
             );
         };
@@ -59,15 +58,15 @@ export function useGameEvents(
         };
 
         const handlePlayerRespawned = (data: any) => {
-            const pos = unpackPosition(data.position);
+            const pos = unpackPosition(data.position); 
             handlers.onPlayerRespawned(data.id, pos, data.spawnProtectionUntil);
             if (data.id === socket.id) handlers.onHealthUpdate(100);
         };
 
         const handlePositionCorrection = (data: any) => {
             handlers.onPositionCorrection(
-                unpackPosition(data.position),
-                unpackPosition(data.rotation),
+                unpackPosition(data.position),  
+                unpackRotation(data.rotation),  
                 data.serverTime || Date.now(),
             );
         };

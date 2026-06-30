@@ -1,6 +1,8 @@
 // src/features/game/hooks/network/useLobbySocket.ts
+
 import { useEffect } from 'react';
 import { Socket } from 'socket.io-client';
+import { unpackPosition, unpackRotation } from '../../utils/network';
 
 export interface LobbyPlayerData {
     id: string;
@@ -38,10 +40,6 @@ export interface LobbySocketHandlers {
     onQueueError: (message: string) => void;
 }
 
-function unpackPosition(pos: any): { x: number; y: number; z: number } {
-    if (Array.isArray(pos)) return { x: pos[0], y: pos[1], z: pos[2] };
-    return pos;
-}
 
 export function useLobbySocket(
     socket: Socket | null,
@@ -78,7 +76,7 @@ export function useLobbySocket(
             handlers.onPlayerMoved({
                 id: data.id,
                 position: unpackPosition(data.position),
-                rotation: unpackPosition(data.rotation),
+                rotation: unpackRotation(data.rotation), 
             });
         };
 

@@ -1,6 +1,7 @@
 // src/features/game/hooks/weapon/useAmmoSystem.ts
+
 import { useRef, useCallback } from 'react';
-import { MAX_AMMO, RELOAD_TIME } from '../../constants';
+import { WEAPON_CONFIG } from '../../config/gameConfig';
 
 export interface AmmoSystemState {
     ammo: number;
@@ -11,7 +12,7 @@ export function useAmmoSystem(
     onAmmoChange?: (ammo: number) => void,
     onReloadChange?: (isReloading: boolean) => void,
 ) {
-    const ammoRef = useRef(MAX_AMMO);
+    const ammoRef = useRef(WEAPON_CONFIG.maxAmmo);
     const isReloadingRef = useRef(false);
     const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -25,7 +26,7 @@ export function useAmmoSystem(
     }, [onAmmoChange]);
 
     const reload = useCallback((): boolean => {
-        if (isReloadingRef.current || ammoRef.current >= MAX_AMMO) {
+        if (isReloadingRef.current || ammoRef.current >= WEAPON_CONFIG.maxAmmo) {
             return false;
         }
 
@@ -33,12 +34,12 @@ export function useAmmoSystem(
         onReloadChange?.(true);
 
         reloadTimerRef.current = setTimeout(() => {
-            ammoRef.current = MAX_AMMO;
+            ammoRef.current = WEAPON_CONFIG.maxAmmo;
             isReloadingRef.current = false;
-            onAmmoChange?.(MAX_AMMO);
+            onAmmoChange?.(WEAPON_CONFIG.maxAmmo);
             onReloadChange?.(false);
             reloadTimerRef.current = null;
-        }, RELOAD_TIME);
+        }, WEAPON_CONFIG.reloadTime);
 
         return true;
     }, [onAmmoChange, onReloadChange]);
@@ -54,8 +55,8 @@ export function useAmmoSystem(
 
     const reset = useCallback((): void => {
         cancelReload();
-        ammoRef.current = MAX_AMMO;
-        onAmmoChange?.(MAX_AMMO);
+        ammoRef.current = WEAPON_CONFIG.maxAmmo;
+        onAmmoChange?.(WEAPON_CONFIG.maxAmmo);
     }, [cancelReload, onAmmoChange]);
 
     return {

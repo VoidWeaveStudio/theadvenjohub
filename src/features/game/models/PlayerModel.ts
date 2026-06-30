@@ -39,7 +39,7 @@ export class PlayerModel {
         skinId: string = 'default',
     ) {
         console.log(`🎭 [PlayerModel] Creating model for player "${player.id}" (index: ${index}, mode: ${mode}, skin: ${skinId})`);
-        
+
         const clonedModel = PlayerModelLoader.getModelClone(skinId);
         if (clonedModel) {
             this.group = clonedModel;
@@ -83,7 +83,6 @@ export class PlayerModel {
             isMoving: this.animData.isMoving,
             moveSpeed: proceduralData?.moveSpeed ?? 0,
             strafeInput: proceduralData?.strafeInput ?? 0,
-            aimDirection: proceduralData?.aimDirection,
             isDead: this.animData.isDead,
             isShooting: this.animData.isShooting,
             isReloading: this.animData.isReloading,
@@ -213,7 +212,7 @@ export class PlayerModel {
         mode: '5v5' | 'ffa',
     ): THREE.Group {
         console.log(`🔧 [PlayerModel] Creating fallback model for player "${player.id}"`);
-        
+
         const group = new THREE.Group();
         const color = this.getTeamColor(player, index, mode);
 

@@ -61,6 +61,18 @@ export class CollisionSystem {
         return [...this.solidBoxes];
     }
 
+    getWaterBoxes(): CollisionBox3D[] {
+        return [...this.waterBoxes];
+    }
+
+    getHazardBoxes(): CollisionBox3D[] {
+        return [...this.hazardBoxes];
+    }
+
+    getBoundaryBoxes(): CollisionBox3D[] {
+        return [...this.boundaryBoxes];
+    }
+
     removeSolid(box: CollisionBox3D): void {
         const idx = this.solidBoxes.indexOf(box);
         if (idx >= 0) {

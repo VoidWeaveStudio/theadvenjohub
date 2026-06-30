@@ -225,6 +225,9 @@ export class PlayerModelLoader {
         character.scale.setScalar(scale);
         console.log(`📐 [PlayerModelLoader] Applied scale: ${scale.toFixed(4)} (target height: ${targetHeight})`);
 
+      
+        character.rotation.y = Math.PI;
+
         const finalBox = new THREE.Box3().setFromObject(character);
         const finalSize = finalBox.getSize(new THREE.Vector3());
         const groundOffset = -finalBox.min.y;

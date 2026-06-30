@@ -39,19 +39,21 @@ export interface TerrainConfig {
 
 export type MaterialType = 'wood' | 'stone' | 'metal' | 'water' | 'brick' | 'concrete' | 'sand';
 
-export interface CollisionLayerConfig {
-    solid: CollisionBox3D[];
-    water?: CollisionBox3D[];
-    hazard?: CollisionBox3D[];
-    trigger?: TriggerBox[];
-    boundaries: CollisionBox3D[];
+export interface CollisionBox {
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
 }
 
 export interface CollisionBox3D {
     id?: string;
-    minX: number; maxX: number;
-    minY: number; maxY: number;
-    minZ: number; maxZ: number;
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    minZ: number;
+    maxZ: number;
     properties?: {
         climbable?: boolean;
         breakable?: boolean;
@@ -65,6 +67,14 @@ export interface TriggerBox extends CollisionBox3D {
     onEnter?: string;
     onExit?: string;
     oneShot?: boolean;
+}
+
+export interface CollisionLayerConfig {
+    solid: CollisionBox3D[];
+    water?: CollisionBox3D[];
+    hazard?: CollisionBox3D[];
+    trigger?: TriggerBox[];
+    boundaries: CollisionBox3D[];
 }
 
 export interface SpawnPointsConfig {
@@ -85,4 +95,22 @@ export interface MapMetadata {
     fog?: { color: number; near: number; far: number };
     music?: string;
     weather?: 'clear' | 'rain' | 'snow' | 'fog';
+}
+
+export interface Player {
+    id: string;
+    name: string;
+    team?: number;
+    position: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number };
+}
+
+export interface PlayerAnimationData {
+    walkPhase: number;
+    isMoving: boolean;
+    isShooting: boolean;
+    isReloading: boolean;
+    isDead: boolean;
+    hitFlash: number;
+    deathAnimation: number;
 }

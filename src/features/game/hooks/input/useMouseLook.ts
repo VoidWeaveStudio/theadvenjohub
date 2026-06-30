@@ -1,5 +1,7 @@
 // src/features/game/hooks/input/useMouseLook.ts
+
 import { useEffect, useRef, MutableRefObject } from 'react';
+import { MOUSE_CONFIG, MouseConfig } from '../../config/gameConfig';
 
 export interface MouseLookState {
     yawRef: MutableRefObject<number>;
@@ -17,17 +19,13 @@ export interface MouseLookConfig {
     isMouseDown?: MutableRefObject<boolean>;
 }
 
-const DEFAULT_CONFIG = {
-    sensitivity: 0.003,
-    minPitch: -1.2,
-    maxPitch: 1.2,
-};
+export type { MouseConfig };
 
 export function useMouseLook(config: MouseLookConfig): MouseLookState {
     const {
-        sensitivity = DEFAULT_CONFIG.sensitivity,
-        minPitch = DEFAULT_CONFIG.minPitch,
-        maxPitch = DEFAULT_CONFIG.maxPitch,
+        sensitivity = MOUSE_CONFIG.sensitivity,
+        minPitch = MOUSE_CONFIG.minPitch,
+        maxPitch = MOUSE_CONFIG.maxPitch,
         containerRef,
         isChatOpenRef,
         onLockChange,

@@ -26,7 +26,10 @@ import { useGameSocket } from './hooks/useGameSocket';
 import { PlayerInterpolator } from './network/PlayerInterpolator';
 import { InputHistory } from './network/InputHistory';
 
-import { Player, PlayerAnimationData, GameMode } from './types';
+import { Player, PlayerAnimationData, GameMode, CollisionBox } from './types';
+import { WEAPON_CONFIG } from './config/gameConfig';
+
+import { CollisionSystem } from './map/CollisionSystem';
 
 interface GameWorldProps {
     wallet: string;
@@ -72,11 +75,15 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const playersDataRef = useRef<Map<string, Player>>(new Map());
     const hudPlayersRef = useRef<Player[]>([]);
     const mapRef = useRef<GameMap | null>(null);
+    const collisionSystemRef = useRef<CollisionSystem | null>(null);
+    const collisionBoxesRef = useRef<CollisionBox[]>([]);
 
     const [myHealth, setMyHealth] = useState(100);
     const [myKills, setMyKills] = useState(0);
     const [myDeaths, setMyDeaths] = useState(0);
-    const [ammo, setAmmo] = useState(30);
+    
+    const [ammo, setAmmo] = useState(WEAPON_CONFIG.maxAmmo);
+    
     const [isReloading, setIsReloading] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'ended'>('playing');
@@ -89,6 +96,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [killFeed, setKillFeed] = useState<KillFeedEntry[]>([]);
     const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
     const [showHitMarker, setShowHitMarker] = useState(false);
+    const [isMapReady, setIsMapReady] = useState(false);
 
     useEffect(() => {
         isChatOpenRef.current = isChatOpen;
@@ -103,14 +111,13 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const myUsername = `Player_${wallet.substring(0, 4)}`;
     const myTeam = hudPlayers.find(p => p.id === socket?.id)?.team ?? 0;
 
-    const collisionBoxes = mapRef.current?.getCollisions().getSolidBoxes() ?? [];
-
     const controller = useGameController({
         containerRef,
         cameraRef,
         playerModelRef,
         socket,
-        collisionBoxes: collisionBoxes,
+        collisionBoxes: collisionBoxesRef.current,
+        collisionSystem: collisionSystemRef.current!,
         gameStatusRef,
         isChatOpenRef,
         isMouseDownRef,
@@ -177,6 +184,41 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         if (map) {
             map.build();
             mapRef.current = map;
+
+            const collisionSystem = new CollisionSystem(10);
+            const collisions = map.getCollisions();
+
+            collisions.getSolidBoxes().forEach(box => {
+                collisionSystem.addSolid(box);
+            });
+
+            if (collisions.getWaterBoxes) {
+                collisions.getWaterBoxes().forEach(box => {
+                    collisionSystem.addWater(box);
+                });
+            }
+
+            if (collisions.getHazardBoxes) {
+                collisions.getHazardBoxes().forEach(box => {
+                    collisionSystem.addHazard(box);
+                });
+            }
+
+            if (collisions.getBoundaryBoxes) {
+                collisions.getBoundaryBoxes().forEach(box => {
+                    collisionSystem.addBoundary(box);
+                });
+            }
+
+            collisionSystemRef.current = collisionSystem;
+            collisionBoxesRef.current = collisions.getSolidBoxes().map(box => ({
+                minX: box.minX,
+                maxX: box.maxX,
+                minZ: box.minZ,
+                maxZ: box.maxZ,
+            }));
+
+            setIsMapReady(true);
         } else {
             console.error('Failed to create map for mode:', mode);
         }
@@ -199,6 +241,8 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     }, [roomId, mode]);
 
     useEffect(() => {
+        if (!isMapReady) return;
+
         PlayerModelLoader.preload()
             .then(() => {
                 Array.from(playersDataRef.current.values()).forEach((player, index) => {
@@ -208,7 +252,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 });
             })
             .catch((err: unknown) => console.warn('⚠️ Player model preload failed:', err));
-    }, [socket?.id, mode]);
+    }, [isMapReady, socket?.id, mode]);
 
     const createPlayerModelSafe = useCallback((player: Player, index: number) => {
         if (!sceneRef.current || playersRef.current.has(player.id)) return null;
@@ -297,15 +341,16 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         if (animData) animData.isDead = false;
 
         const pos = position as { x: number; y: number; z: number };
+        const groundOffset = PlayerModelLoader.getGroundOffset();
 
         if (id === socket?.id && playerModelRef.current) {
-            playerModelRef.current.position.set(pos.x, 0, pos.z);
+            playerModelRef.current.position.set(pos.x, groundOffset, pos.z);
             if (spawnProtectionUntil) setSpawnProtectionUntil(spawnProtectionUntil);
         } else {
             const model = playersRef.current.get(id);
             if (model) {
                 model.visible = true;
-                model.position.set(pos.x, 0, pos.z);
+                model.position.set(pos.x, groundOffset, pos.z);
                 previousPositionsRef.current.set(id, model.position.clone());
             }
         }
@@ -381,7 +426,8 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onSpawnPosition: (position: unknown) => {
             const pos = position as { x: number; y: number; z: number };
             if (playerModelRef.current) {
-                playerModelRef.current.position.set(pos.x, 0, pos.z);
+                const groundOffset = PlayerModelLoader.getGroundOffset();
+                playerModelRef.current.position.set(pos.x, groundOffset, pos.z);
             }
         },
         onPositionCorrection: (position: unknown, rotation: unknown, serverTime: number) => {
@@ -471,6 +517,11 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             interpolatorsRef.current.clear();
             inputHistoryRef.current.clear();
 
+            if (collisionSystemRef.current) {
+                collisionSystemRef.current.clear();
+                collisionSystemRef.current = null;
+            }
+
             if (sceneRef.current) {
                 sceneRef.current.traverse((obj) => {
                     if (obj instanceof THREE.Mesh) {
@@ -511,7 +562,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 kills={myKills}
                 deaths={myDeaths}
                 ammo={ammo}
-                maxAmmo={30}
+                maxAmmo={WEAPON_CONFIG.maxAmmo}
                 isReloading={isReloading}
                 roomId={roomId}
                 players={hudPlayers}

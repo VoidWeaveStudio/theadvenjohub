@@ -2,15 +2,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
-
-interface Player {
-  id: string;
-  username: string;
-  team: number;
-  health: number;
-  kills: number;
-  deaths: number;
-}
+import { WEAPON_CONFIG } from './config/gameConfig';
+import type { Player } from './types';
 
 interface KillFeedEntry {
   id: string;
@@ -76,6 +69,26 @@ export function GameHUD({
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [hasSpawnProtection, setHasSpawnProtection] = useState(false);
   const [visibleKillFeed, setVisibleKillFeed] = useState<KillFeedEntry[]>([]);
+  
+  const [isHitMarkerVisible, setIsHitMarkerVisible] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    let rafId: number;
+    let lastUpdate = 0;
+
+    const tick = (currentTime: number) => {
+      rafId = requestAnimationFrame(tick);
+      
+      if (currentTime - lastUpdate > 1000) {
+        setNow(Date.now());
+        lastUpdate = currentTime;
+      }
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
   useEffect(() => {
     if (!matchEndTime) return;
@@ -126,6 +139,16 @@ export function GameHUD({
     return () => clearInterval(cleanup);
   }, [killFeed]);
 
+  useEffect(() => {
+    if (showHitMarker && lastHitTime > 0) {
+      setIsHitMarkerVisible(true);
+      const timer = setTimeout(() => {
+        setIsHitMarkerVisible(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showHitMarker, lastHitTime]);
+
   const getHealthColor = () => {
     if (health > 70) return 'from-emerald-400 via-green-500 to-green-600';
     if (health > 40) return 'from-yellow-400 via-amber-500 to-orange-500';
@@ -140,7 +163,7 @@ export function GameHUD({
 
   return (
     <>
-
+      {/* Прицел */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-40">
         <div className="relative w-8 h-8">
           <div className="absolute top-1/2 left-0 w-2 h-0.5 bg-white -translate-y-1/2 shadow-lg shadow-black/50" />
@@ -149,7 +172,7 @@ export function GameHUD({
           <div className="absolute left-1/2 bottom-0 w-0.5 h-2 bg-white -translate-x-1/2 shadow-lg shadow-black/50" />
           <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-red-500 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-lg shadow-red-500/50" />
 
-          {showHitMarker && Date.now() - lastHitTime < 200 && (
+          {isHitMarkerVisible && (
             <div className="absolute inset-0 animate-ping">
               <div className="absolute top-1/2 left-1/2 w-6 h-6 -translate-x-1/2 -translate-y-1/2">
                 <div className="absolute top-0 left-1/2 w-0.5 h-2 bg-white -translate-x-1/2 rotate-45" />
@@ -162,9 +185,8 @@ export function GameHUD({
         </div>
       </div>
 
-
       {damageIndicators.map((indicator) => {
-        const age = Date.now() - indicator.timestamp;
+        const age = now - indicator.timestamp;
         if (age > 2000) return null;
 
         return (
@@ -184,7 +206,6 @@ export function GameHUD({
         );
       })}
 
-
       {hasSpawnProtection && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-600/90 via-cyan-600/90 to-blue-600/90 backdrop-blur-md px-8 py-3 rounded-lg animate-pulse shadow-2xl border border-cyan-400/50 z-40">
           <div className="text-white text-sm font-bold flex items-center gap-3">
@@ -196,7 +217,6 @@ export function GameHUD({
           </div>
         </div>
       )}
-
 
       <div className="absolute top-20 right-8 space-y-2 pointer-events-none z-30">
         {visibleKillFeed.map((kill) => (
@@ -221,7 +241,6 @@ export function GameHUD({
           </div>
         ))}
       </div>
-
 
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-end gap-4 pointer-events-none z-30">
         <div className="relative bg-gradient-to-br from-black/90 via-zinc-900/90 to-black/90 backdrop-blur-xl px-6 py-4 rounded-xl shadow-2xl border border-white/10 min-w-[320px] overflow-hidden">
@@ -290,7 +309,7 @@ export function GameHUD({
               </div>
 
               <div className="flex gap-0.5 mt-2">
-                {Array.from({ length: Math.min(maxAmmo, 30) }).map((_, i) => (
+                {Array.from({ length: Math.min(maxAmmo, WEAPON_CONFIG.maxAmmo) }).map((_, i) => (
                   <div
                     key={i}
                     className={`h-1 flex-1 rounded-full transition-all duration-200 ${i < ammo
@@ -306,7 +325,6 @@ export function GameHUD({
           </div>
         </div>
       </div>
-
 
       {mode === '5v5' && (
         <div className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-none z-30">
@@ -341,7 +359,6 @@ export function GameHUD({
         </div>
       )}
 
-
       {timeLeft && (
         <div className="absolute top-8 right-8 pointer-events-none z-30">
           <div className="relative bg-gradient-to-br from-black/90 via-zinc-900/90 to-black/90 backdrop-blur-xl px-6 py-3 rounded-xl shadow-2xl border border-white/10 overflow-hidden">
@@ -361,7 +378,6 @@ export function GameHUD({
           </div>
         </div>
       )}
-
 
       <div className="absolute top-8 left-8 pointer-events-none z-30">
         <div className="relative bg-gradient-to-br from-black/90 via-zinc-900/90 to-black/90 backdrop-blur-xl px-6 py-3 rounded-xl shadow-2xl border border-white/10 overflow-hidden">
@@ -384,7 +400,6 @@ export function GameHUD({
           </div>
         </div>
       </div>
-
 
       <div className="absolute top-32 right-8 pointer-events-none z-30">
         <div className="relative bg-gradient-to-br from-black/90 via-zinc-900/90 to-black/90 backdrop-blur-xl px-5 py-4 rounded-xl shadow-2xl border border-white/10 max-w-xs overflow-hidden">
@@ -514,7 +529,6 @@ export function GameHUD({
           </div>
         </div>
       </div>
-
 
       <style>{`
     @keyframes shimmer {

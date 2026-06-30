@@ -3,13 +3,13 @@ import * as THREE from 'three';
 import { BoneMapper, LogicalBone } from './BoneMapper';
 
 export interface WalkConfig {
-    frequency: number;          
-    bodyBobAmplitude: number;   
-    bodySwayAmplitude: number;   
-    legSwingAmplitude: number; 
-    kneeBendAmplitude: number;  
-    armSwingAmplitude: number;   
-    hipTiltAmplitude: number;   
+    frequency: number;
+    bodyBobAmplitude: number;
+    bodySwayAmplitude: number;
+    legSwingAmplitude: number;
+    kneeBendAmplitude: number;
+    armSwingAmplitude: number;
+    hipTiltAmplitude: number;
 }
 
 const DEFAULT_WALK_CONFIG: WalkConfig = {
@@ -23,10 +23,10 @@ const DEFAULT_WALK_CONFIG: WalkConfig = {
 };
 
 export interface IdleConfig {
-    breathFrequency: number;   
-    breathAmplitude: number;   
-    swayFrequency: number;    
-    swayAmplitude: number;     
+    breathFrequency: number;
+    breathAmplitude: number;
+    swayFrequency: number;
+    swayAmplitude: number;
 }
 
 const DEFAULT_IDLE_CONFIG: IdleConfig = {
@@ -38,20 +38,18 @@ const DEFAULT_IDLE_CONFIG: IdleConfig = {
 
 export type AnimState = 'idle' | 'walk' | 'run' | 'shoot' | 'reload' | 'death';
 
-
 export class ProceduralAnimation {
     private mapper: BoneMapper;
 
     private readonly scratchEuler = new THREE.Euler();
     private readonly scratchQuat = new THREE.Quaternion();
     private readonly scratchQuat2 = new THREE.Quaternion();
-    private readonly scratchVec = new THREE.Vector3();
 
     private restPositions = new Map<THREE.Bone, THREE.Vector3>();
     private restQuaternions = new Map<THREE.Bone, THREE.Quaternion>();
 
     private time = 0;
-    private walkBlend = 0;       
+    private walkBlend = 0;
     private currentState: AnimState = 'idle';
 
     private walkConfig: WalkConfig;
@@ -77,20 +75,14 @@ export class ProceduralAnimation {
         return this.mapper.isReady();
     }
 
-    /**
-     * 
-     * @param deltaTime 
-     * @param state 
-     * @param speed 
-     * @param strafe 
-     * @param aimDirection 
-     */
     update(
         deltaTime: number,
         state: AnimState,
         speed: number = 0,
         strafe: number = 0,
-        aimDirection?: THREE.Vector3,
+        playerYaw: number = 0,
+        cameraYaw: number = 0,
+        cameraPitch: number = 0,
     ): void {
         if (!this.mapper.isReady()) return;
 
@@ -98,7 +90,7 @@ export class ProceduralAnimation {
         this.currentState = state;
 
         const targetWalkBlend = (state === 'walk' || state === 'run') ? 1 : 0;
-        const blendSpeed = 5; 
+        const blendSpeed = 5;
         this.walkBlend += (targetWalkBlend - this.walkBlend) * Math.min(1, deltaTime * blendSpeed);
 
         this.applyIdle(1 - this.walkBlend);
@@ -111,14 +103,28 @@ export class ProceduralAnimation {
             this.applyLean(strafe);
         }
 
-        if (aimDirection) {
-            this.applyAim(aimDirection);
-            this.applyHeadLook(aimDirection);
-        }
-
         if (state === 'death') {
             this.applyDeath(deltaTime);
+        } else {
+            this.applyHeadLook(cameraPitch, deltaTime);
         }
+    }
+
+    private applyHeadLook(cameraPitch: number, deltaTime: number): void {
+        const clampedPitch = THREE.MathUtils.clamp(cameraPitch, -Math.PI / 4, Math.PI / 4);
+        const smoothWeight = Math.min(1, deltaTime * 8);
+
+        this.applyRotationOffset(
+            'head',
+            this.scratchEuler.set(clampedPitch, 0, 0),
+            smoothWeight,
+        );
+
+        this.applyRotationOffset(
+            'neck',
+            this.scratchEuler.set(clampedPitch * 0.3, 0, 0),
+            smoothWeight * 0.8,
+        );
     }
 
     private applyIdle(weight: number): void {
@@ -128,18 +134,21 @@ export class ProceduralAnimation {
         const t = this.time;
 
         const breath = Math.sin(t * breathFrequency) * breathAmplitude * weight;
-        this.applyPositionOffset('spine2', this.scratchVec.set(0, breath, 0), weight);
+        this.applyPositionOffset('spine2', 0, breath, 0, weight);
 
         const sway = Math.sin(t * swayFrequency) * swayAmplitude * weight;
-        this.applyRotationOffset('spine', this.scratchEuler.set(0, 0, sway), weight);
+        this.applyRotationOffset('hips', this.scratchEuler.set(0, 0, sway), weight);
     }
 
     private applyWalk(speed: number, weight: number): void {
-        const { frequency, bodyBobAmplitude, bodySwayAmplitude, legSwingAmplitude, kneeBendAmplitude, armSwingAmplitude, hipTiltAmplitude } = this.walkConfig;
+        const {
+            frequency, bodyBobAmplitude, bodySwayAmplitude,
+            legSwingAmplitude, kneeBendAmplitude, armSwingAmplitude, hipTiltAmplitude,
+        } = this.walkConfig;
         const phase = this.time * frequency * Math.max(0.3, speed);
 
         const bodyBob = Math.abs(Math.sin(phase * 2)) * bodyBobAmplitude * weight;
-        this.applyPositionOffset('hips', this.scratchVec.set(0, bodyBob, 0), weight);
+        this.applyPositionOffset('hips', 0, bodyBob, 0, weight);
 
         const bodySway = Math.sin(phase) * bodySwayAmplitude * weight;
         this.applyRotationOffset('hips', this.scratchEuler.set(0, 0, bodySway), weight);
@@ -177,28 +186,7 @@ export class ProceduralAnimation {
 
     private applyLean(strafe: number): void {
         const leanAngle = THREE.MathUtils.clamp(strafe, -1, 1) * 0.25;
-        this.applyRotationOffset('spine', this.scratchEuler.set(0, 0, -leanAngle), 0.6);
-    }
-
-    private applyAim(aimDirection: THREE.Vector3): void {
-        const yaw = Math.atan2(aimDirection.x, aimDirection.z);
-        const spineYaw = THREE.MathUtils.clamp(yaw, -0.5, 0.5);
-        this.applyRotationOffset('spine1', this.scratchEuler.set(0, spineYaw, 0), 0.4);
-        this.applyRotationOffset('spine2', this.scratchEuler.set(0, spineYaw * 0.5, 0), 0.3);
-
-        const verticalAngle = Math.asin(THREE.MathUtils.clamp(aimDirection.y, -1, 1));
-        const leanForward = Math.abs(verticalAngle) * 0.1;
-        this.applyRotationOffset('spine', this.scratchEuler.set(leanForward, 0, 0), 0.3);
-    }
-
-    private applyHeadLook(aimDirection: THREE.Vector3): void {
-        const yaw = Math.atan2(aimDirection.x, aimDirection.z);
-        const pitch = Math.asin(THREE.MathUtils.clamp(aimDirection.y, -1, 1));
-
-        const clampedYaw = THREE.MathUtils.clamp(yaw, -0.8, 0.8);
-        const clampedPitch = THREE.MathUtils.clamp(pitch, -0.5, 0.5);
-
-        this.applyRotationOffset('head', this.scratchEuler.set(clampedPitch, clampedYaw, 0), 0.7);
+        this.applyRotationOffset('spine2', this.scratchEuler.set(0, 0, -leanAngle), 0.6);
     }
 
     private applyDeath(deltaTime: number): void {
@@ -208,7 +196,6 @@ export class ProceduralAnimation {
         this.applyRotationOffset('hips', this.scratchEuler.set(-fallAngle, 0, 0), fallProgress);
         this.applyRotationOffset('spine', this.scratchEuler.set(-fallAngle * 0.3, 0, 0), fallProgress);
     }
-
 
     private applyRotationOffset(logical: LogicalBone, euler: THREE.Euler, weight: number): void {
         const bone = this.mapper.get(logical);
@@ -222,16 +209,20 @@ export class ProceduralAnimation {
         bone.quaternion.slerp(this.scratchQuat2, weight);
     }
 
-  
-    private applyPositionOffset(logical: LogicalBone, offset: THREE.Vector3, weight: number): void {
+    private applyPositionOffset(logical: LogicalBone, offsetX: number, offsetY: number, offsetZ: number, weight: number): void {
         const bone = this.mapper.get(logical);
         if (!bone) return;
 
         const rest = this.restPositions.get(bone);
         if (!rest) return;
 
-        this.scratchVec.copy(rest).add(offset);
-        bone.position.lerp(this.scratchVec, weight);
+        const targetX = rest.x + offsetX;
+        const targetY = rest.y + offsetY;
+        const targetZ = rest.z + offsetZ;
+
+        bone.position.x += (targetX - bone.position.x) * weight;
+        bone.position.y += (targetY - bone.position.y) * weight;
+        bone.position.z += (targetZ - bone.position.z) * weight;
     }
 
     reset(): void {
