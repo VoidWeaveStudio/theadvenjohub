@@ -1,38 +1,12 @@
 // src/features/game/config/gameConfig.ts
 
-export const CAMERA_CONFIG = {
-    distance: 6.0,         
-    heightOffset: 3.5,       
-    focusHeight: 2.8,       
-    smoothing: 8,         
-    
-    collisionRadius: 0.5,   
-    collisionSteps: 15,     
-    minHeight: 1.2,         
-    enableCollision: true,  
-    
-    minPitch: -Math.PI / 8, 
-    maxPitch: Math.PI / 2.5,
-    
-    fov: 75,
-    near: 0.1,
-    far: 1000,
-};
-
-export const LOBBY_CAMERA_CONFIG = {
-    ...CAMERA_CONFIG,
-    heightOffset: 3.2,
-    far: 500,
-};
+// Реэкспорт из камеры для обратной совместимости
+export { CAMERA_CONFIG } from '../camera/config';
+export type { CameraConfig } from '../camera/config';
 
 export const MOVEMENT_CONFIG = {
     speed: 7.0,            
     rotationSmoothness: 15.0, 
-};
-
-export const LOBBY_MOVEMENT_CONFIG = {
-    speed: 5.0,              
-    rotationSmoothness: 12.0,
 };
 
 export const PHYSICS_CONFIG = {
@@ -109,17 +83,13 @@ export const CHAT_CONFIG = {
     maxMessageLength: 200,
 };
 
-export const GAME_CONFIG = {
+export const LOBBY_CONFIG = {
     maxPlayers: {
         '5v5': 10,
         'ffa': 20,
     },
-    matchDuration: 600000,
-    killsToWin: 50,
 };
 
-// Типы
-export type CameraConfig = typeof CAMERA_CONFIG;
 export type MovementConfig = typeof MOVEMENT_CONFIG;
 export type PhysicsConfig = typeof PHYSICS_CONFIG;
 export type MouseConfig = typeof MOUSE_CONFIG;
@@ -129,4 +99,4 @@ export type CollisionConfig = typeof COLLISION_CONFIG;
 export type PlayerConfig = typeof PLAYER_CONFIG;
 export type UIConfig = typeof UI_CONFIG;
 export type ChatConfig = typeof CHAT_CONFIG;
-export type GameConfig = typeof GAME_CONFIG;
+export type LobbyConfig = typeof LOBBY_CONFIG;

@@ -1,13 +1,12 @@
-//src\features\game\GameClient.tsx
+// src/features/game/GameClient.tsx
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '@/core/auth/AuthProvider';
 import { apiGet } from '@/core/api/client';
-import { LobbyWorld } from '@/features/game/LobbyWorld';
-import { GameWorld } from '@/features/game/GameWorld';
+import { LobbyWorld } from './lobby/LobbyWorld';
 
 interface GameClientProps {
     slug: string;
@@ -26,9 +25,6 @@ export function GameClient({ slug }: GameClientProps) {
     const [gameData, setGameData] = useState<GameFullData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [gameState, setGameState] = useState<'lobby' | 'playing'>('lobby');
-    const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
-    const [currentMode, setCurrentMode] = useState<string>('5v5');
     const socketRef = useRef<Socket | null>(null);
 
     useEffect(() => {
@@ -43,14 +39,12 @@ export function GameClient({ slug }: GameClientProps) {
         if (!socketRef.current) {
             const serverUrl = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'http://localhost:3001';
             socketRef.current = io(serverUrl);
-            console.log('Socket initialized in GameClient');
         }
 
         checkOwnership();
 
         return () => {
             if (socketRef.current) {
-                console.log('Disconnecting socket from GameClient');
                 socketRef.current.disconnect();
                 socketRef.current = null;
             }
@@ -77,25 +71,11 @@ export function GameClient({ slug }: GameClientProps) {
 
     const handleEnterGame = (roomId: string, mode: string, players: any[]) => {
         console.log('Entering game:', roomId, 'mode:', mode, 'players:', players.length);
-        setCurrentRoomId(roomId);
-        setCurrentMode(mode);
-        setGameState('playing');
+        alert('Game mode coming soon!');
     };
 
-    const handleExitGame = () => {
-        console.log('Returning to lobby');
-        
-        if (socketRef.current && currentRoomId) {
-            socketRef.current.emit('leaveGame', { 
-                roomId: currentRoomId,
-                wallet: userWallet,
-                username: `Player_${(userWallet || '').substring(0, 4)}`
-            });
-        }
-        
-        setGameState('lobby');
-        setCurrentRoomId(null);
-        setCurrentMode('5v5');
+    const handleExit = () => {
+        router.push(`/games/${slug}`);
     };
 
     if (isAuthLoading || loading) {
@@ -123,21 +103,6 @@ export function GameClient({ slug }: GameClientProps) {
         );
     }
 
-    if (gameState === 'playing' && currentRoomId) {
-        return (
-            <div className="fixed inset-0 z-50 bg-black" style={{ top: '64px' }}>
-                <GameWorld
-                    key={`${userWallet}-${currentRoomId}`}
-                    wallet={userWallet || ''}
-                    roomId={currentRoomId}
-                    mode={currentMode as '5v5' | 'ffa'}
-                    socket={socketRef.current}
-                    onExit={handleExitGame}
-                />
-            </div>
-        );
-    }
-
     return (
         <div className="fixed inset-0 z-50 bg-black" style={{ top: '64px' }}>
             <LobbyWorld
@@ -145,7 +110,7 @@ export function GameClient({ slug }: GameClientProps) {
                 username={`Player_${(userWallet || '').substring(0, 4)}`}
                 socket={socketRef.current}
                 onEnterGame={handleEnterGame}
-                onExit={() => router.push(`/games/${slug}`)}
+                onExit={handleExit}
             />
         </div>
     );

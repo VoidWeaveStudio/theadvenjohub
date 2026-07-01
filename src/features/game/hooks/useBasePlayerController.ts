@@ -5,10 +5,12 @@ import * as THREE from 'three';
 import { useKeyboardInput } from './input/useKeyboardInput';
 import { useMouseLook } from './input/useMouseLook';
 import { usePhysics } from './physics/usePhysics';
-import { useCameraController } from './camera/useCameraController';
+import { useCameraController } from '../camera/useCameraController';
 import { useMovement } from './movement/useMovement';
 import { useFootstepSounds } from './audio/useFootstepSounds';
 import { usePlayerSync } from './network/usePlayerSync';
+import { useKeyboardActions } from './input/useKeyboardActions';
+import { useMouseActions } from './input/useMouseActions';
 import { PlayerModelLoader } from '../models/PlayerModelLoader';
 import { CAMERA_CONFIG, MOVEMENT_CONFIG, ANIMATION_CONFIG } from '../config/gameConfig';
 import { BasePlayerControllerConfig } from './types';
@@ -28,15 +30,9 @@ export function useBasePlayerController(config: BasePlayerControllerConfig) {
         groundLevel: config.bounds?.groundLevel ?? 0 
     });
 
-    const cameraController = useCameraController({
-        ...CAMERA_CONFIG,
-        ...config.cameraConfig,
-    });
+    const cameraController = useCameraController(CAMERA_CONFIG);
 
-    const movement = useMovement({
-        ...MOVEMENT_CONFIG,
-        ...config.movementConfig,
-    });
+    const movement = useMovement(MOVEMENT_CONFIG);
     
     const footsteps = useFootstepSounds(config.soundManagerRef, { 
         interval: ANIMATION_CONFIG.footstepInterval 
@@ -49,10 +45,36 @@ export function useBasePlayerController(config: BasePlayerControllerConfig) {
         minDistance: 0.1,
     });
 
+    useKeyboardActions({
+        isChatOpen: config.isChatOpenRef.current,
+        canAct: () => true,
+        onJump: physics.jump,
+        onToggleChat: () => {
+            const newState = !config.isChatOpenRef.current;
+            config.onChatToggle(newState);
+            if (newState && document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+        },
+    });
+
+    useMouseActions({
+        containerRef: config.containerRef,
+        isChatOpen: config.isChatOpenRef.current,
+        requestPointerLock: true,
+        isMouseDown: isMouseDownRef,
+    });
+
+    const isNearInteractionRef = useRef(false);
+
     const update = (deltaTime: number): void => {
         const player = config.playerModelRef.current;
         const camera = config.cameraRef.current;
-        if (!player || !camera) return;
+        
+        if (!player || !camera) {
+            console.log('⚠️ Player or camera not ready');
+            return;
+        }
 
         const isChatOpen = config.isChatOpenRef.current;
         const groundOffset = PlayerModelLoader.getGroundOffset();
@@ -98,6 +120,21 @@ export function useBasePlayerController(config: BasePlayerControllerConfig) {
         }
 
         footsteps.update(deltaTime, isMoving, physics.isOnGroundRef.current);
+
+        if (config.interaction) {
+            const dist = player.position.distanceTo(config.interaction.position);
+            const wasNear = isNearInteractionRef.current;
+            isNearInteractionRef.current = dist < config.interaction.radius;
+
+            if (wasNear !== isNearInteractionRef.current) {
+                config.onNearInteractionChange?.(isNearInteractionRef.current);
+            }
+
+            if (isNearInteractionRef.current && keyboard.keys.has('KeyE')) {
+                config.interaction.onActivate();
+                keyboard.keys.delete('KeyE');
+            }
+        }
 
         if (config.onProceduralDataUpdate) {
             config.onProceduralDataUpdate({
@@ -154,5 +191,6 @@ export function useBasePlayerController(config: BasePlayerControllerConfig) {
         keyboard,
         mouseLook,
         isMouseDownRef,
+        isNearInteraction: isNearInteractionRef.current,
     };
 }

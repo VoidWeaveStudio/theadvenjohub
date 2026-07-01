@@ -5,30 +5,16 @@ export interface KeyboardActions {
     onJump?: () => void;
     onReload?: () => void;
     onToggleChat?: () => void;
-    onExit?: () => void;
     canAct?: () => boolean;
     isChatOpen?: boolean;
 }
 
 export function useKeyboardActions(actions: KeyboardActions): void {
-    const { onJump, onReload, onToggleChat, onExit, canAct, isChatOpen } = actions;
+    const { onJump, onReload, onToggleChat, canAct, isChatOpen } = actions;
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.repeat) return;
-
-            if (e.code === 'Escape') {
-                if (isChatOpen) {
-                    onToggleChat?.();
-                } else {
-                    if (document.pointerLockElement) {
-                        document.exitPointerLock();
-                    }
-                    onExit?.();
-                }
-                return;
-            }
-
             if (isChatOpen) return;
             if (canAct && !canAct()) return;
 
@@ -48,5 +34,5 @@ export function useKeyboardActions(actions: KeyboardActions): void {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onJump, onReload, onToggleChat, onExit, canAct, isChatOpen]);
+    }, [onJump, onReload, onToggleChat, canAct, isChatOpen]);
 }

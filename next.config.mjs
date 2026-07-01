@@ -26,7 +26,7 @@ const cspDirectives = [...baseCsp, scriptSrc].join("; ");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: isDev,
+  reactStrictMode: false,
   compress: true, 
   poweredByHeader: false,
   excludeDefaultMomentLocales: true,

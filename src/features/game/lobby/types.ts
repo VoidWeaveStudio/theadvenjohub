@@ -1,0 +1,10 @@
+import { QueueStatus } from '../hooks/network/useLobbySocket';
+
+export type GameCategory = 'shooter' | 'openworld' | 'horror' | 'racing';
+export type ShooterMode = '5v5' | 'survival' | 'battleroyale';
+export type SelectionStep = 'category' | 'shooterMode' | 'horrorMap' | 'racingMap' | 'none';
+
+export interface Queues {
+    '5v5': QueueStatus;
+    'ffa': QueueStatus;
+}
