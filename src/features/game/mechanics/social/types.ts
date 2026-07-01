@@ -1,3 +1,4 @@
+//src\features\game\mechanics\social\types.ts
 export type EmoteId = 'wave' | 'clap' | 'dance' | 'cheer' | 'bow' | 'laugh';
 
 export interface Emote {

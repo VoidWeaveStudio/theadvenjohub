@@ -1,3 +1,4 @@
+//src\features\game\mechanics\social\components\EmoteWheel.tsx
 import { EMOTES } from '../config';
 import { EmoteId } from '../types';
 

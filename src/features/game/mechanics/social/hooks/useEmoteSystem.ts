@@ -1,3 +1,4 @@
+//src\features\game\mechanics\social\hooks\useEmoteSystem.ts
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { EmoteId } from '../types';

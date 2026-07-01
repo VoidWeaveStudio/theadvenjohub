@@ -1,3 +1,4 @@
+//src\features\game\mechanics\social\config.ts
 import { Emote } from './types';
 
 export const EMOTES: Emote[] = [
