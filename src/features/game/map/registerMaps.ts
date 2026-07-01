@@ -1,3 +1,4 @@
+//src\features\game\map\registerMaps.ts
 import { MapRegistry } from './MapFactory';
 import { ArenaMap } from './ArenaMap';
 import { DUST2_CONFIG } from './dust2.config';

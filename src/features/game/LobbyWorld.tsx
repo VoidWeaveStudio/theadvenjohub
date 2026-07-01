@@ -15,7 +15,7 @@ import { PlayerModelLoader } from "./models/PlayerModelLoader";
 import { PlayerAnimator, ProceduralAnimationData } from "./models/PlayerAnimator";
 import { PlayerAnimationData } from "./types";
 
-import { useLobbyController } from "./hooks/useLobbyController";
+import { useLobbyPlayerController } from "./hooks/useLobbyPlayerController";
 import { useLobbySocket, LobbyPlayerData, QueueStatus } from "./hooks/network/useLobbySocket";
 import {
     createAtmosphericEnvironment,
@@ -136,44 +136,44 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
 
     }, [modelLoaded]);
 
-    const controller = useLobbyController({
-        containerRef,
-        cameraRef,
-        playerModelRef: myPlayerModelRef,
-        socket,
-        soundManagerRef,
-        isChatOpenRef,
-        bounds: { maxRadius: 45, groundLevel: 0 },
-        interaction: {
-            position: PORTAL_POSITION,
-            radius: PORTAL_INTERACT_RADIUS,
-            onActivate: () => {
-                if (!queueMode) setShowModeSelect(true);
-            },
+    const controller = useLobbyPlayerController({
+    containerRef,
+    cameraRef,
+    playerModelRef: myPlayerModelRef,
+    socket,
+    soundManagerRef,
+    isChatOpenRef,
+    bounds: { maxRadius: 45, groundLevel: 0 },
+    interaction: {
+        position: PORTAL_POSITION,
+        radius: PORTAL_INTERACT_RADIUS,
+        onActivate: () => {
+            if (!queueMode) setShowModeSelect(true);
         },
-        onLockChange: setIsLocked,
-        onExit: () => {
-            if (showModeSelect) {
-                setShowModeSelect(false);
-                return;
-            }
-            onExit();
-        },
-        onChatToggle: (open) => {
-            setIsChatOpen(open);
-            if (open && document.pointerLockElement) {
-                document.exitPointerLock();
-            }
-        },
-        onNearInteractionChange: setNearPortal,
-        onProceduralDataUpdate: (data: ProceduralAnimationData) => {
-            const myModel = myPlayerModelRef.current;
-            if (myModel) {
-                const animator = myModel.userData.animator as PlayerAnimator | undefined;
-                if (animator) animator.update(1 / 60, data);
-            }
-        },
-    });
+    },
+    onLockChange: setIsLocked,
+    onExit: () => {
+        if (showModeSelect) {
+            setShowModeSelect(false);
+            return;
+        }
+        onExit();
+    },
+    onChatToggle: (open) => {
+        setIsChatOpen(open);
+        if (open && document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+    },
+    onNearInteractionChange: setNearPortal,
+    onProceduralDataUpdate: (data: ProceduralAnimationData) => {
+        const myModel = myPlayerModelRef.current;
+        if (myModel) {
+            const animator = myModel.userData.animator as PlayerAnimator | undefined;
+            if (animator) animator.update(1 / 60, data);
+        }
+    },
+});
 
     const socketHandlers = useRef({
         onLobbyJoined: (data: any) => {

@@ -14,20 +14,21 @@ import { BulletPool } from './BulletPool';
 import { SoundManager } from './SoundManager';
 import { MapRegistry } from './map/MapFactory';
 import { GameMap } from './map/GameMap';
+import { registerAllMaps } from './map/registerMaps';
 
 import { PlayerModel } from './models/PlayerModel';
 import { PlayerModelLoader } from './models/PlayerModelLoader';
 import { WeaponModel } from './models/WeaponModel';
 import { ProceduralAnimationData } from './models/PlayerAnimator';
 
-import { useGameController } from './hooks/useGameController';
+import { useGamePlayerController } from './hooks/useGamePlayerController';
 import { useGameSocket } from './hooks/useGameSocket';
 
 import { PlayerInterpolator } from './network/PlayerInterpolator';
 import { InputHistory } from './network/InputHistory';
 
 import { Player, PlayerAnimationData, GameMode, CollisionBox } from './types';
-import { WEAPON_CONFIG } from './config/gameConfig';
+import { WEAPON_CONFIG, ANIMATION_CONFIG, PLAYER_CONFIG, GAME_CONFIG } from './config/gameConfig';
 
 import { CollisionSystem } from './map/CollisionSystem';
 
@@ -55,6 +56,8 @@ interface DamageIndicator {
     damage: number;
 }
 
+let mapsRegistered = false;
+
 export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
@@ -77,13 +80,17 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const mapRef = useRef<GameMap | null>(null);
     const collisionSystemRef = useRef<CollisionSystem | null>(null);
     const collisionBoxesRef = useRef<CollisionBox[]>([]);
+    const shootingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const animationFrameRef = useRef<number | null>(null);
+    const lastTimeRef = useRef<number>(0);
+    const startTimeRef = useRef<number>(0);
 
     const [myHealth, setMyHealth] = useState(100);
     const [myKills, setMyKills] = useState(0);
     const [myDeaths, setMyDeaths] = useState(0);
-    
+
     const [ammo, setAmmo] = useState(WEAPON_CONFIG.maxAmmo);
-    
+
     const [isReloading, setIsReloading] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'ended'>('playing');
@@ -96,7 +103,8 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const [killFeed, setKillFeed] = useState<KillFeedEntry[]>([]);
     const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
     const [showHitMarker, setShowHitMarker] = useState(false);
-    const [isMapReady, setIsMapReady] = useState(false);
+    const [isSceneReady, setIsSceneReady] = useState(false);
+    const [modelLoaded, setModelLoaded] = useState(false);
 
     useEffect(() => {
         isChatOpenRef.current = isChatOpen;
@@ -111,13 +119,13 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     const myUsername = `Player_${wallet.substring(0, 4)}`;
     const myTeam = hudPlayers.find(p => p.id === socket?.id)?.team ?? 0;
 
-    const controller = useGameController({
+    const controller = useGamePlayerController({
         containerRef,
         cameraRef,
         playerModelRef,
         socket,
         collisionBoxes: collisionBoxesRef.current,
-        collisionSystem: collisionSystemRef.current!,
+        collisionSystem: collisionSystemRef.current || undefined,
         gameStatusRef,
         isChatOpenRef,
         isMouseDownRef,
@@ -142,7 +150,36 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     });
 
     useEffect(() => {
+        let isMounted = true;
+        PlayerModelLoader.preload()
+            .then(() => {
+                if (isMounted) setModelLoaded(true);
+            })
+            .catch(err => console.warn('⚠️ Player model preload failed:', err));
+
+        return () => { isMounted = false; };
+    }, []);
+
+    useEffect(() => {
         if (!containerRef.current) return;
+
+        if (!mapsRegistered) {
+            registerAllMaps();
+            mapsRegistered = true;
+        }
+
+        console.log(`🎬 [GameWorld] Initializing game scene for room: ${roomId}, mode: ${mode}`);
+
+        if (rendererRef.current) {
+            if (containerRef.current.contains(rendererRef.current.domElement)) {
+                containerRef.current.removeChild(rendererRef.current.domElement);
+            }
+            rendererRef.current.dispose();
+            rendererRef.current = null;
+        }
+        if (sceneRef.current) {
+            sceneRef.current = null;
+        }
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xd4a574);
@@ -156,6 +193,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             1000,
         );
         camera.position.set(0, 5, 10);
+        camera.position.set(0, 2.5, 6); 
         camera.rotation.order = 'YXZ';
         cameraRef.current = camera;
 
@@ -218,12 +256,12 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 maxZ: box.maxZ,
             }));
 
-            setIsMapReady(true);
+            console.log(`✅ [GameWorld] Map and collision system initialized`);
         } else {
-            console.error('Failed to create map for mode:', mode);
+            console.error('❌ [GameWorld] Failed to create map for mode:', mode);
         }
 
-        bulletPoolRef.current = new BulletPool(scene, 50);
+        bulletPoolRef.current = new BulletPool(scene, WEAPON_CONFIG.bulletPoolSize);
         soundManagerRef.current = new SoundManager();
 
         const handleResize = () => {
@@ -234,46 +272,48 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         };
         window.addEventListener('resize', handleResize);
 
+        startTimeRef.current = performance.now();
+        lastTimeRef.current = performance.now();
+
+        setIsSceneReady(true);
+
         return () => {
+            console.log(`🗑️ [GameWorld] Cleaning up game scene`);
             window.removeEventListener('resize', handleResize);
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
             map?.dispose();
         };
     }, [roomId, mode]);
 
     useEffect(() => {
-        if (!isMapReady) return;
+        if (!isSceneReady || !modelLoaded) return;
+        if (!sceneRef.current) return;
+        if (playerModelRef.current) return;
 
-        PlayerModelLoader.preload()
-            .then(() => {
-                Array.from(playersDataRef.current.values()).forEach((player, index) => {
-                    if (!playersRef.current.has(player.id)) {
-                        createPlayerModelSafe(player, index);
-                    }
-                });
-            })
-            .catch((err: unknown) => console.warn('⚠️ Player model preload failed:', err));
-    }, [isMapReady, socket?.id, mode]);
-
-    const createPlayerModelSafe = useCallback((player: Player, index: number) => {
-        if (!sceneRef.current || playersRef.current.has(player.id)) return null;
-
-        const model = PlayerModel.create(sceneRef.current, player, index, mode);
-        playersRef.current.set(player.id, model);
-        playerAnimationDataRef.current.set(player.id, PlayerModel.createAnimationData());
-        previousPositionsRef.current.set(player.id, new THREE.Vector3(player.position.x, 0, player.position.z));
-
-        if (player.id === socket?.id) {
-            playerModelRef.current = model;
-            if (cameraRef.current) {
-                cameraRef.current.position.set(player.position.x, player.position.y + 3, player.position.z + 5);
-            }
-            if (!weaponModelRef.current) {
-                weaponModelRef.current = new WeaponModel(model);
-            }
+        console.log(`🎮 [GameWorld] Creating my player model`);
+        const cloned = PlayerModelLoader.getModelClone();
+        if (!cloned) {
+            console.error(`❌ [GameWorld] Failed to clone model`);
+            return;
         }
 
-        return model;
-    }, [mode, socket?.id]);
+        const groundOffset = PlayerModelLoader.getGroundOffset();
+        const { PlayerAnimator } = require('./models/PlayerAnimator');
+        cloned.userData.animator = new PlayerAnimator(cloned);
+
+        cloned.position.set(0, groundOffset, 0);
+        sceneRef.current.add(cloned);
+        playerModelRef.current = cloned;
+
+        console.log(`✅ [GameWorld] My player model added to scene at y=${groundOffset.toFixed(4)}`);
+
+        if (!weaponModelRef.current) {
+            weaponModelRef.current = new WeaponModel(cloned);
+            console.log(`✅ [GameWorld] Weapon model attached`);
+        }
+    }, [isSceneReady, modelLoaded]);
 
     const handleGameEnd = useCallback((winnerData: unknown, scoresData: unknown) => {
         setGameStatus('ended');
@@ -287,19 +327,28 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         const animData = playerAnimationDataRef.current.get(shooterId);
         if (animData) {
             animData.isShooting = true;
-            setTimeout(() => {
+
+            const existingTimer = shootingTimersRef.current.get(shooterId);
+            if (existingTimer) {
+                clearTimeout(existingTimer);
+            }
+
+            const timer = setTimeout(() => {
                 if (animData) animData.isShooting = false;
-            }, 300);
+                shootingTimersRef.current.delete(shooterId);
+            }, WEAPON_CONFIG.shootingAnimationDuration);
+
+            shootingTimersRef.current.set(shooterId, timer);
         }
     }, []);
 
     const handlePlayerHit = useCallback((targetId: string, health: number) => {
         const animData = playerAnimationDataRef.current.get(targetId);
-        if (animData) animData.hitFlash = 0.3;
+        if (animData) animData.hitFlash = PLAYER_CONFIG.hitFlashDuration;
 
         if (targetId !== socket?.id) {
             setShowHitMarker(true);
-            setTimeout(() => setShowHitMarker(false), 200);
+            setTimeout(() => setShowHitMarker(false), WEAPON_CONFIG.shootingAnimationDuration);
         }
 
         if (targetId === socket?.id) {
@@ -307,7 +356,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 id: `dmg_${Date.now()}_${Math.random()}`,
                 angle: Math.random() * 360,
                 timestamp: Date.now(),
-                damage: 25,
+                damage: WEAPON_CONFIG.damage,
             }]);
         }
     }, [socket?.id]);
@@ -390,8 +439,11 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                     if (!playerAnimationDataRef.current.has(p.id)) {
                         playerAnimationDataRef.current.set(p.id, PlayerModel.createAnimationData());
                     }
-                    if (sceneRef.current && !playersRef.current.has(p.id)) {
-                        createPlayerModelSafe(p, index);
+
+                    if (sceneRef.current && !playersRef.current.has(p.id) && p.id !== socket?.id) {
+                        const model = PlayerModel.create(sceneRef.current, p, index, mode);
+                        playersRef.current.set(p.id, model);
+                        previousPositionsRef.current.set(p.id, new THREE.Vector3(p.position.x, 0, p.position.z));
                     }
                 });
                 setHudPlayers(playersOrUpdater);
@@ -411,7 +463,11 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
         onPlayerKilled: handlePlayerKilled,
         onPlayerRespawned: handlePlayerRespawned,
         onPlayerJoined: (player: Player, index: number) => {
-            if (sceneRef.current) createPlayerModelSafe(player, index);
+            if (sceneRef.current && player.id !== socket?.id) {
+                const model = PlayerModel.create(sceneRef.current, player, index, mode);
+                playersRef.current.set(player.id, model);
+                previousPositionsRef.current.set(player.id, new THREE.Vector3(player.position.x, 0, player.position.z));
+            }
         },
         onPlayerLeft: (playerId: string) => {
             if (playerId === socket?.id) return;
@@ -441,19 +497,20 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
     });
 
     useEffect(() => {
-        let lastTime = 0;
-        let animId = 0;
+        if (!isSceneReady) return;
 
-        const animate = (currentTime: number = 0) => {
-            animId = requestAnimationFrame(animate);
+        const animate = () => {
+            animationFrameRef.current = requestAnimationFrame(animate);
             if (!cameraRef.current || !rendererRef.current || !sceneRef.current) return;
 
-            const deltaTime = lastTime ? Math.min((currentTime - lastTime) / 1000, 0.1) : 0.016;
-            lastTime = currentTime;
+            const currentTime = performance.now();
+            const deltaTime = Math.min((currentTime - lastTimeRef.current) / 1000, 0.1);
+            const elapsedTime = (currentTime - startTimeRef.current) / 1000;
+            lastTimeRef.current = currentTime;
 
             controller.update(deltaTime);
 
-            mapRef.current?.update(deltaTime, currentTime / 1000);
+            mapRef.current?.update(deltaTime, elapsedTime);
 
             bulletPoolRef.current?.update(deltaTime);
 
@@ -472,7 +529,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 if (myAnimData) {
                     const prevPos = previousPositionsRef.current.get(socket?.id || '');
                     const currPos = playerModelRef.current.position;
-                    if (prevPos) myAnimData.isMoving = currPos.distanceTo(prevPos) > 0.01;
+                    if (prevPos) myAnimData.isMoving = currPos.distanceTo(prevPos) > ANIMATION_CONFIG.isMovingThreshold.self;
                     previousPositionsRef.current.set(socket?.id || '', currPos.clone());
                     PlayerModel.animate(playerModelRef.current, myAnimData, deltaTime);
                 }
@@ -493,7 +550,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
 
                 const previousPos = previousPositionsRef.current.get(playerId);
                 if (previousPos) {
-                    animData.isMoving = playerModel.position.distanceTo(previousPos) > 0.05;
+                    animData.isMoving = playerModel.position.distanceTo(previousPos) > ANIMATION_CONFIG.isMovingThreshold.other;
                 }
                 previousPositionsRef.current.set(playerId, playerModel.position.clone());
                 PlayerModel.animate(playerModel, animData, deltaTime);
@@ -502,15 +559,43 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
             rendererRef.current.render(sceneRef.current, cameraRef.current);
         };
 
-        animId = requestAnimationFrame(animate);
-        return () => cancelAnimationFrame(animId);
-    }, [controller, socket?.id]);
+        animate();
+
+        return () => {
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+        };
+    }, [isSceneReady, controller, socket?.id]);
 
     useEffect(() => {
         return () => {
             controller.autoFire.stop();
+
+            shootingTimersRef.current.forEach(timer => clearTimeout(timer));
+            shootingTimersRef.current.clear();
+
             bulletPoolRef.current?.dispose();
             soundManagerRef.current?.dispose();
+
+            weaponModelRef.current?.dispose();
+            weaponModelRef.current = null;
+
+            playersRef.current.forEach((model) => {
+                sceneRef.current?.remove(model);
+                model.traverse((obj) => {
+                    if (obj instanceof THREE.Mesh) {
+                        obj.geometry?.dispose();
+                        if (Array.isArray(obj.material)) {
+                            obj.material.forEach(m => m.dispose());
+                        } else if (obj.material) {
+                            obj.material.dispose();
+                        }
+                    }
+                });
+            });
+            playersRef.current.clear();
+
             playerAnimationDataRef.current.clear();
             previousPositionsRef.current.clear();
             interpolatorsRef.current.forEach(i => i.clear());
@@ -592,7 +677,7 @@ export function GameWorld({ wallet, roomId, mode, socket, onExit }: GameWorldPro
                 isLocked={isLocked}
                 gameStatus={gameStatus}
                 playersCount={hudPlayers.length}
-                maxPlayers={mode === '5v5' ? 10 : 20}
+                maxPlayers={GAME_CONFIG.maxPlayers[mode]}
                 winner={winner}
                 mode={mode}
                 scores={scores}

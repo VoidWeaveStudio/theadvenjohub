@@ -1,5 +1,6 @@
-//src\features\game\BulletPool.ts
+// src/features/game/BulletPool.ts
 import * as THREE from "three";
+import { WEAPON_CONFIG } from "./config/gameConfig";
 
 interface Bullet {
     line: THREE.Line;
@@ -15,7 +16,7 @@ export class BulletPool {
     private geometry: THREE.BufferGeometry;
     private material: THREE.LineBasicMaterial;
 
-    constructor(scene: THREE.Scene, poolSize: number = 50) {
+    constructor(scene: THREE.Scene, poolSize: number = WEAPON_CONFIG.bulletPoolSize) {
         this.scene = scene;
         this.poolSize = poolSize;
         
@@ -35,7 +36,7 @@ export class BulletPool {
                 line,
                 active: false,
                 lifeTime: 0,
-                maxLife: 0.08 
+                maxLife: WEAPON_CONFIG.bulletLifetime
             });
         }
     }
@@ -48,7 +49,7 @@ export class BulletPool {
         }
 
         const startDistance = 1.0;
-        const trailLength = 3.0;
+        const trailLength = WEAPON_CONFIG.bulletTrailLength;
 
         const startPoint = new THREE.Vector3(
             origin.x + direction.x * startDistance,

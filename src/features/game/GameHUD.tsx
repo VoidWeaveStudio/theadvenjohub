@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
-import { WEAPON_CONFIG } from './config/gameConfig';
+import { WEAPON_CONFIG, UI_CONFIG } from './config/gameConfig';
 import type { Player } from './types';
 
 interface KillFeedEntry {
@@ -74,20 +74,10 @@ export function GameHUD({
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    let rafId: number;
-    let lastUpdate = 0;
-
-    const tick = (currentTime: number) => {
-      rafId = requestAnimationFrame(tick);
-      
-      if (currentTime - lastUpdate > 1000) {
-        setNow(Date.now());
-        lastUpdate = currentTime;
-      }
-    };
-
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -129,11 +119,11 @@ export function GameHUD({
   }, [spawnProtectionUntil]);
 
   useEffect(() => {
-    setVisibleKillFeed(killFeed.slice(-5));
+    setVisibleKillFeed(killFeed.slice(-UI_CONFIG.killFeed.maxEntries));
 
     const cleanup = setInterval(() => {
       const now = Date.now();
-      setVisibleKillFeed(prev => prev.filter(k => now - k.timestamp < 5000));
+      setVisibleKillFeed(prev => prev.filter(k => now - k.timestamp < UI_CONFIG.killFeed.duration));
     }, 1000);
 
     return () => clearInterval(cleanup);
@@ -144,26 +134,25 @@ export function GameHUD({
       setIsHitMarkerVisible(true);
       const timer = setTimeout(() => {
         setIsHitMarkerVisible(false);
-      }, 200);
+      }, UI_CONFIG.hitMarker.duration);
       return () => clearTimeout(timer);
     }
   }, [showHitMarker, lastHitTime]);
 
   const getHealthColor = () => {
-    if (health > 70) return 'from-emerald-400 via-green-500 to-green-600';
-    if (health > 40) return 'from-yellow-400 via-amber-500 to-orange-500';
+    if (health > UI_CONFIG.healthBar.mediumHealthThreshold) return 'from-emerald-400 via-green-500 to-green-600';
+    if (health > UI_CONFIG.healthBar.lowHealthThreshold) return 'from-yellow-400 via-amber-500 to-orange-500';
     return 'from-red-400 via-red-500 to-red-700';
   };
 
   const getHealthGlow = () => {
-    if (health > 70) return 'shadow-green-500/50';
-    if (health > 40) return 'shadow-yellow-500/50';
+    if (health > UI_CONFIG.healthBar.mediumHealthThreshold) return 'shadow-green-500/50';
+    if (health > UI_CONFIG.healthBar.lowHealthThreshold) return 'shadow-yellow-500/50';
     return 'shadow-red-500/50';
   };
 
   return (
     <>
-      {/* Прицел */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-40">
         <div className="relative w-8 h-8">
           <div className="absolute top-1/2 left-0 w-2 h-0.5 bg-white -translate-y-1/2 shadow-lg shadow-black/50" />
@@ -187,7 +176,7 @@ export function GameHUD({
 
       {damageIndicators.map((indicator) => {
         const age = now - indicator.timestamp;
-        if (age > 2000) return null;
+        if (age > UI_CONFIG.damageIndicators.duration) return null;
 
         return (
           <div
@@ -195,7 +184,7 @@ export function GameHUD({
             className="absolute top-1/2 left-1/2 pointer-events-none z-30"
             style={{
               transform: `translate(-50%, -50%) rotate(${indicator.angle}deg)`,
-              opacity: Math.max(0, 1 - age / 2000)
+              opacity: Math.max(0, 1 - age / UI_CONFIG.damageIndicators.duration)
             }}
           >
             <div className="absolute top-[-150px] left-1/2 -translate-x-1/2">
@@ -249,14 +238,14 @@ export function GameHUD({
           <div className="relative flex items-center gap-4">
             <div className="relative">
               <div className="text-3xl">❤️</div>
-              <div className={`absolute inset-0 blur-xl opacity-50 ${health > 70 ? 'bg-green-500' : health > 40 ? 'bg-yellow-500' : 'bg-red-500'
+              <div className={`absolute inset-0 blur-xl opacity-50 ${health > UI_CONFIG.healthBar.mediumHealthThreshold ? 'bg-green-500' : health > UI_CONFIG.healthBar.lowHealthThreshold ? 'bg-yellow-500' : 'bg-red-500'
                 }`} />
             </div>
 
             <div className="flex-1">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-white/60 text-xs font-bold uppercase tracking-widest">Health</span>
-                <span className={`text-white font-black text-2xl tabular-nums ${health <= 30 ? 'animate-pulse text-red-400' : ''
+                <span className={`text-white font-black text-2xl tabular-nums ${health <= UI_CONFIG.healthBar.lowHealthThreshold ? 'animate-pulse text-red-400' : ''
                   }`}>
                   {health}
                 </span>

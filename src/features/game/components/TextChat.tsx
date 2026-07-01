@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
+import { CHAT_CONFIG } from '../config/gameConfig';
 
 interface ChatMessage {
   id: string;
@@ -34,7 +35,7 @@ export function TextChat({ socket, channelId, myUsername, myTeam, mode, isOpen, 
     if (!socket || !channelId) return;
 
     const handleChatMessage = (data: ChatMessage) => {
-      setMessages(prev => [...prev.slice(-50), data]);
+      setMessages(prev => [...prev.slice(-CHAT_CONFIG.maxMessages), data]);
     };
 
     socket.on('chatMessage', handleChatMessage);
@@ -83,10 +84,9 @@ export function TextChat({ socket, channelId, myUsername, myTeam, mode, isOpen, 
 
   return (
     <>
-      {/* Превью сообщений */}
       <div className="absolute bottom-32 left-8 w-96 max-w-[400px] pointer-events-none z-30">
         <div className="space-y-1 max-h-64 overflow-hidden">
-          {messages.slice(-8).map((msg) => (
+          {messages.slice(-CHAT_CONFIG.visibleMessages).map((msg) => (
             <div 
               key={msg.id} 
               className={`px-3 py-1.5 rounded-lg backdrop-blur-sm text-sm ${
@@ -110,7 +110,6 @@ export function TextChat({ socket, channelId, myUsername, myTeam, mode, isOpen, 
         </div>
       </div>
 
-      {/* Окно ввода */}
       {isOpen && (
         <div className="absolute bottom-8 left-8 w-[500px] max-w-[90vw] pointer-events-auto z-50">
           <div className="bg-black/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 overflow-hidden">
@@ -120,7 +119,6 @@ export function TextChat({ socket, channelId, myUsername, myTeam, mode, isOpen, 
                   <span>💬</span>
                   <span>{mode === 'lobby' ? 'Lobby Chat' : 'Chat'}</span>
                 </span>
-                {/* ✅ Показываем кнопку Team/All только в игре 5v5 */}
                 {mode === '5v5' && (
                   <button
                     onClick={() => setIsTeamChat(!isTeamChat)}
@@ -154,7 +152,7 @@ export function TextChat({ socket, channelId, myUsername, myTeam, mode, isOpen, 
                       : 'Message to all...'
                 }
                 className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
-                maxLength={200}
+                maxLength={CHAT_CONFIG.maxMessageLength}
                 autoComplete="off"
               />
             </div>
