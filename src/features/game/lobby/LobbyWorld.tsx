@@ -274,8 +274,18 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         onPlayerMoved: (data: any) => {
             const playerData = playersRef.current.get(data.id);
             if (playerData) {
-                playerData.group.position.set(data.position.x, 0, data.position.z);
-                playerData.group.rotation.set(0, data.rotation.y, 0);
+                const pos = Array.isArray(data.position) ? data.position : [data.position.x, data.position.y, data.position.z];
+                const rot = Array.isArray(data.rotation) ? data.rotation : [data.rotation.x, data.rotation.y, data.rotation.z];
+
+                playerData.group.position.set(pos[0], 0, pos[2]);
+                playerData.group.rotation.set(0, rot[1], 0);
+
+                const prevPos = playerData.group.userData.lastPosition;
+                if (prevPos) {
+                    const dist = playerData.group.position.distanceTo(prevPos);
+                    playerData.animData.isMoving = dist > 0.01;
+                }
+                playerData.group.userData.lastPosition = playerData.group.position.clone();
             }
         },
         onPlayerUsernameChanged: (data: { id: string; username: string }) => {
