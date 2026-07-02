@@ -8,18 +8,11 @@ export interface LobbyPlayerData {
     rotation: { x: number; y: number; z: number };
 }
 
-export interface QueueStatus {
-    count: number;
-    max: number;
-}
-
 export interface LobbySocketHandlers {
     onLobbyJoined: (data: {
         lobbyId: string;
         players: LobbyPlayerData[];
-        queues: Record<string, QueueStatus>;
-        queuePosition: number | null;
-        queueMode: string | null;
+        playersCount: number;
     }) => void;
     onPlayerJoined: (player: LobbyPlayerData) => void;
     onPlayerLeft: (playerId: string) => void;
@@ -29,12 +22,7 @@ export interface LobbySocketHandlers {
         rotation: any;
     }) => void;
     onPlayerUsernameChanged: (data: { id: string; username: string }) => void;
-    onQueuesStatusUpdate: (queues: Record<string, QueueStatus>) => void;
-    onJoinedQueue: (data: { mode: string; position: number }) => void;
-    onQueuePositionUpdate: (data: { position: number }) => void;
-    onLeftQueue: () => void;
-    onGameStarted: (data: { roomId: string; mode: string; players: any[] }) => void;
-    onQueueError: (message: string) => void;
+    onLobbyPlayersCount: (count: number) => void;
     onPlayerShotInLobby: (data: {
         shooterId: string;
         origin: { x: number; y: number; z: number };
@@ -78,9 +66,7 @@ export function useLobbySocket(
             handlers.onLobbyJoined({
                 lobbyId: data.lobbyId,
                 players: data.players,
-                queues: data.queues,
-                queuePosition: data.queuePosition,
-                queueMode: data.queueMode,
+                playersCount: data.playersCount,
             });
         };
 
@@ -106,6 +92,10 @@ export function useLobbySocket(
             handlers.onPlayerUsernameChanged(data);
         };
 
+        const handleLobbyPlayersCount = (count: number) => {
+            handlers.onLobbyPlayersCount(count);
+        };
+
         const handlePlayerShotInLobby = (data: any) => {
             handlers.onPlayerShotInLobby(data);
         };
@@ -128,13 +118,7 @@ export function useLobbySocket(
         socket.on('playerLeftLobby', handlePlayerLeft);
         socket.on('playerMovedInLobby', handlePlayerMoved);
         socket.on('playerUsernameChanged', handleUsernameChanged);
-        socket.on('queuesStatusUpdate', handlers.onQueuesStatusUpdate);
-        socket.on('joinedQueue', handlers.onJoinedQueue);
-        socket.on('queuePositionUpdate', handlers.onQueuePositionUpdate);
-        socket.on('leftQueue', handlers.onLeftQueue);
-        socket.on('gameStarted', handlers.onGameStarted);
-        socket.on('joinedFFAGame', handlers.onGameStarted);
-        socket.on('queueError', handlers.onQueueError);
+        socket.on('lobbyPlayersCount', handleLobbyPlayersCount);
         socket.on('playerShotInLobby', handlePlayerShotInLobby);
         socket.on('playerHitInLobby', handlePlayerHitInLobby);
         socket.on('playerBuildInLobby', handlePlayerBuildInLobby);
@@ -147,13 +131,7 @@ export function useLobbySocket(
             socket.off('playerLeftLobby', handlePlayerLeft);
             socket.off('playerMovedInLobby', handlePlayerMoved);
             socket.off('playerUsernameChanged', handleUsernameChanged);
-            socket.off('queuesStatusUpdate', handlers.onQueuesStatusUpdate);
-            socket.off('joinedQueue', handlers.onJoinedQueue);
-            socket.off('queuePositionUpdate', handlers.onQueuePositionUpdate);
-            socket.off('leftQueue', handlers.onLeftQueue);
-            socket.off('gameStarted', handlers.onGameStarted);
-            socket.off('joinedFFAGame', handlers.onGameStarted);
-            socket.off('queueError', handlers.onQueueError);
+            socket.off('lobbyPlayersCount', handleLobbyPlayersCount);
             socket.off('playerShotInLobby', handlePlayerShotInLobby);
             socket.off('playerHitInLobby', handlePlayerHitInLobby);
             socket.off('playerBuildInLobby', handlePlayerBuildInLobby);

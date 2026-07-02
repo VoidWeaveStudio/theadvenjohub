@@ -4,12 +4,11 @@
 interface LobbyUIProps {
   username: string;
   playersCount: number;
-  queues: { '5v5': { count: number; max: number }; 'ffa': { count: number; max: number } };
   isInSafeZone: boolean;
   activeMechanic: string;
 }
 
-export function LobbyUI({ username, playersCount, queues, isInSafeZone, activeMechanic }: LobbyUIProps) {
+export function LobbyUI({ username, playersCount, isInSafeZone, activeMechanic }: LobbyUIProps) {
   return (
     <>
       <div className="absolute top-4 left-4 pointer-events-none z-20">

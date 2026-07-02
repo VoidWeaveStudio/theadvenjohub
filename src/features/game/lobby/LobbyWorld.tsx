@@ -43,13 +43,11 @@ import {
     updateLobbyAnimations,
     LobbyAnimatables,
 } from './LobbyEnvironment';
-import { Queues } from './types';
 
 interface LobbyWorldProps {
     wallet: string;
     username: string;
     socket: Socket | null;
-    onEnterGame: (roomId: string, mode: string, players: any[]) => void;
     onExit: () => void;
 }
 
@@ -70,7 +68,7 @@ const HOTBAR_ITEMS: HotbarItem[] = [
     { id: 'blueprint', name: 'Blueprint', icon: '📐', mechanic: 'building' },
 ];
 
-export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: LobbyWorldProps) {
+export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -91,10 +89,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
     const [selectedBuildingType, setSelectedBuildingType] = useState<BuildingPieceType | null>(null);
 
     const [players, setPlayers] = useState<LobbyPlayerData[]>([]);
-    const [queues, setQueues] = useState<Queues>({
-        '5v5': { count: 0, max: 10 },
-        'ffa': { count: 0, max: 20 },
-    });
+    
     const [isLocked, setIsLocked] = useState(false);
     const [currentUsername, setCurrentUsername] = useState(username);
     const [modelLoaded, setModelLoaded] = useState(false);
@@ -264,12 +259,11 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         },
     });
 
-    const socketHandlers = useRef({
+        const socketHandlers = useRef({
         onLobbyJoined: (data: any) => {
             console.log('📥 [LobbyWorld] onLobbyJoined:', data.players?.length, 'players');
             setLobbyId(data.lobbyId);
             setPlayers(data.players);
-            setQueues(data.queues as Queues);
             data.players.forEach((player: LobbyPlayerData, index: number) => {
                 if (player.id !== socket?.id) {
                     console.log('🎮 [LobbyWorld] Creating model for existing player:', player.id);
@@ -307,12 +301,9 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         onPlayerUsernameChanged: (data: { id: string; username: string }) => {
             setPlayers((prev) => prev.map(p => p.id === data.id ? { ...p, username: data.username } : p));
         },
-        onQueuesStatusUpdate: (newQueues: any) => setQueues(newQueues as Queues),
-        onJoinedQueue: () => { },
-        onQueuePositionUpdate: () => { },
-        onLeftQueue: () => { },
-        onGameStarted: (data: any) => onEnterGame(data.roomId, data.mode, data.players),
-        onQueueError: (message: string) => alert(message),
+        onLobbyPlayersCount: (count: number) => {
+            console.log('👥 [LobbyWorld] Players count:', count);
+        },
         onPlayerShotInLobby: (data: any) => {
             console.log('🔫 [LobbyWorld] Player shot:', data.shooterId);
             const shooterData = playersRef.current.get(data.shooterId);
@@ -647,7 +638,6 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             <LobbyUI
                 username={currentUsername}
                 playersCount={players.length}
-                queues={queues}
                 isInSafeZone={isInSafeZone}
                 activeMechanic={activeMechanic}
             />
