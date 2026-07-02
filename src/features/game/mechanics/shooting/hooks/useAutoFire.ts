@@ -1,3 +1,4 @@
+//src\features\game\mechanics\shooting\hooks\useAutoFire.ts
 import { useRef, useCallback, useEffect } from 'react';
 import { SHOOTING_CONFIG } from '../config';
 

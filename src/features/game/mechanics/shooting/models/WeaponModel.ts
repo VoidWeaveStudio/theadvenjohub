@@ -1,3 +1,4 @@
+//src\features\game\mechanics\shooting\models\WeaponModel.ts
 import * as THREE from 'three';
 
 export interface WeaponModelConfig {

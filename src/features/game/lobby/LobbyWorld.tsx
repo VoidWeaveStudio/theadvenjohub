@@ -1,3 +1,4 @@
+//src\features\game\lobby\LobbyWorld.tsx
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -44,6 +45,9 @@ import {
     LobbyAnimatables,
 } from './LobbyEnvironment';
 
+import { TracerSystem } from '../mechanics/shooting/models/TracerSystem';
+import { HitEffect } from '../mechanics/shooting/models/HitEffect';
+
 interface LobbyWorldProps {
     wallet: string;
     username: string;
@@ -84,6 +88,8 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const isInitializedRef = useRef(false);
     const activeMechanicRef = useRef<MechanicId>('none');
     const collisionSystemRef = useRef<CollisionSystem | null>(null);
+    const tracerSystemRef = useRef<TracerSystem | null>(null);
+    const hitEffectRef = useRef<HitEffect | null>(null);
 
     const [showBuildingMenu, setShowBuildingMenu] = useState(false);
     const [selectedBuildingType, setSelectedBuildingType] = useState<BuildingPieceType | null>(null);
@@ -259,7 +265,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         },
     });
 
-     const socketHandlers = useRef({
+    const socketHandlers = useRef({
         onLobbyJoined: (data: any) => {
             console.log('📥 [LobbyWorld] onLobbyJoined:', data.players?.length, 'players');
             setLobbyId(data.lobbyId);
@@ -312,6 +318,30 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 setTimeout(() => {
                     if (shooterData) shooterData.animData.isShooting = false;
                 }, 200);
+
+                if (sceneRef.current && tracerSystemRef.current) {
+                    const shooterPos = shooterData.group.position.clone();
+                    shooterPos.y += 1.5;
+                    
+                    const direction = new THREE.Vector3(
+                        data.direction.x,
+                        data.direction.y,
+                        data.direction.z
+                    ).normalize();
+                    
+                    const endPoint = shooterPos.clone().add(direction.multiplyScalar(100));
+                    
+                    tracerSystemRef.current.createTracer(shooterPos, endPoint);
+                    
+                    if (data.hitPlayerId) {
+                        const targetData = playersRef.current.get(data.hitPlayerId);
+                        if (targetData) {
+                            const hitPos = targetData.group.position.clone();
+                            hitPos.y += 1;
+                            hitEffectRef.current?.createHitEffect(hitPos, new THREE.Vector3(0, 1, 0));
+                        }
+                    }
+                }
             }
 
             if (data.hitPlayerId === socket?.id) {
@@ -330,6 +360,35 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         },
         onPlayerBuildInLobby: (data: any) => {
             console.log('🏗️ [LobbyWorld] Player build:', data.action, data.pieceType);
+            
+            if (data.action === 'place') {
+                if (building.buildingManagerRef.current) {
+                    const piece = building.buildingManagerRef.current.createPiece(data.pieceType);
+                    if (piece) {
+                        building.buildingManagerRef.current.placePiece(
+                            piece,
+                            data.position.x,
+                            data.position.y,
+                            data.position.z,
+                            data.rotation.y
+                        );
+                    }
+                }
+            } else if (data.action === 'remove') {
+                if (building.buildingManagerRef.current) {
+                    const pieces = building.buildingManagerRef.current.getAllPieces();
+                    const nearestPiece = pieces.find(p => {
+                        const dist = p.group.position.distanceTo(
+                            new THREE.Vector3(data.position.x, data.position.y, data.position.z)
+                        );
+                        return dist < 2;
+                    });
+                    
+                    if (nearestPiece) {
+                        building.buildingManagerRef.current.removePiece(nearestPiece.id);
+                    }
+                }
+            }
         },
         onPlayerEmoteInLobby: (data: any) => {
             console.log('💃 [LobbyWorld] Player emote:', data.emoteId);
@@ -392,6 +451,8 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         animatablesRef.current = { ...env, portalRing: portal.portalRing, portalInnerRing: portal.innerRing, portalSphere: portal.sphere };
 
         collisionSystemRef.current = new CollisionSystem(10);
+        tracerSystemRef.current = new TracerSystem(scene);
+        hitEffectRef.current = new HitEffect(scene);
 
         const handleResize = () => {
             if (!cameraRef.current || !rendererRef.current) return;
@@ -451,6 +512,13 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 updateLobbyAnimations(animatablesRef.current, elapsedTime, 0);
             }
 
+            if (tracerSystemRef.current) {
+                tracerSystemRef.current.update(deltaTime);
+            }
+            if (hitEffectRef.current) {
+                hitEffectRef.current.update(deltaTime);
+            }
+
             rendererRef.current.render(sceneRef.current, cameraRef.current);
         };
         animate();
@@ -477,6 +545,14 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 if (containerRef.current && rendererRef.current.domElement.parentNode === containerRef.current) {
                     containerRef.current.removeChild(rendererRef.current.domElement);
                 }
+            }
+            if (tracerSystemRef.current) {
+                tracerSystemRef.current.dispose();
+                tracerSystemRef.current = null;
+            }
+            if (hitEffectRef.current) {
+                hitEffectRef.current.dispose();
+                hitEffectRef.current = null;
             }
             sceneRef.current = null;
             cameraRef.current = null;

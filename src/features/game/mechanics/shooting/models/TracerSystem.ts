@@ -1,3 +1,4 @@
+//src\features\game\mechanics\shooting\models\TracerSystem.ts
 import * as THREE from 'three';
 
 interface Tracer {

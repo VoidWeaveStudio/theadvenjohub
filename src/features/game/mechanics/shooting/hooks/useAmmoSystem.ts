@@ -1,3 +1,4 @@
+//src\features\game\mechanics\shooting\hooks\useAmmoSystem.ts
 import { useRef, useCallback } from 'react';
 import { SHOOTING_CONFIG } from '../config';
 

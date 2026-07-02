@@ -1,3 +1,4 @@
+//src\features\game\mechanics\shared\types.ts
 import * as THREE from 'three';
 
 export type MechanicId = 'shooting' | 'building' | 'social' | 'none';

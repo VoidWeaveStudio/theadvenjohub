@@ -1,3 +1,4 @@
+//src\features\game\mechanics\shooting\models\HitEffect.ts
 import * as THREE from 'three';
 
 export class HitEffect {

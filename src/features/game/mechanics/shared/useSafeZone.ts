@@ -1,3 +1,4 @@
+//src\features\game\mechanics\shared\useSafeZone.ts
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { SafeZoneConfig } from './types';
