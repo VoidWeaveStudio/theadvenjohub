@@ -45,26 +45,26 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
     const tryCreatePlayerModels = (players: LobbyPlayerData[]) => {
         console.log(`🔄 [Network] Trying to create ${players.length} player models...`);
         console.log(`🔄 [Network] Scene ready: ${!!sceneRef.current}`);
-        
+
         const stillPending: LobbyPlayerData[] = [];
-        
+
         players.forEach((player, index) => {
             if (player.id === socketRef.current?.id) {
                 console.log(`🙋 [Network] Skipping self: ${player.id}`);
                 return;
             }
-            
+
             if (playersRef.current.has(player.id)) {
                 console.log(`✅ [Network] Player ${player.id} already exists`);
                 return;
             }
-            
+
             if (!sceneRef.current) {
                 console.log(`⏳ [Network] Scene not ready, adding ${player.id} to pending`);
                 stillPending.push(player);
                 return;
             }
-            
+
             console.log(`👤 [Network] Creating model for: ${player.username} (${player.id})`);
             createOtherPlayerModel(player, index);
 
@@ -76,45 +76,40 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
                 console.error(`❌ [Network] Interpolator NOT created for: ${player.id}`);
             }
         });
-        
+
         pendingPlayersRef.current = stillPending;
     };
 
     useEffect(() => {
-        if (pendingPlayersRef.current.length === 0) return;
-        
         const interval = setInterval(() => {
             if (sceneRef.current && pendingPlayersRef.current.length > 0) {
                 console.log(`🔄 [Network] Retrying ${pendingPlayersRef.current.length} pending players...`);
                 tryCreatePlayerModels(pendingPlayersRef.current);
             }
         }, 500);
-        
+
         return () => clearInterval(interval);
-    }, [sceneRef.current]);
+    }, []);
 
     const socketHandlers = useRef<any>({});
-    
+
     socketHandlers.current.onLobbyJoined = (data: any) => {
         console.log('🎮 [Client] onLobbyJoined:', data.lobbyId, 'Players:', data.playersCount);
-        console.log('🎮 [Client] Players list:', data.players.map((p: any) => ({ id: p.id, username: p.username })));
-        
         setLobbyId(data.lobbyId);
         setPlayers(data.players);
-        
         tryCreatePlayerModels(data.players);
     };
-    
+
     socketHandlers.current.onPlayerJoined = (player: LobbyPlayerData) => {
         console.log(`👋 [Client] onPlayerJoined: ${player.username} (${player.id})`);
         setPlayers((prev: any) => [...prev, player]);
-        
+
         if (!sceneRef.current) {
             console.log(`⏳ [Client] Scene not ready, adding ${player.id} to pending`);
             pendingPlayersRef.current.push(player);
             return;
         }
-        
+
         createOtherPlayerModel(player, playersRef.current.size);
 
         const interpolator = interpolatorsRef.current.get(player.id);
@@ -122,15 +117,14 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
             interpolator.addSnapshot(Date.now(), player.position, player.rotation);
         }
     };
-    
+
     socketHandlers.current.onPlayerLeft = (playerId: string) => {
         console.log(`👋 [Client] onPlayerLeft: ${playerId}`);
         setPlayers((prev: any) => prev.filter((p: any) => p.id !== playerId));
         removePlayerModel(playerId);
-        
         pendingPlayersRef.current = pendingPlayersRef.current.filter(p => p.id !== playerId);
     };
-    
+
     socketHandlers.current.onPlayerMoved = (data: any) => {
         const playerId = data.id;
         const interpolator = interpolatorsRef.current.get(playerId);
@@ -169,13 +163,13 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
             playerData.animData.isMoving = dist > 0.1;
         }
     };
-    
+
     socketHandlers.current.onPlayerUsernameChanged = (data: { id: string; username: string }) => {
         setPlayers((prev: any) => prev.map((p: any) => p.id === data.id ? { ...p, username: data.username } : p));
     };
-    
+
     socketHandlers.current.onLobbyPlayersCount = () => { };
-    
+
     socketHandlers.current.onPlayerShotInLobby = (data: any) => {
         const shooterData = playersRef.current.get(data.shooterId);
         if (shooterData) {
@@ -212,7 +206,7 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
             setHitKey((prev: number) => prev + 1);
         }
     };
-    
+
     socketHandlers.current.onPlayerHitInLobby = (data: any) => {
         const targetData = playersRef.current.get(data.targetId);
         if (targetData) {
@@ -225,13 +219,13 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
             setMyHealth((prev: number) => Math.max(0, prev - data.damage));
         }
     };
-    
+
     socketHandlers.current.onPlayerHealthChanged = (data: any) => {
         if (data.targetId === socketRef.current?.id) {
             setMyHealth(data.health);
         }
     };
-    
+
     socketHandlers.current.onPlayerDiedInLobby = (data: any) => {
         if (data.targetId === socketRef.current?.id) {
             setIsDead(true);
@@ -241,7 +235,7 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
             targetData.animData.isDead = true;
         }
     };
-    
+
     socketHandlers.current.onPlayerRespawnedInLobby = (data: any) => {
         if (data.targetId === socketRef.current?.id) {
             setMyHealth(100);
@@ -273,7 +267,7 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
             }
         }
     };
-    
+
     socketHandlers.current.onPlayerBuildInLobby = (data: any) => {
         if (!buildingManagerRef.current) {
             setTimeout(() => {
@@ -307,7 +301,7 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
             }
         }
     };
-    
+
     socketHandlers.current.onPlayerEmoteInLobby = (data: any) => {
         const playerData = playersRef.current.get(data.playerId);
         if (playerData) {

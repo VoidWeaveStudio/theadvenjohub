@@ -94,11 +94,11 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     } = useLobbyScene(containerRef);
 
     const playerSync = usePlayerSync({
-    socket,
-    playerRef: myPlayerModelRef,
-    sendInterval: 100, 
-    minDistance: 0.1,
-});
+        socket,
+        playerRef: myPlayerModelRef,
+        sendInterval: 100,
+        minDistance: 0.1,
+    });
 
     const {
         playersRef, interpolatorsRef, createOtherPlayerModel,
@@ -229,7 +229,24 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 }
 
                 if (myPlayerModelRef.current) {
-                    playerSync.sendIfChanged(myPlayerModelRef.current.position, myPlayerModelRef.current.rotation);
+                    const pos = myPlayerModelRef.current.position;
+                    const rot = myPlayerModelRef.current.rotation;
+
+                    if (!isFinite(pos.x) || !isFinite(pos.y) || !isFinite(pos.z)) {
+                        console.error('❌ [Animate] Invalid position (NaN detected):', {
+                            x: pos.x, y: pos.y, z: pos.z
+                        });
+                        pos.set(0, 0, 0);
+                    }
+
+                    if (!isFinite(rot.x) || !isFinite(rot.y) || !isFinite(rot.z)) {
+                        console.error('❌ [Animate] Invalid rotation (NaN detected):', {
+                            x: rot.x, y: rot.y, z: rot.z
+                        });
+                        rot.set(0, 0, 0);
+                    }
+
+                    playerSync.sendIfChanged(pos, rot);
                 }
 
                 shooting.update(deltaTime);
@@ -260,7 +277,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
             clearPlayers();
         };
-    }, [sceneReady, rendererRef, cameraRef, sceneRef, animatablesRef, tracerSystemRef, hitEffectRef, controller, shooting, building, updatePlayers, clearPlayers]);
+    }, [sceneReady, rendererRef, cameraRef, sceneRef, animatablesRef, tracerSystemRef, hitEffectRef, controller, shooting, building, updatePlayers, clearPlayers, playerSync]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -323,7 +340,6 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 visible={isLocked && !isChatOpen && !showMenu && !showInventory && !showEmoteWheel && !showBuildingMenu && !isDead}
             />
 
-            {/* Используем isInSafeZoneState вместо isInSafeZone */}
             <LobbyUI username={currentUsername} playersCount={players.length} isInSafeZone={isInSafeZoneState} activeMechanic={activeMechanic} />
 
             {!isInSafeZoneState && !isDead && <HealthBar health={myHealth} />}
