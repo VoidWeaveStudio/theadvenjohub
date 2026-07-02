@@ -58,6 +58,8 @@ interface LobbyPlayerModel {
     animator: PlayerAnimator;
     animData: PlayerAnimationData;
     sprite: THREE.Sprite;
+    targetPosition: THREE.Vector3;
+    targetRotationY: number;
 }
 
 const PORTAL_POSITION = new THREE.Vector3(0, 3, -15);
@@ -277,15 +279,13 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
                 const pos = Array.isArray(data.position) ? data.position : [data.position.x, data.position.y, data.position.z];
                 const rot = Array.isArray(data.rotation) ? data.rotation : [data.rotation.x, data.rotation.y, data.rotation.z];
 
-                playerData.group.position.set(pos[0], 0, pos[2]);
-                playerData.group.rotation.set(0, rot[1], 0);
+                const groundOffset = PlayerModelLoader.getGroundOffset();
 
-                const prevPos = playerData.group.userData.lastPosition;
-                if (prevPos) {
-                    const dist = playerData.group.position.distanceTo(prevPos);
-                    playerData.animData.isMoving = dist > 0.01;
-                }
-                playerData.group.userData.lastPosition = playerData.group.position.clone();
+                playerData.targetPosition.set(pos[0], groundOffset, pos[2]);
+                playerData.targetRotationY = rot[1];
+
+                const dist = playerData.group.position.distanceTo(playerData.targetPosition);
+                playerData.animData.isMoving = dist > 0.05;
             }
         },
         onPlayerUsernameChanged: (data: { id: string; username: string }) => {
@@ -382,6 +382,18 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             }
 
             playersRef.current.forEach((playerData) => {
+                const lerpFactor = 1 - Math.exp(-15 * deltaTime); // 15 — коэффициент плавности
+                playerData.group.position.lerp(playerData.targetPosition, lerpFactor);
+
+                const currentRotY = playerData.group.rotation.y;
+                let targetRotY = playerData.targetRotationY;
+
+                let diff = targetRotY - currentRotY;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+
+                playerData.group.rotation.y = currentRotY + diff * lerpFactor;
+
                 if (playerData.animator) {
                     playerData.animator.update(deltaTime, {
                         isMoving: playerData.animData.isMoving,
@@ -529,16 +541,22 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         if (!cloned) return;
         const animator = new PlayerAnimator(cloned);
         cloned.userData.animator = animator;
-        cloned.position.set(player.position.x, PlayerModelLoader.getGroundOffset(), player.position.z);
+
+        const groundOffset = PlayerModelLoader.getGroundOffset();
+        cloned.position.set(player.position.x, groundOffset, player.position.z);
         cloned.rotation.set(0, player.rotation.y, 0);
+
         sceneRef.current.add(cloned);
         const sprite = UsernameSprite.create(player.username, 0x00ffff);
         cloned.add(sprite);
+
         playersRef.current.set(player.id, {
             group: cloned,
             animator,
             animData: { walkPhase: 0, isMoving: false, isShooting: false, isReloading: false, isDead: false, hitFlash: 0, deathAnimation: 0 },
             sprite,
+            targetPosition: new THREE.Vector3(player.position.x, groundOffset, player.position.z), // <-- ДОБАВИТЬ
+            targetRotationY: player.rotation.y,
         });
     }, []);
 
