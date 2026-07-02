@@ -10,11 +10,7 @@ export interface LobbyPlayerData {
 }
 
 export interface LobbySocketHandlers {
-    onLobbyJoined: (data: {
-        lobbyId: string;
-        players: LobbyPlayerData[];
-        playersCount: number;
-    }) => void;
+    onLobbyJoined: (data: { lobbyId: string; players: LobbyPlayerData[]; playersCount: number }) => void;
     onPlayerJoined: (player: LobbyPlayerData) => void;
     onPlayerLeft: (playerId: string) => void;
     onPlayerMoved: (data: any) => void;
@@ -37,20 +33,25 @@ export function useLobbySocket(
     handlers: LobbySocketHandlers,
 ): void {
     useEffect(() => {
-        if (!socket) return;
+        if (!socket) {
+            console.log('⚠️ [Socket] useLobbySocket: No socket provided');
+            return;
+        }
+
+        console.log('🔧 [Socket] useLobbySocket: Setting up listeners for socket:', socket.id);
 
         const emitJoinLobby = () => {
-            console.log('📨 Sending joinLobby...');
+            console.log('📨 [Socket] Sending joinLobby...', { wallet: wallet?.substring(0, 8), username });
             socket.emit('joinLobby', { wallet, username });
         };
 
         const handleConnect = () => {
-            console.log('✅ Socket connected, joining lobby...');
+            console.log('✅ [Socket] Connected, joining lobby...');
             emitJoinLobby();
         };
 
         const handleLobbyJoined = (data: any) => {
-            console.log('🎮 Lobby joined:', data.lobbyId, 'Players:', data.playersCount);
+            console.log('🎮 [Socket] lobbyJoined received:', data.lobbyId, 'Players:', data.playersCount);
             handlers.onLobbyJoined({
                 lobbyId: data.lobbyId,
                 players: data.players,
@@ -59,11 +60,12 @@ export function useLobbySocket(
         };
 
         const handlePlayerJoined = (player: LobbyPlayerData) => {
-            console.log('👤 Player joined:', player.username);
+            console.log('👤 [Socket] playerJoinedLobby:', player.username);
             handlers.onPlayerJoined(player);
         };
 
         const handlePlayerLeft = (playerId: string) => {
+            console.log('👋 [Socket] playerLeftLobby:', playerId);
             handlers.onPlayerLeft(playerId);
         };
 
@@ -128,11 +130,14 @@ export function useLobbySocket(
         socket.on('positionCorrection', handlePositionCorrection);
 
         if (socket.connected) {
-            console.log('✅ Socket already connected, joining lobby immediately...');
+            console.log('✅ [Socket] Already connected, joining lobby immediately...');
             emitJoinLobby();
+        } else {
+            console.log('⏳ [Socket] Not connected yet, waiting for connect event...');
         }
 
         return () => {
+            console.log('🧹 [Socket] Cleaning up listeners');
             socket.off('connect', handleConnect);
             socket.off('lobbyJoined', handleLobbyJoined);
             socket.off('playerJoinedLobby', handlePlayerJoined);
