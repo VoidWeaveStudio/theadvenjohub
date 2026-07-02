@@ -1,4 +1,4 @@
-//src\features\game\lobby\components\HealthBar.tsx
+// src/features/game/lobby/components/HealthBar.tsx
 "use client";
 
 interface HealthBarProps {
@@ -10,7 +10,7 @@ export function HealthBar({ health, maxHealth = 100 }: HealthBarProps) {
   const percentage = (health / maxHealth) * 100;
   
   return (
-    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-64 h-4 bg-black/50 rounded-full overflow-hidden border border-white/20 pointer-events-none z-30">
+    <div className="absolute top-24 left-4 w-64 h-4 bg-black/50 rounded-full overflow-hidden border border-white/20 pointer-events-none z-30">
       <div 
         className={`h-full transition-all duration-300 ${
           percentage > 50 ? 'bg-green-500' : 
