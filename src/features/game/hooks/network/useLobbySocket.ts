@@ -21,6 +21,8 @@ export interface LobbySocketHandlers {
         id: string;
         position: any;
         rotation: any;
+        serverTime?: number;
+        velocity?: [number, number];
     }) => void;
     onPlayerUsernameChanged: (data: { id: string; username: string }) => void;
     onLobbyPlayersCount: (count: number) => void;
@@ -37,11 +39,11 @@ export interface LobbySocketHandlers {
     }) => void;
     onPlayerHealthChanged: (data: { targetId: string; health: number }) => void;
     onPlayerDiedInLobby: (data: { targetId: string; killerId: string }) => void;
-    onPlayerRespawnedInLobby: (data: { 
-        targetId: string; 
-        position: { x: number; y: number; z: number }; 
-        rotation: { x: number; y: number; z: number }; 
-        health: number 
+    onPlayerRespawnedInLobby: (data: {
+        targetId: string;
+        position: { x: number; y: number; z: number };
+        rotation: { x: number; y: number; z: number };
+        health: number
     }) => void;
     onPlayerBuildInLobby: (data: {
         playerId: string;
@@ -88,12 +90,9 @@ export function useLobbySocket(
         };
 
         const handlePlayerMoved = (data: any) => {
-            handlers.onPlayerMoved({
-                id: data.id,
-                position: data.position,
-                rotation: data.rotation,
-            });
+            handlers.onPlayerMoved(data);
         };
+
 
         const handleUsernameChanged = (data: { id: string; username: string }) => {
             handlers.onPlayerUsernameChanged(data);
@@ -149,7 +148,7 @@ export function useLobbySocket(
         socket.on('playerRespawnedInLobby', handlePlayerRespawnedInLobby);
         socket.on('playerBuildInLobby', handlePlayerBuildInLobby);
         socket.on('playerEmoteInLobby', handlePlayerEmoteInLobby);
-        socket.on('positionCorrection', handlePositionCorrection); 
+        socket.on('positionCorrection', handlePositionCorrection);
 
         return () => {
             socket.off('connect', handleConnect);

@@ -23,7 +23,7 @@ interface UseLobbyNetworkProps {
     setMyHealth: (fn: any) => void;
     setIsDead: (val: boolean) => void;
     setHitKey: (fn: any) => void;
-    
+
     correctionTargetRef: MutableRefObject<THREE.Vector3 | null>;
     isCorrectingRef: MutableRefObject<boolean>;
 }
@@ -48,12 +48,22 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
             data.players.forEach((player: LobbyPlayerData, index: number) => {
                 if (player.id !== socketRef.current?.id) {
                     createOtherPlayerModel(player, index);
+
+                    const interpolator = interpolatorsRef.current.get(player.id);
+                    if (interpolator) {
+                        interpolator.addSnapshot(Date.now(), player.position, player.rotation);
+                    }
                 }
             });
         },
         onPlayerJoined: (player: LobbyPlayerData) => {
             setPlayers((prev: any) => [...prev, player]);
             createOtherPlayerModel(player, playersRef.current.size);
+
+            const interpolator = interpolatorsRef.current.get(player.id);
+            if (interpolator) {
+                interpolator.addSnapshot(Date.now(), player.position, player.rotation);
+            }
         },
         onPlayerLeft: (playerId: string) => {
             setPlayers((prev: any) => prev.filter((p: any) => p.id !== playerId));
@@ -79,20 +89,25 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
                 : undefined;
 
             const serverTime = data.serverTime || Date.now();
-            
+
             interpolator.addSnapshot(serverTime, pos, rot, vel);
 
-            const lastPos = playerData.group.position;
-            const dist = Math.sqrt(
-                Math.pow(pos.x - lastPos.x, 2) +
-                Math.pow(pos.z - lastPos.z, 2)
-            );
-            playerData.animData.isMoving = dist > 0.1;
+            if (vel) {
+                const speed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+                playerData.animData.isMoving = speed > 0.5;
+            } else {
+                const lastPos = playerData.group.position;
+                const dist = Math.sqrt(
+                    Math.pow(pos.x - lastPos.x, 2) +
+                    Math.pow(pos.z - lastPos.z, 2)
+                );
+                playerData.animData.isMoving = dist > 0.1;
+            }
         },
         onPlayerUsernameChanged: (data: { id: string; username: string }) => {
             setPlayers((prev: any) => prev.map((p: any) => p.id === data.id ? { ...p, username: data.username } : p));
         },
-        onLobbyPlayersCount: () => {},
+        onLobbyPlayersCount: () => { },
         onPlayerShotInLobby: (data: any) => {
             const shooterData = playersRef.current.get(data.shooterId);
             if (shooterData) {
@@ -230,10 +245,10 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
         },
 
         onPositionCorrection: (data: any) => {
-            const pos = Array.isArray(data.position) 
+            const pos = Array.isArray(data.position)
                 ? new THREE.Vector3(data.position[0], data.position[1], data.position[2])
                 : new THREE.Vector3(data.position.x, data.position.y, data.position.z);
-            
+
             correctionTargetRef.current = pos;
             isCorrectingRef.current = true;
         }

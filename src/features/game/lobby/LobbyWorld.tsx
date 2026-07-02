@@ -33,6 +33,8 @@ import { useLobbyScene } from './hooks/useLobbyScene';
 import { useLobbyPlayers } from './hooks/useLobbyPlayers';
 import { useLobbyNetwork } from './hooks/useLobbyNetwork';
 
+import { usePlayerSync } from '../hooks/network/usePlayerSync';
+
 import { SAFE_ZONE_CONFIG } from '../mechanics/shared/useSafeZone';
 
 
@@ -90,6 +92,13 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         sceneRef, cameraRef, rendererRef, collisionSystemRef,
         tracerSystemRef, hitEffectRef, animatablesRef, sceneReady
     } = useLobbyScene(containerRef);
+
+    const playerSync = usePlayerSync({
+        socket,
+        playerRef: myPlayerModelRef,
+        sendInterval: 50,
+        minDistance: 0.05,
+    });
 
     const {
         playersRef, interpolatorsRef, createOtherPlayerModel,
@@ -217,6 +226,10 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                     }
                 } else {
                     controller.update(deltaTime);
+                }
+
+                if (myPlayerModelRef.current) {
+                    playerSync.sendIfChanged(myPlayerModelRef.current.position, myPlayerModelRef.current.rotation);
                 }
 
                 shooting.update(deltaTime);
