@@ -1,4 +1,3 @@
-//src\features\game\hooks\network\useLobbySocket.ts
 import { useEffect } from 'react';
 import { Socket } from 'socket.io-client';
 
@@ -35,6 +34,14 @@ export interface LobbySocketHandlers {
         targetId: string;
         damage: number;
     }) => void;
+    onPlayerHealthChanged: (data: { targetId: string; health: number }) => void;
+    onPlayerDiedInLobby: (data: { targetId: string; killerId: string }) => void;
+    onPlayerRespawnedInLobby: (data: { 
+        targetId: string; 
+        position: { x: number; y: number; z: number }; 
+        rotation: { x: number; y: number; z: number }; 
+        health: number 
+    }) => void;
     onPlayerBuildInLobby: (data: {
         playerId: string;
         action: 'place' | 'remove';
@@ -58,12 +65,10 @@ export function useLobbySocket(
         if (!socket) return;
 
         const handleConnect = () => {
-            console.log('🔌 [LobbySocket] Connected, joining lobby...');
             socket.emit('joinLobby', { wallet, username });
         };
 
         const handleLobbyJoined = (data: any) => {
-            console.log('✅ [LobbySocket] Lobby joined:', data.lobbyId, 'players:', data.players?.length);
             handlers.onLobbyJoined({
                 lobbyId: data.lobbyId,
                 players: data.players,
@@ -72,12 +77,10 @@ export function useLobbySocket(
         };
 
         const handlePlayerJoined = (player: LobbyPlayerData) => {
-            console.log('➕ [LobbySocket] Player joined:', player.id, player.username);
             handlers.onPlayerJoined(player);
         };
 
         const handlePlayerLeft = (playerId: string) => {
-            console.log('➖ [LobbySocket] Player left:', playerId);
             handlers.onPlayerLeft(playerId);
         };
 
@@ -105,6 +108,18 @@ export function useLobbySocket(
             handlers.onPlayerHitInLobby(data);
         };
 
+        const handlePlayerHealthChanged = (data: any) => {
+            handlers.onPlayerHealthChanged(data);
+        };
+
+        const handlePlayerDiedInLobby = (data: any) => {
+            handlers.onPlayerDiedInLobby(data);
+        };
+
+        const handlePlayerRespawnedInLobby = (data: any) => {
+            handlers.onPlayerRespawnedInLobby(data);
+        };
+
         const handlePlayerBuildInLobby = (data: any) => {
             handlers.onPlayerBuildInLobby(data);
         };
@@ -122,6 +137,9 @@ export function useLobbySocket(
         socket.on('lobbyPlayersCount', handleLobbyPlayersCount);
         socket.on('playerShotInLobby', handlePlayerShotInLobby);
         socket.on('playerHitInLobby', handlePlayerHitInLobby);
+        socket.on('playerHealthChanged', handlePlayerHealthChanged);
+        socket.on('playerDiedInLobby', handlePlayerDiedInLobby);
+        socket.on('playerRespawnedInLobby', handlePlayerRespawnedInLobby);
         socket.on('playerBuildInLobby', handlePlayerBuildInLobby);
         socket.on('playerEmoteInLobby', handlePlayerEmoteInLobby);
 
@@ -135,6 +153,9 @@ export function useLobbySocket(
             socket.off('lobbyPlayersCount', handleLobbyPlayersCount);
             socket.off('playerShotInLobby', handlePlayerShotInLobby);
             socket.off('playerHitInLobby', handlePlayerHitInLobby);
+            socket.off('playerHealthChanged', handlePlayerHealthChanged);
+            socket.off('playerDiedInLobby', handlePlayerDiedInLobby);
+            socket.off('playerRespawnedInLobby', handlePlayerRespawnedInLobby);
             socket.off('playerBuildInLobby', handlePlayerBuildInLobby);
             socket.off('playerEmoteInLobby', handlePlayerEmoteInLobby);
         };

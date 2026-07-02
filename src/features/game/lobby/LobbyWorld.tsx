@@ -92,6 +92,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const collisionSystemRef = useRef<CollisionSystem | null>(null);
     const tracerSystemRef = useRef<TracerSystem | null>(null);
     const hitEffectRef = useRef<HitEffect | null>(null);
+    const isDeadRef = useRef(false);
 
     const [showBuildingMenu, setShowBuildingMenu] = useState(false);
     const [selectedBuildingType, setSelectedBuildingType] = useState<BuildingPieceType | null>(null);
@@ -104,6 +105,8 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const [sceneReady, setSceneReady] = useState(false);
     const [lobbyId, setLobbyId] = useState<string | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [myHealth, setMyHealth] = useState(100);
+    const [isDead, setIsDead] = useState(false);
 
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
     const [showInventory, setShowInventory] = useState(false);
@@ -111,6 +114,8 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const [showEmoteWheel, setShowEmoteWheel] = useState(false);
     const [playerPosition, setPlayerPosition] = useState<THREE.Vector3 | null>(null);
     const [hitKey, setHitKey] = useState(0);
+
+    useEffect(() => { isDeadRef.current = isDead; }, [isDead]);
 
     const handleHotbarSelect = useCallback((index: number) => {
         setSelectedSlot(prev => {
@@ -146,7 +151,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                     setModelLoaded(true);
                 }
             })
-            .catch(err => console.warn('⚠️ Player model preload failed:', err));
+            .catch(err => {});
         return () => { isMounted = false; };
     }, []);
 
@@ -246,9 +251,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         interaction: {
             position: PORTAL_POSITION,
             radius: PORTAL_INTERACT_RADIUS,
-            onActivate: () => {
-                console.log('Portal activated');
-            },
+            onActivate: () => {},
         },
         onLockChange: setIsLocked,
         onExit: () => {
@@ -269,23 +272,19 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
 
     const socketHandlers = useRef({
         onLobbyJoined: (data: any) => {
-            console.log('📥 [LobbyWorld] onLobbyJoined:', data.players?.length, 'players');
             setLobbyId(data.lobbyId);
             setPlayers(data.players);
             data.players.forEach((player: LobbyPlayerData, index: number) => {
                 if (player.id !== socket?.id) {
-                    console.log('🎮 [LobbyWorld] Creating model for existing player:', player.id);
                     createOtherPlayerModel(player, index);
                 }
             });
         },
         onPlayerJoined: (player: LobbyPlayerData) => {
-            console.log('📥 [LobbyWorld] onPlayerJoined:', player.id);
             setPlayers((prev) => [...prev, player]);
             createOtherPlayerModel(player, playersRef.current.size);
         },
         onPlayerLeft: (playerId: string) => {
-            console.log('📥 [LobbyWorld] onPlayerLeft:', playerId);
             setPlayers((prev) => prev.filter((p) => p.id !== playerId));
             removePlayerModel(playerId);
         },
@@ -318,11 +317,8 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         onPlayerUsernameChanged: (data: { id: string; username: string }) => {
             setPlayers((prev) => prev.map(p => p.id === data.id ? { ...p, username: data.username } : p));
         },
-        onLobbyPlayersCount: (count: number) => {
-            console.log('👥 [LobbyWorld] Players count:', count);
-        },
+        onLobbyPlayersCount: (count: number) => {},
         onPlayerShotInLobby: (data: any) => {
-            console.log('🔫 [LobbyWorld] Player shot:', data.shooterId);
             const shooterData = playersRef.current.get(data.shooterId);
             if (shooterData) {
                 shooterData.animData.isShooting = true;
@@ -360,7 +356,6 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             }
         },
         onPlayerHitInLobby: (data: any) => {
-            console.log('💥 [LobbyWorld] Player hit:', data.targetId);
             const targetData = playersRef.current.get(data.targetId);
             if (targetData) {
                 targetData.animData.hitFlash = 0.3;
@@ -368,10 +363,56 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                     if (targetData) targetData.animData.hitFlash = 0;
                 }, 300);
             }
+            if (data.targetId === socket?.id) {
+                setMyHealth(prev => Math.max(0, prev - data.damage));
+            }
+        },
+        onPlayerHealthChanged: (data: any) => {
+            if (data.targetId === socket?.id) {
+                setMyHealth(data.health);
+            }
+        },
+        onPlayerDiedInLobby: (data: any) => {
+            if (data.targetId === socket?.id) {
+                setIsDead(true);
+            }
+            const targetData = playersRef.current.get(data.targetId);
+            if (targetData) {
+                targetData.animData.isDead = true;
+            }
+        },
+        onPlayerRespawnedInLobby: (data: any) => {
+            if (data.targetId === socket?.id) {
+                setMyHealth(100);
+                setIsDead(false);
+                if (myPlayerModelRef.current) {
+                    const groundOffset = PlayerModelLoader.getGroundOffset();
+                    myPlayerModelRef.current.position.set(data.position.x, groundOffset, data.position.z);
+                    myPlayerModelRef.current.rotation.set(0, data.rotation.y, 0);
+                    if (cameraRef.current) {
+                        cameraRef.current.position.set(
+                            data.position.x,
+                            data.position.y + CAMERA_CONFIG.heightOffset,
+                            data.position.z + CAMERA_CONFIG.distance
+                        );
+                    }
+                }
+            } else {
+                const targetData = playersRef.current.get(data.targetId);
+                if (targetData) {
+                    targetData.animData.isDead = false;
+                    const groundOffset = PlayerModelLoader.getGroundOffset();
+                    targetData.group.position.set(data.position.x, groundOffset, data.position.z);
+                    targetData.group.rotation.set(0, data.rotation.y, 0);
+                    const interpolator = interpolatorsRef.current.get(data.targetId);
+                    if (interpolator) {
+                        interpolator.clear();
+                        interpolator.addSnapshot(Date.now(), data.position, data.rotation);
+                    }
+                }
+            }
         },
         onPlayerBuildInLobby: (data: any) => {
-            console.log('🏗️ [LobbyWorld] Player build:', data.action, data.pieceType);
-
             if (!building.buildingManagerRef.current) {
                 setTimeout(() => {
                     socketHandlers.current.onPlayerBuildInLobby(data);
@@ -405,7 +446,6 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             }
         },
         onPlayerEmoteInLobby: (data: any) => {
-            console.log('💃 [LobbyWorld] Player emote:', data.emoteId);
             const playerData = playersRef.current.get(data.playerId);
             if (playerData) {
                 playerData.animData.isShooting = true;
@@ -491,10 +531,11 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             const elapsedTime = (currentTime - startTimeRef.current) / 1000;
             lastTimeRef.current = currentTime;
 
-            controller.update(deltaTime);
-
-            shooting.update(deltaTime);
-            building.update(deltaTime);
+            if (!isDeadRef.current) {
+                controller.update(deltaTime);
+                shooting.update(deltaTime);
+                building.update(deltaTime);
+            }
 
             if (myPlayerModelRef.current) {
                 setPlayerPosition(myPlayerModelRef.current.position.clone());
@@ -581,6 +622,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.repeat) return;
+            if (isDead) return;
 
             if (e.code === 'Escape') {
                 e.preventDefault();
@@ -639,6 +681,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         };
 
         const handleMouseDown = (e: MouseEvent) => {
+            if (isDead) return;
             if (isChatOpen || showMenu || showInventory || showEmoteWheel || showBuildingMenu) return;
             if (!isInSafeZone && activeMechanic === 'shooting') {
                 if (e.button === 0) shooting.onMouseDown();
@@ -670,7 +713,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             window.removeEventListener('mouseup', handleMouseUp);
             window.removeEventListener('contextmenu', handleContextMenu);
         };
-    }, [isChatOpen, showMenu, showInventory, showEmoteWheel, showBuildingMenu, isInSafeZone, activeMechanic, selectedBuildingType, shooting, building, handleHotbarSelect]);
+    }, [isChatOpen, showMenu, showInventory, showEmoteWheel, showBuildingMenu, isInSafeZone, activeMechanic, selectedBuildingType, shooting, building, handleHotbarSelect, isDead]);
 
     const createOtherPlayerModel = useCallback((player: LobbyPlayerData, index: number) => {
         if (!sceneRef.current || playersRef.current.has(player.id)) return;
@@ -730,7 +773,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 size={24}
                 color="#00ffff"
                 opacity={0.6}
-                visible={isLocked && !isChatOpen && !showMenu && !showInventory && !showEmoteWheel && !showBuildingMenu}
+                visible={isLocked && !isChatOpen && !showMenu && !showInventory && !showEmoteWheel && !showBuildingMenu && !isDead}
             />
 
             <LobbyUI
@@ -740,7 +783,26 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 activeMechanic={activeMechanic}
             />
 
-            {activeMechanic === 'shooting' && !isInSafeZone && (
+            {!isInSafeZone && !isDead && (
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-64 h-4 bg-black/50 rounded-full overflow-hidden border border-white/20">
+                    <div 
+                        className="h-full bg-red-500 transition-all duration-300" 
+                        style={{ width: `${myHealth}%` }} 
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold">
+                        {myHealth} / 100
+                    </div>
+                </div>
+            )}
+
+            {isDead && (
+                <div className="absolute inset-0 bg-black/70 flex items-center justify-center flex-col z-50 pointer-events-none">
+                    <div className="text-red-500 text-6xl font-bold mb-4 drop-shadow-[0_0_10px_rgba(255,0,0,0.5)]">YOU DIED</div>
+                    <div className="text-white text-xl">Respawning...</div>
+                </div>
+            )}
+
+            {activeMechanic === 'shooting' && !isInSafeZone && !isDead && (
                 <WeaponHUD
                     ammo={shooting.ammo.ammoRef.current}
                     maxAmmo={30}
