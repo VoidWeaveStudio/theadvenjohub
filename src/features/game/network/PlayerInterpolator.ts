@@ -9,7 +9,7 @@ interface Snapshot {
 
 export class PlayerInterpolator {
     private snapshots: Snapshot[] = [];
-    private renderDelay = 100;
+    private renderDelay = 50; 
     private lastVelocity = new THREE.Vector3(0, 0, 0);
     private lastUpdateTime = 0;
 
@@ -31,6 +31,8 @@ export class PlayerInterpolator {
         this.lastUpdateTime = time;
         if (velocity) {
             this.lastVelocity.set(velocity.x, 0, velocity.z);
+        } else {
+            this.lastVelocity.set(0, 0, 0);
         }
     }
 
@@ -40,8 +42,15 @@ export class PlayerInterpolator {
         const now = Date.now();
         const timeSinceLastUpdate = now - this.lastUpdateTime;
 
-        if (timeSinceLastUpdate < 150 && this.snapshots.length >= 2) {
+        if (this.snapshots.length >= 2) {
             const renderTime = now - this.renderDelay;
+
+            if (renderTime <= this.snapshots[0].time) {
+                return {
+                    position: this.snapshots[0].position.clone(),
+                    rotation: this.snapshots[0].rotation.clone()
+                };
+            }
 
             for (let i = 0; i < this.snapshots.length - 1; i++) {
                 const older = this.snapshots[i];
@@ -50,25 +59,41 @@ export class PlayerInterpolator {
                 if (older.time <= renderTime && newer.time >= renderTime) {
                     const t = (renderTime - older.time) / (newer.time - older.time);
                     const position = new THREE.Vector3().lerpVectors(older.position, newer.position, t);
-                    const rotation = new THREE.Euler().copy(older.rotation); 
+                    const rotation = older.rotation.clone(); 
                     return { position, rotation };
                 }
             }
+            
+            if (renderTime >= this.snapshots[this.snapshots.length - 1].time && timeSinceLastUpdate < 150) {
+                return {
+                    position: this.snapshots[this.snapshots.length - 1].position.clone(),
+                    rotation: this.snapshots[this.snapshots.length - 1].rotation.clone()
+                };
+            }
+        }
+
+        if (timeSinceLastUpdate > 150 || this.snapshots.length < 2) {
+            const lastState = this.snapshots[this.snapshots.length - 1];
+            
+            const dt = Math.max(0, (timeSinceLastUpdate - 150)) / 1000; 
+            
+            const maxExtrapolationTime = 0.5; 
+            const clampedDt = Math.min(dt, maxExtrapolationTime);
+
+            const position = lastState.position.clone().add(
+                this.lastVelocity.clone().multiplyScalar(clampedDt)
+            );
+
+            return {
+                position,
+                rotation: lastState.rotation.clone()
+            };
         }
 
         const lastState = this.snapshots[this.snapshots.length - 1];
-        const dt = (timeSinceLastUpdate - 150) / 1000;
-        
-        const maxExtrapolationTime = 0.5; 
-        const clampedDt = Math.min(dt, maxExtrapolationTime);
-
-        const position = lastState.position.clone().add(
-            this.lastVelocity.clone().multiplyScalar(clampedDt)
-        );
-
         return {
-            position,
-            rotation: lastState.rotation
+            position: lastState.position.clone(),
+            rotation: lastState.rotation.clone()
         };
     }
 
