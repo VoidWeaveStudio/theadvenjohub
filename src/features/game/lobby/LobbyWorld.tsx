@@ -94,11 +94,11 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     } = useLobbyScene(containerRef);
 
     const playerSync = usePlayerSync({
-        socket,
-        playerRef: myPlayerModelRef,
-        sendInterval: 50,
-        minDistance: 0.05,
-    });
+    socket,
+    playerRef: myPlayerModelRef,
+    sendInterval: 100, 
+    minDistance: 0.1,
+});
 
     const {
         playersRef, interpolatorsRef, createOtherPlayerModel,

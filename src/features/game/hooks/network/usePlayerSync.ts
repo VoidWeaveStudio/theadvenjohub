@@ -13,7 +13,7 @@ interface UsePlayerSyncProps {
 export function usePlayerSync({
     socket,
     playerRef,
-    sendInterval = 100,
+    sendInterval = 100, 
     minDistance = 0.1,
 }: UsePlayerSyncProps) {
     const lastSendTimeRef = useRef(0);
