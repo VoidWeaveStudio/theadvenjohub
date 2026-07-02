@@ -105,7 +105,7 @@ export function GameClient({ slug }: GameClientProps) {
 
     return (
         <div className="fixed inset-0 z-50 bg-black" style={{ top: '64px' }}>
-              <LobbyWorld
+            <LobbyWorld
                 wallet={userWallet || ''}
                 username={`Player_${(userWallet || '').substring(0, 4)}`}
                 socket={socketRef.current}

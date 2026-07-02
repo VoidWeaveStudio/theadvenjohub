@@ -89,7 +89,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const [selectedBuildingType, setSelectedBuildingType] = useState<BuildingPieceType | null>(null);
 
     const [players, setPlayers] = useState<LobbyPlayerData[]>([]);
-    
+
     const [isLocked, setIsLocked] = useState(false);
     const [currentUsername, setCurrentUsername] = useState(username);
     const [modelLoaded, setModelLoaded] = useState(false);
@@ -221,7 +221,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         isInGame: false,
     });
 
-    const emotes = useEmoteSystem({ 
+    const emotes = useEmoteSystem({
         playerModelRef: myPlayerModelRef,
         socket,
         isInGame: false,
@@ -259,7 +259,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         },
     });
 
-        const socketHandlers = useRef({
+     const socketHandlers = useRef({
         onLobbyJoined: (data: any) => {
             console.log('📥 [LobbyWorld] onLobbyJoined:', data.players?.length, 'players');
             setLobbyId(data.lobbyId);
