@@ -1,4 +1,4 @@
-//src\features\game\lobby\LobbyWorld.tsx
+// src/features/game/lobby/LobbyWorld.tsx
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -47,6 +47,7 @@ import {
 
 import { TracerSystem } from '../mechanics/shooting/models/TracerSystem';
 import { HitEffect } from '../mechanics/shooting/models/HitEffect';
+import { PlayerInterpolator } from '../network/PlayerInterpolator';
 
 interface LobbyWorldProps {
     wallet: string;
@@ -79,6 +80,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
     const myPlayerModelRef = useRef<THREE.Group | null>(null);
     const playersRef = useRef<Map<string, LobbyPlayerModel>>(new Map());
+    const interpolatorsRef = useRef<Map<string, PlayerInterpolator>>(new Map());
     const animationFrameRef = useRef<number | null>(null);
     const animatablesRef = useRef<LobbyAnimatables | null>(null);
     const lastTimeRef = useRef<number>(0);
@@ -288,21 +290,30 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             removePlayerModel(playerId);
         },
         onPlayerMoved: (data: any) => {
-            const playerData = playersRef.current.get(data.id);
-            if (playerData) {
-                const pos = Array.isArray(data.position) ? data.position : [data.position.x, data.position.y, data.position.z];
-                const rot = Array.isArray(data.rotation) ? data.rotation : [data.rotation.x, data.rotation.y, data.rotation.z];
+            const playerId = data.id;
+            const interpolator = interpolatorsRef.current.get(playerId);
+            const playerData = playersRef.current.get(playerId);
 
-                const groundOffset = PlayerModelLoader.getGroundOffset();
+            if (!interpolator || !playerData) return;
 
-                playerData.targetPosition.set(pos[0], groundOffset, pos[2]);
-                playerData.targetRotationY = rot[1];
+            const pos = Array.isArray(data.position)
+                ? { x: data.position[0], y: data.position[1], z: data.position[2] }
+                : data.position;
 
-                const dist = playerData.group.position.distanceTo(playerData.targetPosition);
-                playerData.animData.isMoving = dist > 0.05;
-            } else {
-                console.warn('⚠️ [LobbyWorld] onPlayerMoved: player not found in map:', data.id);
-            }
+            const rot = Array.isArray(data.rotation)
+                ? { x: data.rotation[0], y: data.rotation[1], z: data.rotation[2] }
+                : data.rotation;
+
+            const serverTime = data.serverTime || Date.now();
+
+            interpolator.addSnapshot(serverTime, pos, rot);
+
+            const lastPos = playerData.group.position;
+            const dist = Math.sqrt(
+                Math.pow(pos.x - lastPos.x, 2) +
+                Math.pow(pos.z - lastPos.z, 2)
+            );
+            playerData.animData.isMoving = dist > 0.1;
         },
         onPlayerUsernameChanged: (data: { id: string; username: string }) => {
             setPlayers((prev) => prev.map(p => p.id === data.id ? { ...p, username: data.username } : p));
@@ -322,23 +333,23 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 if (sceneRef.current && tracerSystemRef.current) {
                     const shooterPos = shooterData.group.position.clone();
                     shooterPos.y += 1.5;
-                    
+
                     const direction = new THREE.Vector3(
                         data.direction.x,
                         data.direction.y,
                         data.direction.z
                     ).normalize();
-                    
+
                     const endPoint = shooterPos.clone().add(direction.multiplyScalar(100));
-                    
+
                     tracerSystemRef.current.createTracer(shooterPos, endPoint);
-                    
+
                     if (data.hitPlayerId) {
                         const targetData = playersRef.current.get(data.hitPlayerId);
-                        if (targetData) {
+                        if (targetData && hitEffectRef.current) {
                             const hitPos = targetData.group.position.clone();
                             hitPos.y += 1;
-                            hitEffectRef.current?.createHitEffect(hitPos, new THREE.Vector3(0, 1, 0));
+                            hitEffectRef.current.createHitEffect(hitPos, new THREE.Vector3(0, 1, 0));
                         }
                     }
                 }
@@ -360,33 +371,36 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         },
         onPlayerBuildInLobby: (data: any) => {
             console.log('🏗️ [LobbyWorld] Player build:', data.action, data.pieceType);
-            
+
+            if (!building.buildingManagerRef.current) {
+                setTimeout(() => {
+                    socketHandlers.current.onPlayerBuildInLobby(data);
+                }, 100);
+                return;
+            }
+
             if (data.action === 'place') {
-                if (building.buildingManagerRef.current) {
-                    const piece = building.buildingManagerRef.current.createPiece(data.pieceType);
-                    if (piece) {
-                        building.buildingManagerRef.current.placePiece(
-                            piece,
-                            data.position.x,
-                            data.position.y,
-                            data.position.z,
-                            data.rotation.y
-                        );
-                    }
+                const piece = building.buildingManagerRef.current.createPiece(data.pieceType);
+                if (piece) {
+                    building.buildingManagerRef.current.placePiece(
+                        piece,
+                        data.position.x,
+                        data.position.y,
+                        data.position.z,
+                        data.rotation.y
+                    );
                 }
             } else if (data.action === 'remove') {
-                if (building.buildingManagerRef.current) {
-                    const pieces = building.buildingManagerRef.current.getAllPieces();
-                    const nearestPiece = pieces.find(p => {
-                        const dist = p.group.position.distanceTo(
-                            new THREE.Vector3(data.position.x, data.position.y, data.position.z)
-                        );
-                        return dist < 2;
-                    });
-                    
-                    if (nearestPiece) {
-                        building.buildingManagerRef.current.removePiece(nearestPiece.id);
-                    }
+                const pieces = building.buildingManagerRef.current.getAllPieces();
+                const nearestPiece = pieces.find(p => {
+                    const dist = p.group.position.distanceTo(
+                        new THREE.Vector3(data.position.x, data.position.y, data.position.z)
+                    );
+                    return dist < 2;
+                });
+
+                if (nearestPiece) {
+                    building.buildingManagerRef.current.removePiece(nearestPiece.id);
                 }
             }
         },
@@ -486,18 +500,20 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 setPlayerPosition(myPlayerModelRef.current.position.clone());
             }
 
-            playersRef.current.forEach((playerData) => {
-                const lerpFactor = 1 - Math.exp(-15 * deltaTime);
-                playerData.group.position.lerp(playerData.targetPosition, lerpFactor);
+            playersRef.current.forEach((playerData, id) => {
+                const interpolator = interpolatorsRef.current.get(id);
+                if (!interpolator) return;
 
-                const currentRotY = playerData.group.rotation.y;
-                let targetRotY = playerData.targetRotationY;
+                const state = interpolator.getInterpolatedState();
+                if (state) {
+                    const groundOffset = PlayerModelLoader.getGroundOffset();
 
-                let diff = targetRotY - currentRotY;
-                while (diff > Math.PI) diff -= Math.PI * 2;
-                while (diff < -Math.PI) diff += Math.PI * 2;
+                    playerData.group.position.x = state.position.x;
+                    playerData.group.position.y = groundOffset;
+                    playerData.group.position.z = state.position.z;
 
-                playerData.group.rotation.y = currentRotY + diff * lerpFactor;
+                    playerData.group.rotation.y = state.rotation.y;
+                }
 
                 if (playerData.animator) {
                     playerData.animator.update(deltaTime, {
@@ -540,6 +556,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 }
             });
             playersRef.current.clear();
+            interpolatorsRef.current.clear();
             if (rendererRef.current) {
                 rendererRef.current.dispose();
                 if (containerRef.current && rendererRef.current.domElement.parentNode === containerRef.current) {
@@ -670,6 +687,10 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         const sprite = UsernameSprite.create(player.username, 0x00ffff);
         cloned.add(sprite);
 
+        const interpolator = new PlayerInterpolator();
+        interpolator.addSnapshot(Date.now(), player.position, { x: 0, y: player.rotation.y, z: 0 });
+        interpolatorsRef.current.set(player.id, interpolator);
+
         playersRef.current.set(player.id, {
             group: cloned,
             animator,
@@ -692,6 +713,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             }
         });
         playersRef.current.delete(playerId);
+        interpolatorsRef.current.delete(playerId);
     }, []);
 
     const handleUsernameChange = useCallback((newUsername: string) => {

@@ -1,3 +1,4 @@
+//src\features\game\mechanics\building\hooks\useBuildingSystem.ts
 import { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
