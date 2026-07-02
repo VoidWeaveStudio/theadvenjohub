@@ -1,3 +1,4 @@
+//src\features\game\lobby\components\ShooterModeSelectModal.tsx
 import { ShooterMode } from "../types";
 
 interface ShooterModeSelectModalProps {

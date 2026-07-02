@@ -8,23 +8,17 @@ import { Socket } from "socket.io-client";
 import { VoiceChat } from "../components/VoiceChat";
 import { TextChat } from "../components/TextChat";
 import { Reticle } from "../components/Reticle";
-
 import { PlayerModelLoader } from "../models/PlayerModelLoader";
 import { PlayerAnimator, ProceduralAnimationData } from "../models/PlayerAnimator";
-
 import { useLobbySocket, LobbyPlayerData } from "../hooks/network/useLobbySocket";
 import { useBasePlayerController } from "../hooks/useBasePlayerController";
-
 import { SoundManager } from '../SoundManager';
 import { CAMERA_CONFIG } from '../camera/config';
-
 import { useShootingSystem } from '../mechanics/shooting';
 import { useBuildingSystem } from '../mechanics/building';
 import { useEmoteSystem, EmoteWheel } from '../mechanics/social';
-import { useSafeZone } from '../mechanics/shared/useSafeZone';
 import { MechanicId } from '../mechanics/shared/types';
 import { BuildingPieceType } from '../mechanics/building/types';
-
 import { LobbyUI } from './components/LobbyUI';
 import { Hotbar, HotbarItem } from './components/Hotbar';
 import { Inventory } from './components/Inventory';
@@ -34,23 +28,20 @@ import { HitMarker } from './components/HitMarker';
 import { BuildingMenu } from '../mechanics/building/components/BuildingMenu';
 import { HealthBar } from './components/HealthBar';
 import { DeathScreen } from './components/DeathScreen';
-
 import { updateLobbyAnimations } from './LobbyEnvironment';
-
 import { useLobbyScene } from './hooks/useLobbyScene';
 import { useLobbyPlayers } from './hooks/useLobbyPlayers';
 import { useLobbyNetwork } from './hooks/useLobbyNetwork';
 
+import { SAFE_ZONE_CONFIG } from '../mechanics/shared/useSafeZone';
+
+
 interface LobbyWorldProps {
-    wallet: string;
-    username: string;
-    socket: Socket | null;
-    onExit: () => void;
+    wallet: string; username: string; socket: Socket | null; onExit: () => void;
 }
 
 const PORTAL_POSITION = new THREE.Vector3(0, 3, -15);
 const PORTAL_INTERACT_RADIUS = 6;
-
 const HOTBAR_ITEMS: HotbarItem[] = [
     { id: 'rifle', name: 'Rifle', icon: '🔫', mechanic: 'shooting' },
     { id: 'blueprint', name: 'Blueprint', icon: '📐', mechanic: 'building' },
@@ -67,6 +58,10 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const activeMechanicRef = useRef<MechanicId>('none');
     const isDeadRef = useRef(false);
 
+    const checkSafeZone = (pos: THREE.Vector3): boolean => {
+        return pos.distanceTo(SAFE_ZONE_CONFIG.center) < SAFE_ZONE_CONFIG.radius;
+    };
+
     const [showBuildingMenu, setShowBuildingMenu] = useState(false);
     const [selectedBuildingType, setSelectedBuildingType] = useState<BuildingPieceType | null>(null);
     const [players, setPlayers] = useState<LobbyPlayerData[]>([]);
@@ -81,7 +76,14 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const [showInventory, setShowInventory] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showEmoteWheel, setShowEmoteWheel] = useState(false);
-    const [playerPosition, setPlayerPosition] = useState<THREE.Vector3 | null>(null);
+
+    const playerPositionRef = useRef(new THREE.Vector3());
+    const isInSafeZoneRef = useRef(false);
+    const [isInSafeZoneState, setIsInSafeZoneState] = useState(false);
+
+    const correctionTargetRef = useRef<THREE.Vector3 | null>(null);
+    const isCorrectingRef = useRef(false);
+
     const [hitKey, setHitKey] = useState(0);
 
     const {
@@ -101,61 +103,44 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     }, []);
 
     useEffect(() => {
-        if (selectedSlot !== 1) {
-            setSelectedBuildingType(null);
-            setShowBuildingMenu(false);
-        }
+        if (selectedSlot !== 1) { setSelectedBuildingType(null); setShowBuildingMenu(false); }
     }, [selectedSlot]);
 
     useEffect(() => { isChatOpenRef.current = isChatOpen; }, [isChatOpen]);
 
     useEffect(() => {
         soundManagerRef.current = new SoundManager();
-        return () => {
-            soundManagerRef.current?.dispose();
-            soundManagerRef.current = null;
-        };
+        return () => { soundManagerRef.current?.dispose(); soundManagerRef.current = null; };
     }, []);
 
     useEffect(() => {
         let isMounted = true;
-        PlayerModelLoader.preload()
-            .then(() => { if (isMounted) setModelLoaded(true); })
-            .catch(() => {});
+        PlayerModelLoader.preload().then(() => { if (isMounted) setModelLoaded(true); }).catch(() => { });
         return () => { isMounted = false; };
     }, []);
 
     useEffect(() => {
         if (!modelLoaded || !sceneReady || !sceneRef.current || myPlayerModelRef.current) return;
-
         const cloned = PlayerModelLoader.getModelClone();
         if (!cloned) return;
-
         const groundOffset = PlayerModelLoader.getGroundOffset();
         const animator = new PlayerAnimator(cloned);
         cloned.userData.animator = animator;
         cloned.position.set(0, groundOffset, 0);
-
         sceneRef.current.add(cloned);
         myPlayerModelRef.current = cloned;
-
         if (cameraRef.current) {
             cameraRef.current.position.set(
-                cloned.position.x,
-                cloned.position.y + CAMERA_CONFIG.heightOffset,
+                cloned.position.x, cloned.position.y + CAMERA_CONFIG.heightOffset,
                 cloned.position.z + CAMERA_CONFIG.distance
             );
             cameraRef.current.lookAt(cloned.position);
         }
     }, [modelLoaded, sceneReady, sceneRef, cameraRef]);
 
-    const { isInSafeZone } = useSafeZone(playerPosition);
-
-    const activeMechanic: MechanicId = isInSafeZone
+    const activeMechanic: MechanicId = isInSafeZoneState
         ? 'social'
-        : selectedSlot !== null
-            ? HOTBAR_ITEMS[selectedSlot]?.mechanic ?? 'none'
-            : 'none';
+        : selectedSlot !== null ? HOTBAR_ITEMS[selectedSlot]?.mechanic ?? 'none' : 'none';
 
     useEffect(() => { activeMechanicRef.current = activeMechanic; }, [activeMechanic]);
 
@@ -177,7 +162,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     const controller = useBasePlayerController({
         containerRef, cameraRef, playerModelRef: myPlayerModelRef, socket, soundManagerRef, isChatOpenRef,
         bounds: { maxRadius: 100, groundLevel: 0 },
-        interaction: { position: PORTAL_POSITION, radius: PORTAL_INTERACT_RADIUS, onActivate: () => {} },
+        interaction: { position: PORTAL_POSITION, radius: PORTAL_INTERACT_RADIUS, onActivate: () => { } },
         onLockChange: setIsLocked, onExit,
         onChatToggle: (open) => {
             setIsChatOpen(open);
@@ -197,6 +182,8 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
         playersRef, interpolatorsRef, buildingManagerRef: building.buildingManagerRef,
         createOtherPlayerModel, removePlayerModel, setLobbyId, setPlayers,
         setMyHealth, setIsDead, setHitKey,
+        correctionTargetRef,
+        isCorrectingRef
     });
 
     useLobbySocket(socket, wallet, currentUsername, socketHandlers.current);
@@ -217,21 +204,38 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             lastTimeRef.current = currentTime;
 
             if (!isDeadRef.current) {
-                controller.update(deltaTime);
+                if (isCorrectingRef.current && correctionTargetRef.current && myPlayerModelRef.current) {
+                    const currentPos = myPlayerModelRef.current.position;
+                    const targetPos = correctionTargetRef.current;
+
+                    currentPos.lerp(targetPos, 0.2);
+
+                    if (currentPos.distanceTo(targetPos) < 0.1) {
+                        currentPos.copy(targetPos);
+                        isCorrectingRef.current = false;
+                        correctionTargetRef.current = null;
+                    }
+                } else {
+                    controller.update(deltaTime);
+                }
+
                 shooting.update(deltaTime);
                 building.update(deltaTime);
             }
 
             if (myPlayerModelRef.current) {
-                setPlayerPosition(myPlayerModelRef.current.position.clone());
+                playerPositionRef.current.copy(myPlayerModelRef.current.position);
+
+                const newIsInSafeZone = checkSafeZone(playerPositionRef.current);
+
+                if (newIsInSafeZone !== isInSafeZoneRef.current) {
+                    isInSafeZoneRef.current = newIsInSafeZone;
+                    setIsInSafeZoneState(newIsInSafeZone);
+                }
             }
 
             updatePlayers(deltaTime);
-
-            if (animatablesRef.current) {
-                updateLobbyAnimations(animatablesRef.current, elapsedTime, 0);
-            }
-
+            if (animatablesRef.current) updateLobbyAnimations(animatablesRef.current, elapsedTime, 0);
             if (tracerSystemRef.current) tracerSystemRef.current.update(deltaTime);
             if (hitEffectRef.current) hitEffectRef.current.update(deltaTime);
 
@@ -248,7 +252,6 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.repeat || isDead) return;
-
             if (e.code === 'Escape') {
                 e.preventDefault();
                 if (isChatOpen) return;
@@ -258,22 +261,20 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 setShowMenu(prev => !prev);
                 return;
             }
-
             if (isChatOpen || showMenu || showInventory || showEmoteWheel || showBuildingMenu) return;
-
-            if (e.code === 'KeyR' && activeMechanicRef.current === 'shooting' && !isInSafeZone) shooting.onReload();
+            if (e.code === 'KeyR' && activeMechanicRef.current === 'shooting' && !isInSafeZoneState) shooting.onReload();
             if (e.code === 'KeyI') setShowInventory(prev => !prev);
-            if (e.code === 'KeyB' && !isInSafeZone) setShowEmoteWheel(prev => !prev);
+            if (e.code === 'KeyB' && !isInSafeZoneState) setShowEmoteWheel(prev => !prev);
             if (e.code === 'Digit1') handleHotbarSelect(0);
             if (e.code === 'Digit2') handleHotbarSelect(1);
-            if (e.code === 'KeyQ' && activeMechanicRef.current === 'building' && !isInSafeZone) setShowBuildingMenu(prev => !prev);
-            if (e.code === 'KeyE' && activeMechanicRef.current === 'building' && !isInSafeZone) building.interactWithDoor();
+            if (e.code === 'KeyQ' && activeMechanicRef.current === 'building' && !isInSafeZoneState) setShowBuildingMenu(prev => !prev);
+            if (e.code === 'KeyE' && activeMechanicRef.current === 'building' && !isInSafeZoneState) building.interactWithDoor();
         };
 
         const handleMouseDown = (e: MouseEvent) => {
             if (isDead || isChatOpen || showMenu || showInventory || showEmoteWheel || showBuildingMenu) return;
-            if (!isInSafeZone && activeMechanic === 'shooting' && e.button === 0) shooting.onMouseDown();
-            if (!isInSafeZone && activeMechanic === 'building') {
+            if (!isInSafeZoneState && activeMechanic === 'shooting' && e.button === 0) shooting.onMouseDown();
+            if (!isInSafeZoneState && activeMechanic === 'building') {
                 if (e.button === 0 && selectedBuildingType) building.placePiece();
                 if (e.button === 2) building.removePiece();
             }
@@ -293,7 +294,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
             window.removeEventListener('mouseup', handleMouseUp);
             window.removeEventListener('contextmenu', handleContextMenu);
         };
-    }, [isChatOpen, showMenu, showInventory, showEmoteWheel, showBuildingMenu, isInSafeZone, activeMechanic, selectedBuildingType, shooting, building, handleHotbarSelect, isDead]);
+    }, [isChatOpen, showMenu, showInventory, showEmoteWheel, showBuildingMenu, isInSafeZoneState, activeMechanic, selectedBuildingType, shooting, building, handleHotbarSelect, isDead]);
 
     const handleUsernameChange = useCallback((newUsername: string) => {
         setCurrentUsername(newUsername);
@@ -309,12 +310,13 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                 visible={isLocked && !isChatOpen && !showMenu && !showInventory && !showEmoteWheel && !showBuildingMenu && !isDead}
             />
 
-            <LobbyUI username={currentUsername} playersCount={players.length} isInSafeZone={isInSafeZone} activeMechanic={activeMechanic} />
+            {/* Используем isInSafeZoneState вместо isInSafeZone */}
+            <LobbyUI username={currentUsername} playersCount={players.length} isInSafeZone={isInSafeZoneState} activeMechanic={activeMechanic} />
 
-            {!isInSafeZone && !isDead && <HealthBar health={myHealth} />}
+            {!isInSafeZoneState && !isDead && <HealthBar health={myHealth} />}
             <DeathScreen visible={isDead} />
 
-            {activeMechanic === 'shooting' && !isInSafeZone && !isDead && (
+            {activeMechanic === 'shooting' && !isInSafeZoneState && !isDead && (
                 <WeaponHUD ammo={shooting.ammo.ammoRef.current} maxAmmo={30} isReloading={shooting.ammo.isReloadingRef.current} />
             )}
 
@@ -334,7 +336,7 @@ export function LobbyWorld({ wallet, username, socket, onExit }: LobbyWorldProps
                     onClose={() => setShowBuildingMenu(false)}
                 />
             )}
-            {showEmoteWheel && isInSafeZone && <EmoteWheel onSelect={(emoteId) => emotes.playEmote(emoteId)} onClose={() => setShowEmoteWheel(false)} />}
+            {showEmoteWheel && isInSafeZoneState && <EmoteWheel onSelect={(emoteId) => emotes.playEmote(emoteId)} onClose={() => setShowEmoteWheel(false)} />}
         </div>
     );
 }

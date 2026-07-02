@@ -1,3 +1,4 @@
+//src\features\game\hooks\network\useLobbySocket.ts
 import { useEffect } from 'react';
 import { Socket } from 'socket.io-client';
 
@@ -53,6 +54,8 @@ export interface LobbySocketHandlers {
         playerId: string;
         emoteId: string;
     }) => void;
+
+    onPositionCorrection: (data: { position: any; rotation: any }) => void;
 }
 
 export function useLobbySocket(
@@ -128,6 +131,10 @@ export function useLobbySocket(
             handlers.onPlayerEmoteInLobby(data);
         };
 
+        const handlePositionCorrection = (data: any) => {
+            handlers.onPositionCorrection(data);
+        };
+
         socket.on('connect', handleConnect);
         socket.on('lobbyJoined', handleLobbyJoined);
         socket.on('playerJoinedLobby', handlePlayerJoined);
@@ -142,6 +149,7 @@ export function useLobbySocket(
         socket.on('playerRespawnedInLobby', handlePlayerRespawnedInLobby);
         socket.on('playerBuildInLobby', handlePlayerBuildInLobby);
         socket.on('playerEmoteInLobby', handlePlayerEmoteInLobby);
+        socket.on('positionCorrection', handlePositionCorrection); 
 
         return () => {
             socket.off('connect', handleConnect);
@@ -158,6 +166,7 @@ export function useLobbySocket(
             socket.off('playerRespawnedInLobby', handlePlayerRespawnedInLobby);
             socket.off('playerBuildInLobby', handlePlayerBuildInLobby);
             socket.off('playerEmoteInLobby', handlePlayerEmoteInLobby);
+            socket.off('positionCorrection', handlePositionCorrection);
         };
     }, [socket, wallet, username, handlers]);
 }

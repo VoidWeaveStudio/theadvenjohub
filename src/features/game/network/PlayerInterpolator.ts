@@ -2,98 +2,79 @@
 import * as THREE from 'three';
 
 interface Snapshot {
-    time: number;        
+    time: number;
     position: THREE.Vector3;
     rotation: THREE.Euler;
 }
 
 export class PlayerInterpolator {
-    private buffer: Snapshot[] = [];
-    private readonly BUFFER_DELAY = 100; 
-    private readonly MAX_BUFFER_SIZE = 20; 
-    
-    private lastServerTime: number = 0;
-    private serverTimeOffset: number = 0; 
+    private snapshots: Snapshot[] = [];
+    private renderDelay = 100;
+    private lastVelocity = new THREE.Vector3(0, 0, 0);
+    private lastUpdateTime = 0;
 
-    addSnapshot(serverTime: number, position: { x: number; y: number; z: number }, rotation: { x: number; y: number; z: number }) {
-        const snapshot: Snapshot = {
-            time: serverTime,
-            position: new THREE.Vector3(position.x, position.y || 0, position.z),
-            rotation: new THREE.Euler(rotation.x, rotation.y, rotation.z)
-        };
+    addSnapshot(
+        time: number, 
+        position: {x: number, y: number, z: number}, 
+        rotation: {x: number, y: number, z: number}, 
+        velocity?: {x: number, z: number}
+    ) {
+        const pos = new THREE.Vector3(position.x, position.y, position.z);
+        const rot = new THREE.Euler(rotation.x, rotation.y, rotation.z);
+        
+        this.snapshots.push({ time, position: pos, rotation: rot });
+        
+        if (this.snapshots.length > 3) {
+            this.snapshots.shift();
+        }
 
-        const now = Date.now();
-        this.serverTimeOffset = now - serverTime;
-        this.lastServerTime = serverTime;
-
-        this.buffer.push(snapshot);
-        this.buffer.sort((a, b) => a.time - b.time);
-
-        while (this.buffer.length > this.MAX_BUFFER_SIZE) {
-            this.buffer.shift();
+        this.lastUpdateTime = time;
+        if (velocity) {
+            this.lastVelocity.set(velocity.x, 0, velocity.z);
         }
     }
 
-    getInterpolatedState(): { position: THREE.Vector3; rotation: THREE.Euler } | null {
-        if (this.buffer.length < 2) {
-            if (this.buffer.length === 1) {
-                return {
-                    position: this.buffer[0].position.clone(),
-                    rotation: this.buffer[0].rotation.clone()
-                };
-            }
-            return null;
-        }
+    getInterpolatedState(): { position: THREE.Vector3, rotation: THREE.Euler } | null {
+        if (this.snapshots.length === 0) return null;
 
-        const renderTime = Date.now() - this.serverTimeOffset - this.BUFFER_DELAY;
+        const now = Date.now();
+        const timeSinceLastUpdate = now - this.lastUpdateTime;
 
-        let before: Snapshot | null = null;
-        let after: Snapshot | null = null;
+        if (timeSinceLastUpdate < 150 && this.snapshots.length >= 2) {
+            const renderTime = now - this.renderDelay;
 
-        for (let i = 0; i < this.buffer.length - 1; i++) {
-            const curr = this.buffer[i];
-            const next = this.buffer[i + 1];
-            if (curr.time <= renderTime && next.time >= renderTime) {
-                before = curr;
-                after = next;
-                break;
+            for (let i = 0; i < this.snapshots.length - 1; i++) {
+                const older = this.snapshots[i];
+                const newer = this.snapshots[i + 1];
+
+                if (older.time <= renderTime && newer.time >= renderTime) {
+                    const t = (renderTime - older.time) / (newer.time - older.time);
+                    const position = new THREE.Vector3().lerpVectors(older.position, newer.position, t);
+                    const rotation = new THREE.Euler().copy(older.rotation); 
+                    return { position, rotation };
+                }
             }
         }
 
-        if (!before && !after) {
-            const last = this.buffer[this.buffer.length - 1];
-            return {
-                position: last.position.clone(),
-                rotation: last.rotation.clone()
-            };
-        }
-
-        if (!before) {
-            return {
-                position: this.buffer[0].position.clone(),
-                rotation: this.buffer[0].rotation.clone()
-            };
-        }
-
-        const t = (renderTime - before.time) / (after!.time - before.time);
-        const clampedT = Math.max(0, Math.min(1, t));
-
-        const position = new THREE.Vector3().lerpVectors(before.position, after!.position, clampedT);
+        const lastState = this.snapshots[this.snapshots.length - 1];
+        const dt = (timeSinceLastUpdate - 150) / 1000;
         
-        const rotation = new THREE.Euler(
-            before.rotation.x + (after!.rotation.x - before.rotation.x) * clampedT,
-            before.rotation.y + (after!.rotation.y - before.rotation.y) * clampedT,
-            before.rotation.z + (after!.rotation.z - before.rotation.z) * clampedT
+        const maxExtrapolationTime = 0.5; 
+        const clampedDt = Math.min(dt, maxExtrapolationTime);
+
+        const position = lastState.position.clone().add(
+            this.lastVelocity.clone().multiplyScalar(clampedDt)
         );
 
-        return { position, rotation };
+        return {
+            position,
+            rotation: lastState.rotation
+        };
     }
 
     clear() {
-        this.buffer = [];
-    }
-
-    isEmpty(): boolean {
-        return this.buffer.length === 0;
+        this.snapshots = [];
+        this.lastVelocity.set(0, 0, 0);
+        this.lastUpdateTime = 0;
     }
 }

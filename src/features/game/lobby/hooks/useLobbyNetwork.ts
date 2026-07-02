@@ -23,6 +23,9 @@ interface UseLobbyNetworkProps {
     setMyHealth: (fn: any) => void;
     setIsDead: (val: boolean) => void;
     setHitKey: (fn: any) => void;
+    
+    correctionTargetRef: MutableRefObject<THREE.Vector3 | null>;
+    isCorrectingRef: MutableRefObject<boolean>;
 }
 
 export function useLobbyNetwork(props: UseLobbyNetworkProps) {
@@ -30,6 +33,7 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
         socket, myPlayerModelRef, cameraRef, sceneRef, tracerSystemRef, hitEffectRef,
         playersRef, interpolatorsRef, buildingManagerRef, createOtherPlayerModel,
         removePlayerModel, setLobbyId, setPlayers, setMyHealth, setIsDead, setHitKey,
+        correctionTargetRef, isCorrectingRef
     } = props;
 
     const socketRef = useRef(socket);
@@ -70,8 +74,13 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
                 ? { x: data.rotation[0], y: data.rotation[1], z: data.rotation[2] }
                 : data.rotation;
 
+            const vel = Array.isArray(data.velocity)
+                ? { x: data.velocity[0], z: data.velocity[1] }
+                : undefined;
+
             const serverTime = data.serverTime || Date.now();
-            interpolator.addSnapshot(serverTime, pos, rot);
+            
+            interpolator.addSnapshot(serverTime, pos, rot, vel);
 
             const lastPos = playerData.group.position;
             const dist = Math.sqrt(
@@ -219,6 +228,15 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
                 }, 2000);
             }
         },
+
+        onPositionCorrection: (data: any) => {
+            const pos = Array.isArray(data.position) 
+                ? new THREE.Vector3(data.position[0], data.position[1], data.position[2])
+                : new THREE.Vector3(data.position.x, data.position.y, data.position.z);
+            
+            correctionTargetRef.current = pos;
+            isCorrectingRef.current = true;
+        }
     });
 
     return socketHandlers;
