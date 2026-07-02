@@ -40,38 +40,81 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
         socketRef.current = socket;
     }, [socket]);
 
+    const pendingPlayersRef = useRef<LobbyPlayerData[]>([]);
+
+    const tryCreatePlayerModels = (players: LobbyPlayerData[]) => {
+        console.log(`🔄 [Network] Trying to create ${players.length} player models...`);
+        console.log(`🔄 [Network] Scene ready: ${!!sceneRef.current}`);
+        
+        const stillPending: LobbyPlayerData[] = [];
+        
+        players.forEach((player, index) => {
+            if (player.id === socketRef.current?.id) {
+                console.log(`🙋 [Network] Skipping self: ${player.id}`);
+                return;
+            }
+            
+            if (playersRef.current.has(player.id)) {
+                console.log(`✅ [Network] Player ${player.id} already exists`);
+                return;
+            }
+            
+            if (!sceneRef.current) {
+                console.log(`⏳ [Network] Scene not ready, adding ${player.id} to pending`);
+                stillPending.push(player);
+                return;
+            }
+            
+            console.log(`👤 [Network] Creating model for: ${player.username} (${player.id})`);
+            createOtherPlayerModel(player, index);
+
+            const interpolator = interpolatorsRef.current.get(player.id);
+            if (interpolator) {
+                interpolator.addSnapshot(Date.now(), player.position, player.rotation);
+                console.log(`✅ [Network] Model created for: ${player.username}`);
+            } else {
+                console.error(`❌ [Network] Interpolator NOT created for: ${player.id}`);
+            }
+        });
+        
+        pendingPlayersRef.current = stillPending;
+    };
+
+    useEffect(() => {
+        if (pendingPlayersRef.current.length === 0) return;
+        
+        const interval = setInterval(() => {
+            if (sceneRef.current && pendingPlayersRef.current.length > 0) {
+                console.log(`🔄 [Network] Retrying ${pendingPlayersRef.current.length} pending players...`);
+                tryCreatePlayerModels(pendingPlayersRef.current);
+            }
+        }, 500);
+        
+        return () => clearInterval(interval);
+    }, [sceneRef.current]);
+
     const socketHandlers = useRef<any>({});
     
     socketHandlers.current.onLobbyJoined = (data: any) => {
         console.log('🎮 [Client] onLobbyJoined:', data.lobbyId, 'Players:', data.playersCount);
-        console.log('🎮 [Client] Players list:', data.players.map((p: any) => p.id));
+        console.log('🎮 [Client] Players list:', data.players.map((p: any) => ({ id: p.id, username: p.username })));
         
         setLobbyId(data.lobbyId);
         setPlayers(data.players);
         
-        data.players.forEach((player: LobbyPlayerData, index: number) => {
-            if (player.id !== socketRef.current?.id) {
-                console.log(`👤 [Client] Creating model for player: ${player.username} (${player.id})`);
-                console.log(`👤 [Client] Scene ready:`, !!sceneRef.current);
-                
-                createOtherPlayerModel(player, index);
-
-                const interpolator = interpolatorsRef.current.get(player.id);
-                if (interpolator) {
-                    interpolator.addSnapshot(Date.now(), player.position, player.rotation);
-                    console.log(`✅ [Client] Model created and snapshot added for: ${player.username}`);
-                } else {
-                    console.error(`❌ [Client] Interpolator NOT found for: ${player.id}`);
-                }
-            } else {
-                console.log(`🙋 [Client] Skipping self player: ${player.id}`);
-            }
-        });
+        tryCreatePlayerModels(data.players);
     };
     
     socketHandlers.current.onPlayerJoined = (player: LobbyPlayerData) => {
         console.log(`👋 [Client] onPlayerJoined: ${player.username} (${player.id})`);
         setPlayers((prev: any) => [...prev, player]);
+        
+        if (!sceneRef.current) {
+            console.log(`⏳ [Client] Scene not ready, adding ${player.id} to pending`);
+            pendingPlayersRef.current.push(player);
+            return;
+        }
+        
         createOtherPlayerModel(player, playersRef.current.size);
 
         const interpolator = interpolatorsRef.current.get(player.id);
@@ -84,6 +127,8 @@ export function useLobbyNetwork(props: UseLobbyNetworkProps) {
         console.log(`👋 [Client] onPlayerLeft: ${playerId}`);
         setPlayers((prev: any) => prev.filter((p: any) => p.id !== playerId));
         removePlayerModel(playerId);
+        
+        pendingPlayersRef.current = pendingPlayersRef.current.filter(p => p.id !== playerId);
     };
     
     socketHandlers.current.onPlayerMoved = (data: any) => {

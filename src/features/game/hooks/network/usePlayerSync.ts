@@ -13,7 +13,7 @@ interface UsePlayerSyncProps {
 export function usePlayerSync({
     socket,
     playerRef,
-    sendInterval = 100, 
+    sendInterval = 100,
     minDistance = 0.1,
 }: UsePlayerSyncProps) {
     const lastSendTimeRef = useRef(0);
@@ -22,15 +22,27 @@ export function usePlayerSync({
     const sendIfChanged = (position: THREE.Vector3, rotation: THREE.Euler): void => {
         if (!socket?.connected || !playerRef.current) return;
 
+        if (!isFinite(position.x) || !isFinite(position.y) || !isFinite(position.z)) {
+            console.warn('⚠️ [PlayerSync] Invalid position (NaN detected), skipping send');
+            return;
+        }
+
+        if (!isFinite(rotation.y)) {
+            console.warn('⚠️ [PlayerSync] Invalid rotation (NaN detected), skipping send');
+            return;
+        }
+
         const now = Date.now();
         const lastSent = lastSentPosRef.current;
         const distMoved = lastSent ? position.distanceTo(lastSent) : Infinity;
 
         if (now - lastSendTimeRef.current > sendInterval || distMoved > minDistance) {
-            socket.emit('playerMove', {
+            const data = {
                 position: [position.x, position.y, position.z],
                 rotation: [0, rotation.y, 0],
-            });
+            };
+            
+            socket.emit('playerMove', data);
             lastSendTimeRef.current = now;
             lastSentPosRef.current = position.clone();
         }
