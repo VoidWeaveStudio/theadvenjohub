@@ -1,5 +1,3 @@
-// src/features/game/hooks/network/useLobbySocket.ts
-
 import { useEffect } from 'react';
 import { Socket } from 'socket.io-client';
 
@@ -37,6 +35,28 @@ export interface LobbySocketHandlers {
     onLeftQueue: () => void;
     onGameStarted: (data: { roomId: string; mode: string; players: any[] }) => void;
     onQueueError: (message: string) => void;
+    onPlayerShotInLobby: (data: {
+        shooterId: string;
+        origin: { x: number; y: number; z: number };
+        direction: { x: number; y: number; z: number };
+        hitPlayerId: string | null;
+    }) => void;
+    onPlayerHitInLobby: (data: {
+        shooterId: string;
+        targetId: string;
+        damage: number;
+    }) => void;
+    onPlayerBuildInLobby: (data: {
+        playerId: string;
+        action: 'place' | 'remove';
+        pieceType: string;
+        position: { x: number; y: number; z: number };
+        rotation: { x: number; y: number; z: number };
+    }) => void;
+    onPlayerEmoteInLobby: (data: {
+        playerId: string;
+        emoteId: string;
+    }) => void;
 }
 
 export function useLobbySocket(
@@ -86,6 +106,22 @@ export function useLobbySocket(
             handlers.onPlayerUsernameChanged(data);
         };
 
+        const handlePlayerShotInLobby = (data: any) => {
+            handlers.onPlayerShotInLobby(data);
+        };
+
+        const handlePlayerHitInLobby = (data: any) => {
+            handlers.onPlayerHitInLobby(data);
+        };
+
+        const handlePlayerBuildInLobby = (data: any) => {
+            handlers.onPlayerBuildInLobby(data);
+        };
+
+        const handlePlayerEmoteInLobby = (data: any) => {
+            handlers.onPlayerEmoteInLobby(data);
+        };
+
         socket.on('connect', handleConnect);
         socket.on('lobbyJoined', handleLobbyJoined);
         socket.on('playerJoinedLobby', handlePlayerJoined);
@@ -99,6 +135,10 @@ export function useLobbySocket(
         socket.on('gameStarted', handlers.onGameStarted);
         socket.on('joinedFFAGame', handlers.onGameStarted);
         socket.on('queueError', handlers.onQueueError);
+        socket.on('playerShotInLobby', handlePlayerShotInLobby);
+        socket.on('playerHitInLobby', handlePlayerHitInLobby);
+        socket.on('playerBuildInLobby', handlePlayerBuildInLobby);
+        socket.on('playerEmoteInLobby', handlePlayerEmoteInLobby);
 
         return () => {
             socket.off('connect', handleConnect);
@@ -114,6 +154,10 @@ export function useLobbySocket(
             socket.off('gameStarted', handlers.onGameStarted);
             socket.off('joinedFFAGame', handlers.onGameStarted);
             socket.off('queueError', handlers.onQueueError);
+            socket.off('playerShotInLobby', handlePlayerShotInLobby);
+            socket.off('playerHitInLobby', handlePlayerHitInLobby);
+            socket.off('playerBuildInLobby', handlePlayerBuildInLobby);
+            socket.off('playerEmoteInLobby', handlePlayerEmoteInLobby);
         };
     }, [socket, wallet, username, handlers]);
 }

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
+import { Socket } from 'socket.io-client';
 import { useAmmoSystem } from './useAmmoSystem';
 import { useAutoFire } from './useAutoFire';
 import { useRaycast } from './useRaycast';
@@ -16,6 +17,8 @@ interface UseShootingSystemProps {
   modelLoaded: boolean;
   sceneReady: boolean;
   isActive: boolean;
+  socket?: Socket | null;
+  isInGame?: boolean;
   onAmmoChange?: (ammo: number) => void;
   onReloadChange?: (isReloading: boolean) => void;
   onHit?: () => void;
@@ -30,6 +33,8 @@ export function useShootingSystem({
   modelLoaded,
   sceneReady,
   isActive,
+  socket,
+  isInGame = true,
   onAmmoChange,
   onReloadChange,
   onHit,
@@ -123,7 +128,21 @@ export function useShootingSystem({
       hitEffectRef.current?.createHitEffect(result.point, result.normal);
       onHit?.();
     }
-  }, [ammo, cast, cameraRef, playerModelRef, sceneRef, soundManagerRef, isChatOpenRef, onHit, isActive]);
+
+    const origin = new THREE.Vector3();
+    player.getWorldPosition(origin);
+    origin.y += 1.5;
+
+    const direction = new THREE.Vector3(0, 0, -1);
+    direction.applyQuaternion(camera.quaternion).normalize();
+
+    if (socket?.connected && !isInGame) {
+      socket.emit('lobbyShoot', {
+        origin: { x: origin.x, y: origin.y, z: origin.z },
+        direction: { x: direction.x, y: direction.y, z: direction.z }
+      });
+    }
+  }, [ammo, cast, cameraRef, playerModelRef, sceneRef, soundManagerRef, isChatOpenRef, onHit, isActive, socket, isInGame]);
 
   const autoFire = useAutoFire(performShoot);
 

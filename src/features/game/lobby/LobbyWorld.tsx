@@ -204,6 +204,8 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         modelLoaded,
         sceneReady,
         isActive: activeMechanic === 'shooting',
+        socket,
+        isInGame: false,
         onHit: () => {
             setHitKey(prev => prev + 1);
         },
@@ -220,9 +222,15 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         sceneReady,
         isActive: activeMechanic === 'building' && !showBuildingMenu,
         selectedType: selectedBuildingType,
+        socket,
+        isInGame: false,
     });
 
-    const emotes = useEmoteSystem({ playerModelRef: myPlayerModelRef });
+    const emotes = useEmoteSystem({ 
+        playerModelRef: myPlayerModelRef,
+        socket,
+        isInGame: false,
+    });
 
     const controller = useBasePlayerController({
         containerRef,
@@ -305,6 +313,43 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
         onLeftQueue: () => { },
         onGameStarted: (data: any) => onEnterGame(data.roomId, data.mode, data.players),
         onQueueError: (message: string) => alert(message),
+        onPlayerShotInLobby: (data: any) => {
+            console.log('🔫 [LobbyWorld] Player shot:', data.shooterId);
+            const shooterData = playersRef.current.get(data.shooterId);
+            if (shooterData) {
+                shooterData.animData.isShooting = true;
+                setTimeout(() => {
+                    if (shooterData) shooterData.animData.isShooting = false;
+                }, 200);
+            }
+
+            if (data.hitPlayerId === socket?.id) {
+                setHitKey(prev => prev + 1);
+            }
+        },
+        onPlayerHitInLobby: (data: any) => {
+            console.log('💥 [LobbyWorld] Player hit:', data.targetId);
+            const targetData = playersRef.current.get(data.targetId);
+            if (targetData) {
+                targetData.animData.hitFlash = 0.3;
+                setTimeout(() => {
+                    if (targetData) targetData.animData.hitFlash = 0;
+                }, 300);
+            }
+        },
+        onPlayerBuildInLobby: (data: any) => {
+            console.log('🏗️ [LobbyWorld] Player build:', data.action, data.pieceType);
+        },
+        onPlayerEmoteInLobby: (data: any) => {
+            console.log('💃 [LobbyWorld] Player emote:', data.emoteId);
+            const playerData = playersRef.current.get(data.playerId);
+            if (playerData) {
+                playerData.animData.isShooting = true;
+                setTimeout(() => {
+                    if (playerData) playerData.animData.isShooting = false;
+                }, 2000);
+            }
+        },
     });
 
     useLobbySocket(socket, wallet, currentUsername, socketHandlers.current);
@@ -390,7 +435,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             }
 
             playersRef.current.forEach((playerData) => {
-                const lerpFactor = 1 - Math.exp(-15 * deltaTime); // 15 — коэффициент плавности
+                const lerpFactor = 1 - Math.exp(-15 * deltaTime);
                 playerData.group.position.lerp(playerData.targetPosition, lerpFactor);
 
                 const currentRotY = playerData.group.rotation.y;
@@ -563,7 +608,7 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
             animator,
             animData: { walkPhase: 0, isMoving: false, isShooting: false, isReloading: false, isDead: false, hitFlash: 0, deathAnimation: 0 },
             sprite,
-            targetPosition: new THREE.Vector3(player.position.x, groundOffset, player.position.z), // <-- ДОБАВИТЬ
+            targetPosition: new THREE.Vector3(player.position.x, groundOffset, player.position.z),
             targetRotationY: player.rotation.y,
         });
     }, []);

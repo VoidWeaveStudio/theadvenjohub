@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
+import { Socket } from 'socket.io-client';
 import { BuildingManager } from '../models/BuildingManager';
 import { BuildingPreview } from '../models/BuildingPreview';
 import { BuildingPiece } from '../pieces/BuildingPiece';
@@ -20,6 +21,8 @@ interface UseBuildingSystemProps {
   sceneReady: boolean;
   isActive: boolean;
   selectedType: BuildingPieceType | null;
+  socket?: Socket | null;
+  isInGame?: boolean;
 }
 
 export function useBuildingSystem({
@@ -33,6 +36,8 @@ export function useBuildingSystem({
   sceneReady,
   isActive,
   selectedType,
+  socket,
+  isInGame = true,
 }: UseBuildingSystemProps) {
   const buildingManagerRef = useRef<BuildingManager | null>(null);
   const previewRef = useRef<BuildingPreview | null>(null);
@@ -116,8 +121,18 @@ export function useBuildingSystem({
     );
 
     setPieceCount(buildingManagerRef.current.getPieceCount());
+
+    if (socket?.connected && !isInGame) {
+      socket.emit('lobbyBuild', {
+        action: 'place',
+        pieceType: selectedType,
+        position: { x: placement.position.x, y: placement.position.y, z: placement.position.z },
+        rotation: { x: 0, y: placement.rotation, z: 0 }
+      });
+    }
+
     return true;
-  }, [selectedType, pieceCount, getPlacementPosition, isChatOpenRef, isActive]);
+  }, [selectedType, pieceCount, getPlacementPosition, isChatOpenRef, isActive, socket, isInGame]);
 
   const removePiece = useCallback((): boolean => {
     if (isChatOpenRef.current) return false;
@@ -142,13 +157,23 @@ export function useBuildingSystem({
         const id = target.name.replace('piece_', '');
         if (buildingManagerRef.current.removePiece(id)) {
           setPieceCount(buildingManagerRef.current.getPieceCount());
+
+          if (socket?.connected && !isInGame) {
+            socket.emit('lobbyBuild', {
+              action: 'remove',
+              pieceType: selectedType || 'unknown',
+              position: { x: 0, y: 0, z: 0 },
+              rotation: { x: 0, y: 0, z: 0 }
+            });
+          }
+
           return true;
         }
       }
     }
 
     return false;
-  }, [cameraRef, isChatOpenRef, isActive]);
+  }, [cameraRef, isChatOpenRef, isActive, socket, isInGame, selectedType]);
 
   const interactWithDoor = useCallback((): boolean => {
     if (isChatOpenRef.current) return false;
