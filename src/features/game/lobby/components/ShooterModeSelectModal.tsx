@@ -1,13 +1,11 @@
-//src\features\game\lobby\components\ShooterModeSelectModal.tsx
-import { ShooterMode, Queues } from "../types";
+import { ShooterMode } from "../types";
 
 interface ShooterModeSelectModalProps {
-    queues: Queues;
     onSelect: (mode: ShooterMode) => void;
     onBack: () => void;
 }
 
-export function ShooterModeSelectModal({ queues, onSelect, onBack }: ShooterModeSelectModalProps) {
+export function ShooterModeSelectModal({ onSelect, onBack }: ShooterModeSelectModalProps) {
     return (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-md z-50">
             <div className="relative bg-gradient-to-br from-zinc-900/95 via-black/95 to-zinc-900/95 border border-red-500/30 rounded-2xl p-8 max-w-md w-full space-y-6 shadow-2xl">
@@ -25,9 +23,6 @@ export function ShooterModeSelectModal({ queues, onSelect, onBack }: ShooterMode
                     >
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-white text-xl font-black">5 vs 5</span>
-                            <span className="text-cyan-400 text-sm font-mono font-bold">
-                                {queues['5v5'].count}/{queues['5v5'].max}
-                            </span>
                         </div>
                         <div className="text-zinc-300 text-sm font-semibold">Team Deathmatch</div>
                         <div className="text-zinc-500 text-xs mt-1">10 players • 50 kills to win • 10 min</div>
@@ -39,9 +34,6 @@ export function ShooterModeSelectModal({ queues, onSelect, onBack }: ShooterMode
                     >
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-white text-xl font-black">Survival</span>
-                            <span className="text-cyan-400 text-sm font-mono font-bold">
-                                {queues['ffa'].count}/{queues['ffa'].max}
-                            </span>
                         </div>
                         <div className="text-zinc-300 text-sm font-semibold">Free-for-All</div>
                         <div className="text-zinc-500 text-xs mt-1">20 players • 50 kills to win • 10 min</div>
