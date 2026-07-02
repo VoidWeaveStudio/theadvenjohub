@@ -1,4 +1,4 @@
-//src\features\game\hooks\network\useLobbySocket.ts
+// src/features/game/hooks/network/useLobbySocket.ts
 import { useEffect } from 'react';
 import { Socket } from 'socket.io-client';
 
@@ -17,47 +17,17 @@ export interface LobbySocketHandlers {
     }) => void;
     onPlayerJoined: (player: LobbyPlayerData) => void;
     onPlayerLeft: (playerId: string) => void;
-    onPlayerMoved: (data: {
-        id: string;
-        position: any;
-        rotation: any;
-        serverTime?: number;
-        velocity?: [number, number];
-    }) => void;
+    onPlayerMoved: (data: any) => void;
     onPlayerUsernameChanged: (data: { id: string; username: string }) => void;
     onLobbyPlayersCount: (count: number) => void;
-    onPlayerShotInLobby: (data: {
-        shooterId: string;
-        origin: { x: number; y: number; z: number };
-        direction: { x: number; y: number; z: number };
-        hitPlayerId: string | null;
-    }) => void;
-    onPlayerHitInLobby: (data: {
-        shooterId: string;
-        targetId: string;
-        damage: number;
-    }) => void;
-    onPlayerHealthChanged: (data: { targetId: string; health: number }) => void;
-    onPlayerDiedInLobby: (data: { targetId: string; killerId: string }) => void;
-    onPlayerRespawnedInLobby: (data: {
-        targetId: string;
-        position: { x: number; y: number; z: number };
-        rotation: { x: number; y: number; z: number };
-        health: number
-    }) => void;
-    onPlayerBuildInLobby: (data: {
-        playerId: string;
-        action: 'place' | 'remove';
-        pieceType: string;
-        position: { x: number; y: number; z: number };
-        rotation: { x: number; y: number; z: number };
-    }) => void;
-    onPlayerEmoteInLobby: (data: {
-        playerId: string;
-        emoteId: string;
-    }) => void;
-
-    onPositionCorrection: (data: { position: any; rotation: any }) => void;
+    onPlayerShotInLobby: (data: any) => void;
+    onPlayerHitInLobby: (data: any) => void;
+    onPlayerHealthChanged: (data: any) => void;
+    onPlayerDiedInLobby: (data: any) => void;
+    onPlayerRespawnedInLobby: (data: any) => void;
+    onPlayerBuildInLobby: (data: any) => void;
+    onPlayerEmoteInLobby: (data: any) => void;
+    onPositionCorrection: (data: any) => void;
 }
 
 export function useLobbySocket(
@@ -69,11 +39,18 @@ export function useLobbySocket(
     useEffect(() => {
         if (!socket) return;
 
-        const handleConnect = () => {
+        const emitJoinLobby = () => {
+            console.log('📨 Sending joinLobby...');
             socket.emit('joinLobby', { wallet, username });
         };
 
+        const handleConnect = () => {
+            console.log('✅ Socket connected, joining lobby...');
+            emitJoinLobby();
+        };
+
         const handleLobbyJoined = (data: any) => {
+            console.log('🎮 Lobby joined:', data.lobbyId, 'Players:', data.playersCount);
             handlers.onLobbyJoined({
                 lobbyId: data.lobbyId,
                 players: data.players,
@@ -82,6 +59,7 @@ export function useLobbySocket(
         };
 
         const handlePlayerJoined = (player: LobbyPlayerData) => {
+            console.log('👤 Player joined:', player.username);
             handlers.onPlayerJoined(player);
         };
 
@@ -92,7 +70,6 @@ export function useLobbySocket(
         const handlePlayerMoved = (data: any) => {
             handlers.onPlayerMoved(data);
         };
-
 
         const handleUsernameChanged = (data: { id: string; username: string }) => {
             handlers.onPlayerUsernameChanged(data);
@@ -149,6 +126,11 @@ export function useLobbySocket(
         socket.on('playerBuildInLobby', handlePlayerBuildInLobby);
         socket.on('playerEmoteInLobby', handlePlayerEmoteInLobby);
         socket.on('positionCorrection', handlePositionCorrection);
+
+        if (socket.connected) {
+            console.log('✅ Socket already connected, joining lobby immediately...');
+            emitJoinLobby();
+        }
 
         return () => {
             socket.off('connect', handleConnect);

@@ -25,12 +25,24 @@ export function GameClient({ slug }: GameClientProps) {
     const [gameData, setGameData] = useState<GameFullData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const socketRef = useRef<Socket | null>(null);
+    const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [connectionError, setConnectionError] = useState<string | null>(null);
     const [isWakingUp, setIsWakingUp] = useState(false);
     const connectionAttemptsRef = useRef(0);
     const maxAttempts = 10;
+
+    const createSocket = () => {
+        const serverUrl = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'http://localhost:3001';
+        return io(serverUrl, {
+            timeout: 60000,
+            reconnectionAttempts: maxAttempts,
+            reconnectionDelay: 2000,
+            reconnectionDelayMax: 5000,
+            autoConnect: true,
+            transports: ['websocket', 'polling'],
+        });
+    };
 
     useEffect(() => {
         if (isAuthLoading) return;
@@ -41,21 +53,11 @@ export function GameClient({ slug }: GameClientProps) {
             return;
         }
 
-        if (!socketRef.current) {
-            const serverUrl = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'http://localhost:3001';
+        if (!socket) {
+            const newSocket = createSocket();
+            setSocket(newSocket);
 
-            const socket = io(serverUrl, {
-                timeout: 60000,
-                reconnectionAttempts: maxAttempts,
-                reconnectionDelay: 2000,
-                reconnectionDelayMax: 5000,
-                autoConnect: true,
-                transports: ['websocket', 'polling'],
-            });
-
-            socketRef.current = socket;
-
-            socket.on('connect', () => {
+            newSocket.on('connect', () => {
                 console.log('✅ Connected to TANJO World server');
                 setIsConnected(true);
                 setConnectionError(null);
@@ -63,7 +65,7 @@ export function GameClient({ slug }: GameClientProps) {
                 connectionAttemptsRef.current = 0;
             });
 
-            socket.on('connect_error', (err) => {
+            newSocket.on('connect_error', (err) => {
                 console.error('❌ Connection error:', err.message);
                 connectionAttemptsRef.current += 1;
 
@@ -73,46 +75,40 @@ export function GameClient({ slug }: GameClientProps) {
                 } else if (connectionAttemptsRef.current < maxAttempts) {
                     setConnectionError(`Connecting... Attempt ${connectionAttemptsRef.current}/${maxAttempts}`);
                 } else {
-                    setConnectionError('Failed to connect after multiple attempts. Server might be sleeping.');
+                    setConnectionError('Failed to connect after multiple attempts.');
                     setIsWakingUp(false);
                 }
 
                 setIsConnected(false);
             });
 
-            socket.on('disconnect', (reason) => {
+            newSocket.on('disconnect', (reason) => {
                 console.log('⚠️ Disconnected:', reason);
                 setIsConnected(false);
                 if (reason === 'io server disconnect') {
-                    setConnectionError('Server disconnected you. Please reconnect.');
+                    setConnectionError('Server disconnected you.');
                 }
             });
 
-            socket.on('reconnect', (attemptNumber) => {
+            newSocket.on('reconnect', (attemptNumber) => {
                 console.log(`✅ Reconnected after ${attemptNumber} attempts`);
                 setIsConnected(true);
                 setConnectionError(null);
                 setIsWakingUp(false);
             });
 
-            socket.on('reconnect_attempt', () => {
+            newSocket.on('reconnect_attempt', () => {
                 console.log('🔄 Reconnection attempt...');
                 setIsWakingUp(true);
             });
-        } else {
-            if (socketRef.current.connected) {
-                setIsConnected(true);
-                setIsWakingUp(false);
-            }
         }
 
         checkOwnership();
 
         return () => {
-            if (socketRef.current) {
-                socketRef.current.removeAllListeners();
-                socketRef.current.disconnect();
-                socketRef.current = null;
+            if (socket) {
+                socket.removeAllListeners();
+                socket.disconnect();
             }
         };
     }, [isAuthorized, isAuthLoading, slug]);
@@ -135,41 +131,27 @@ export function GameClient({ slug }: GameClientProps) {
         }
     };
 
-    const handleExit = () => {
-        router.push(`/games/${slug}`);
-    };
-
     const handleRetryConnection = () => {
         setConnectionError(null);
         setIsWakingUp(false);
         connectionAttemptsRef.current = 0;
 
-        if (socketRef.current) {
-            socketRef.current.removeAllListeners();
-            socketRef.current.disconnect();
-            socketRef.current = null;
+        if (socket) {
+            socket.removeAllListeners();
+            socket.disconnect();
         }
 
-        const serverUrl = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'http://localhost:3001';
-        const socket = io(serverUrl, {
-            timeout: 60000,
-            reconnectionAttempts: maxAttempts,
-            reconnectionDelay: 2000,
-            reconnectionDelayMax: 5000,
-            autoConnect: true,
-            transports: ['websocket', 'polling'],
-        });
+        const newSocket = createSocket();
+        setSocket(newSocket);
 
-        socketRef.current = socket;
-
-        socket.on('connect', () => {
+        newSocket.on('connect', () => {
             console.log('✅ Connected to TANJO World server');
             setIsConnected(true);
             setConnectionError(null);
             setIsWakingUp(false);
         });
 
-        socket.on('connect_error', (err) => {
+        newSocket.on('connect_error', (err) => {
             console.error('❌ Connection error:', err.message);
             connectionAttemptsRef.current += 1;
 
@@ -179,14 +161,14 @@ export function GameClient({ slug }: GameClientProps) {
             } else if (connectionAttemptsRef.current < maxAttempts) {
                 setConnectionError(`Connecting... Attempt ${connectionAttemptsRef.current}/${maxAttempts}`);
             } else {
-                setConnectionError('Failed to connect after multiple attempts. Server might be sleeping.');
+                setConnectionError('Failed to connect after multiple attempts.');
                 setIsWakingUp(false);
             }
 
             setIsConnected(false);
         });
 
-        socket.on('disconnect', (reason) => {
+        newSocket.on('disconnect', (reason) => {
             console.log('⚠️ Disconnected:', reason);
             setIsConnected(false);
         });
@@ -217,7 +199,7 @@ export function GameClient({ slug }: GameClientProps) {
         );
     }
 
-    if (!isConnected) {
+    if (!isConnected || !socket) {
         return (
             <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" style={{ top: '64px' }}>
                 <div className="text-center max-w-md px-4">
@@ -242,9 +224,8 @@ export function GameClient({ slug }: GameClientProps) {
                                         ⏳ Server is waking up...
                                     </div>
                                     <div className="text-zinc-400 text-xs">
-                                        The server has been inactive and needs 30-60 seconds to start.
-                                        <br />
-                                        Please wait, connection attempts are automatic.
+                                        The server needs 30-60 seconds to start.<br />
+                                        Connection attempts are automatic.
                                     </div>
                                     <div className="flex items-center justify-center gap-1 mt-4">
                                         <div className="w-2 h-2 bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -266,9 +247,7 @@ export function GameClient({ slug }: GameClientProps) {
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            <div className="text-zinc-400 text-sm animate-pulse">
-                                Connecting to server...
-                            </div>
+                            <div className="text-zinc-400 text-sm animate-pulse">Connecting to server...</div>
                             <div className="flex items-center justify-center gap-1 mt-4">
                                 <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                                 <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -286,7 +265,7 @@ export function GameClient({ slug }: GameClientProps) {
             <LobbyWorld
                 wallet={userWallet || ''}
                 username={`Player_${(userWallet || '').substring(0, 4)}`}
-                socket={socketRef.current}
+                socket={socket}
                 onExit={() => router.push(`/games/${slug}`)}
             />
         </div>
