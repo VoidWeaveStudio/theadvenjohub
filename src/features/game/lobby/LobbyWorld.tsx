@@ -258,18 +258,24 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
 
     const socketHandlers = useRef({
         onLobbyJoined: (data: any) => {
+            console.log('📥 [LobbyWorld] onLobbyJoined:', data.players?.length, 'players');
             setLobbyId(data.lobbyId);
             setPlayers(data.players);
             setQueues(data.queues as Queues);
             data.players.forEach((player: LobbyPlayerData, index: number) => {
-                if (player.id !== socket?.id) createOtherPlayerModel(player, index);
+                if (player.id !== socket?.id) {
+                    console.log('🎮 [LobbyWorld] Creating model for existing player:', player.id);
+                    createOtherPlayerModel(player, index);
+                }
             });
         },
         onPlayerJoined: (player: LobbyPlayerData) => {
+            console.log('📥 [LobbyWorld] onPlayerJoined:', player.id);
             setPlayers((prev) => [...prev, player]);
             createOtherPlayerModel(player, playersRef.current.size);
         },
         onPlayerLeft: (playerId: string) => {
+            console.log('📥 [LobbyWorld] onPlayerLeft:', playerId);
             setPlayers((prev) => prev.filter((p) => p.id !== playerId));
             removePlayerModel(playerId);
         },
@@ -286,6 +292,8 @@ export function LobbyWorld({ wallet, username, socket, onEnterGame, onExit }: Lo
 
                 const dist = playerData.group.position.distanceTo(playerData.targetPosition);
                 playerData.animData.isMoving = dist > 0.05;
+            } else {
+                console.warn('⚠️ [LobbyWorld] onPlayerMoved: player not found in map:', data.id);
             }
         },
         onPlayerUsernameChanged: (data: { id: string; username: string }) => {

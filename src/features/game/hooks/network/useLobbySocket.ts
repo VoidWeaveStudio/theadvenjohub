@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react';
 import { Socket } from 'socket.io-client';
-import { unpackPosition, unpackRotation } from '../../utils/network';
 
 export interface LobbyPlayerData {
     id: string;
@@ -40,7 +39,6 @@ export interface LobbySocketHandlers {
     onQueueError: (message: string) => void;
 }
 
-
 export function useLobbySocket(
     socket: Socket | null,
     wallet: string,
@@ -51,10 +49,12 @@ export function useLobbySocket(
         if (!socket) return;
 
         const handleConnect = () => {
+            console.log('🔌 [LobbySocket] Connected, joining lobby...');
             socket.emit('joinLobby', { wallet, username });
         };
 
         const handleLobbyJoined = (data: any) => {
+            console.log('✅ [LobbySocket] Lobby joined:', data.lobbyId, 'players:', data.players?.length);
             handlers.onLobbyJoined({
                 lobbyId: data.lobbyId,
                 players: data.players,
@@ -65,18 +65,20 @@ export function useLobbySocket(
         };
 
         const handlePlayerJoined = (player: LobbyPlayerData) => {
+            console.log('➕ [LobbySocket] Player joined:', player.id, player.username);
             handlers.onPlayerJoined(player);
         };
 
         const handlePlayerLeft = (playerId: string) => {
+            console.log('➖ [LobbySocket] Player left:', playerId);
             handlers.onPlayerLeft(playerId);
         };
 
         const handlePlayerMoved = (data: any) => {
             handlers.onPlayerMoved({
                 id: data.id,
-                position: unpackPosition(data.position),
-                rotation: unpackRotation(data.rotation), 
+                position: data.position,
+                rotation: data.rotation,
             });
         };
 
