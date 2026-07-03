@@ -21,7 +21,7 @@ export class CameraController {
 
     constructor() {
         console.log("📷 [CameraController] === INIT START ===");
-        
+
         this.camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
@@ -36,7 +36,7 @@ export class CameraController {
         this.pitchObject.add(this.camera);
 
         this.camera.position.set(0, 0, this.distance);
-        
+
         console.log(`   📏 Distance: ${this.distance}`);
         console.log(`   📏 Height offset: ${this.heightOffset}`);
         console.log("📷 [CameraController] === INIT END ===");
@@ -45,7 +45,7 @@ export class CameraController {
     setTarget(target: THREE.Object3D) {
         console.log("🎯 [CameraController] Setting target...");
         this.target = target;
-        
+
         if (target) {
             const targetPos = target.position.clone();
             targetPos.y += this.heightOffset;
@@ -78,13 +78,17 @@ export class CameraController {
 
         this.frameCount++;
 
+        if (this.frameCount % 60 === 0) {
+            console.log(`🎯 [CameraController] Target position: (${this.target.position.x.toFixed(2)}, ${this.target.position.y.toFixed(2)}, ${this.target.position.z.toFixed(2)})`);
+        }
+
         const mouseMovement = inputManager.consumeMouseMovement();
         this.yaw -= mouseMovement.x * this.sensitivity;
         this.pitch -= mouseMovement.y * this.sensitivity;
         this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
 
         this.yawObject.rotation.y = this.yaw;
-        
+
         this.pitchObject.rotation.x = this.pitch;
 
         const targetPos = this.target.position.clone();

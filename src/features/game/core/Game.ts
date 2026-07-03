@@ -180,6 +180,7 @@ export class Game {
         console.log("📷 [Game] Setting camera target...");
         console.log(`   - Player position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
         this.cameraController.setTarget(this.player.mesh);
+console.log(`🎯 [Game] Camera target set to player mesh at (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
 
         console.log("🛡️ [Game] Creating safe zone...");
         this.safeZone.create(currentLocation.scene, this.resourceManager);
