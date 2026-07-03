@@ -28,7 +28,7 @@ export class InputManager {
 
     this.onKeyDown = (e) => {
       if (!this.isEnabled) return;
-      
+
       if (!this.keys.has(e.code)) {
         console.log(`⌨️ [InputManager] Key DOWN: ${e.code}`);
       }
@@ -37,7 +37,7 @@ export class InputManager {
 
     this.onKeyUp = (e) => {
       if (!this.isEnabled) return;
-      
+
       if (this.keys.has(e.code)) {
         console.log(`⌨️ [InputManager] Key UP: ${e.code}`);
       }
@@ -61,7 +61,7 @@ export class InputManager {
       if (!this.isEnabled || !this.isPointerLocked) return;
       this.mouseMovement.x += e.movementX;
       this.mouseMovement.y += e.movementY;
-      
+
       if (this.frameCount % 60 === 0 && (Math.abs(e.movementX) > 0.1 || Math.abs(e.movementY) > 0.1)) {
         console.log(`🖱️ [InputManager] Mouse move: (${e.movementX.toFixed(2)}, ${e.movementY.toFixed(2)})`);
       }
@@ -90,7 +90,7 @@ export class InputManager {
     document.addEventListener("mousemove", this.onMouseMove);
     document.addEventListener("pointerlockchange", this.onPointerLockChange);
     canvas.addEventListener("click", this.onCanvasClick);
-    
+
     console.log("   ✅ All event listeners attached");
     console.log("⌨️ [InputManager] === INIT END ===");
   }

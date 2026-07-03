@@ -43,26 +43,26 @@ export class Player extends Entity {
         console.log("👤 [Player] Creating player mesh...");
         console.log(`👤 [Player] Mesh position before: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
         console.log(`👤 [Player] Mesh rotation before: (${this.mesh.rotation.x}, ${this.mesh.rotation.y}, ${this.mesh.rotation.z})`);
-        
+
         const data = resourceManager.getModel("player");
         if (data) {
             console.log("   ✅ Player model data found");
             console.log(`   - Scene children count: ${data.scene.children.length}`);
             console.log(`   - Animations count: ${data.animations.length}`);
-            
+
             this.mesh.add(data.scene);
             console.log("   ✅ Model scene added to player mesh");
-            
+
             if (data.animations.length > 0) {
                 console.log(`   🎬 Found ${data.animations.length} animations:`);
                 this.mixer = new THREE.AnimationMixer(data.scene);
                 console.log("   ✅ AnimationMixer created");
-                
+
                 for (const clip of data.animations) {
                     this.actions[clip.name.toLowerCase()] = this.mixer.clipAction(clip);
                     console.log(`   - Animation registered: "${clip.name}" → "${clip.name.toLowerCase()}"`);
                 }
-                
+
                 if (this.actions["idle"]) {
                     this.actions["idle"].play();
                     this.currentAnim = "idle";
@@ -80,10 +80,10 @@ export class Player extends Entity {
         console.log("👤 [Player] Creating weapon...");
         this.weapon.create(this.mesh, resourceManager);
         console.log("✅ [Player] Weapon created and attached");
-        
+
         this.mesh.position.set(0, 0, 0);
         console.log(`📍 [Player] Initial position set: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
-        
+
         scene.add(this.mesh);
         console.log("✅ [Player] Player mesh added to scene");
         console.log("👤 [Player] === CREATE END ===");
@@ -105,25 +105,25 @@ export class Player extends Entity {
             console.warn(`⚠️ [Player] Cannot play "${name}" - mixer is null`);
             return;
         }
-        
+
         const next = this.actions[name.toLowerCase()];
         if (!next) {
             console.warn(`⚠️ [Player] Animation "${name}" not found`);
             return;
         }
-        
+
         if (this.currentAnim === name.toLowerCase()) {
             return;
         }
 
         console.log(`🎬 [Player] Animation transition: "${this.currentAnim}" → "${name}"`);
-        
+
         const current = this.actions[this.currentAnim];
         if (current) {
             current.fadeOut(0.3);
             console.log(`   - Fading out "${this.currentAnim}"`);
         }
-        
+
         next.reset().fadeIn(0.3).play();
         this.currentAnim = name.toLowerCase();
         console.log(`   ✅ Now playing "${name}"`);
@@ -132,7 +132,7 @@ export class Player extends Entity {
     update(delta: number) {
         if (!this.inputManager || !this.camera) {
             if (this.frameCount === 0) {
-                console.error("❌ [Player] Dependencies not set! inputManager:", !!this.inputManager, "camera:", !!this.camera);
+                console.error("❌ [Player] Dependencies not set!");
             }
             return;
         }
@@ -146,21 +146,13 @@ export class Player extends Entity {
         if (this.inputManager.isKeyPressed("KeyA")) moveDir.x -= 1;
         if (this.inputManager.isKeyPressed("KeyD")) moveDir.x += 1;
 
-        if (this.frameCount % 60 === 0) {
-            console.log(`\n📊 [Player] === Frame ${this.frameCount} ===`);
-            console.log(`   📍 Position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
-            console.log(`   🔄 Rotation Y: ${this.mesh.rotation.y.toFixed(2)} rad (${(this.mesh.rotation.y * 180 / Math.PI).toFixed(1)}°)`);
-            console.log(`   🎯 MoveDir input: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
-            console.log(`   📷 Camera yaw: ${this.camera.getYaw().toFixed(2)} rad (${(this.camera.getYaw() * 180 / Math.PI).toFixed(1)}°)`);
-            console.log(`   ⏱️ Delta: ${delta.toFixed(4)}s`);
-            console.log(`   🧱 Colliders: ${this.colliders.length}`);
-        }
+        this.mesh.rotation.y = this.camera.getYaw();
 
-        const targetRotation = this.camera.getYaw();
-        this.mesh.rotation.y = targetRotation;
-        
-        if (this.frameCount % 60 === 0 && Math.abs(targetRotation) > 0.01) {
-            console.log(`   🔄 Player rotation updated to camera yaw: ${targetRotation.toFixed(2)} rad`);
+        if (this.frameCount % 60 === 0) {
+            console.log(`\n👤 [Player] Frame ${this.frameCount}:`);
+            console.log(`   📍 Position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
+            console.log(`   🎯 MoveDir input: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
+            console.log(`   📷 Camera yaw: ${(this.camera.getYaw() * 180 / Math.PI).toFixed(1)}°`);
         }
 
         const isSprinting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
@@ -175,31 +167,24 @@ export class Player extends Entity {
             const playerBox = Player._playerBox.setFromCenterAndSize(nextPos, Player._playerSize);
 
             let blocked = false;
-            let collisionIndex = -1;
             for (let i = 0; i < this.colliders.length; i++) {
                 if (this.colliders[i].intersectsBox(playerBox)) {
                     blocked = true;
-                    collisionIndex = i;
                     break;
                 }
             }
 
-            if (this.frameCount % 60 === 0 && moveDir.lengthSq() > 0) {
+            if (this.frameCount % 60 === 0) {
                 console.log(`   🚶 Movement:`);
-                console.log(`      - Direction: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
-                console.log(`      - Step: (${step.x.toFixed(2)}, ${step.y.toFixed(2)}, ${step.z.toFixed(2)})`);
-                console.log(`      - Speed: ${currentSpeed.toFixed(2)}${isSprinting ? ' (sprinting)' : ''}`);
-                console.log(`      - NextPos: (${nextPos.x.toFixed(2)}, ${nextPos.y.toFixed(2)}, ${nextPos.z.toFixed(2)})`);
-                console.log(`      - Blocked: ${blocked}${collisionIndex >= 0 ? ` (collider ${collisionIndex})` : ''}`);
+                console.log(`      - Direction: (${moveDir.x.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
+                console.log(`      - Step: (${step.x.toFixed(3)}, ${step.z.toFixed(3)})`);
+                console.log(`      - NextPos: (${nextPos.x.toFixed(2)}, ${nextPos.z.toFixed(2)})`);
+                console.log(`      - Blocked: ${blocked}`);
             }
 
             if (!blocked) {
                 this.mesh.position.copy(nextPos);
                 moved = true;
-            } else {
-                if (this.frameCount % 60 === 0) {
-                    console.warn(`   ⚠️ Movement blocked by collider ${collisionIndex}`);
-                }
             }
         }
 
@@ -207,13 +192,10 @@ export class Player extends Entity {
             const bobFreq = isSprinting ? 14 : 10;
             const bobAmp = isSprinting ? 0.08 : 0.05;
             this.mesh.position.y = Math.abs(Math.sin(this.time * bobFreq)) * bobAmp;
-            this.playAnimation(isSprinting ? "run" : "walk");
         } else {
             this.mesh.position.y = Math.sin(this.time * 2) * 0.02;
-            this.playAnimation("idle");
         }
 
-        this.mixer?.update(delta);
         this.weapon.update(delta);
     }
 
