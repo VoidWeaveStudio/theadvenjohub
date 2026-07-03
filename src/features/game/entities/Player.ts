@@ -28,36 +28,56 @@ export class Player extends Entity {
     public health: number = 100;
     public maxHealth: number = 100;
 
+    private frameCount: number = 0;
+
     constructor() {
         super("local-player");
         this.weapon = new Weapon();
     }
 
     create(scene: THREE.Scene, resourceManager: ResourceManager) {
+        console.log("👤 [Player] Creating player mesh...");
+        
         const data = resourceManager.getModel("player");
         if (data) {
+            console.log("   - Player model loaded, adding to mesh");
             this.mesh.add(data.scene);
+            
             if (data.animations.length > 0) {
+                console.log(`   - Found ${data.animations.length} animations`);
                 this.mixer = new THREE.AnimationMixer(data.scene);
                 for (const clip of data.animations) {
                     this.actions[clip.name.toLowerCase()] = this.mixer.clipAction(clip);
+                    console.log(`   - Animation: ${clip.name}`);
                 }
                 if (this.actions["idle"]) {
                     this.actions["idle"].play();
                     this.currentAnim = "idle";
+                    console.log("   - Playing idle animation");
                 }
+            } else {
+                console.log("   - No animations found");
             }
+        } else {
+            console.warn("   - Player model not found, using placeholder");
         }
 
         this.weapon.create(this.mesh, resourceManager);
+        
         this.mesh.position.set(0, 0, 0);
+        console.log(`📍 [Player] Initial position: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
+        
         scene.add(this.mesh);
+        console.log("✅ [Player] Player created and added to scene");
     }
 
     setDependencies(inputManager: InputManager, camera: CameraController, colliders: THREE.Box3[]) {
+        console.log("🔗 [Player] Setting dependencies...");
         this.inputManager = inputManager;
         this.camera = camera;
         this.colliders = colliders;
+        console.log(`   - Colliders count: ${colliders.length}`);
+        console.log("✅ [Player] Dependencies set");
     }
 
     playAnimation(name: string) {
@@ -72,8 +92,14 @@ export class Player extends Entity {
     }
 
     update(delta: number) {
-        if (!this.inputManager || !this.camera) return;
+        if (!this.inputManager || !this.camera) {
+            if (this.frameCount === 0) {
+                console.error("❌ [Player] Dependencies not set! inputManager:", !!this.inputManager, "camera:", !!this.camera);
+            }
+            return;
+        }
 
+        this.frameCount++;
         this.time += delta;
 
         const moveDir = Player._moveDir.set(0, 0, 0);
@@ -81,6 +107,15 @@ export class Player extends Entity {
         if (this.inputManager.isKeyPressed("KeyS")) moveDir.z += 1;
         if (this.inputManager.isKeyPressed("KeyA")) moveDir.x -= 1;
         if (this.inputManager.isKeyPressed("KeyD")) moveDir.x += 1;
+
+        if (this.frameCount % 60 === 0) {
+            console.log(`📊 [Player] Frame ${this.frameCount}:`);
+            console.log(`   - Position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
+            console.log(`   - MoveDir: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
+            console.log(`   - Camera yaw: ${this.camera.getYaw().toFixed(2)}`);
+            console.log(`   - Delta: ${delta.toFixed(4)}`);
+            console.log(`   - Colliders: ${this.colliders.length}`);
+        }
 
         this.mesh.rotation.y = this.camera.getYaw();
 
@@ -96,17 +131,29 @@ export class Player extends Entity {
             const playerBox = Player._playerBox.setFromCenterAndSize(nextPos, Player._playerSize);
 
             let blocked = false;
-            for (const c of this.colliders) {
-                if (c.intersectsBox(playerBox)) {
+            let collisionIndex = -1;
+            for (let i = 0; i < this.colliders.length; i++) {
+                if (this.colliders[i].intersectsBox(playerBox)) {
                     blocked = true;
+                    collisionIndex = i;
                     break;
                 }
             }
 
+            if (this.frameCount % 60 === 0 && moveDir.lengthSq() > 0) {
+                console.log(`   - Step: (${step.x.toFixed(2)}, ${step.y.toFixed(2)}, ${step.z.toFixed(2)})`);
+                console.log(`   - NextPos: (${nextPos.x.toFixed(2)}, ${nextPos.y.toFixed(2)}, ${nextPos.z.toFixed(2)})`);
+                console.log(`   - Blocked: ${blocked}${collisionIndex >= 0 ? ` (collider ${collisionIndex})` : ''}`);
+            }
+
             if (!blocked) {
                 this.mesh.position.copy(nextPos);
+                moved = true;
+            } else {
+                if (this.frameCount % 60 === 0) {
+                    console.warn(`⚠️ [Player] Movement blocked by collider ${collisionIndex}`);
+                }
             }
-            moved = true;
         }
 
         if (moved) {
@@ -125,5 +172,9 @@ export class Player extends Entity {
 
     getWeapon(): Weapon {
         return this.weapon;
+    }
+
+    getPosition(): THREE.Vector3 {
+        return this.mesh.position.clone();
     }
 }

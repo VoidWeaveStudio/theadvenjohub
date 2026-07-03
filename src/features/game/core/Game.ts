@@ -172,16 +172,25 @@ export class Game {
         const worldStart = performance.now();
         this.world.create(this.scene, this.resourceManager);
         console.log(`✅ [Game] World created in ${(performance.now() - worldStart).toFixed(0)}ms`);
-
+        console.log(`   - World size: ${this.world.size}`);
+        console.log(`   - Colliders: ${this.world.colliders.length}`);
         console.log("🛡️ [Game] Creating safe zone...");
         this.safeZone.create(this.scene, this.resourceManager);
+        console.log(`   - Safe zone radius: ${this.safeZone.getRadius()}`);
+        console.log(`   - Safe zone position: (${this.safeZone.getPosition().x}, ${this.safeZone.getPosition().y}, ${this.safeZone.getPosition().z})`);
 
         console.log("👤 [Game] Creating player...");
         this.player.create(this.scene, this.resourceManager);
         this.player.setDependencies(this.inputManager, this.cameraController, this.world.getColliderBoxes());
 
+        console.log("🔗 [Game] Setting player dependencies...");
+        const colliderBoxes = this.world.getColliderBoxes();
+        console.log(`   - Collider boxes: ${colliderBoxes.length}`);
+        this.player.setDependencies(this.inputManager, this.cameraController, colliderBoxes);
+
         console.log("📷 [Game] Setting camera target...");
-        this.cameraController.setTarget(this.player.mesh);
+        console.log(`   - Player position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
+        this.cameraController.setTarget(this.player.mesh)
 
         console.log("🗺️ [Game] Loading initial location 'main-world'...");
         const locationStart = performance.now();
