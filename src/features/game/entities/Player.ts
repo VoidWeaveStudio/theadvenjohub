@@ -40,15 +40,25 @@ export class Player extends Entity {
 
     create(scene: THREE.Scene, resourceManager: ResourceManager) {
         console.log("👤 [Player] === CREATE START ===");
-        console.log("👤 [Player] Creating player mesh...");
-        console.log(`👤 [Player] Mesh position before: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
-        console.log(`👤 [Player] Mesh rotation before: (${this.mesh.rotation.x}, ${this.mesh.rotation.y}, ${this.mesh.rotation.z})`);
 
         const data = resourceManager.getModel("player");
         if (data) {
             console.log("   ✅ Player model data found");
-            console.log(`   - Scene children count: ${data.scene.children.length}`);
-            console.log(`   - Animations count: ${data.animations.length}`);
+
+            data.scene.position.set(0, 0, 0);
+            data.scene.rotation.set(0, 0, 0);
+
+            const box = new THREE.Box3().setFromObject(data.scene);
+            const center = box.getCenter(new THREE.Vector3());
+            data.scene.position.sub(center);
+
+            const size = box.getSize(new THREE.Vector3());
+            const maxHeight = 1.8;
+            if (size.y > maxHeight) {
+                const scale = maxHeight / size.y;
+                data.scene.scale.setScalar(scale);
+                console.log(`   📏 Scaled model to ${scale.toFixed(2)} (height: ${maxHeight}m)`);
+            }
 
             this.mesh.add(data.scene);
             console.log("   ✅ Model scene added to player mesh");
@@ -56,33 +66,32 @@ export class Player extends Entity {
             if (data.animations.length > 0) {
                 console.log(`   🎬 Found ${data.animations.length} animations:`);
                 this.mixer = new THREE.AnimationMixer(data.scene);
-                console.log("   ✅ AnimationMixer created");
 
                 for (const clip of data.animations) {
                     this.actions[clip.name.toLowerCase()] = this.mixer.clipAction(clip);
-                    console.log(`   - Animation registered: "${clip.name}" → "${clip.name.toLowerCase()}"`);
+                    console.log(`   - Animation registered: "${clip.name}"`);
                 }
 
                 if (this.actions["idle"]) {
                     this.actions["idle"].play();
                     this.currentAnim = "idle";
                     console.log("   ▶️ Playing idle animation");
-                } else {
-                    console.warn("   ⚠️ No idle animation found!");
                 }
-            } else {
-                console.log("   ⚠️ No animations found in model");
             }
         } else {
-            console.warn("   ❌ Player model not found in ResourceManager, using placeholder");
+            console.warn("   ❌ Player model not found, using placeholder");
+            const placeholder = new THREE.Mesh(
+                new THREE.CapsuleGeometry(0.35, 1.2, 4, 8),
+                new THREE.MeshStandardMaterial({ color: 0x00ff00 })
+            );
+            placeholder.position.y = 1;
+            this.mesh.add(placeholder);
         }
 
-        console.log("👤 [Player] Creating weapon...");
         this.weapon.create(this.mesh, resourceManager);
-        console.log("✅ [Player] Weapon created and attached");
 
         this.mesh.position.set(0, 0, 0);
-        console.log(`📍 [Player] Initial position set: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
+        console.log(`📍 [Player] Initial position: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
 
         scene.add(this.mesh);
         console.log("✅ [Player] Player mesh added to scene");
