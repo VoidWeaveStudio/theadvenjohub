@@ -45,6 +45,13 @@ export class CameraController {
     setTarget(target: THREE.Object3D) {
         console.log("🎯 [CameraController] Setting target...");
         this.target = target;
+        
+        if (target) {
+            const targetPos = target.position.clone();
+            targetPos.y += this.heightOffset;
+            this.yawObject.position.copy(targetPos);
+            console.log(`   ✅ Initial camera position: (${targetPos.x.toFixed(2)}, ${targetPos.y.toFixed(2)}, ${targetPos.z.toFixed(2)})`);
+        }
     }
 
     getYaw(): number {
@@ -82,6 +89,7 @@ export class CameraController {
 
         const targetPos = this.target.position.clone();
         targetPos.y += this.heightOffset;
+        this.yawObject.position.copy(targetPos);
 
         if (this.frameCount % 60 === 0) {
             const cameraWorldPos = this.camera.getWorldPosition(new THREE.Vector3());
