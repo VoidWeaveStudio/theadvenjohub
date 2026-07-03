@@ -54,7 +54,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/postcss": "^4.3.2",
     "@types/bs58": "^4.0.4",
     "@types/ioredis": "^4.28.10",
     "@types/jsonwebtoken": "^9.0.10",
