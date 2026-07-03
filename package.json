@@ -17,8 +17,6 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "@types/jsonwebtoken": "^9.0.10",
-    "@tailwindcss/postcss": "^4.3.2",
     "@ledgerhq/hw-transport-webhid": "^6.35.4",
     "@metaplex-foundation/js": "^0.20.1",
     "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
@@ -32,13 +30,16 @@
     "@solana/wallet-adapter-wallets": "^0.19.38",
     "@solana/wallet-standard-wallet-adapter": "^1.1.4",
     "@solana/web3.js": "^1.98.4",
+    "@tailwindcss/postcss": "^4.3.2",
     "@types/dompurify": "^3.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
     "@upstash/redis": "^1.37.0",
     "@vercel/blob": "^2.3.3",
     "bs58": "^6.0.0",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
     "dompurify": "^3.4.2",
+    "drizzle-kit": "^0.30.6",
     "drizzle-orm": "^0.39.3",
     "jsonwebtoken": "^9.0.3",
     "next": "^16.2.3",
@@ -64,7 +65,6 @@
     "@types/sanitize-html": "^2.16.1",
     "@types/three": "^0.185.0",
     "dotenv": "^16.3.1",
-    "drizzle-kit": "^0.30.6",
     "typescript": "^5.8.3"
   }
 }

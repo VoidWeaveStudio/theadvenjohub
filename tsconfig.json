@@ -1,8 +1,5 @@
 {
   "compilerOptions": {
-    "types": [
-      "node"
-    ],
     "target": "ES2020",
     "lib": [
       "dom",
@@ -50,6 +47,9 @@
     "tanjo-client",
     "tanjo-client/**/*",
     "releases",
-    "releases/**/*"
+    "releases/**/*",
+    "drizzle.config.ts",
+    "drizzle.config.mjs",
+    "drizzle.config.js"
   ]
 }
