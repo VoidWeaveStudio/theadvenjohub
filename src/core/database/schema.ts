@@ -13,9 +13,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
-// ============================================================================
-// USERS
-// ============================================================================
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -25,10 +22,6 @@ export const users = pgTable("users", {
 }, (table) => [
   index("idx_users_wallet").on(table.wallet),
 ]);
-
-// ============================================================================
-// GAMES (расширенная)
-// ============================================================================
 
 export const games = pgTable("games", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -52,10 +45,6 @@ export const games = pgTable("games", {
   index("idx_games_status").on(table.status),
 ]);
 
-// ============================================================================
-// GAME LICENSES
-// ============================================================================
-
 export const gameLicenses = pgTable("game_licenses", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id),
@@ -72,10 +61,6 @@ export const gameLicenses = pgTable("game_licenses", {
   index("idx_licenses_tx").on(table.txSignature),
   index("idx_licenses_active").on(table.isActive),
 ]);
-
-// ============================================================================
-// MARKETPLACE
-// ============================================================================
 
 export const marketplaceLots = pgTable("marketplace_lots", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -126,10 +111,6 @@ export const marketplacePurchases = pgTable("marketplace_purchases", {
   index("idx_marketplace_created").on(table.createdAt),
 ]);
 
-// ============================================================================
-// GAME MEDIA
-// ============================================================================
-
 export const gameScreenshots = pgTable("game_screenshots", {
   id: uuid("id").primaryKey().defaultRandom(),
   gameId: uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
@@ -154,10 +135,6 @@ export const gameVideos = pgTable("game_videos", {
   index("idx_game_videos_type").on(table.type),
 ]);
 
-// ============================================================================
-// GAME CONTENT (мультиязычный)
-// ============================================================================
-
 export const gameDescriptions = pgTable("game_descriptions", {
   id: uuid("id").primaryKey().defaultRandom(),
   gameId: uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
@@ -179,10 +156,6 @@ export const gameFeatures = pgTable("game_features", {
   index("idx_features_game").on(table.gameId),
 ]);
 
-// ============================================================================
-// GAME SYSTEM REQUIREMENTS
-// ============================================================================
-
 export const gameSystemRequirements = pgTable("game_system_requirements", {
   id: uuid("id").primaryKey().defaultRandom(),
   gameId: uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
@@ -197,10 +170,6 @@ export const gameSystemRequirements = pgTable("game_system_requirements", {
   index("idx_game_sysreq_game").on(table.gameId),
   index("idx_game_sysreq_type").on(table.gameId, table.type),
 ]);
-
-// ============================================================================
-// GAME REVIEWS
-// ============================================================================
 
 export const gameReviews = pgTable("game_reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -219,10 +188,6 @@ export const gameReviews = pgTable("game_reviews", {
   uniqueIndex("idx_game_reviews_user_game").on(table.userId, table.gameId),
 ]);
 
-// ============================================================================
-// GAME TAGS
-// ============================================================================
-
 export const gameTags = pgTable("game_tags", {
   id: uuid("id").primaryKey().defaultRandom(),
   gameId: uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
@@ -232,10 +197,6 @@ export const gameTags = pgTable("game_tags", {
   index("idx_game_tags_tag").on(table.tag),
   uniqueIndex("idx_game_tags_unique").on(table.gameId, table.tag),
 ]);
-
-// ============================================================================
-// GAME STATS
-// ============================================================================
 
 export const gameStats = pgTable("game_stats", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -247,10 +208,6 @@ export const gameStats = pgTable("game_stats", {
 }, (table) => [
   index("idx_stats_game").on(table.gameId),
 ]);
-
-// ============================================================================
-// FORUM
-// ============================================================================
 
 export const forumPosts = pgTable("forum_posts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -282,9 +239,88 @@ export const forumComments = pgTable("forum_comments", {
   index("idx_comments_post_created").on(table.postId, table.createdAt),
 ]);
 
-// ============================================================================
-// RELATIONS
-// ============================================================================
+
+export const gameProgress = pgTable("game_progress", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  locationId: varchar("location_id", { length: 50 }).default("main-world").notNull(),
+  positionX: varchar("position_x", { length: 20 }).default("0").notNull(),
+  positionY: varchar("position_y", { length: 20 }).default("0").notNull(),
+  positionZ: varchar("position_z", { length: 20 }).default("0").notNull(),
+  rotation: varchar("rotation", { length: 20 }).default("0").notNull(),
+  health: integer("health").default(100).notNull(),
+  data: text("data").default("{}"),
+  lastSavedAt: timestamp("last_saved_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_progress_user_game").on(table.userId, table.gameId),
+  index("idx_game_progress_user").on(table.userId),
+  index("idx_game_progress_game").on(table.gameId),
+]);
+
+export const gameNicknames = pgTable("game_nicknames", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  nickname: varchar("nickname", { length: 30 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_nicknames_user_game").on(table.userId, table.gameId),
+  index("idx_game_nicknames_nickname").on(table.nickname),
+]);
+
+export const gameBuildings = pgTable("game_buildings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  locationId: varchar("location_id", { length: 50 }).notNull(),
+  gridX: integer("grid_x").notNull(),
+  gridZ: integer("grid_z").notNull(),
+  type: varchar("type", { length: 50 }).notNull(),
+  rotation: integer("rotation").default(0).notNull(),
+  data: text("data").default("{}"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_game_buildings_user").on(table.userId),
+  index("idx_game_buildings_game").on(table.gameId),
+  index("idx_game_buildings_location").on(table.locationId),
+  uniqueIndex("idx_game_buildings_location_grid").on(table.locationId, table.gridX, table.gridZ),
+]);
+
+export const gameInventories = pgTable("game_inventories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  slot: integer("slot").notNull(),
+  itemId: varchar("item_id", { length: 50 }).notNull(),
+  quantity: integer("quantity").default(1).notNull(),
+  data: text("data").default("{}"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_inventories_user_game_slot").on(table.userId, table.gameId, table.slot),
+  index("idx_game_inventories_user_game").on(table.userId, table.gameId),
+]);
+
+export const gameStatistics = pgTable("game_statistics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  playtimeSeconds: integer("playtime_seconds").default(0).notNull(),
+  kills: integer("kills").default(0).notNull(),
+  deaths: integer("deaths").default(0).notNull(),
+  shotsFired: integer("shots_fired").default(0).notNull(),
+  buildingsPlaced: integer("buildings_placed").default(0).notNull(),
+  lastPlayedAt: timestamp("last_played_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_statistics_user_game").on(table.userId, table.gameId),
+]);
+
 
 export const usersRelations = relations(users, ({ many }) => ({
   licenses: many(gameLicenses),
@@ -294,6 +330,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   forumPosts: many(forumPosts),
   forumComments: many(forumComments),
   reviews: many(gameReviews),
+  gameProgress: many(gameProgress),
+  gameNicknames: many(gameNicknames),
+  gameBuildings: many(gameBuildings),
+  gameInventories: many(gameInventories),
+  gameStatistics: many(gameStatistics),
 }));
 
 export const gamesRelations = relations(games, ({ many, one }) => ({
@@ -405,9 +446,31 @@ export const forumCommentsRelations = relations(forumComments, ({ one }) => ({
   }),
 }));
 
-// ============================================================================
-// TYPES
-// ============================================================================
+export const gameProgressRelations = relations(gameProgress, ({ one }) => ({
+  user: one(users, { fields: [gameProgress.userId], references: [users.id] }),
+  game: one(games, { fields: [gameProgress.gameId], references: [games.id] }),
+}));
+
+export const gameNicknamesRelations = relations(gameNicknames, ({ one }) => ({
+  user: one(users, { fields: [gameNicknames.userId], references: [users.id] }),
+  game: one(games, { fields: [gameNicknames.gameId], references: [games.id] }),
+}));
+
+export const gameBuildingsRelations = relations(gameBuildings, ({ one }) => ({
+  user: one(users, { fields: [gameBuildings.userId], references: [users.id] }),
+  game: one(games, { fields: [gameBuildings.gameId], references: [games.id] }),
+}));
+
+export const gameInventoriesRelations = relations(gameInventories, ({ one }) => ({
+  user: one(users, { fields: [gameInventories.userId], references: [users.id] }),
+  game: one(games, { fields: [gameInventories.gameId], references: [games.id] }),
+}));
+
+export const gameStatisticsRelations = relations(gameStatistics, ({ one }) => ({
+  user: one(users, { fields: [gameStatistics.userId], references: [users.id] }),
+  game: one(games, { fields: [gameStatistics.gameId], references: [games.id] }),
+}));
+
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -450,3 +513,18 @@ export type NewForumPost = typeof forumPosts.$inferInsert;
 
 export type ForumComment = typeof forumComments.$inferSelect;
 export type NewForumComment = typeof forumComments.$inferInsert;
+
+export type GameProgress = typeof gameProgress.$inferSelect;
+export type NewGameProgress = typeof gameProgress.$inferInsert;
+
+export type GameNickname = typeof gameNicknames.$inferSelect;
+export type NewGameNickname = typeof gameNicknames.$inferInsert;
+
+export type GameBuilding = typeof gameBuildings.$inferSelect;
+export type NewGameBuilding = typeof gameBuildings.$inferInsert;
+
+export type GameInventory = typeof gameInventories.$inferSelect;
+export type NewGameInventory = typeof gameInventories.$inferInsert;
+
+export type GameStatistic = typeof gameStatistics.$inferSelect;
+export type NewGameStatistic = typeof gameStatistics.$inferInsert;

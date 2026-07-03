@@ -1,0 +1,54 @@
+//src\features\game\systems\InteractionSystem.ts
+import * as THREE from "three";
+import { System } from "./System";
+import { Player } from "../entities/Player";
+import { InputManager } from "../core/InputManager";
+import { SafeZone } from "../world/SafeZone";
+
+export class InteractionSystem extends System {
+    private scene!: THREE.Scene;
+    private player!: Player;
+    private inputManager!: InputManager;
+    private safeZone!: SafeZone;
+    private interactableObjects: THREE.Object3D[] = [];
+
+    public onNotification?: (msg: string, duration?: number) => void;
+    public onPrompt?: (text: string | null) => void;
+
+    init(scene: THREE.Scene, player: Player, inputManager: InputManager, safeZone: SafeZone) {
+        this.scene = scene;
+        this.player = player;
+        this.inputManager = inputManager;
+        this.safeZone = safeZone;
+    }
+
+    registerInteractable(obj: THREE.Object3D) {
+        this.interactableObjects.push(obj);
+    }
+
+    update(_delta: number) {
+        const playerPos = this.player.mesh.position;
+        let nearest: { obj: THREE.Object3D; dist: number } | null = null;
+
+        for (const obj of this.interactableObjects) {
+            const d = playerPos.distanceTo(obj.position);
+            if (d < 3 && (!nearest || d < nearest.dist)) {
+                nearest = { obj, dist: d };
+            }
+        }
+
+        if (nearest) {
+            const id = nearest.obj.userData.interactionId;
+            if (id === "crystal") {
+                this.onPrompt?.("[E] Interact with Crystal");
+                if (this.inputManager.isKeyJustPressed("KeyE")) {
+                    this.onNotification?.("⚡ Events coming soon!", 3000);
+                }
+            }
+        } else {
+            this.onPrompt?.(null);
+        }
+    }
+
+    dispose() { }
+}
