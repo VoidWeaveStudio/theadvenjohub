@@ -174,13 +174,25 @@ export class Game {
         console.log("👤 [Game] Creating player in location scene...");
         this.player.create(currentLocation.scene, this.resourceManager);
         this.player.setDependencies(this.inputManager, this.cameraController, currentLocation.colliders);
-        
+
+        currentLocation.scene.add(this.cameraController.yawObject);
+
+        console.log("📷 [Game] Setting camera target...");
+        console.log(`   - Player mesh position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
+
+        if (this.player.mesh.children.length > 0) {
+            console.log(`   - Player mesh children: ${this.player.mesh.children.length}`);
+            this.player.mesh.children.forEach((child, i) => {
+                console.log(`     Child ${i}: ${child.name || 'unnamed'} at (${child.position.x}, ${child.position.y}, ${child.position.z})`);
+            });
+        }
+
         currentLocation.scene.add(this.cameraController.yawObject);
 
         console.log("📷 [Game] Setting camera target...");
         console.log(`   - Player position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
         this.cameraController.setTarget(this.player.mesh);
-console.log(`🎯 [Game] Camera target set to player mesh at (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
+        console.log(`🎯 [Game] Camera target set to player mesh at (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
 
         console.log("🛡️ [Game] Creating safe zone...");
         this.safeZone.create(currentLocation.scene, this.resourceManager);
@@ -324,12 +336,12 @@ console.log(`🎯 [Game] Camera target set to player mesh at (${this.player.mesh
 
         this.networkManager.onProgressLoaded = (data) => {
             console.log("💾 [Game] Progress loaded from server:", data);
-            
+
             if (data?.progress?.position) {
                 this.player.mesh.position.fromArray(data.progress.position);
                 console.log(`📍 [Game] Restored position:`, data.progress.position);
             }
-            
+
             if (data?.nickname) {
                 this.onNicknameLoaded?.(data.nickname);
             }
