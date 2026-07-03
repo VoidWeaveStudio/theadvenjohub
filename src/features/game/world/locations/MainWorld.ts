@@ -110,9 +110,11 @@ export class MainWorld extends Location {
     const rotation = new THREE.Quaternion();
     const scale = new THREE.Vector3();
 
+    const clearZoneRadius = 50;
+
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const r = 45 + Math.random() * (this.size * 0.45 - 45);
+      const r = clearZoneRadius + Math.random() * (this.size * 0.45 - clearZoneRadius);
       const x = Math.cos(angle) * r;
       const z = Math.sin(angle) * r;
 
@@ -136,6 +138,7 @@ export class MainWorld extends Location {
     
     console.log(`✅ [MainWorld] Vegetation created in ${(performance.now() - start).toFixed(0)}ms`);
     console.log(`   - Trees: ${count} (1 draw call)`);
+    console.log(`   - Clear zone: ${clearZoneRadius}m radius`);
   }
 
   private createRocks(rm: ResourceManager) {
@@ -167,11 +170,14 @@ export class MainWorld extends Location {
     const rotation = new THREE.Quaternion();
     const scale = new THREE.Vector3();
 
+    const clearZoneRadius = 50;
+
     for (let i = 0; i < count; i++) {
       const x = (Math.random() - 0.5) * this.size * 0.8;
       const z = (Math.random() - 0.5) * this.size * 0.8;
       const dist = Math.sqrt(x * x + z * z);
-      if (dist < 45) continue;
+      
+      if (dist < clearZoneRadius) continue;
 
       position.set(x, 0, z);
       rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
@@ -193,6 +199,7 @@ export class MainWorld extends Location {
     
     console.log(`✅ [MainWorld] Rocks created in ${(performance.now() - start).toFixed(0)}ms`);
     console.log(`   - Rocks: ${count} (1 draw call)`);
+    console.log(`   - Clear zone: ${clearZoneRadius}m radius`);
   }
 
   private createLighting() {

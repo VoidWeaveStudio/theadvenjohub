@@ -35,10 +35,11 @@ export class CameraController {
         this.yawObject.add(this.pitchObject);
         this.pitchObject.add(this.camera);
 
-        this.camera.position.set(0, 0, this.distance);
+        this.camera.position.set(0, 0, -this.distance);
 
         console.log(`   📏 Distance: ${this.distance}`);
         console.log(`   📏 Height offset: ${this.heightOffset}`);
+        console.log(`   📷 Camera position: (0, 0, ${-this.distance})`);
         console.log("📷 [CameraController] === INIT END ===");
     }
 
@@ -88,12 +89,13 @@ export class CameraController {
         this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
 
         this.yawObject.rotation.y = this.yaw;
-
         this.pitchObject.rotation.x = this.pitch;
 
         const targetPos = this.target.position.clone();
         targetPos.y += this.heightOffset;
         this.yawObject.position.copy(targetPos);
+
+        this.camera.lookAt(new THREE.Vector3(0, 0, 0));
 
         if (this.frameCount % 60 === 0) {
             const cameraWorldPos = this.camera.getWorldPosition(new THREE.Vector3());
