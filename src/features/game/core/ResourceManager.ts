@@ -2,8 +2,8 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-
-const SkeletonUtils = require('three/examples/jsm/utils/SkeletonUtils.js').SkeletonUtils;
+// @ts-ignore
+import { SkeletonUtils } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 export class ResourceManager {
   private gltfLoader: GLTFLoader;
@@ -147,9 +147,17 @@ export class ResourceManager {
     const m = this.models.get(name);
     if (!m) return null;
 
-    return {
-      scene: SkeletonUtils.clone(m.scene) as THREE.Group,
-      animations: m.animations,
-    };
+    try {
+      return {
+        scene: SkeletonUtils ? (SkeletonUtils.clone(m.scene) as THREE.Group) : m.scene.clone(),
+        animations: m.animations,
+      };
+    } catch (error) {
+      console.warn('[ResourceManager] Clone failed, using simple clone:', error);
+      return {
+        scene: m.scene.clone(),
+        animations: m.animations,
+      };
+    }
   }
 }
