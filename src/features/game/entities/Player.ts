@@ -29,66 +29,104 @@ export class Player extends Entity {
     public maxHealth: number = 100;
 
     private frameCount: number = 0;
+    private lastLogTime: number = 0;
 
     constructor() {
         super("local-player");
+        console.log("👤 [Player] Constructor called");
         this.weapon = new Weapon();
+        console.log("👤 [Player] Weapon instance created");
     }
 
     create(scene: THREE.Scene, resourceManager: ResourceManager) {
+        console.log("👤 [Player] === CREATE START ===");
         console.log("👤 [Player] Creating player mesh...");
+        console.log(`👤 [Player] Mesh position before: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
+        console.log(`👤 [Player] Mesh rotation before: (${this.mesh.rotation.x}, ${this.mesh.rotation.y}, ${this.mesh.rotation.z})`);
         
         const data = resourceManager.getModel("player");
         if (data) {
-            console.log("   - Player model loaded, adding to mesh");
+            console.log("   ✅ Player model data found");
+            console.log(`   - Scene children count: ${data.scene.children.length}`);
+            console.log(`   - Animations count: ${data.animations.length}`);
+            
             this.mesh.add(data.scene);
+            console.log("   ✅ Model scene added to player mesh");
             
             if (data.animations.length > 0) {
-                console.log(`   - Found ${data.animations.length} animations`);
+                console.log(`   🎬 Found ${data.animations.length} animations:`);
                 this.mixer = new THREE.AnimationMixer(data.scene);
+                console.log("   ✅ AnimationMixer created");
+                
                 for (const clip of data.animations) {
                     this.actions[clip.name.toLowerCase()] = this.mixer.clipAction(clip);
-                    console.log(`   - Animation: ${clip.name}`);
+                    console.log(`   - Animation registered: "${clip.name}" → "${clip.name.toLowerCase()}"`);
                 }
+                
                 if (this.actions["idle"]) {
                     this.actions["idle"].play();
                     this.currentAnim = "idle";
-                    console.log("   - Playing idle animation");
+                    console.log("   ▶️ Playing idle animation");
+                } else {
+                    console.warn("   ⚠️ No idle animation found!");
                 }
             } else {
-                console.log("   - No animations found");
+                console.log("   ⚠️ No animations found in model");
             }
         } else {
-            console.warn("   - Player model not found, using placeholder");
+            console.warn("   ❌ Player model not found in ResourceManager, using placeholder");
         }
 
+        console.log("👤 [Player] Creating weapon...");
         this.weapon.create(this.mesh, resourceManager);
+        console.log("✅ [Player] Weapon created and attached");
         
         this.mesh.position.set(0, 0, 0);
-        console.log(`📍 [Player] Initial position: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
+        console.log(`📍 [Player] Initial position set: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
         
         scene.add(this.mesh);
-        console.log("✅ [Player] Player created and added to scene");
+        console.log("✅ [Player] Player mesh added to scene");
+        console.log("👤 [Player] === CREATE END ===");
     }
 
     setDependencies(inputManager: InputManager, camera: CameraController, colliders: THREE.Box3[]) {
-        console.log("🔗 [Player] Setting dependencies...");
+        console.log("🔗 [Player] === SET DEPENDENCIES ===");
         this.inputManager = inputManager;
+        console.log("   ✅ InputManager set");
         this.camera = camera;
+        console.log("   ✅ CameraController set");
         this.colliders = colliders;
-        console.log(`   - Colliders count: ${colliders.length}`);
-        console.log("✅ [Player] Dependencies set");
+        console.log(`   ✅ Colliders set: ${colliders.length} boxes`);
+        console.log("🔗 [Player] === DEPENDENCIES READY ===");
     }
 
     playAnimation(name: string) {
-        if (!this.mixer) return;
+        if (!this.mixer) {
+            console.warn(`⚠️ [Player] Cannot play "${name}" - mixer is null`);
+            return;
+        }
+        
         const next = this.actions[name.toLowerCase()];
-        if (!next || this.currentAnim === name.toLowerCase()) return;
+        if (!next) {
+            console.warn(`⚠️ [Player] Animation "${name}" not found`);
+            return;
+        }
+        
+        if (this.currentAnim === name.toLowerCase()) {
+            return;
+        }
 
+        console.log(`🎬 [Player] Animation transition: "${this.currentAnim}" → "${name}"`);
+        
         const current = this.actions[this.currentAnim];
-        if (current) current.fadeOut(0.3);
+        if (current) {
+            current.fadeOut(0.3);
+            console.log(`   - Fading out "${this.currentAnim}"`);
+        }
+        
         next.reset().fadeIn(0.3).play();
         this.currentAnim = name.toLowerCase();
+        console.log(`   ✅ Now playing "${name}"`);
     }
 
     update(delta: number) {
@@ -109,15 +147,21 @@ export class Player extends Entity {
         if (this.inputManager.isKeyPressed("KeyD")) moveDir.x += 1;
 
         if (this.frameCount % 60 === 0) {
-            console.log(`📊 [Player] Frame ${this.frameCount}:`);
-            console.log(`   - Position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
-            console.log(`   - MoveDir: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
-            console.log(`   - Camera yaw: ${this.camera.getYaw().toFixed(2)}`);
-            console.log(`   - Delta: ${delta.toFixed(4)}`);
-            console.log(`   - Colliders: ${this.colliders.length}`);
+            console.log(`\n📊 [Player] === Frame ${this.frameCount} ===`);
+            console.log(`   📍 Position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
+            console.log(`   🔄 Rotation Y: ${this.mesh.rotation.y.toFixed(2)} rad (${(this.mesh.rotation.y * 180 / Math.PI).toFixed(1)}°)`);
+            console.log(`   🎯 MoveDir input: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
+            console.log(`   📷 Camera yaw: ${this.camera.getYaw().toFixed(2)} rad (${(this.camera.getYaw() * 180 / Math.PI).toFixed(1)}°)`);
+            console.log(`   ⏱️ Delta: ${delta.toFixed(4)}s`);
+            console.log(`   🧱 Colliders: ${this.colliders.length}`);
         }
 
-        this.mesh.rotation.y = this.camera.getYaw();
+        const targetRotation = this.camera.getYaw();
+        this.mesh.rotation.y = targetRotation;
+        
+        if (this.frameCount % 60 === 0 && Math.abs(targetRotation) > 0.01) {
+            console.log(`   🔄 Player rotation updated to camera yaw: ${targetRotation.toFixed(2)} rad`);
+        }
 
         const isSprinting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
         const currentSpeed = this.speed * (isSprinting ? this.sprintMultiplier : 1);
@@ -141,9 +185,12 @@ export class Player extends Entity {
             }
 
             if (this.frameCount % 60 === 0 && moveDir.lengthSq() > 0) {
-                console.log(`   - Step: (${step.x.toFixed(2)}, ${step.y.toFixed(2)}, ${step.z.toFixed(2)})`);
-                console.log(`   - NextPos: (${nextPos.x.toFixed(2)}, ${nextPos.y.toFixed(2)}, ${nextPos.z.toFixed(2)})`);
-                console.log(`   - Blocked: ${blocked}${collisionIndex >= 0 ? ` (collider ${collisionIndex})` : ''}`);
+                console.log(`   🚶 Movement:`);
+                console.log(`      - Direction: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
+                console.log(`      - Step: (${step.x.toFixed(2)}, ${step.y.toFixed(2)}, ${step.z.toFixed(2)})`);
+                console.log(`      - Speed: ${currentSpeed.toFixed(2)}${isSprinting ? ' (sprinting)' : ''}`);
+                console.log(`      - NextPos: (${nextPos.x.toFixed(2)}, ${nextPos.y.toFixed(2)}, ${nextPos.z.toFixed(2)})`);
+                console.log(`      - Blocked: ${blocked}${collisionIndex >= 0 ? ` (collider ${collisionIndex})` : ''}`);
             }
 
             if (!blocked) {
@@ -151,7 +198,7 @@ export class Player extends Entity {
                 moved = true;
             } else {
                 if (this.frameCount % 60 === 0) {
-                    console.warn(`⚠️ [Player] Movement blocked by collider ${collisionIndex}`);
+                    console.warn(`   ⚠️ Movement blocked by collider ${collisionIndex}`);
                 }
             }
         }

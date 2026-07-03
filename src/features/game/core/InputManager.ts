@@ -19,30 +19,41 @@ export class InputManager {
 
   public onPointerLockStateChange?: (locked: boolean) => void;
 
+  private frameCount: number = 0;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    console.log("⌨️ [InputManager] Initializing...");
+    console.log("⌨️ [InputManager] === INIT START ===");
+    console.log(`   - Canvas: ${canvas.width}x${canvas.height}`);
 
     this.onKeyDown = (e) => {
       if (!this.isEnabled) return;
+      
+      if (!this.keys.has(e.code)) {
+        console.log(`⌨️ [InputManager] Key DOWN: ${e.code}`);
+      }
       this.keys.add(e.code);
-      console.log(`⌨️ [InputManager] Key pressed: ${e.code}`);
     };
 
     this.onKeyUp = (e) => {
       if (!this.isEnabled) return;
+      
+      if (this.keys.has(e.code)) {
+        console.log(`⌨️ [InputManager] Key UP: ${e.code}`);
+      }
       this.keys.delete(e.code);
     };
 
     this.onMouseDown = (e) => {
       if (!this.isEnabled) return;
-      console.log(`🖱️ [InputManager] Mouse down: ${e.button}, locked: ${this.isPointerLocked}`);
+      console.log(`🖱️ [InputManager] Mouse DOWN: button ${e.button}, locked: ${this.isPointerLocked}`);
       if (this.isPointerLocked) {
         this.mouseButtons.add(e.button);
       }
     };
 
     this.onMouseUp = (e) => {
+      console.log(`🖱️ [InputManager] Mouse UP: button ${e.button}`);
       this.mouseButtons.delete(e.button);
     };
 
@@ -50,11 +61,15 @@ export class InputManager {
       if (!this.isEnabled || !this.isPointerLocked) return;
       this.mouseMovement.x += e.movementX;
       this.mouseMovement.y += e.movementY;
+      
+      if (this.frameCount % 60 === 0 && (Math.abs(e.movementX) > 0.1 || Math.abs(e.movementY) > 0.1)) {
+        console.log(`🖱️ [InputManager] Mouse move: (${e.movementX.toFixed(2)}, ${e.movementY.toFixed(2)})`);
+      }
     };
 
     this.onPointerLockChange = () => {
       this.isPointerLocked = document.pointerLockElement === canvas;
-      console.log(`🔒 [InputManager] Pointer lock: ${this.isPointerLocked}`);
+      console.log(`🔒 [InputManager] Pointer lock CHANGED: ${this.isPointerLocked}`);
       this.onPointerLockStateChange?.(this.isPointerLocked);
     };
 
@@ -75,10 +90,14 @@ export class InputManager {
     document.addEventListener("mousemove", this.onMouseMove);
     document.addEventListener("pointerlockchange", this.onPointerLockChange);
     canvas.addEventListener("click", this.onCanvasClick);
-    console.log("✅ [InputManager] Initialized");
+    
+    console.log("   ✅ All event listeners attached");
+    console.log("⌨️ [InputManager] === INIT END ===");
   }
 
-  update() {}
+  update() {
+    this.frameCount++;
+  }
 
   consumeMouseMovement(): THREE.Vector2 {
     const m = this.mouseMovement.clone();
@@ -110,6 +129,7 @@ export class InputManager {
     console.log(`⚙️ [InputManager] Enabled: ${enabled}`);
     this.isEnabled = enabled;
     if (!enabled) {
+      console.log("   🧹 Clearing all inputs");
       this.keys.clear();
       this.mouseButtons.clear();
       if (this.isPointerLocked) {
@@ -127,5 +147,6 @@ export class InputManager {
     document.removeEventListener("mousemove", this.onMouseMove);
     document.removeEventListener("pointerlockchange", this.onPointerLockChange);
     this.canvas.removeEventListener("click", this.onCanvasClick);
+    console.log("   ✅ All listeners removed");
   }
 }
