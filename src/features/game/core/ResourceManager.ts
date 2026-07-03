@@ -3,14 +3,14 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 // @ts-ignore
-import { SkeletonUtils } from "three/examples/jsm/utils/SkeletonUtils.js";
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export class ResourceManager {
   private gltfLoader: GLTFLoader;
   private dracoLoader: DRACOLoader;
   private models: Map<string, { scene: THREE.Group; animations: THREE.AnimationClip[] }> = new Map();
 
-  constructor() {
+  constructor() { 
     this.gltfLoader = new GLTFLoader();
     this.dracoLoader = new DRACOLoader();
     this.dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
@@ -92,10 +92,10 @@ export class ResourceManager {
       case "crystal": {
         const c = new THREE.Mesh(
           new THREE.OctahedronGeometry(1.5, 0),
-          new THREE.MeshStandardMaterial({
-            color: 0x00ffff,
-            emissive: 0x00ffff,
-            emissiveIntensity: 0.5
+          new THREE.MeshStandardMaterial({ 
+            color: 0x00ffff, 
+            emissive: 0x00ffff, 
+            emissiveIntensity: 0.5 
           })
         );
         c.castShadow = true;
@@ -149,11 +149,11 @@ export class ResourceManager {
 
     try {
       return {
-        scene: SkeletonUtils ? (SkeletonUtils.clone(m.scene) as THREE.Group) : m.scene.clone(),
+        scene: SkeletonUtils.clone(m.scene) as THREE.Group,
         animations: m.animations,
       };
     } catch (error) {
-      console.warn('[ResourceManager] Clone failed, using simple clone:', error);
+      console.warn('[ResourceManager] SkeletonUtils.clone failed, using simple clone:', error);
       return {
         scene: m.scene.clone(),
         animations: m.animations,
