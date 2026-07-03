@@ -17,6 +17,7 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@tailwindcss/postcss": "^4.3.2",
     "@ledgerhq/hw-transport-webhid": "^6.35.4",
     "@metaplex-foundation/js": "^0.20.1",
@@ -57,7 +58,6 @@
   "devDependencies": {
     "@types/bs58": "^4.0.4",
     "@types/ioredis": "^4.28.10",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.19.19",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
@@ -68,4 +68,3 @@
     "typescript": "^5.8.3"
   }
 }
- 
