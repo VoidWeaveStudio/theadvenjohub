@@ -62,26 +62,21 @@ export function GameClient({ slug }: GameClientProps) {
     { id: "slot5", icon: "", name: "", active: false },
   ];
 
-  // ✅ Блокировка прокрутки страницы при pointer lock (только Space, стрелки, PageUp/Down)
   useEffect(() => {
     const handleScrollKeys = (e: KeyboardEvent) => {
-      // Блокируем только если pointer locked (игра активна)
       if (!document.pointerLockElement) return;
-      
       const scrollKeys = ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"];
       if (scrollKeys.includes(e.code)) {
         e.preventDefault();
       }
     };
 
-    // Блокируем прокрутку колесом мыши когда pointer locked
     const handleWheel = (e: WheelEvent) => {
       if (document.pointerLockElement) {
         e.preventDefault();
       }
     };
 
-    // passive: false нужно чтобы preventDefault работал
     window.addEventListener("keydown", handleScrollKeys, { passive: false });
     window.addEventListener("wheel", handleWheel, { passive: false });
 
@@ -114,6 +109,9 @@ export function GameClient({ slug }: GameClientProps) {
           console.error("❌ [GameClient] Canvas ref is null");
           return;
         }
+
+        canvasRef.current.tabIndex = 0;
+        canvasRef.current.style.outline = "none";
 
         setLoadingMessage("Creating game world...");
         console.log("🏗️ [GameClient] Creating Game instance...");
@@ -200,7 +198,12 @@ export function GameClient({ slug }: GameClientProps) {
     console.log("▶️ [GameClient] Resuming game");
     setIsPaused(false);
     gameRef.current?.setPaused(false);
-    canvasRef.current?.requestPointerLock();
+    
+    if (canvasRef.current) {
+      console.log("🖱️ [GameClient] Requesting pointer lock on canvas...");
+      canvasRef.current.focus();
+      canvasRef.current.requestPointerLock();
+    }
   };
 
   const handleNicknameChange = (nick: string) => {
@@ -235,12 +238,15 @@ export function GameClient({ slug }: GameClientProps) {
   }
 
   return (
-    // ✅ fixed inset-0 z-50 — полноэкранный overlay как в примере
     <div className="fixed inset-0 z-50 bg-black overflow-hidden" style={{ top: 0 }}>
       <canvas 
         ref={canvasRef} 
-        className="w-full h-full block"
-        style={{ width: '100%', height: '100%' }}
+        className="w-full h-full block cursor-pointer"
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          display: 'block'
+        }}
       />
 
       {loading && (

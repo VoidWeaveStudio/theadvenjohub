@@ -26,6 +26,7 @@ export class InputManager {
     this.onKeyDown = (e) => {
       if (!this.isEnabled) return;
       this.keys.add(e.code);
+      console.log(`⌨️ [InputManager] Key pressed: ${e.code}`);
     };
 
     this.onKeyUp = (e) => {
@@ -34,8 +35,11 @@ export class InputManager {
     };
 
     this.onMouseDown = (e) => {
-      if (!this.isEnabled || !this.isPointerLocked) return;
-      this.mouseButtons.add(e.button);
+      if (!this.isEnabled) return;
+      console.log(`🖱️ [InputManager] Mouse down: ${e.button}, locked: ${this.isPointerLocked}`);
+      if (this.isPointerLocked) {
+        this.mouseButtons.add(e.button);
+      }
     };
 
     this.onMouseUp = (e) => {
@@ -55,9 +59,12 @@ export class InputManager {
     };
 
     this.onCanvasClick = () => {
+      console.log(`🖱️ [InputManager] Canvas clicked, locked: ${this.isPointerLocked}, enabled: ${this.isEnabled}`);
       if (!this.isPointerLocked && this.isEnabled) {
         console.log("🖱️ [InputManager] Requesting pointer lock...");
-        canvas.requestPointerLock();
+        canvas.requestPointerLock().catch(err => {
+          console.error("❌ [InputManager] Pointer lock failed:", err);
+        });
       }
     };
 
