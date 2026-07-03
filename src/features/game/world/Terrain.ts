@@ -6,7 +6,6 @@ export class Terrain {
   private size: number;
   private segments: number;
   
-  // ✅ Кэш heightmap для O(1) доступа
   private heightCache: Float32Array | null = null;
   private cacheWidth: number = 0;
   private cacheHeight: number = 0;
@@ -54,7 +53,6 @@ export class Terrain {
     this.mesh.receiveShadow = true;
     scene.add(this.mesh);
 
-    // ✅ Строим кэш heightmap
     this.buildHeightCache();
     
     console.log(`✅ [Terrain] Created in ${(performance.now() - start).toFixed(0)}ms`);
@@ -71,7 +69,6 @@ export class Terrain {
     const geometry = this.mesh.geometry as THREE.PlaneGeometry;
     const positions = geometry.attributes.position;
 
-    // ✅ Создаём 2D массив высот
     this.cacheWidth = this.segments + 1;
     this.cacheHeight = this.segments + 1;
     this.heightCache = new Float32Array(this.cacheWidth * this.cacheHeight);
@@ -81,7 +78,6 @@ export class Terrain {
       const y = positions.getY(i);
       const z = positions.getZ(i);
 
-      // Преобразуем локальные координаты в индексы сетки
       const gridX = Math.round(((x / this.size) + 0.5) * this.segments);
       const gridY = Math.round(((y / this.size) + 0.5) * this.segments);
 
@@ -94,26 +90,21 @@ export class Terrain {
   getHeightAt(x: number, z: number): number {
     if (!this.heightCache) return 0;
 
-    // ✅ Преобразуем мировые координаты в локальные
     const localX = x;
-    const localZ = -z; // Инвертируем Z из-за поворота terrain
+    const localZ = -z; 
 
-    // ✅ Преобразуем в координаты сетки
     const gridX = ((localX / this.size) + 0.5) * this.segments;
     const gridZ = ((localZ / this.size) + 0.5) * this.segments;
 
-    // ✅ Целочисленные индексы
     const x0 = Math.floor(gridX);
     const z0 = Math.floor(gridZ);
     const x1 = x0 + 1;
     const z1 = z0 + 1;
 
-    // ✅ Граничные проверки
     if (x0 < 0 || x1 >= this.cacheWidth || z0 < 0 || z1 >= this.cacheHeight) {
       return 0;
     }
 
-    // ✅ Билинейная интерполяция
     const fx = gridX - x0;
     const fz = gridZ - z0;
 

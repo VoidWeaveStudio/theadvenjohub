@@ -92,7 +92,6 @@ export class MainWorld extends Location {
       return;
     }
 
-    // ✅ Извлекаем геометрию и материал из первой модели
     const treeMesh = data.scene.children[0] as THREE.Mesh;
     if (!treeMesh || !treeMesh.geometry) {
       console.warn("⚠️ [MainWorld] Invalid tree mesh");
@@ -102,7 +101,6 @@ export class MainWorld extends Location {
     const geometry = treeMesh.geometry;
     const material = treeMesh.material as THREE.Material;
 
-    // ✅ Создаём InstancedMesh
     this.treeInstances = new THREE.InstancedMesh(geometry, material, count);
     this.treeInstances.castShadow = true;
     this.treeInstances.receiveShadow = true;
@@ -126,7 +124,6 @@ export class MainWorld extends Location {
       matrix.compose(position, rotation, scale);
       this.treeInstances.setMatrixAt(i, matrix);
 
-      // ✅ Добавляем коллайдер (упрощённый — только для ствола)
       const colliderBox = new THREE.Box3(
         new THREE.Vector3(x - 0.5, 0, z - 0.5),
         new THREE.Vector3(x + 0.5, 4, z + 0.5)
@@ -206,10 +203,9 @@ export class MainWorld extends Location {
     sun.position.set(80, 150, 60);
     sun.castShadow = true;
     
-    // ✅ Оптимизация теней
-    sun.shadow.mapSize.set(1024, 1024); // Было 2048x2048
+    sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 300; // Было 400
+    sun.shadow.camera.far = 300; 
     sun.shadow.camera.left = -100;
     sun.shadow.camera.right = 100;
     sun.shadow.camera.top = 100;

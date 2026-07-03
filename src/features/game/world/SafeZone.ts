@@ -84,11 +84,9 @@ export class SafeZone {
     console.log("✅ [SafeZone] Created");
   }
 
-  // ✅ Интегрировано в основной цикл Game.animate()
   update(delta: number) {
     this.time += delta;
     
-    // Анимация кристалла
     this.crystal.rotation.y = this.time * 0.5;
     this.crystal.position.y = 3 + Math.sin(this.time * 1.2) * 0.4;
     this.textSprite.position.y = 6.5 + Math.sin(this.time * 1.2) * 0.4;
@@ -107,6 +105,5 @@ export class SafeZone {
   }
 
   dispose() {
-    // Нет RAF для очистки
   }
 }
