@@ -9,6 +9,8 @@ export class MainWorld extends Location {
   public readonly size = 500;
   public gridSystem: GridSystem;
   private terrain: Terrain;
+  private treeInstances: THREE.InstancedMesh | null = null;
+  private rockInstances: THREE.InstancedMesh | null = null;
 
   constructor() {
     super("main-world", "TANJO World");
@@ -17,6 +19,9 @@ export class MainWorld extends Location {
   }
 
   create(rm: ResourceManager) {
+    console.log("🌍 [MainWorld] Creating main world...");
+    const start = performance.now();
+    
     this.scene.background = new THREE.Color(0x87ceeb);
     this.scene.fog = new THREE.Fog(0x87ceeb, 150, 700);
 
@@ -26,10 +31,13 @@ export class MainWorld extends Location {
     this.createVegetation(rm);
     this.createRocks(rm);
     this.createLighting();
-    this.createCaveEntrance(rm);
+    this.createCaveEntrance();
+    
+    console.log(`✅ [MainWorld] Created in ${(performance.now() - start).toFixed(0)}ms`);
+    console.log(`   - Colliders: ${this.colliders.length}`);
   }
 
-  private createCaveEntrance(rm: ResourceManager) {
+  private createCaveEntrance() {
     const archGeo = new THREE.TorusGeometry(3, 0.5, 8, 16, Math.PI);
     const archMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
     const arch = new THREE.Mesh(archGeo, archMat);
@@ -74,46 +82,120 @@ export class MainWorld extends Location {
   }
 
   private createVegetation(rm: ResourceManager) {
+    console.log("🌲 [MainWorld] Creating vegetation with InstancedMesh...");
+    const start = performance.now();
+    
     const count = 180;
+    const data = rm.getModel("tree");
+    if (!data) {
+      console.warn("⚠️ [MainWorld] Tree model not found");
+      return;
+    }
+
+    // ✅ Извлекаем геометрию и материал из первой модели
+    const treeMesh = data.scene.children[0] as THREE.Mesh;
+    if (!treeMesh || !treeMesh.geometry) {
+      console.warn("⚠️ [MainWorld] Invalid tree mesh");
+      return;
+    }
+
+    const geometry = treeMesh.geometry;
+    const material = treeMesh.material as THREE.Material;
+
+    // ✅ Создаём InstancedMesh
+    this.treeInstances = new THREE.InstancedMesh(geometry, material, count);
+    this.treeInstances.castShadow = true;
+    this.treeInstances.receiveShadow = true;
+
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const r = 45 + Math.random() * (this.size * 0.45 - 45);
       const x = Math.cos(angle) * r;
       const z = Math.sin(angle) * r;
 
-      const data = rm.getModel("tree");
-      if (!data) continue;
-      const tree = data.scene;
-      tree.position.set(x, 0, z);
-      tree.rotation.y = Math.random() * Math.PI * 2;
-      const scale = 0.8 + Math.random() * 0.6;
-      tree.scale.setScalar(scale);
-      this.scene.add(tree);
+      position.set(x, 0, z);
+      rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
+      const s = 0.8 + Math.random() * 0.6;
+      scale.set(s, s, s);
 
-      const box = new THREE.Box3().setFromObject(tree);
-      this.colliders.push(box);
+      matrix.compose(position, rotation, scale);
+      this.treeInstances.setMatrixAt(i, matrix);
+
+      // ✅ Добавляем коллайдер (упрощённый — только для ствола)
+      const colliderBox = new THREE.Box3(
+        new THREE.Vector3(x - 0.5, 0, z - 0.5),
+        new THREE.Vector3(x + 0.5, 4, z + 0.5)
+      );
+      this.colliders.push(colliderBox);
     }
+
+    this.treeInstances.instanceMatrix.needsUpdate = true;
+    this.scene.add(this.treeInstances);
+    
+    console.log(`✅ [MainWorld] Vegetation created in ${(performance.now() - start).toFixed(0)}ms`);
+    console.log(`   - Trees: ${count} (1 draw call)`);
   }
 
   private createRocks(rm: ResourceManager) {
-    for (let i = 0; i < 40; i++) {
+    console.log("🪨 [MainWorld] Creating rocks with InstancedMesh...");
+    const start = performance.now();
+    
+    const count = 40;
+    const data = rm.getModel("rock");
+    if (!data) {
+      console.warn("⚠️ [MainWorld] Rock model not found");
+      return;
+    }
+
+    const rockMesh = data.scene.children[0] as THREE.Mesh;
+    if (!rockMesh || !rockMesh.geometry) {
+      console.warn("⚠️ [MainWorld] Invalid rock mesh");
+      return;
+    }
+
+    const geometry = rockMesh.geometry;
+    const material = rockMesh.material as THREE.Material;
+
+    this.rockInstances = new THREE.InstancedMesh(geometry, material, count);
+    this.rockInstances.castShadow = true;
+    this.rockInstances.receiveShadow = true;
+
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+
+    for (let i = 0; i < count; i++) {
       const x = (Math.random() - 0.5) * this.size * 0.8;
       const z = (Math.random() - 0.5) * this.size * 0.8;
       const dist = Math.sqrt(x * x + z * z);
       if (dist < 45) continue;
 
-      const data = rm.getModel("rock");
-      if (!data) continue;
-      const rock = data.scene;
-      rock.position.set(x, 0, z);
-      rock.rotation.y = Math.random() * Math.PI * 2;
+      position.set(x, 0, z);
+      rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
       const s = 0.6 + Math.random() * 1.2;
-      rock.scale.setScalar(s);
-      this.scene.add(rock);
+      scale.set(s, s, s);
 
-      const box = new THREE.Box3().setFromObject(rock);
-      this.colliders.push(box);
+      matrix.compose(position, rotation, scale);
+      this.rockInstances.setMatrixAt(i, matrix);
+
+      const colliderBox = new THREE.Box3(
+        new THREE.Vector3(x - 1, 0, z - 1),
+        new THREE.Vector3(x + 1, 2, z + 1)
+      );
+      this.colliders.push(colliderBox);
     }
+
+    this.rockInstances.instanceMatrix.needsUpdate = true;
+    this.scene.add(this.rockInstances);
+    
+    console.log(`✅ [MainWorld] Rocks created in ${(performance.now() - start).toFixed(0)}ms`);
+    console.log(`   - Rocks: ${count} (1 draw call)`);
   }
 
   private createLighting() {
@@ -123,14 +205,17 @@ export class MainWorld extends Location {
     const sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
     sun.position.set(80, 150, 60);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    
+    // ✅ Оптимизация теней
+    sun.shadow.mapSize.set(1024, 1024); // Было 2048x2048
     sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 400;
-    sun.shadow.camera.left = -120;
-    sun.shadow.camera.right = 120;
-    sun.shadow.camera.top = 120;
-    sun.shadow.camera.bottom = -120;
+    sun.shadow.camera.far = 300; // Было 400
+    sun.shadow.camera.left = -100;
+    sun.shadow.camera.right = 100;
+    sun.shadow.camera.top = 100;
+    sun.shadow.camera.bottom = -100;
     sun.shadow.bias = -0.0005;
+    
     this.scene.add(sun);
   }
 
@@ -141,5 +226,11 @@ export class MainWorld extends Location {
   dispose() {
     this.terrain.dispose();
     this.gridSystem.dispose();
+    if (this.treeInstances) {
+      this.treeInstances.dispose();
+    }
+    if (this.rockInstances) {
+      this.rockInstances.dispose();
+    }
   }
 }

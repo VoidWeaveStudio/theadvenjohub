@@ -23,8 +23,9 @@ export class NetworkManager {
   private session: GameSession | null = null;
   private authenticated: boolean = false;
 
+  // ✅ Throttling для playerUpdate
   private lastUpdateSent: number = 0;
-  private updateThrottleMs: number = 50;
+  private updateThrottleMs: number = 50; // 20 раз/сек вместо 60
 
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private lastPong: number = Date.now();
@@ -51,8 +52,7 @@ export class NetworkManager {
       this.ws = new WebSocket(session.serverUrl);
 
       this.ws.onopen = () => {
-        console.log("✅ [Net] Connected, sending auth token...");
-        this.onConnected?.();
+        console.log("✅ [Net] Connected, sending auth...");
         this.send({
           type: "auth",
           token: session.gameToken,
@@ -179,6 +179,7 @@ export class NetworkManager {
     }
   }
 
+  // ✅ Throttling для playerUpdate
   sendPlayerUpdate(data: {
     position: number[];
     rotation: number;

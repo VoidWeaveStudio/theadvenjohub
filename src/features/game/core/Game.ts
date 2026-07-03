@@ -6,7 +6,6 @@ import { ResourceManager } from "./ResourceManager";
 import { NetworkManager } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
-import { World } from "../world/World";
 import { SafeZone } from "../world/SafeZone";
 import { ShootingSystem } from "../systems/ShootingSystem";
 import { SafeZoneSystem } from "../systems/SafeZoneSystem";
@@ -36,7 +35,6 @@ export interface HUDState {
 export class Game {
     private canvas: HTMLCanvasElement;
     private slug: string;
-    private scene: THREE.Scene;
     private renderer: THREE.WebGLRenderer;
     private clock: THREE.Clock;
     private session: GameSession;
@@ -48,7 +46,6 @@ export class Game {
 
     private player: Player;
     private otherPlayers: Map<string, OtherPlayer> = new Map();
-    private world: World;
     private safeZone: SafeZone;
 
     private shootingSystem: ShootingSystem;
@@ -91,11 +88,6 @@ export class Game {
         this.slug = slug;
         this.session = session;
 
-        console.log("🎨 [Game] Creating THREE.Scene...");
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x87ceeb);
-        this.scene.fog = new THREE.Fog(0x87ceeb, 150, 700);
-
         console.log("🖥️ [Game] Creating WebGLRenderer...");
         this.renderer = new THREE.WebGLRenderer({
             canvas,
@@ -110,7 +102,7 @@ export class Game {
         this.renderer.setSize(width, height, false);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFShadowMap;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
         canvas.style.width = '100%';
@@ -140,9 +132,6 @@ export class Game {
         console.log("👤 [Game] Creating Player...");
         this.player = new Player();
 
-        console.log("🌍 [Game] Creating World...");
-        this.world = new World();
-
         console.log("🛡️ [Game] Creating SafeZone...");
         this.safeZone = new SafeZone();
 
@@ -152,7 +141,7 @@ export class Game {
         this.interactionSystem = new InteractionSystem();
         this.networkSystem = new NetworkSystem(this.networkManager);
 
-        this.scene.add(this.cameraController.yawObject);
+
         console.log("✅ [Game] Constructor complete");
     }
 
@@ -168,29 +157,23 @@ export class Game {
         console.log("🗺️ [Game] Registering locations...");
         this.locationManager.registerLocations(this.resourceManager);
 
-        console.log("🌍 [Game] Creating world...");
-        const worldStart = performance.now();
-        this.world.create(this.scene, this.resourceManager);
-        console.log(`✅ [Game] World created in ${(performance.now() - worldStart).toFixed(0)}ms`);
-        console.log(`   - World size: ${this.world.size}`);
-        console.log(`   - Colliders: ${this.world.colliders.length}`);
-        console.log("🛡️ [Game] Creating safe zone...");
-        this.safeZone.create(this.scene, this.resourceManager);
-        console.log(`   - Safe zone radius: ${this.safeZone.getRadius()}`);
-        console.log(`   - Safe zone position: (${this.safeZone.getPosition().x}, ${this.safeZone.getPosition().y}, ${this.safeZone.getPosition().z})`);
-
         console.log("👤 [Game] Creating player...");
-        this.player.create(this.scene, this.resourceManager);
-        this.player.setDependencies(this.inputManager, this.cameraController, this.world.getColliderBoxes());
+        const currentLocation = this.locationManager.getCurrentLocation();
+        if (currentLocation) {
+            this.player.create(currentLocation.scene, this.resourceManager);
+            this.player.setDependencies(this.inputManager, this.cameraController, currentLocation.colliders);
 
-        console.log("🔗 [Game] Setting player dependencies...");
-        const colliderBoxes = this.world.getColliderBoxes();
-        console.log(`   - Collider boxes: ${colliderBoxes.length}`);
-        this.player.setDependencies(this.inputManager, this.cameraController, colliderBoxes);
+            currentLocation.scene.add(this.cameraController.yawObject);
+        }
 
         console.log("📷 [Game] Setting camera target...");
         console.log(`   - Player position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
-        this.cameraController.setTarget(this.player.mesh)
+        this.cameraController.setTarget(this.player.mesh);
+
+        console.log("🛡️ [Game] Creating safe zone...");
+        if (currentLocation) {
+            this.safeZone.create(currentLocation.scene, this.resourceManager);
+        }
 
         console.log("🗺️ [Game] Loading initial location 'main-world'...");
         const locationStart = performance.now();
@@ -204,7 +187,7 @@ export class Game {
 
         console.log("🔫 [Game] Initializing ShootingSystem...");
         this.shootingSystem.init(
-            this.scene,
+            currentLocation?.scene || new THREE.Scene(),
             this.player,
             this.inputManager,
             this.cameraController,
@@ -216,16 +199,17 @@ export class Game {
         this.safeZoneSystem.init(this.safeZone);
 
         console.log("👆 [Game] Initializing InteractionSystem...");
-        this.interactionSystem.init(this.scene, this.player, this.inputManager, this.safeZone);
+        if (currentLocation) {
+            this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
+        }
 
         console.log("🌐 [Game] Initializing NetworkSystem...");
         this.networkSystem.init();
 
-        console.log("🔗 [Game] Registering colliders...");
-        for (const c of this.world.getColliders()) {
-            this.shootingSystem.registerCollidable(c.mesh);
+        if (currentLocation) {
+            console.log("🔗 [Game] Registering colliders...");
+            this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
         }
-        this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
 
         this.interactionSystem.onNotification = (msg, duration) => {
             this.onNotification?.(msg, duration);
@@ -267,8 +251,11 @@ export class Game {
 
         this.networkManager.onPlayerJoin = (data) => {
             console.log(`👥 [Game] Player joined: ${data.nickname} (${data.id})`);
+            const currentLocation = this.locationManager.getCurrentLocation();
+            if (!currentLocation) return;
+
             const op = new OtherPlayer(data.id, data.nickname);
-            op.create(this.scene, this.resourceManager);
+            op.create(currentLocation.scene, this.resourceManager);
             op.updateFromNetwork(data);
             this.otherPlayers.set(data.id, op);
             this.shootingSystem.registerOtherPlayer(data.id, op.mesh);
@@ -296,7 +283,11 @@ export class Game {
                     type: "system",
                 });
 
-                op.dispose(this.scene);
+                const currentLocation = this.locationManager.getCurrentLocation();
+                if (currentLocation) {
+                    op.dispose(currentLocation.scene);
+                }
+
                 this.otherPlayers.delete(playerId);
                 this.shootingSystem.unregisterOtherPlayer(playerId);
                 this.hudState.online = this.otherPlayers.size + 1;
@@ -388,44 +379,41 @@ export class Game {
         const delta = Math.min(this.clock.getDelta(), 0.1);
 
         if (!this.isPaused) {
-            const moveDir = new THREE.Vector3();
-            if (this.inputManager.isKeyPressed("KeyW")) moveDir.z -= 1;
-            if (this.inputManager.isKeyPressed("KeyS")) moveDir.z += 1;
-            if (this.inputManager.isKeyPressed("KeyA")) moveDir.x -= 1;
-            if (this.inputManager.isKeyPressed("KeyD")) moveDir.x += 1;
+            const currentLocation = this.locationManager.getCurrentLocation();
+            if (currentLocation) {
+                this.player.update(delta);
+                this.cameraController.update(delta, this.inputManager);
 
-            if (moveDir.lengthSq() > 0 && Math.random() < 0.01) {
-                console.log(`🚶 [Game] Moving: ${moveDir.toArray().map(v => v.toFixed(2)).join(', ')}`);
+                const inSafe = this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
+                if (this.hudState.inSafeZone !== inSafe) {
+                    this.hudState.inSafeZone = inSafe;
+                    this.emitState(true);
+                }
+
+                if (!inSafe) {
+                    this.shootingSystem.update(delta);
+                } else {
+                    this.player.getWeapon().update(delta);
+                }
+
+                this.interactionSystem.update(delta);
+                this.safeZone.update(delta);
+                this.networkSystem.update(delta);
+                this.otherPlayers.forEach((op) => {
+                    if (op.mesh.parent) {
+                        op.update(delta);
+                    }
+                });
+
+                this.networkManager.sendPlayerUpdate({
+                    position: this.player.mesh.position.toArray(),
+                    rotation: this.player.mesh.rotation.y,
+                    pitch: this.cameraController.getPitch(),
+                    animation: "idle",
+                });
+
+                this.emitState(false);
             }
-
-            const colliders = this.world.getColliderBoxes();
-            this.player.update(delta);
-            this.cameraController.update(delta, this.inputManager);
-
-            const inSafe = this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
-            if (this.hudState.inSafeZone !== inSafe) {
-                this.hudState.inSafeZone = inSafe;
-                this.emitState(true);
-            }
-
-            if (!inSafe) {
-                this.shootingSystem.update(delta);
-            } else {
-                this.player.getWeapon().update(delta);
-            }
-
-            this.interactionSystem.update(delta);
-            this.networkSystem.update(delta);
-            this.otherPlayers.forEach((op) => op.update(delta));
-
-            this.networkManager.sendPlayerUpdate({
-                position: this.player.mesh.position.toArray(),
-                rotation: this.player.mesh.rotation.y,
-                pitch: this.cameraController.getPitch(),
-                animation: "idle",
-            });
-
-            this.emitState(false);
         }
 
         this.locationManager.render();
@@ -439,7 +427,6 @@ export class Game {
         console.log(`📐 [Game] Resize: ${width}x${height}`);
 
         this.cameraController.resize(width, height);
-
         this.renderer.setSize(width, height, false);
 
         this.canvas.style.width = `${width}px`;
@@ -463,10 +450,6 @@ export class Game {
         this.networkManager.sendChatMessage(message);
     }
 
-    getWorld(): World {
-        return this.world;
-    }
-
     dispose() {
         console.log("🧹 [Game] Disposing...");
         if (this.animationFrameId !== null) {
@@ -481,12 +464,15 @@ export class Game {
         this.shootingSystem.dispose();
         this.networkSystem.dispose();
         this.locationManager.dispose();
-        this.world.dispose();
-        this.otherPlayers.forEach((op) => op.dispose(this.scene));
+
+        const currentLocation = this.locationManager.getCurrentLocation();
+        if (currentLocation) {
+            this.otherPlayers.forEach((op) => op.dispose(currentLocation.scene));
+            this.player.dispose(currentLocation.scene);
+        }
+
         this.otherPlayers.clear();
-        this.player.dispose(this.scene);
         this.renderer.dispose();
-        this.scene.clear();
         console.log("✅ [Game] Disposed");
     }
 }

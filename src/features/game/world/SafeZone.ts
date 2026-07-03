@@ -3,111 +3,110 @@ import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
 
 export class SafeZone {
-    private radius: number = 30;
-    private position: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
-    private crystal!: THREE.Group;
-    private animId: number | null = null;
-    private textSprite!: THREE.Sprite;
+  private radius: number = 30;
+  private position: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+  private crystal!: THREE.Group;
+  private textSprite!: THREE.Sprite;
+  private time: number = 0;
 
-    create(scene: THREE.Scene, resourceManager: ResourceManager) {
-        const data = resourceManager.getModel("crystal");
-        if (data) {
-            this.crystal = data.scene;
-            this.crystal.position.set(0, 3, 0);
-            this.crystal.scale.setScalar(1.2);
-        } else {
-            this.crystal = new THREE.Group();
-            const geo = new THREE.OctahedronGeometry(1.5);
-            const mat = new THREE.MeshStandardMaterial({
-                color: 0x00ffff,
-                emissive: 0x00ffff,
-                emissiveIntensity: 0.6,
-                metalness: 0.8,
-                roughness: 0.15,
-            });
-            const mesh = new THREE.Mesh(geo, mat);
-            this.crystal.add(mesh);
-            this.crystal.position.set(0, 3, 0);
-        }
-        scene.add(this.crystal);
-
-        const light = new THREE.PointLight(0x00ffff, 2, 25);
-        light.position.set(0, 4, 0);
-        scene.add(light);
-
-        const ringGeo = new THREE.RingGeometry(this.radius - 0.5, this.radius, 128);
-        const ringMat = new THREE.MeshBasicMaterial({
-            color: 0x00ff88,
-            transparent: true,
-            opacity: 0.35,
-            side: THREE.DoubleSide,
-        });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.y = 0.05;
-        scene.add(ring);
-
-        const discGeo = new THREE.CircleGeometry(this.radius - 0.5, 64);
-        const discMat = new THREE.MeshBasicMaterial({
-            color: 0x00ffaa,
-            transparent: true,
-            opacity: 0.05,
-            side: THREE.DoubleSide,
-        });
-        const disc = new THREE.Mesh(discGeo, discMat);
-        disc.rotation.x = -Math.PI / 2;
-        disc.position.y = 0.03;
-        scene.add(disc);
-
-        const canvas = document.createElement("canvas");
-        canvas.width = 512;
-        canvas.height = 128;
-        const ctx = canvas.getContext("2d")!;
-        ctx.fillStyle = "rgba(0, 255, 255, 0.95)";
-        ctx.font = "bold 72px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.shadowColor = "#00aaff";
-        ctx.shadowBlur = 20;
-        ctx.fillText("EVENTS", 256, 64);
-        const tex = new THREE.CanvasTexture(canvas);
-        const textMat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
-        this.textSprite = new THREE.Sprite(textMat);
-        this.textSprite.position.set(0, 6.5, 0);
-        this.textSprite.scale.set(8, 2, 1);
-        scene.add(this.textSprite);
-
-        this.crystal.userData.interactionId = "crystal";
-
-        this.startAnimation();
+  create(scene: THREE.Scene, resourceManager: ResourceManager) {
+    console.log("🛡️ [SafeZone] Creating safe zone...");
+    
+    const data = resourceManager.getModel("crystal");
+    if (data) {
+      this.crystal = data.scene;
+      this.crystal.position.set(0, 3, 0);
+      this.crystal.scale.setScalar(1.2);
+    } else {
+      this.crystal = new THREE.Group();
+      const geo = new THREE.OctahedronGeometry(1.5);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 0.6,
+        metalness: 0.8,
+        roughness: 0.15,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      this.crystal.add(mesh);
+      this.crystal.position.set(0, 3, 0);
     }
+    scene.add(this.crystal);
 
-    private startAnimation() {
-        const animate = () => {
-            this.animId = requestAnimationFrame(animate);
-            const t = performance.now() * 0.001;
-            this.crystal.rotation.y = t * 0.5;
-            this.crystal.position.y = 3 + Math.sin(t * 1.2) * 0.4;
-            this.textSprite.position.y = 6.5 + Math.sin(t * 1.2) * 0.4;
-        };
-        animate();
-    }
+    const light = new THREE.PointLight(0x00ffff, 2, 25);
+    light.position.set(0, 4, 0);
+    scene.add(light);
 
-    getInteractableObject(): THREE.Object3D {
-        return this.crystal;
-    }
+    const ringGeo = new THREE.RingGeometry(this.radius - 0.5, this.radius, 128);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      transparent: true,
+      opacity: 0.35,
+      side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.05;
+    scene.add(ring);
 
-    getPosition(): THREE.Vector3 {
-        return this.position;
-    }
+    const discGeo = new THREE.CircleGeometry(this.radius - 0.5, 64);
+    const discMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffaa,
+      transparent: true,
+      opacity: 0.05,
+      side: THREE.DoubleSide,
+    });
+    const disc = new THREE.Mesh(discGeo, discMat);
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.y = 0.03;
+    scene.add(disc);
 
-    getRadius(): number {
-        return this.radius;
-    }
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "rgba(0, 255, 255, 0.95)";
+    ctx.font = "bold 72px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "#00aaff";
+    ctx.shadowBlur = 20;
+    ctx.fillText("EVENTS", 256, 64);
+    const tex = new THREE.CanvasTexture(canvas);
+    const textMat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+    this.textSprite = new THREE.Sprite(textMat);
+    this.textSprite.position.set(0, 6.5, 0);
+    this.textSprite.scale.set(8, 2, 1);
+    scene.add(this.textSprite);
 
-    dispose() {
-        if (this.animId !== null) {
-            cancelAnimationFrame(this.animId);
-        }
-    }
+    this.crystal.userData.interactionId = "crystal";
+    
+    console.log("✅ [SafeZone] Created");
+  }
+
+  // ✅ Интегрировано в основной цикл Game.animate()
+  update(delta: number) {
+    this.time += delta;
+    
+    // Анимация кристалла
+    this.crystal.rotation.y = this.time * 0.5;
+    this.crystal.position.y = 3 + Math.sin(this.time * 1.2) * 0.4;
+    this.textSprite.position.y = 6.5 + Math.sin(this.time * 1.2) * 0.4;
+  }
+
+  getInteractableObject(): THREE.Object3D {
+    return this.crystal;
+  }
+
+  getPosition(): THREE.Vector3 {
+    return this.position;
+  }
+
+  getRadius(): number {
+    return this.radius;
+  }
+
+  dispose() {
+    // Нет RAF для очистки
+  }
 }
