@@ -31,14 +31,22 @@
     "@solana/wallet-standard-wallet-adapter": "^1.1.4",
     "@solana/web3.js": "^1.98.4",
     "@tailwindcss/postcss": "^4.3.2",
+    "@types/bs58": "^4.0.4",
     "@types/dompurify": "^3.0.5",
+    "@types/ioredis": "^4.28.10",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.19.19",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/sanitize-html": "^2.16.1",
+    "@types/three": "^0.185.0",
     "@upstash/redis": "^1.37.0",
     "@vercel/blob": "^2.3.3",
     "bs58": "^6.0.0",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
     "dompurify": "^3.4.2",
+    "dotenv": "^16.3.1",
     "drizzle-kit": "^0.30.6",
     "drizzle-orm": "^0.39.3",
     "jsonwebtoken": "^9.0.3",
@@ -54,17 +62,8 @@
     "three": "^0.185.0",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
+    "typescript": "^5.8.3",
     "zod": "^3.25.76"
   },
-  "devDependencies": {
-    "@types/bs58": "^4.0.4",
-    "@types/ioredis": "^4.28.10",
-    "@types/node": "^22.19.19",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "@types/sanitize-html": "^2.16.1",
-    "@types/three": "^0.185.0",
-    "dotenv": "^16.3.1",
-    "typescript": "^5.8.3"
-  }
+  "devDependencies": {}
 }
