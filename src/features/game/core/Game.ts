@@ -141,7 +141,6 @@ export class Game {
         this.interactionSystem = new InteractionSystem();
         this.networkSystem = new NetworkSystem(this.networkManager);
 
-
         console.log("✅ [Game] Constructor complete");
     }
 
@@ -157,37 +156,37 @@ export class Game {
         console.log("🗺️ [Game] Registering locations...");
         this.locationManager.registerLocations(this.resourceManager);
 
-        console.log("👤 [Game] Creating player...");
-        const currentLocation = this.locationManager.getCurrentLocation();
-        if (currentLocation) {
-            this.player.create(currentLocation.scene, this.resourceManager);
-            this.player.setDependencies(this.inputManager, this.cameraController, currentLocation.colliders);
-
-            currentLocation.scene.add(this.cameraController.yawObject);
-        }
-
-        console.log("📷 [Game] Setting camera target...");
-        console.log(`   - Player position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
-        this.cameraController.setTarget(this.player.mesh);
-
-        console.log("🛡️ [Game] Creating safe zone...");
-        if (currentLocation) {
-            this.safeZone.create(currentLocation.scene, this.resourceManager);
-        }
-
         console.log("🗺️ [Game] Loading initial location 'main-world'...");
         const locationStart = performance.now();
-        await this.locationManager.loadLocation("main-world");
+        const currentLocation = await this.locationManager.loadLocation("main-world");
         console.log(`✅ [Game] Location loaded in ${(performance.now() - locationStart).toFixed(0)}ms`);
+
+        if (!currentLocation) {
+            console.error("❌ [Game] CRITICAL: Failed to load main-world location!");
+            throw new Error("Failed to load main-world location");
+        }
 
         this.locationManager.onLocationChange = (id: string) => {
             console.log(`🗺️ [Game] Location changed to: ${id}`);
             this.onNotification?.(`📍 Entered: ${id}`, 2000);
         };
 
+        console.log("👤 [Game] Creating player in location scene...");
+        this.player.create(currentLocation.scene, this.resourceManager);
+        this.player.setDependencies(this.inputManager, this.cameraController, currentLocation.colliders);
+        
+        currentLocation.scene.add(this.cameraController.yawObject);
+
+        console.log("📷 [Game] Setting camera target...");
+        console.log(`   - Player position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
+        this.cameraController.setTarget(this.player.mesh);
+
+        console.log("🛡️ [Game] Creating safe zone...");
+        this.safeZone.create(currentLocation.scene, this.resourceManager);
+
         console.log("🔫 [Game] Initializing ShootingSystem...");
         this.shootingSystem.init(
-            currentLocation?.scene || new THREE.Scene(),
+            currentLocation.scene,
             this.player,
             this.inputManager,
             this.cameraController,
@@ -199,17 +198,13 @@ export class Game {
         this.safeZoneSystem.init(this.safeZone);
 
         console.log("👆 [Game] Initializing InteractionSystem...");
-        if (currentLocation) {
-            this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
-        }
+        this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
 
         console.log("🌐 [Game] Initializing NetworkSystem...");
         this.networkSystem.init();
 
-        if (currentLocation) {
-            console.log("🔗 [Game] Registering colliders...");
-            this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
-        }
+        console.log("🔗 [Game] Registering interactables...");
+        this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
 
         this.interactionSystem.onNotification = (msg, duration) => {
             this.onNotification?.(msg, duration);
@@ -328,6 +323,15 @@ export class Game {
 
         this.networkManager.onProgressLoaded = (data) => {
             console.log("💾 [Game] Progress loaded from server:", data);
+            
+            if (data?.progress?.position) {
+                this.player.mesh.position.fromArray(data.progress.position);
+                console.log(`📍 [Game] Restored position:`, data.progress.position);
+            }
+            
+            if (data?.nickname) {
+                this.onNicknameLoaded?.(data.nickname);
+            }
         };
 
         this.networkManager.onAuthError = (error) => {
