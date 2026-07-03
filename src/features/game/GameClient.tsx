@@ -238,7 +238,13 @@ export function GameClient({ slug }: GameClientProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black overflow-hidden" style={{ top: 0 }}>
+    <div 
+      className="fixed left-0 right-0 bottom-0 z-50 bg-black overflow-hidden" 
+      style={{ 
+        top: '64px',
+        height: 'calc(100vh - 64px)'
+      }}
+    >
       <canvas 
         ref={canvasRef} 
         className="w-full h-full block cursor-pointer"
