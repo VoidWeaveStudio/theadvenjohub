@@ -91,7 +91,6 @@ export class CameraController {
         targetPos.y += this.heightOffset;
         this.yawObject.position.copy(targetPos);
 
-       this.camera.lookAt(0, -this.heightOffset, 0);
 
         if (this.frameCount % 60 === 0) {
             const cameraWorldPos = this.camera.getWorldPosition(new THREE.Vector3());

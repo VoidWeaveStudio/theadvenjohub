@@ -8,7 +8,7 @@ export type PlayerNetData = {
   animation: string;
 };
 
-export interface GameSession { 
+export interface GameSession {
   gameToken: string;
   serverUrl: string;
   userId: string;
@@ -117,6 +117,19 @@ export class NetworkManager {
         console.log("💾 [Net] Progress loaded:", data.progress);
         this.onProgressLoaded?.(data.progress);
         break;
+      case "progress_loaded":
+        console.log("💾 [Net] Progress loaded:", data.progress);
+        this.onProgressLoaded?.(data.progress);
+        break;
+
+      case "init":
+        if (data.players && Array.isArray(data.players)) {
+          for (const p of data.players) {
+            this.onPlayerJoin?.(p);
+          }
+        }
+        break;
+
       case "playerJoin":
         this.onPlayerJoin?.(data);
         break;
