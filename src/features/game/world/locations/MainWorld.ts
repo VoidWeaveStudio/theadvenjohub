@@ -79,12 +79,14 @@ export class MainWorld extends Location {
     const count = 180;
     const data = rm.getModel("tree");
     if (!data) {
-      throw new Error("Tree model not found. Cannot create vegetation.");
+      console.warn("[MainWorld] Tree model not available, skipping vegetation");
+      return;
     }
 
     const treeMesh = data.scene.children[0] as THREE.Mesh;
     if (!treeMesh || !treeMesh.geometry) {
-      throw new Error("Invalid tree mesh structure.");
+      console.warn("[MainWorld] Invalid tree mesh structure, skipping vegetation");
+      return;
     }
 
     const geometry = treeMesh.geometry;
@@ -130,12 +132,14 @@ export class MainWorld extends Location {
     const count = 40;
     const data = rm.getModel("rock");
     if (!data) {
-      throw new Error("Rock model not found. Cannot create rocks.");
+      console.warn("[MainWorld] Rock model not available, skipping rocks");
+      return;
     }
 
     const rockMesh = data.scene.children[0] as THREE.Mesh;
     if (!rockMesh || !rockMesh.geometry) {
-      throw new Error("Invalid rock mesh structure.");
+      console.warn("[MainWorld] Invalid rock mesh structure, skipping rocks");
+      return;
     }
 
     const geometry = rockMesh.geometry;
@@ -156,7 +160,7 @@ export class MainWorld extends Location {
       const x = (Math.random() - 0.5) * this.size * 0.8;
       const z = (Math.random() - 0.5) * this.size * 0.8;
       const dist = Math.sqrt(x * x + z * z);
-      
+
       if (dist < clearZoneRadius) continue;
 
       position.set(x, 0, z);
@@ -185,16 +189,16 @@ export class MainWorld extends Location {
     const sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
     sun.position.set(80, 150, 60);
     sun.castShadow = true;
-    
+
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 300; 
+    sun.shadow.camera.far = 300;
     sun.shadow.camera.left = -100;
     sun.shadow.camera.right = 100;
     sun.shadow.camera.top = 100;
     sun.shadow.camera.bottom = -100;
     sun.shadow.bias = -0.0005;
-    
+
     this.scene.add(sun);
   }
 
