@@ -159,9 +159,14 @@ export class Player extends Entity {
 
         if (this.frameCount % 60 === 0) {
             console.log(`\n👤 [Player] Frame ${this.frameCount}:`);
-            console.log(`   📍 Position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
+            console.log(`   📍 Mesh position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
             console.log(`   🎯 MoveDir input: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
             console.log(`   📷 Camera yaw: ${(this.camera.getYaw() * 180 / Math.PI).toFixed(1)}°`);
+
+            if (this.mesh.children.length > 0) {
+                const model = this.mesh.children[0];
+                console.log(`   🎭 Model position: (${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)})`);
+            }
         }
 
         const isSprinting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
@@ -194,6 +199,10 @@ export class Player extends Entity {
             if (!blocked) {
                 this.mesh.position.copy(nextPos);
                 moved = true;
+
+                if (this.frameCount % 60 === 0) {
+                    console.log(`   ✅ Player moved to: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
+                }
             }
         }
 

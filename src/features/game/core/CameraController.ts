@@ -79,10 +79,6 @@ export class CameraController {
 
         this.frameCount++;
 
-        if (this.frameCount % 60 === 0) {
-            console.log(`🎯 [CameraController] Target position: (${this.target.position.x.toFixed(2)}, ${this.target.position.y.toFixed(2)}, ${this.target.position.z.toFixed(2)})`);
-        }
-
         const mouseMovement = inputManager.consumeMouseMovement();
         this.yaw -= mouseMovement.x * this.sensitivity;
         this.pitch -= mouseMovement.y * this.sensitivity;
@@ -95,7 +91,7 @@ export class CameraController {
         targetPos.y += this.heightOffset;
         this.yawObject.position.copy(targetPos);
 
-        this.camera.lookAt(new THREE.Vector3(0, 0, 0));
+       this.camera.lookAt(0, -this.heightOffset, 0);
 
         if (this.frameCount % 60 === 0) {
             const cameraWorldPos = this.camera.getWorldPosition(new THREE.Vector3());
