@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Game, HUDState } from "./core/Game";
 import { HUD } from "./ui/HUD";
+import { Menu } from "./ui/Menu";
 import { Hotbar } from "./ui/Hotbar";
 import { Notifications } from "./ui/Notifications";
 import { Chat, ChatMessage } from "./ui/Chat";
@@ -35,6 +36,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing game...");
   const [isPointerLocked, setIsPointerLocked] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // 🔥 ДОБАВЛЕНО
   const [nickname, setNickname] = useState("Player");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -157,13 +159,16 @@ export function GameClient({ slug }: GameClientProps) {
   }, []);
 
   useEffect(() => {
-    const handleEnter = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        setIsMenuOpen((prev) => !prev);
+      }
       if (e.code === "Enter" && isPointerLocked) {
         setIsChatVisible((prev) => !prev);
       }
     };
-    window.addEventListener("keydown", handleEnter);
-    return () => window.removeEventListener("keydown", handleEnter);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPointerLocked]);
 
   const handleNicknameChange = (nick: string) => {
@@ -177,6 +182,10 @@ export function GameClient({ slug }: GameClientProps) {
 
   const removeNotification = (id: number) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const handleCloseMenu = () => {
+    setIsMenuOpen(false);
   };
 
   if (authError) {
@@ -231,6 +240,13 @@ export function GameClient({ slug }: GameClientProps) {
         onSendMessage={handleSendMessage}
         isVisible={isChatVisible}
         onToggle={() => setIsChatVisible((prev) => !prev)}
+      />
+
+      <Menu
+        isOpen={isMenuOpen}
+        onClose={handleCloseMenu}
+        nickname={nickname}
+        onNicknameChange={handleNicknameChange}
       />
     </div>
   );

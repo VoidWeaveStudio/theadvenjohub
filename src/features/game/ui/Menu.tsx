@@ -5,12 +5,12 @@ import { useState } from "react";
 
 interface MenuProps {
     isOpen: boolean;
-    onResume: () => void;
+    onClose: () => void;
     nickname: string;
     onNicknameChange: (nickname: string) => void;
 }
 
-export function Menu({ isOpen, onResume, nickname, onNicknameChange }: MenuProps) {
+export function Menu({ isOpen, onClose, nickname, onNicknameChange }: MenuProps) {
     const [editNickname, setEditNickname] = useState(false);
     const [tempNickname, setTempNickname] = useState(nickname);
     const [tab, setTab] = useState<"main" | "controls" | "about">("main");
@@ -85,10 +85,10 @@ export function Menu({ isOpen, onResume, nickname, onNicknameChange }: MenuProps
                         </div>
 
                         <button
-                            onClick={onResume}
+                            onClick={onClose}
                             className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-3 rounded-lg shadow-lg transition-all"
                         >
-                            ▶ Resume Game
+                            ▶ Close Menu
                         </button>
                     </div>
                 )}
@@ -103,7 +103,7 @@ export function Menu({ isOpen, onResume, nickname, onNicknameChange }: MenuProps
                                 ["Left Click", "Shoot"],
                                 ["R", "Reload"],
                                 ["E", "Interact"],
-                                ["Esc", "Pause / Menu"],
+                                ["Esc", "Menu"],
                             ].map(([key, action]) => (
                                 <div key={key} className="flex justify-between items-center py-1.5 border-b border-zinc-700/50 last:border-0">
                                     <span className="text-zinc-300">{action}</span>
