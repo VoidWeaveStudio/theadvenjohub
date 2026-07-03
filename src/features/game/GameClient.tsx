@@ -4,7 +4,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Game, HUDState } from "./core/Game";
 import { HUD } from "./ui/HUD";
-import { Menu } from "./ui/Menu";
 import { Hotbar } from "./ui/Hotbar";
 import { Notifications } from "./ui/Notifications";
 import { Chat, ChatMessage } from "./ui/Chat";
@@ -35,7 +34,6 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing game...");
-  const [isPaused, setIsPaused] = useState(true);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
   const [nickname, setNickname] = useState("Player");
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -90,7 +88,7 @@ export function GameClient({ slug }: GameClientProps) {
     const initGame = async () => {
       try {
         setLoadingMessage("Authenticating with game server...");
-        
+
         const session = await apiPost<GameSession>("/api/game/session", {
           gameSlug: slug,
         });
@@ -159,27 +157,14 @@ export function GameClient({ slug }: GameClientProps) {
   }, []);
 
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.code === "Escape" && !isPaused) {
-        setIsPaused(true);
-      }
-      if (e.code === "Enter" && !isPaused && isPointerLocked) {
+    const handleEnter = (e: KeyboardEvent) => {
+      if (e.code === "Enter" && isPointerLocked) {
         setIsChatVisible((prev) => !prev);
       }
     };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
-  }, [isPaused, isPointerLocked]);
-
-  const handleResume = () => {
-    setIsPaused(false);
-    gameRef.current?.setPaused(false);
-    
-    if (canvasRef.current) {
-      canvasRef.current.focus();
-      canvasRef.current.requestPointerLock();
-    }
-  };
+    window.addEventListener("keydown", handleEnter);
+    return () => window.removeEventListener("keydown", handleEnter);
+  }, [isPointerLocked]);
 
   const handleNicknameChange = (nick: string) => {
     setNickname(nick);
@@ -213,18 +198,18 @@ export function GameClient({ slug }: GameClientProps) {
   }
 
   return (
-    <div 
-      className="fixed left-0 right-0 bottom-0 z-50 bg-black overflow-hidden" 
-      style={{ 
+    <div
+      className="fixed left-0 right-0 bottom-0 z-50 bg-black overflow-hidden"
+      style={{
         top: '64px',
-        height: 'calc(100vh - 64px)' 
+        height: 'calc(100vh - 64px)'
       }}
     >
-      <canvas 
-        ref={canvasRef} 
+      <canvas
+        ref={canvasRef}
         className="w-full h-full block cursor-pointer"
-        style={{ 
-          width: '100%', 
+        style={{
+          width: '100%',
           height: '100%',
           display: 'block'
         }}
@@ -240,19 +225,12 @@ export function GameClient({ slug }: GameClientProps) {
       <HUD state={hudState} isPointerLocked={isPointerLocked} />
       <Hotbar slots={hotbar} />
       <Notifications notifications={notifications} onRemove={removeNotification} />
-      
+
       <Chat
         messages={chatMessages}
         onSendMessage={handleSendMessage}
         isVisible={isChatVisible}
         onToggle={() => setIsChatVisible((prev) => !prev)}
-      />
-      
-      <Menu
-        isOpen={isPaused && !loading}
-        onResume={handleResume}
-        nickname={nickname}
-        onNicknameChange={handleNicknameChange}
       />
     </div>
   );

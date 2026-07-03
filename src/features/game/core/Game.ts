@@ -54,7 +54,6 @@ export class Game {
     private networkSystem: NetworkSystem;
     private locationManager: LocationManager;
 
-    private isPaused: boolean = false;
     private isLoaded: boolean = false;
     private animationFrameId: number | null = null;
     private frameCount: number = 0;
@@ -104,7 +103,7 @@ export class Game {
         canvas.style.height = '100%';
         canvas.style.display = 'block';
 
-        this.timer = new THREE.Timer(); 
+        this.timer = new THREE.Timer();
         this.inputManager = new InputManager(canvas);
         this.cameraController = new CameraController();
         this.resourceManager = new ResourceManager();
@@ -165,13 +164,6 @@ export class Game {
             this.emitState(true);
         };
 
-        this.inputManager.onPointerLockStateChange = (locked) => {
-            if (!locked && !this.isPaused) {
-                this.setPaused(true);
-            } else if (locked && this.isPaused) {
-                this.setPaused(false);
-            }
-        };
 
         this.setupNetwork();
 
@@ -184,6 +176,7 @@ export class Game {
         window.addEventListener("resize", this.handleResize);
         window.addEventListener("orientationchange", this.handleResize);
     }
+
 
     private setupNetwork() {
         this.networkManager.connect(this.session);
@@ -332,40 +325,39 @@ export class Game {
         this.timer.update();
         const delta = Math.min(this.timer.getDelta(), 0.1);
 
-        if (!this.isPaused) {
-            const currentLocation = this.locationManager.getCurrentLocation();
-            if (currentLocation) {
-                this.player.update(delta);
-                this.cameraController.update(delta, this.inputManager);
+        // 🔥 УБРАНО: проверка if (!this.isPaused)
+        const currentLocation = this.locationManager.getCurrentLocation();
+        if (currentLocation) {
+            this.player.update(delta);
+            this.cameraController.update(delta, this.inputManager);
 
-                const inSafe = this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
-                if (this.hudState.inSafeZone !== inSafe) {
-                    this.hudState.inSafeZone = inSafe;
-                    this.emitState(true);
-                }
-
-                if (!inSafe) {
-                    this.shootingSystem.update(delta);
-                } else {
-                    this.player.getWeapon().update(delta);
-                }
-
-                this.interactionSystem.update(delta);
-                this.safeZone.update(delta);
-                this.networkSystem.update(delta);
-                this.otherPlayers.forEach((op) => {
-                    op.update(delta);
-                });
-
-                this.networkManager.sendPlayerUpdate({
-                    position: this.player.mesh.position.toArray(),
-                    rotation: this.player.mesh.rotation.y,
-                    pitch: this.cameraController.getPitch(),
-                    animation: "idle",
-                });
-
-                this.emitState(false);
+            const inSafe = this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
+            if (this.hudState.inSafeZone !== inSafe) {
+                this.hudState.inSafeZone = inSafe;
+                this.emitState(true);
             }
+
+            if (!inSafe) {
+                this.shootingSystem.update(delta);
+            } else {
+                this.player.getWeapon().update(delta);
+            }
+
+            this.interactionSystem.update(delta);
+            this.safeZone.update(delta);
+            this.networkSystem.update(delta);
+            this.otherPlayers.forEach((op) => {
+                op.update(delta);
+            });
+
+            this.networkManager.sendPlayerUpdate({
+                position: this.player.mesh.position.toArray(),
+                rotation: this.player.mesh.rotation.y,
+                pitch: this.cameraController.getPitch(),
+                animation: "idle",
+            });
+
+            this.emitState(false);
         }
 
         this.locationManager.render();
@@ -383,13 +375,6 @@ export class Game {
         this.canvas.style.height = `${height}px`;
     };
 
-    setPaused(paused: boolean) {
-        this.isPaused = paused;
-        this.inputManager.setEnabled(!paused);
-        if (paused && document.pointerLockElement) {
-            document.exitPointerLock();
-        }
-    }
 
     setNickname(nickname: string) {
         this.networkManager.setNickname(nickname);

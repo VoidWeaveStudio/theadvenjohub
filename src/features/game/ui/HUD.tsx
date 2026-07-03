@@ -58,14 +58,6 @@ export function HUD({ state, isPointerLocked }: HUDProps) {
                 </div>
             )}
 
-            {!isPointerLocked && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-                    <div className="bg-black/70 backdrop-blur px-8 py-4 rounded-lg border border-white/10">
-                        <div className="text-white text-xl font-bold mb-2">Click to play</div>
-                        <div className="text-zinc-400 text-sm">Mouse will be locked for camera control</div>
-                    </div>
-                </div>
-            )}
 
             <Crosshair visible={isPointerLocked && !state.inSafeZone} />
         </div>
