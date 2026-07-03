@@ -149,4 +149,4 @@ export class InputManager {
     this.canvas.removeEventListener("click", this.onCanvasClick);
     console.log("   ✅ All listeners removed");
   }
-}
+} 

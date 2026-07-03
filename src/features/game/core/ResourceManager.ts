@@ -9,7 +9,7 @@ export class ResourceManager {
   private models: Map<string, { scene: THREE.Group; animations: THREE.AnimationClip[] }> = new Map();
   private textures: Map<string, THREE.Texture> = new Map();
 
-  constructor() {
+  constructor() { 
     console.log("📦 [ResourceManager] Initializing loaders...");
     this.gltfLoader = new GLTFLoader();
     this.dracoLoader = new DRACOLoader();

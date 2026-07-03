@@ -242,7 +242,7 @@ export function GameClient({ slug }: GameClientProps) {
       className="fixed left-0 right-0 bottom-0 z-50 bg-black overflow-hidden" 
       style={{ 
         top: '64px',
-        height: 'calc(100vh - 64px)'
+        height: 'calc(100vh - 64px)' 
       }}
     >
       <canvas 

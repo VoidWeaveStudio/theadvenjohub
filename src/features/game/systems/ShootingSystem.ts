@@ -14,7 +14,7 @@ interface Bullet {
     life: number;
     origin: THREE.Vector3;
 }
-
+ 
 export class ShootingSystem extends System {
     private scene!: THREE.Scene;
     private player!: Player;

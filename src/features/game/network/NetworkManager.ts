@@ -8,7 +8,7 @@ export type PlayerNetData = {
   animation: string;
 };
 
-export interface GameSession {
+export interface GameSession { 
   gameToken: string;
   serverUrl: string;
   userId: string;

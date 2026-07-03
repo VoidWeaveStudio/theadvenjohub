@@ -196,7 +196,7 @@ export class Game {
 
         console.log("🛡️ [Game] Creating safe zone...");
         this.safeZone.create(currentLocation.scene, this.resourceManager);
-
+ 
         console.log("🔫 [Game] Initializing ShootingSystem...");
         this.shootingSystem.init(
             currentLocation.scene,

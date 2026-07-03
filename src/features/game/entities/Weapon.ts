@@ -85,7 +85,7 @@ export class Weapon {
             this.cooldown -= delta;
             if (this.cooldown < 0) this.cooldown = 0;
         }
-        
+         
         if (this.frameCount % 120 === 0) {
             const worldPos = this.mesh.getWorldPosition(new THREE.Vector3());
             const muzzleWorldPos = this.muzzle.getWorldPosition(new THREE.Vector3());

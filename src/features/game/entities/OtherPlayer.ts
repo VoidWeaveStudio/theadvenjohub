@@ -14,7 +14,7 @@ export class OtherPlayer extends Entity {
     constructor(id: string, nickname: string) {
         super(id);
         this.nickname = nickname;
-    }
+    } 
 
     create(scene: THREE.Scene, resourceManager: ResourceManager) {
         const data = resourceManager.getModel("player");

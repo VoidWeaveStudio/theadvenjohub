@@ -16,7 +16,7 @@ export abstract class Entity {
     abstract update(delta: number): void;
 
     dispose(scene: THREE.Scene) {
-        scene.remove(this.mesh);
+        scene.remove(this.mesh); 
         this.mesh.traverse((obj) => {
             if ((obj as THREE.Mesh).isMesh) {
                 const mesh = obj as THREE.Mesh;

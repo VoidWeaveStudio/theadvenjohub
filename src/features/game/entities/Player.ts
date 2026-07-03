@@ -120,7 +120,7 @@ export class Player extends Entity {
             console.warn(`⚠️ [Player] Animation "${name}" not found`);
             return;
         }
-
+ 
         if (this.currentAnim === name.toLowerCase()) {
             return;
         }

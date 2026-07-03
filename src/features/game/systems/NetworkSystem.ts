@@ -13,7 +13,7 @@ export class NetworkSystem extends System {
         this.networkManager = networkManager;
     }
 
-    init() {
+    init() { 
     }
 
     update(delta: number) {
