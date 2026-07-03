@@ -31,8 +31,7 @@ export class CameraController {
         this.yawObject.add(this.pitchObject);
         this.pitchObject.add(this.camera);
 
-   
-        this.camera.position.set(0, 0, this.distance);
+        this.camera.position.set(0, 0, -this.distance);
     }
 
     setTarget(target: THREE.Object3D) {
