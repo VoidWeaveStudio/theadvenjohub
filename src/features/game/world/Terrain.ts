@@ -16,9 +16,6 @@ export class Terrain {
   }
 
   create(scene: THREE.Scene): THREE.Mesh {
-    console.log("🏔️ [Terrain] Creating terrain...");
-    const start = performance.now();
-    
     const geometry = new THREE.PlaneGeometry(this.size, this.size, this.segments, this.segments);
 
     const positions = geometry.attributes.position;
@@ -54,11 +51,6 @@ export class Terrain {
     scene.add(this.mesh);
 
     this.buildHeightCache();
-    
-    console.log(`✅ [Terrain] Created in ${(performance.now() - start).toFixed(0)}ms`);
-    console.log(`   - Size: ${this.size}x${this.size}`);
-    console.log(`   - Segments: ${this.segments}x${this.segments}`);
-    console.log(`   - Height cache: ${this.cacheWidth}x${this.cacheHeight}`);
 
     return this.mesh;
   }

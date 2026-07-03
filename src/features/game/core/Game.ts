@@ -57,6 +57,7 @@ export class Game {
     private isPaused: boolean = false;
     private isLoaded: boolean = false;
     private animationFrameId: number | null = null;
+    private frameCount: number = 0;
 
     private hudState: HUDState = {
         health: 100,
@@ -79,16 +80,10 @@ export class Game {
     public onNicknameLoaded?: (nickname: string) => void;
 
     constructor(canvas: HTMLCanvasElement, slug: string, session: GameSession) {
-        console.log("🎮 [Game] Constructor called");
-        console.log("   - Slug:", slug);
-        console.log("   - Server URL:", session.serverUrl);
-        console.log("   - User ID:", session.userId);
-
         this.canvas = canvas;
         this.slug = slug;
         this.session = session;
 
-        console.log("🖥️ [Game] Creating WebGLRenderer...");
         this.renderer = new THREE.WebGLRenderer({
             canvas,
             antialias: true,
@@ -109,95 +104,44 @@ export class Game {
         canvas.style.height = '100%';
         canvas.style.display = 'block';
 
-        console.log(`   - Renderer size: ${width}x${height}`);
-        console.log(`   - Pixel ratio: ${Math.min(window.devicePixelRatio, 2)}`);
-
         this.clock = new THREE.Clock();
-
-        console.log("⌨️ [Game] Creating InputManager...");
         this.inputManager = new InputManager(canvas);
-
-        console.log("📷 [Game] Creating CameraController...");
         this.cameraController = new CameraController();
-
-        console.log("📦 [Game] Creating ResourceManager...");
         this.resourceManager = new ResourceManager();
-
-        console.log("🌐 [Game] Creating NetworkManager...");
         this.networkManager = new NetworkManager();
-
-        console.log("🗺️ [Game] Creating LocationManager...");
         this.locationManager = new LocationManager(this.renderer, this.cameraController.camera);
-
-        console.log("👤 [Game] Creating Player...");
         this.player = new Player();
-
-        console.log("🛡️ [Game] Creating SafeZone...");
         this.safeZone = new SafeZone();
-
-        console.log("🔫 [Game] Creating systems...");
         this.shootingSystem = new ShootingSystem();
         this.safeZoneSystem = new SafeZoneSystem();
         this.interactionSystem = new InteractionSystem();
         this.networkSystem = new NetworkSystem(this.networkManager);
-
-        console.log("✅ [Game] Constructor complete");
     }
 
     async init() {
-        console.log("🚀 [Game] === STARTING INIT ===");
         this.onLoadStateChange?.(true);
 
-        console.log("📦 [Game] Loading resources...");
-        const resourceStart = performance.now();
         await this.resourceManager.loadAll();
-        console.log(`✅ [Game] Resources loaded in ${(performance.now() - resourceStart).toFixed(0)}ms`);
-
-        console.log("🗺️ [Game] Registering locations...");
         this.locationManager.registerLocations(this.resourceManager);
 
-        console.log("🗺️ [Game] Loading initial location 'main-world'...");
-        const locationStart = performance.now();
         const currentLocation = await this.locationManager.loadLocation("main-world");
-        console.log(`✅ [Game] Location loaded in ${(performance.now() - locationStart).toFixed(0)}ms`);
 
         if (!currentLocation) {
-            console.error("❌ [Game] CRITICAL: Failed to load main-world location!");
             throw new Error("Failed to load main-world location");
         }
 
         this.locationManager.onLocationChange = (id: string) => {
-            console.log(`🗺️ [Game] Location changed to: ${id}`);
             this.onNotification?.(`📍 Entered: ${id}`, 2000);
         };
 
-        console.log("👤 [Game] Creating player in location scene...");
         this.player.create(currentLocation.scene, this.resourceManager);
         this.player.setDependencies(this.inputManager, this.cameraController, currentLocation.colliders);
 
         currentLocation.scene.add(this.cameraController.yawObject);
-
-        console.log("📷 [Game] Setting camera target...");
-        console.log(`   - Player mesh position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
-
-        if (this.player.mesh.children.length > 0) {
-            console.log(`   - Player mesh children: ${this.player.mesh.children.length}`);
-            this.player.mesh.children.forEach((child, i) => {
-                console.log(`     Child ${i}: ${child.name || 'unnamed'} at (${child.position.x}, ${child.position.y}, ${child.position.z})`);
-            });
-        }
-
-        currentLocation.scene.add(this.cameraController.yawObject);
-
-        console.log("📷 [Game] Setting camera target...");
-        console.log(`   - Player position: (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
         this.cameraController.setTarget(this.player.mesh);
-        console.log(`🎯 [Game] Camera target set to player mesh at (${this.player.mesh.position.x}, ${this.player.mesh.position.y}, ${this.player.mesh.position.z})`);
 
-        console.log("🛡️ [Game] Creating safe zone...");
         this.safeZone.create(currentLocation.scene, this.resourceManager);
- 
-        console.log("🔫 [Game] Initializing ShootingSystem...");
+
         this.shootingSystem.init(
             currentLocation.scene,
             this.player,
@@ -207,16 +151,10 @@ export class Game {
             this.networkManager
         );
 
-        console.log("🛡️ [Game] Initializing SafeZoneSystem...");
         this.safeZoneSystem.init(this.safeZone);
-
-        console.log("👆 [Game] Initializing InteractionSystem...");
         this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
-
-        console.log("🌐 [Game] Initializing NetworkSystem...");
         this.networkSystem.init();
 
-        console.log("🔗 [Game] Registering interactables...");
         this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
 
         this.interactionSystem.onNotification = (msg, duration) => {
@@ -228,7 +166,6 @@ export class Game {
         };
 
         this.inputManager.onPointerLockStateChange = (locked) => {
-            console.log(`🔒 [Game] Pointer lock state: ${locked}`);
             if (!locked && !this.isPaused) {
                 this.setPaused(true);
             } else if (locked && this.isPaused) {
@@ -236,34 +173,37 @@ export class Game {
             }
         };
 
-        console.log("🌐 [Game] Setting up network...");
         this.setupNetwork();
 
         this.isLoaded = true;
         this.onLoadStateChange?.(false);
         this.emitState(true);
 
-        console.log("🎬 [Game] Starting animation loop...");
         this.animate();
 
-        console.log("📐 [Game] Attaching resize handler...");
         window.addEventListener("resize", this.handleResize);
         window.addEventListener("orientationchange", this.handleResize);
-
-        console.log("🎉 [Game] === INIT COMPLETE ===");
     }
 
     private setupNetwork() {
-        console.log("🌐 [Game] Connecting to server...");
         this.networkManager.connect(this.session);
 
         this.networkManager.onPlayerJoin = (data) => {
-            console.log(`👥 [Game] Player joined: ${data.nickname} (${data.id})`);
+            console.log(`[NET] Spawning other player: ${data.nickname} (${data.id}) at`, data.position);
+
             const currentLocation = this.locationManager.getCurrentLocation();
-            if (!currentLocation) return;
+            if (!currentLocation) {
+                console.error(`[NET] ❌ No current location when spawning ${data.id}`);
+                return;
+            }
+
+            console.log(`[3D] Current location scene:`, currentLocation.scene.uuid);
 
             const op = new OtherPlayer(data.id, data.nickname);
             op.create(currentLocation.scene, this.resourceManager);
+
+            console.log(`[3D] Created other player ${data.id}, mesh parent:`, op.mesh.parent?.uuid);
+
             op.updateFromNetwork(data);
             this.otherPlayers.set(data.id, op);
             this.shootingSystem.registerOtherPlayer(data.id, op.mesh);
@@ -280,7 +220,6 @@ export class Game {
         };
 
         this.networkManager.onPlayerLeave = (playerId) => {
-            console.log(`👥 [Game] Player left: ${playerId}`);
             const op = this.otherPlayers.get(playerId);
             if (op) {
                 this.onChatMessage?.({
@@ -330,33 +269,14 @@ export class Game {
             });
         };
 
-        this.networkManager.onAuthenticated = (data) => {
-            console.log(`✅ [Game] Authenticated as: ${data.nickname} (${data.playerId})`);
-        };
-
         this.networkManager.onProgressLoaded = (data) => {
-            console.log("💾 [Game] Progress loaded from server:", data);
-
             if (data?.progress?.position) {
                 this.player.mesh.position.fromArray(data.progress.position);
-                console.log(`📍 [Game] Restored position:`, data.progress.position);
             }
 
             if (data?.nickname) {
                 this.onNicknameLoaded?.(data.nickname);
             }
-        };
-
-        this.networkManager.onAuthError = (error) => {
-            console.error("❌ [Game] Auth error:", error);
-        };
-
-        this.networkManager.onConnected = () => {
-            console.log("🔗 [Game] Connected to server");
-        };
-
-        this.networkManager.onDisconnected = () => {
-            console.log("🔌 [Game] Disconnected from server");
         };
     }
 
@@ -384,11 +304,27 @@ export class Game {
             return;
         }
 
+        this.frameCount++;
+
+        if (this.frameCount % 60 === 0) {
+            const currentLocation = this.locationManager.getCurrentLocation();
+            console.log(`\n[RENDER] Frame ${this.frameCount}:`);
+            console.log(`   📍 Current location:`, currentLocation?.id);
+            console.log(`   🎭 Scene children:`, currentLocation?.scene.children.length);
+            console.log(`   👥 Other players:`, this.otherPlayers.size);
+
+            this.otherPlayers.forEach((op, id) => {
+                console.log(`   👤 Player ${id}:`);
+                console.log(`      Position: (${op.mesh.position.x.toFixed(2)}, ${op.mesh.position.y.toFixed(2)}, ${op.mesh.position.z.toFixed(2)})`);
+                console.log(`      Parent:`, op.mesh.parent?.uuid || 'NULL');
+                console.log(`      Visible:`, op.mesh.visible);
+            });
+        }
+
         const portal = this.locationManager.checkPortals(this.player.mesh.position);
         if (portal) {
             this.interactionSystem.onPrompt?.(`[E] Enter ${portal.targetLocationId}`);
             if (this.inputManager.isKeyJustPressed("KeyE")) {
-                console.log(`🚪 [Game] Teleporting to: ${portal.targetLocationId}`);
                 await this.locationManager.teleportTo(portal, this.player);
             }
         }
@@ -417,9 +353,7 @@ export class Game {
                 this.safeZone.update(delta);
                 this.networkSystem.update(delta);
                 this.otherPlayers.forEach((op) => {
-                    if (op.mesh.parent) {
-                        op.update(delta);
-                    }
+                    op.update(delta);
                 });
 
                 this.networkManager.sendPlayerUpdate({
@@ -441,8 +375,6 @@ export class Game {
         const width = container?.clientWidth || window.innerWidth;
         const height = container?.clientHeight || window.innerHeight;
 
-        console.log(`📐 [Game] Resize: ${width}x${height}`);
-
         this.cameraController.resize(width, height);
         this.renderer.setSize(width, height, false);
 
@@ -451,7 +383,6 @@ export class Game {
     };
 
     setPaused(paused: boolean) {
-        console.log(`⏸️ [Game] Paused: ${paused}`);
         this.isPaused = paused;
         this.inputManager.setEnabled(!paused);
         if (paused && document.pointerLockElement) {
@@ -468,7 +399,6 @@ export class Game {
     }
 
     dispose() {
-        console.log("🧹 [Game] Disposing...");
         if (this.animationFrameId !== null) {
             cancelAnimationFrame(this.animationFrameId);
             this.animationFrameId = null;
@@ -490,6 +420,5 @@ export class Game {
 
         this.otherPlayers.clear();
         this.renderer.dispose();
-        console.log("✅ [Game] Disposed");
     }
 }

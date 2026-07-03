@@ -90,11 +90,11 @@ export class ShootingSystem extends System {
 
     private spawnBullet(origin: THREE.Vector3, direction: THREE.Vector3) {
         const data = this.resourceManager.getModel("bullet");
-        const bulletMesh = data ? data.scene : new THREE.Mesh(
-            new THREE.SphereGeometry(0.06, 6, 6),
-            new THREE.MeshBasicMaterial({ color: 0xffff00 })
-        );
+        if (!data) {
+            throw new Error("Bullet model not found. Cannot spawn bullet.");
+        }
 
+        const bulletMesh = data.scene as unknown as THREE.Mesh;
         bulletMesh.position.copy(origin);
         this.scene.add(bulletMesh);
 
@@ -108,7 +108,7 @@ export class ShootingSystem extends System {
 
         const speed = 120;
         this.bullets.push({
-            mesh: bulletMesh as THREE.Mesh,
+            mesh: bulletMesh,
             trail,
             velocity: direction.clone().multiplyScalar(speed),
             life: 1.5,

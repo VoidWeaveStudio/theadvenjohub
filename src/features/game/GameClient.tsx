@@ -88,33 +88,21 @@ export function GameClient({ slug }: GameClientProps) {
 
   useEffect(() => {
     const initGame = async () => {
-      console.log("🎮 [GameClient] Starting initialization...");
-      
       try {
         setLoadingMessage("Authenticating with game server...");
-        console.log("🔐 [GameClient] Requesting game session for slug:", slug);
         
         const session = await apiPost<GameSession>("/api/game/session", {
           gameSlug: slug,
         });
-        
-        console.log("✅ [GameClient] Session received:", {
-          userId: session.userId,
-          wallet: session.wallet.slice(0, 8) + "...",
-          serverUrl: session.serverUrl,
-          tokenLength: session.gameToken.length,
-        });
 
         if (!canvasRef.current) {
-          console.error("❌ [GameClient] Canvas ref is null");
-          return;
+          throw new Error("Canvas element not found");
         }
 
         canvasRef.current.tabIndex = 0;
         canvasRef.current.style.outline = "none";
 
         setLoadingMessage("Creating game world...");
-        console.log("🏗️ [GameClient] Creating Game instance...");
 
         const game = new Game(canvasRef.current, slug, {
           gameToken: session.gameToken,
@@ -126,29 +114,21 @@ export function GameClient({ slug }: GameClientProps) {
 
         game.onStateChange = (state) => setHudState(state);
         game.onLoadStateChange = (loading) => {
-          console.log("📊 [GameClient] Loading state changed:", loading);
           setLoading(loading);
         };
         game.onNotification = (msg, duration = 3000) => {
-          console.log("🔔 [GameClient] Notification:", msg);
           const id = ++notifIdRef.current;
           setNotifications((prev) => [...prev, { id, message: msg, duration }]);
         };
         game.onChatMessage = (message) => {
-          console.log("💬 [GameClient] Chat message:", message.sender, "-", message.message);
           setChatMessages((prev) => [...prev.slice(-99), message]);
         };
         game.onNicknameLoaded = (nick: string) => {
-          console.log("👤 [GameClient] Nickname loaded:", nick);
           if (nick) setNickname(nick);
         };
 
-        console.log("🚀 [GameClient] Calling game.init()...");
         await game.init();
-        console.log("🎉 [GameClient] Game fully initialized!");
       } catch (error: any) {
-        console.error("❌ [GameClient] Init error:", error);
-
         if (error.message?.includes("no_license")) {
           setAuthError("You don't own this game. Please purchase it first.");
         } else if (error.message?.includes("license_expired")) {
@@ -165,7 +145,6 @@ export function GameClient({ slug }: GameClientProps) {
     initGame();
 
     return () => {
-      console.log("🧹 [GameClient] Cleanup - disposing game...");
       gameRef.current?.dispose();
     };
   }, [slug]);
@@ -173,7 +152,6 @@ export function GameClient({ slug }: GameClientProps) {
   useEffect(() => {
     const handleLockChange = () => {
       const locked = !!document.pointerLockElement;
-      console.log("🔒 [GameClient] Pointer lock changed:", locked);
       setIsPointerLocked(locked);
     };
     document.addEventListener("pointerlockchange", handleLockChange);
@@ -183,7 +161,6 @@ export function GameClient({ slug }: GameClientProps) {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.code === "Escape" && !isPaused) {
-        console.log("⏸️ [GameClient] ESC pressed - pausing");
         setIsPaused(true);
       }
       if (e.code === "Enter" && !isPaused && isPointerLocked) {
@@ -195,12 +172,10 @@ export function GameClient({ slug }: GameClientProps) {
   }, [isPaused, isPointerLocked]);
 
   const handleResume = () => {
-    console.log("▶️ [GameClient] Resuming game");
     setIsPaused(false);
     gameRef.current?.setPaused(false);
     
     if (canvasRef.current) {
-      console.log("🖱️ [GameClient] Requesting pointer lock on canvas...");
       canvasRef.current.focus();
       canvasRef.current.requestPointerLock();
     }
@@ -259,7 +234,6 @@ export function GameClient({ slug }: GameClientProps) {
         <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center z-50">
           <Spinner size="lg" />
           <p className="text-white mt-4 text-lg font-mono">{loadingMessage}</p>
-          <p className="text-zinc-500 text-xs mt-2">Check console for detailed logs</p>
         </div>
       )}
 

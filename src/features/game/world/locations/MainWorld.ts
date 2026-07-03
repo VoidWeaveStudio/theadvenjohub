@@ -19,9 +19,6 @@ export class MainWorld extends Location {
   }
 
   create(rm: ResourceManager) {
-    console.log("🌍 [MainWorld] Creating main world...");
-    const start = performance.now();
-    
     this.scene.background = new THREE.Color(0x87ceeb);
     this.scene.fog = new THREE.Fog(0x87ceeb, 150, 700);
 
@@ -32,9 +29,6 @@ export class MainWorld extends Location {
     this.createRocks(rm);
     this.createLighting();
     this.createCaveEntrance();
-    
-    console.log(`✅ [MainWorld] Created in ${(performance.now() - start).toFixed(0)}ms`);
-    console.log(`   - Colliders: ${this.colliders.length}`);
   }
 
   private createCaveEntrance() {
@@ -82,20 +76,15 @@ export class MainWorld extends Location {
   }
 
   private createVegetation(rm: ResourceManager) {
-    console.log("🌲 [MainWorld] Creating vegetation with InstancedMesh...");
-    const start = performance.now();
-    
     const count = 180;
     const data = rm.getModel("tree");
     if (!data) {
-      console.warn("⚠️ [MainWorld] Tree model not found");
-      return;
+      throw new Error("Tree model not found. Cannot create vegetation.");
     }
 
     const treeMesh = data.scene.children[0] as THREE.Mesh;
     if (!treeMesh || !treeMesh.geometry) {
-      console.warn("⚠️ [MainWorld] Invalid tree mesh");
-      return;
+      throw new Error("Invalid tree mesh structure.");
     }
 
     const geometry = treeMesh.geometry;
@@ -135,27 +124,18 @@ export class MainWorld extends Location {
 
     this.treeInstances.instanceMatrix.needsUpdate = true;
     this.scene.add(this.treeInstances);
-    
-    console.log(`✅ [MainWorld] Vegetation created in ${(performance.now() - start).toFixed(0)}ms`);
-    console.log(`   - Trees: ${count} (1 draw call)`);
-    console.log(`   - Clear zone: ${clearZoneRadius}m radius`);
   }
 
   private createRocks(rm: ResourceManager) {
-    console.log("🪨 [MainWorld] Creating rocks with InstancedMesh...");
-    const start = performance.now();
-    
     const count = 40;
     const data = rm.getModel("rock");
     if (!data) {
-      console.warn("⚠️ [MainWorld] Rock model not found");
-      return;
+      throw new Error("Rock model not found. Cannot create rocks.");
     }
 
     const rockMesh = data.scene.children[0] as THREE.Mesh;
     if (!rockMesh || !rockMesh.geometry) {
-      console.warn("⚠️ [MainWorld] Invalid rock mesh");
-      return;
+      throw new Error("Invalid rock mesh structure.");
     }
 
     const geometry = rockMesh.geometry;
@@ -196,10 +176,6 @@ export class MainWorld extends Location {
 
     this.rockInstances.instanceMatrix.needsUpdate = true;
     this.scene.add(this.rockInstances);
-    
-    console.log(`✅ [MainWorld] Rocks created in ${(performance.now() - start).toFixed(0)}ms`);
-    console.log(`   - Rocks: ${count} (1 draw call)`);
-    console.log(`   - Clear zone: ${clearZoneRadius}m radius`);
   }
 
   private createLighting() {

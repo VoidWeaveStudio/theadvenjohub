@@ -23,9 +23,8 @@ export class NetworkManager {
   private session: GameSession | null = null;
   private authenticated: boolean = false;
 
-  // ✅ Throttling для playerUpdate
   private lastUpdateSent: number = 0;
-  private updateThrottleMs: number = 50; // 20 раз/сек вместо 60
+  private updateThrottleMs: number = 50;
 
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private lastPong: number = Date.now();
@@ -44,7 +43,6 @@ export class NetworkManager {
   public onAuthError?: (error: string) => void;
 
   connect(session: GameSession) {
-    console.log("🌐 [Net] Connecting to:", session.serverUrl);
     this.session = session;
     this.authenticated = false;
 
@@ -52,7 +50,6 @@ export class NetworkManager {
       this.ws = new WebSocket(session.serverUrl);
 
       this.ws.onopen = () => {
-        console.log("✅ [Net] Connected, sending auth...");
         this.send({
           type: "auth",
           token: session.gameToken,
@@ -64,29 +61,25 @@ export class NetworkManager {
           const data = JSON.parse(event.data);
           this.handleMessage(data);
         } catch (e) {
-          console.error("[Net] Parse error", e);
+          // Parse error
         }
       };
 
       this.ws.onclose = (event) => {
-        console.log(`🔌 [Net] Disconnected: code=${event.code}, reason="${event.reason}"`);
         this.stopHeartbeat();
         this.authenticated = false;
         this.onDisconnected?.();
 
         if (event.code !== 1000) {
-          console.log(`🔄 [Net] Will reconnect in ${this.reconnectInterval}ms...`);
           this.reconnectTimer = setTimeout(() => {
             if (this.session) this.connect(this.session);
           }, this.reconnectInterval);
         }
       };
 
-      this.ws.onerror = (e) => {
-        console.error("❌ [Net] Error", e);
-      };
+      this.ws.onerror = () => { };
     } catch (e) {
-      console.error("❌ [Net] Connect failed", e);
+      // Connect failed
     }
   }
 
@@ -100,7 +93,6 @@ export class NetworkManager {
         this.lastPong = Date.now();
         break;
       case "auth_success":
-        console.log(`✅ [Net] Auth success: playerId=${data.playerId}, nickname=${data.nickname}`);
         this.authenticated = true;
         this.startHeartbeat();
         this.onAuthenticated?.({
@@ -109,27 +101,26 @@ export class NetworkManager {
         });
         break;
       case "auth_error":
-        console.error(`❌ [Net] Auth error: ${data.error}`);
         this.onAuthError?.(data.error || "Authentication failed");
         if (this.ws) this.ws.close(4001, data.error);
         break;
       case "progress_loaded":
-        console.log("💾 [Net] Progress loaded:", data.progress);
         this.onProgressLoaded?.(data.progress);
         break;
-      case "progress_loaded":
-        console.log("💾 [Net] Progress loaded:", data.progress);
-        this.onProgressLoaded?.(data.progress);
-        break;
-
       case "init":
         if (data.players && Array.isArray(data.players)) {
           for (const p of data.players) {
-            this.onPlayerJoin?.(p);
+            this.onPlayerJoin?.({
+              id: p.id,
+              nickname: p.nickname,
+              position: p.position,
+              rotation: p.rotation,
+              pitch: p.pitch || 0,
+              animation: p.animation || "idle",
+            });
           }
         }
         break;
-
       case "playerJoin":
         this.onPlayerJoin?.(data);
         break;
@@ -151,22 +142,18 @@ export class NetworkManager {
       case "nicknameChange":
         break;
       case "positionCorrection":
-        console.warn("⚠️ [Net] Position correction received");
         break;
       case "serverShutdown":
-        console.log("🛑 [Net] Server shutting down");
         break;
     }
   }
 
   private startHeartbeat() {
-    console.log("💓 [Net] Starting heartbeat (5s interval, 15s timeout)");
     this.lastPong = Date.now();
     this.heartbeatInterval = setInterval(() => {
       if (!this.authenticated) return;
 
       if (Date.now() - this.lastPong > this.heartbeatTimeoutMs) {
-        console.warn("⚠️ [Net] Heartbeat timeout, reconnecting...");
         this.ws?.close(4000, "Heartbeat timeout");
         return;
       }
@@ -187,12 +174,11 @@ export class NetworkManager {
       try {
         this.ws.send(JSON.stringify(data));
       } catch (e) {
-        console.error("[Net] Send error", e);
+        // Send error
       }
     }
   }
 
-  // ✅ Throttling для playerUpdate
   sendPlayerUpdate(data: {
     position: number[];
     rotation: number;
@@ -241,7 +227,6 @@ export class NetworkManager {
   }
 
   disconnect() {
-    console.log("🔌 [Net] Disconnecting...");
     this.stopHeartbeat();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.ws) {

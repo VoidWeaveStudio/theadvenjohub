@@ -10,27 +10,14 @@ export class SafeZone {
   private time: number = 0;
 
   create(scene: THREE.Scene, resourceManager: ResourceManager) {
-    console.log("🛡️ [SafeZone] Creating safe zone...");
-    
     const data = resourceManager.getModel("crystal");
-    if (data) {
-      this.crystal = data.scene;
-      this.crystal.position.set(0, 3, 0);
-      this.crystal.scale.setScalar(1.2);
-    } else {
-      this.crystal = new THREE.Group();
-      const geo = new THREE.OctahedronGeometry(1.5);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x00ffff,
-        emissive: 0x00ffff,
-        emissiveIntensity: 0.6,
-        metalness: 0.8,
-        roughness: 0.15,
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      this.crystal.add(mesh);
-      this.crystal.position.set(0, 3, 0);
+    if (!data) {
+      throw new Error("Crystal model not found. Cannot create safe zone.");
     }
+
+    this.crystal = data.scene;
+    this.crystal.position.set(0, 3, 0);
+    this.crystal.scale.setScalar(1.2);
     scene.add(this.crystal);
 
     const light = new THREE.PointLight(0x00ffff, 2, 25);
@@ -80,8 +67,6 @@ export class SafeZone {
     scene.add(this.textSprite);
 
     this.crystal.userData.interactionId = "crystal";
-    
-    console.log("✅ [SafeZone] Created");
   }
 
   update(delta: number) {

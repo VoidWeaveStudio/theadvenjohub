@@ -32,8 +32,7 @@ export class LocationManager {
     async loadLocation(locationId: string): Promise<Location | null> {
         const location = this.locations.get(locationId);
         if (!location) {
-            console.error(`[LocationManager] Location not found: ${locationId}`);
-            return null;
+            throw new Error(`Location not found: ${locationId}`);
         }
         this.currentLocation = location;
         this.onLocationChange?.(locationId);
@@ -67,7 +66,16 @@ export class LocationManager {
     }
 
     render() {
-        if (!this.currentLocation) return;
+        if (!this.currentLocation) {
+            console.warn("[LocationManager] No current location to render");
+            return;
+        }
+
+        if (!this.currentLocation.scene) {
+            console.error("[LocationManager] Current location has no scene!");
+            return;
+        }
+
         this.renderer.render(this.currentLocation.scene, this.activeCamera);
     }
 

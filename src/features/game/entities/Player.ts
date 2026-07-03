@@ -28,104 +28,62 @@ export class Player extends Entity {
     public health: number = 100;
     public maxHealth: number = 100;
 
-    private frameCount: number = 0;
-
     constructor() {
         super("local-player");
-        console.log("👤 [Player] Constructor called");
         this.weapon = new Weapon();
-        console.log("👤 [Player] Weapon instance created");
     }
 
     create(scene: THREE.Scene, resourceManager: ResourceManager) {
-        console.log("👤 [Player] === CREATE START ===");
-
         const data = resourceManager.getModel("player");
-        if (data) {
-            console.log("   ✅ Player model data found");
-            console.log(`   - Animations: ${data.animations.length}`);
+        if (!data) {
+            throw new Error("Player model not found. Cannot initialize game.");
+        }
 
-            const box = new THREE.Box3().setFromObject(data.scene);
-            const size = box.getSize(new THREE.Vector3());
-            console.log(`   - Original size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
-            console.log(`   - Original min Y: ${box.min.y.toFixed(2)}, max Y: ${box.max.y.toFixed(2)}`);
+        const box = new THREE.Box3().setFromObject(data.scene);
+        const size = box.getSize(new THREE.Vector3());
+        const targetHeight = 1.8;
+        const scale = targetHeight / size.y;
+        data.scene.scale.setScalar(scale);
 
-            const targetHeight = 1.8;
-            const scale = targetHeight / size.y;
-            data.scene.scale.setScalar(scale);
-            console.log(`   📏 Scaled to ${scale.toFixed(3)} (target height: ${targetHeight}m)`);
+        const scaledBox = new THREE.Box3().setFromObject(data.scene);
+        data.scene.position.set(
+            -(scaledBox.min.x + scaledBox.max.x) / 2,
+            -scaledBox.min.y,
+            -(scaledBox.min.z + scaledBox.max.z) / 2
+        );
 
-            const scaledBox = new THREE.Box3().setFromObject(data.scene);
-            const scaledSize = scaledBox.getSize(new THREE.Vector3());
-            console.log(`   - Scaled size: ${scaledSize.x.toFixed(2)} x ${scaledSize.y.toFixed(2)} x ${scaledSize.z.toFixed(2)}`);
-            console.log(`   - Scaled min Y: ${scaledBox.min.y.toFixed(2)}, max Y: ${scaledBox.max.y.toFixed(2)}`);
+        this.mesh.add(data.scene);
 
-           data.scene.position.set(
-                -(scaledBox.min.x + scaledBox.max.x) / 2, 
-                -scaledBox.min.y,                          
-                -(scaledBox.min.z + scaledBox.max.z) / 2
-            );
+        if (data.animations.length > 0) {
+            this.mixer = new THREE.AnimationMixer(data.scene);
 
-            console.log(`   ✅ Model positioned with feet at Y=0`);
-            console.log(`   - Final model position: (${data.scene.position.x.toFixed(2)}, ${data.scene.position.y.toFixed(2)}, ${data.scene.position.z.toFixed(2)})`);
-
-            const finalBox = new THREE.Box3().setFromObject(data.scene);
-            console.log(`   - Final min Y: ${finalBox.min.y.toFixed(2)}, max Y: ${finalBox.max.y.toFixed(2)}`);
-
-            this.mesh.add(data.scene);
-
-            if (data.animations.length > 0) {
-                console.log(`   🎬 Found ${data.animations.length} animations:`);
-                this.mixer = new THREE.AnimationMixer(data.scene);
-
-                for (const clip of data.animations) {
-                    const key = clip.name.toLowerCase();
-                    this.actions[key] = this.mixer.clipAction(clip);
-                    console.log(`   - Animation registered: "${clip.name}" → "${key}"`);
-                }
-
-                const idleKey = Object.keys(this.actions).find(k => k.includes("idle"));
-                if (idleKey) {
-                    this.actions[idleKey].play();
-                    this.currentAnim = idleKey;
-                    console.log(`   ▶️ Playing idle animation: "${idleKey}"`);
-                } else {
-                    const firstKey = Object.keys(this.actions)[0];
-                    if (firstKey) {
-                        this.actions[firstKey].play();
-                        this.currentAnim = firstKey;
-                        console.log(`   ▶️ Playing first animation: "${firstKey}" (no idle found)`);
-                    }
-                }
-            } else {
-                console.log("   ⚠️ No animations found in model");
+            for (const clip of data.animations) {
+                const key = clip.name.toLowerCase();
+                this.actions[key] = this.mixer.clipAction(clip);
             }
-        } else {
-            console.warn("   ❌ Player model not found, using placeholder");
-            const placeholder = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.35, 1.2, 4, 8),
-                new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-            );
-            placeholder.position.y = 1;
-            this.mesh.add(placeholder);
+
+            const idleKey = Object.keys(this.actions).find(k => k.includes("idle"));
+            if (idleKey) {
+                this.actions[idleKey].play();
+                this.currentAnim = idleKey;
+            } else {
+                const firstKey = Object.keys(this.actions)[0];
+                if (firstKey) {
+                    this.actions[firstKey].play();
+                    this.currentAnim = firstKey;
+                }
+            }
         }
 
         this.weapon.create(this.mesh, resourceManager);
-
         this.mesh.position.set(0, 0, 0);
-        console.log(`📍 [Player] Initial position: (${this.mesh.position.x}, ${this.mesh.position.y}, ${this.mesh.position.z})`);
-
         scene.add(this.mesh);
-        console.log("✅ [Player] Player mesh added to scene");
-        console.log("👤 [Player] === CREATE END ===");
     }
 
     setDependencies(inputManager: InputManager, camera: CameraController, colliders: THREE.Box3[]) {
-        console.log("🔗 [Player] === SET DEPENDENCIES ===");
         this.inputManager = inputManager;
         this.camera = camera;
         this.colliders = colliders;
-        console.log(`   ✅ Dependencies set (${colliders.length} colliders)`);
     }
 
     playAnimation(name: string) {
@@ -141,14 +99,8 @@ export class Player extends Entity {
     }
 
     update(delta: number) {
-        if (!this.inputManager || !this.camera) {
-            if (this.frameCount === 0) {
-                console.error("❌ [Player] Dependencies not set!");
-            }
-            return;
-        }
+        if (!this.inputManager || !this.camera) return;
 
-        this.frameCount++;
         this.time += delta;
 
         const moveDir = Player._moveDir.set(0, 0, 0);
@@ -158,22 +110,6 @@ export class Player extends Entity {
         if (this.inputManager.isKeyPressed("KeyD")) moveDir.x += 1;
 
         this.mesh.rotation.y = this.camera.getYaw();
-
-        if (this.frameCount % 60 === 0) {
-            console.log(`\n👤 [Player] Frame ${this.frameCount}:`);
-            console.log(`   📍 Mesh position: (${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)})`);
-            console.log(`   🎯 MoveDir input: (${moveDir.x.toFixed(2)}, ${moveDir.y.toFixed(2)}, ${moveDir.z.toFixed(2)})`);
-            console.log(`   📷 Camera yaw: ${(this.camera.getYaw() * 180 / Math.PI).toFixed(1)}°`);
-
-            if (this.mesh.children.length > 0) {
-                const model = this.mesh.children[0];
-                console.log(`   🎭 Model position: (${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)})`);
-                
-                const worldPos = new THREE.Vector3();
-                model.getWorldPosition(worldPos);
-                console.log(`   🌍 Model WORLD position: (${worldPos.x.toFixed(2)}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)})`);
-            }
-        }
 
         const isSprinting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
         const currentSpeed = this.speed * (isSprinting ? this.sprintMultiplier : 1);

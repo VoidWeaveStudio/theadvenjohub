@@ -10,35 +10,38 @@ export class OtherPlayer extends Entity {
     private targetPitch: number = 0;
     private nameSprite: THREE.Sprite | null = null;
     private headBone: THREE.Object3D | null = null;
+    private initialized: boolean = false;
 
     constructor(id: string, nickname: string) {
         super(id);
         this.nickname = nickname;
-    }
+    } 
 
     create(scene: THREE.Scene, resourceManager: ResourceManager) {
         const data = resourceManager.getModel("player");
-        if (data) {
-            const box = new THREE.Box3().setFromObject(data.scene);
-            const size = box.getSize(new THREE.Vector3());
-            const targetHeight = 1.8;
-            const scale = targetHeight / size.y;
-            data.scene.scale.setScalar(scale);
-
-            const scaledBox = new THREE.Box3().setFromObject(data.scene);
-            data.scene.position.set(
-                -(scaledBox.min.x + scaledBox.max.x) / 2,
-                -scaledBox.min.y,
-                -(scaledBox.min.z + scaledBox.max.z) / 2
-            );
-
-            this.mesh.add(data.scene);
-            data.scene.traverse((obj) => {
-                if (obj.name.toLowerCase().includes("head")) {
-                    this.headBone = obj;
-                }
-            });
+        if (!data) {
+            throw new Error("Player model not found. Cannot initialize other player.");
         }
+
+        const box = new THREE.Box3().setFromObject(data.scene);
+        const size = box.getSize(new THREE.Vector3());
+        const targetHeight = 1.8;
+        const scale = targetHeight / size.y;
+        data.scene.scale.setScalar(scale);
+
+        const scaledBox = new THREE.Box3().setFromObject(data.scene);
+        data.scene.position.set(
+            -(scaledBox.min.x + scaledBox.max.x) / 2,
+            -scaledBox.min.y,
+            -(scaledBox.min.z + scaledBox.max.z) / 2
+        );
+
+        this.mesh.add(data.scene);
+        data.scene.traverse((obj) => {
+            if (obj.name.toLowerCase().includes("head")) {
+                this.headBone = obj;
+            }
+        });
 
         this.nameSprite = this.createNameTag(this.nickname);
         this.mesh.add(this.nameSprite);
@@ -81,6 +84,12 @@ export class OtherPlayer extends Entity {
 
     updateFromNetwork(data: any) {
         this.targetPosition.fromArray(data.position);
+
+        if (!this.initialized) {
+            this.mesh.position.copy(this.targetPosition);
+            this.initialized = true;
+        }
+
         this.targetRotation = data.rotation;
         this.targetPitch = data.pitch || 0;
     }
