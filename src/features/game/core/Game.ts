@@ -36,7 +36,7 @@ export class Game {
     private canvas: HTMLCanvasElement;
     private slug: string;
     private renderer: THREE.WebGLRenderer;
-    private clock: THREE.Clock;
+    private timer: THREE.Timer;
     private session: GameSession;
 
     private inputManager: InputManager;
@@ -104,7 +104,7 @@ export class Game {
         canvas.style.height = '100%';
         canvas.style.display = 'block';
 
-        this.clock = new THREE.Clock();
+        this.timer = new THREE.Timer(); 
         this.inputManager = new InputManager(canvas);
         this.cameraController = new CameraController();
         this.resourceManager = new ResourceManager();
@@ -329,7 +329,8 @@ export class Game {
             }
         }
 
-        const delta = Math.min(this.clock.getDelta(), 0.1);
+        this.timer.update();
+        const delta = Math.min(this.timer.getDelta(), 0.1);
 
         if (!this.isPaused) {
             const currentLocation = this.locationManager.getCurrentLocation();
