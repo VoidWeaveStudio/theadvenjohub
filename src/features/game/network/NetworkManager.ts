@@ -88,6 +88,10 @@ export class NetworkManager {
 
     private handleMessage(data: any) {
         switch (data.type) {
+            case "ping":
+                this.lastPong = Date.now();
+                this.send({ type: "pong", t: data.t });
+                break;
             case "pong":
                 this.lastPong = Date.now();
                 break;
