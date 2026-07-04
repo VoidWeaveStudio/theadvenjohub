@@ -5,6 +5,7 @@ import { InputManager } from "../core/InputManager";
 import { ResourceManager } from "../core/ResourceManager";
 import { CameraController } from "../core/CameraController";
 import { Weapon } from "./Weapon";
+import { Terrain } from "../world/Terrain";
 
 export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
@@ -25,6 +26,7 @@ export class Player extends Entity {
     private inputManager!: InputManager;
     private camera!: CameraController;
     private colliders: THREE.Box3[] = [];
+    private terrain: Terrain | null = null;
 
     private head: THREE.Object3D | null = null;
     private neck: THREE.Object3D | null = null;
@@ -107,6 +109,13 @@ export class Player extends Entity {
         this.colliders = colliders;
     }
 
+    setTerrain(terrain: Terrain) {
+        this.terrain = terrain;
+        const initialHeight = terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z);
+        this.baseY = initialHeight;
+        this.mesh.position.y = initialHeight;
+    }
+
     public setHealth(health: number) {
         this.health = Math.max(0, Math.min(this.maxHealth, health));
     }
@@ -142,11 +151,15 @@ export class Player extends Entity {
             this.velocityY -= this.GRAVITY * delta;
             this.baseY += this.velocityY * delta;
 
-            if (this.baseY <= 0) {
-                this.baseY = 0;
+            const terrainHeight = this.terrain?.getHeightAt(this.mesh.position.x, this.mesh.position.z) || 0;
+            if (this.baseY <= terrainHeight) {
+                this.baseY = terrainHeight;
                 this.velocityY = 0;
                 this.isGrounded = true;
             }
+        } else {
+            const terrainHeight = this.terrain?.getHeightAt(this.mesh.position.x, this.mesh.position.z) || 0;
+            this.baseY = terrainHeight;
         }
 
         const isShooting = this.inputManager.isMousePressed(0);
@@ -161,7 +174,8 @@ export class Player extends Entity {
             const step = Player._step.copy(moveDir).multiplyScalar(currentSpeed * delta);
             const nextPos = Player._nextPos.copy(this.mesh.position).add(step);
 
-            const groundPos = new THREE.Vector3(nextPos.x, 0, nextPos.z);
+            const nextTerrainHeight = this.terrain?.getHeightAt(nextPos.x, nextPos.z) || 0;
+            const groundPos = new THREE.Vector3(nextPos.x, nextTerrainHeight + 1, nextPos.z);
             const playerBox = Player._playerBox.setFromCenterAndSize(groundPos, Player._playerSize);
 
             let blocked = false;
@@ -192,6 +206,7 @@ export class Player extends Entity {
                 bobOffset = Math.sin(this.time * 2) * 0.02;
             }
         }
+        
         this.mesh.position.y = this.baseY + bobOffset;
 
         this.updateHeadRotation();

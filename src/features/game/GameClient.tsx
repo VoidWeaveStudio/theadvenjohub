@@ -50,6 +50,11 @@ export function GameClient({ slug }: GameClientProps) {
   const [isDead, setIsDead] = useState(false);
   const [killerName, setKillerName] = useState<string | null>(null);
 
+   const [damageIndicator, setDamageIndicator] = useState<{
+    attackerId: string | null;
+    direction: number;
+  }>({ attackerId: null, direction: 0 });
+
   const [hudState, setHudState] = useState<HUDState>({
     health: 100,
     maxHealth: 100,
@@ -125,7 +130,13 @@ export function GameClient({ slug }: GameClientProps) {
         };
         game.onNotification = (msg, duration = 3000) => {
           const id = ++notifIdRef.current;
-          setNotifications((prev) => [...prev, { id, message: msg, duration }]);
+          setNotifications((prev) => {
+            const newNotifications = [...prev, { id, message: msg, duration }];
+            if (newNotifications.length > 5) {
+              return newNotifications.slice(-5);
+            }
+            return newNotifications;
+          });
         };
         game.onChatMessage = (message) => {
           setChatMessages((prev) => [...prev.slice(-99), message]);
@@ -144,6 +155,10 @@ export function GameClient({ slug }: GameClientProps) {
         game.onDeathStateChange = (dead, killer) => {
           setIsDead(dead);
           setKillerName(killer);
+        };
+
+        game.onDamageIndicatorUpdate = (attackerId, direction) => {
+          setDamageIndicator({ attackerId, direction });
         };
 
         await game.init();
@@ -254,7 +269,10 @@ export function GameClient({ slug }: GameClientProps) {
       <Hotbar slots={hotbar} />
       <Notifications notifications={notifications} onRemove={removeNotification} />
 
-      <DamageIndicator events={damageEvents} />
+      <DamageIndicator
+        attackerId={damageIndicator.attackerId}
+        direction={damageIndicator.direction}
+      />
 
       <DeathScreen
         isVisible={isDead}

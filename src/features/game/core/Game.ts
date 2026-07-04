@@ -13,6 +13,7 @@ import { InteractionSystem } from "../systems/InteractionSystem";
 import { NetworkSystem } from "../systems/NetworkSystem";
 import { ChatMessage } from "../ui/Chat";
 import { LocationManager } from "../world/LocationManager";
+import { MainWorld } from "../world/locations/MainWorld";
 
 export interface GameSession {
     gameToken: string;
@@ -64,6 +65,10 @@ export class Game {
     private isDead: boolean = false;
     private killerName: string | null = null;
 
+    private damageAttackerId: string | null = null;
+    private lastDamageTime: number = 0;
+    private readonly DAMAGE_INDICATOR_DURATION = 2000;
+
     private isLoaded: boolean = false;
     private animationFrameId: number | null = null;
     private frameCount: number = 0;
@@ -84,14 +89,51 @@ export class Game {
     private lastStateEmit: number = 0;
     private stateEmitInterval: number = 100;
 
+    private updateDamageIndicator() {
+        if (this.damageAttackerId === null) {
+            return;
+        }
+
+        const timeSinceDamage = Date.now() - this.lastDamageTime;
+        if (timeSinceDamage > this.DAMAGE_INDICATOR_DURATION) {
+            this.damageAttackerId = null;
+            this.onDamageIndicatorUpdate?.(null, 0);
+            return;
+        }
+
+        const attacker = this.otherPlayers.get(this.damageAttackerId);
+        if (!attacker || attacker.isDead()) {
+            this.damageAttackerId = null;
+            this.onDamageIndicatorUpdate?.(null, 0);
+            return;
+        }
+
+        const playerPos = this.player.mesh.position;
+        const attackerPos = attacker.mesh.position;
+        const dx = attackerPos.x - playerPos.x;
+        const dz = attackerPos.z - playerPos.z;
+        const worldAngle = Math.atan2(dx, dz);
+
+        const cameraYaw = this.cameraController.getYaw();
+
+        let relativeAngle = worldAngle - cameraYaw;
+
+        while (relativeAngle > Math.PI) relativeAngle -= Math.PI * 2;
+        while (relativeAngle < -Math.PI) relativeAngle += Math.PI * 2;
+
+
+        this.onDamageIndicatorUpdate?.(this.damageAttackerId, relativeAngle);
+    }
+
     public onStateChange?: (state: HUDState) => void;
     public onNotification?: (msg: string, duration?: number) => void;
     public onLoadStateChange?: (loading: boolean) => void;
     public onChatMessage?: (message: ChatMessage) => void;
     public onNicknameLoaded?: (nickname: string) => void;
     public onDamageEvent?: (event: DamageEvent) => void;
-
     public onDeathStateChange?: (isDead: boolean, killerName: string | null) => void;
+
+    public onDamageIndicatorUpdate?: (attackerId: string | null, direction: number) => void;
 
     constructor(canvas: HTMLCanvasElement, slug: string, session: GameSession) {
         this.canvas = canvas;
@@ -151,6 +193,10 @@ export class Game {
         this.player.create(currentLocation.scene, this.resourceManager);
         this.player.setDependencies(this.inputManager, this.cameraController, currentLocation.colliders);
 
+        if (currentLocation instanceof MainWorld) {
+            this.player.setTerrain(currentLocation.terrain);
+        }
+
         currentLocation.scene.add(this.cameraController.yawObject);
         this.cameraController.setTarget(this.player.mesh);
 
@@ -163,7 +209,8 @@ export class Game {
             this.cameraController,
             this.resourceManager,
             this.networkManager,
-            this.otherPlayers
+            this.otherPlayers,
+            currentLocation
         );
 
         this.safeZoneSystem.init(this.safeZone);
@@ -289,8 +336,12 @@ export class Game {
                 this.hudState.health = this.player.health;
                 this.emitState(true);
 
+                this.damageAttackerId = data.attackerId;
+                this.lastDamageTime = Date.now();
+
+
                 if (!this.isDead) {
-                    this.onNotification?.(`💥 Hit! -${data.damage} HP`, 2000);
+
                 }
 
                 const attacker = this.otherPlayers.get(data.attackerId);
@@ -322,7 +373,6 @@ export class Game {
                 const killer = this.otherPlayers.get(data.killerId);
                 this.killerName = killer?.nickname || 'Unknown';
                 this.onDeathStateChange?.(true, this.killerName);
-                this.onNotification?.(`💀 You were eliminated by ${this.killerName}`, 3000);
             } else {
                 const op = this.otherPlayers.get(data.playerId);
                 if (op) {
@@ -406,6 +456,7 @@ export class Game {
 
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
+            this.updateDamageIndicator();
             this.player.update(delta);
             this.cameraController.update(delta, this.inputManager);
 

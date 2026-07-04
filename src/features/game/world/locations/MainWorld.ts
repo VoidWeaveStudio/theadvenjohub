@@ -8,7 +8,7 @@ import { GridSystem } from "../GridSystem";
 export class MainWorld extends Location {
   public readonly size = 500;
   public gridSystem: GridSystem;
-  private terrain: Terrain;
+  public terrain: Terrain;
   private treeInstances: THREE.InstancedMesh | null = null;
   private rockInstances: THREE.InstancedMesh | null = null;
 
@@ -35,19 +35,21 @@ export class MainWorld extends Location {
     const archGeo = new THREE.TorusGeometry(3, 0.5, 8, 16, Math.PI);
     const archMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
     const arch = new THREE.Mesh(archGeo, archMat);
-    arch.position.set(200, 0, -150);
+    
+    const caveY = this.terrain.getHeightAt(200, -150);
+    arch.position.set(200, caveY, -150);
     arch.rotation.x = Math.PI;
     this.scene.add(arch);
 
     const entranceGeo = new THREE.CircleGeometry(2.8, 32);
     const entranceMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
     const entrance = new THREE.Mesh(entranceGeo, entranceMat);
-    entrance.position.set(200, 2.8, -150);
+    entrance.position.set(200, caveY + 2.8, -150);
     this.scene.add(entrance);
 
     this.addPortal({
       id: "main-to-cave",
-      position: new THREE.Vector3(200, 0, -150),
+      position: new THREE.Vector3(200, caveY, -150),
       radius: 3,
       targetLocationId: "cave",
       targetSpawnPoint: new THREE.Vector3(0, 0, 0),
@@ -75,6 +77,30 @@ export class MainWorld extends Location {
     this.scene.add(lake);
   }
 
+  private findFirstMesh(scene: THREE.Group): THREE.Mesh | null {
+    let foundMesh: THREE.Mesh | null = null;
+    
+    scene.traverse((child) => {
+      if (foundMesh) return;
+      if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry) {
+        foundMesh = child as THREE.Mesh;
+      }
+    });
+
+    return foundMesh;
+  }
+
+  private cloneAndRotateGeometry(sourceMesh: THREE.Mesh): { geometry: THREE.BufferGeometry; material: THREE.Material } {
+    const geometry = sourceMesh.geometry.clone();
+    const material = Array.isArray(sourceMesh.material) 
+      ? sourceMesh.material[0] 
+      : sourceMesh.material;
+
+    geometry.rotateX(-Math.PI / 2);
+
+    return { geometry, material };
+  }
+
   private createVegetation(rm: ResourceManager) {
     const count = 180;
     const data = rm.getModel("tree");
@@ -83,14 +109,15 @@ export class MainWorld extends Location {
       return;
     }
 
-    const treeMesh = data.scene.children[0] as THREE.Mesh;
+    const treeMesh = this.findFirstMesh(data.scene);
     if (!treeMesh || !treeMesh.geometry) {
       console.warn("[MainWorld] Invalid tree mesh structure, skipping vegetation");
       return;
     }
 
-    const geometry = treeMesh.geometry;
-    const material = treeMesh.material as THREE.Material;
+    console.log(`[MainWorld] Tree model loaded successfully: ${treeMesh.geometry.attributes.position.count} vertices`);
+
+    const { geometry, material } = this.cloneAndRotateGeometry(treeMesh);
 
     this.treeInstances = new THREE.InstancedMesh(geometry, material, count);
     this.treeInstances.castShadow = true;
@@ -109,7 +136,9 @@ export class MainWorld extends Location {
       const x = Math.cos(angle) * r;
       const z = Math.sin(angle) * r;
 
-      position.set(x, 0, z);
+      const terrainHeight = this.terrain.getHeightAt(x, z);
+
+      position.set(x, terrainHeight, z);
       rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
       const s = 0.8 + Math.random() * 0.6;
       scale.set(s, s, s);
@@ -118,14 +147,15 @@ export class MainWorld extends Location {
       this.treeInstances.setMatrixAt(i, matrix);
 
       const colliderBox = new THREE.Box3(
-        new THREE.Vector3(x - 0.5, 0, z - 0.5),
-        new THREE.Vector3(x + 0.5, 4, z + 0.5)
+        new THREE.Vector3(x - 0.5, terrainHeight, z - 0.5),
+        new THREE.Vector3(x + 0.5, terrainHeight + 4, z + 0.5)
       );
       this.colliders.push(colliderBox);
     }
 
     this.treeInstances.instanceMatrix.needsUpdate = true;
     this.scene.add(this.treeInstances);
+    console.log(`[MainWorld] Created ${count} tree instances`);
   }
 
   private createRocks(rm: ResourceManager) {
@@ -136,14 +166,15 @@ export class MainWorld extends Location {
       return;
     }
 
-    const rockMesh = data.scene.children[0] as THREE.Mesh;
+    const rockMesh = this.findFirstMesh(data.scene);
     if (!rockMesh || !rockMesh.geometry) {
       console.warn("[MainWorld] Invalid rock mesh structure, skipping rocks");
       return;
     }
 
-    const geometry = rockMesh.geometry;
-    const material = rockMesh.material as THREE.Material;
+    console.log(`[MainWorld] Rock model loaded successfully: ${rockMesh.geometry.attributes.position.count} vertices`);
+
+    const { geometry, material } = this.cloneAndRotateGeometry(rockMesh);
 
     this.rockInstances = new THREE.InstancedMesh(geometry, material, count);
     this.rockInstances.castShadow = true;
@@ -163,7 +194,9 @@ export class MainWorld extends Location {
 
       if (dist < clearZoneRadius) continue;
 
-      position.set(x, 0, z);
+      const terrainHeight = this.terrain.getHeightAt(x, z);
+
+      position.set(x, terrainHeight, z);
       rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
       const s = 0.6 + Math.random() * 1.2;
       scale.set(s, s, s);
@@ -172,14 +205,15 @@ export class MainWorld extends Location {
       this.rockInstances.setMatrixAt(i, matrix);
 
       const colliderBox = new THREE.Box3(
-        new THREE.Vector3(x - 1, 0, z - 1),
-        new THREE.Vector3(x + 1, 2, z + 1)
+        new THREE.Vector3(x - 1, terrainHeight, z - 1),
+        new THREE.Vector3(x + 1, terrainHeight + 2, z + 1)
       );
       this.colliders.push(colliderBox);
     }
 
     this.rockInstances.instanceMatrix.needsUpdate = true;
     this.scene.add(this.rockInstances);
+    console.log(`[MainWorld] Created ${count} rock instances`);
   }
 
   private createLighting() {
@@ -203,7 +237,8 @@ export class MainWorld extends Location {
   }
 
   getSpawnPoint(): THREE.Vector3 {
-    return new THREE.Vector3(0, 0, 0);
+    const spawnY = this.terrain.getHeightAt(0, 0);
+    return new THREE.Vector3(0, spawnY, 0);
   }
 
   dispose() {

@@ -7,6 +7,7 @@ import { CameraController } from "../core/CameraController";
 import { ResourceManager } from "../core/ResourceManager";
 import { NetworkManager } from "../network/NetworkManager";
 import { OtherPlayer } from "../entities/OtherPlayer";
+import { Location } from "../world/Location";
 
 interface Bullet {
     mesh: THREE.Mesh;
@@ -14,6 +15,7 @@ interface Bullet {
     velocity: THREE.Vector3;
     life: number;
     origin: THREE.Vector3;
+    hasHit: boolean;
 }
 
 export class ShootingSystem extends System {
@@ -25,9 +27,9 @@ export class ShootingSystem extends System {
     private network!: NetworkManager;
     private raycaster: THREE.Raycaster = new THREE.Raycaster();
     private bullets: Bullet[] = [];
-    private collidableObjects: THREE.Object3D[] = [];
     private otherPlayerHitboxes: Map<string, THREE.Mesh> = new Map();
     private otherPlayersRef: Map<string, OtherPlayer> | null = null;
+    private location: Location | null = null;
 
     init(
         scene: THREE.Scene,
@@ -36,7 +38,8 @@ export class ShootingSystem extends System {
         camera: CameraController,
         resourceManager: ResourceManager,
         network: NetworkManager,
-        otherPlayersRef?: Map<string, OtherPlayer>
+        otherPlayersRef?: Map<string, OtherPlayer>,
+        location?: Location
     ) {
         this.scene = scene;
         this.player = player;
@@ -45,10 +48,7 @@ export class ShootingSystem extends System {
         this.resourceManager = resourceManager;
         this.network = network;
         this.otherPlayersRef = otherPlayersRef || null;
-    }
-
-    registerCollidable(obj: THREE.Object3D) {
-        this.collidableObjects.push(obj);
+        this.location = location || null;
     }
 
     registerOtherPlayer(id: string, hitbox: THREE.Mesh) {
@@ -79,22 +79,76 @@ export class ShootingSystem extends System {
 
     private localShoot() {
         const cameraPos = this.camera.camera.getWorldPosition(new THREE.Vector3());
-        const direction = this.camera.getForwardDirection();
+        const cameraDir = this.camera.getForwardDirection();
 
-        this.network.sendShoot({
-            origin: cameraPos.toArray(),
-            direction: direction.toArray(),
+        this.raycaster.set(cameraPos, cameraDir);
+        this.raycaster.far = 300;
+
+        let hitPoint: THREE.Vector3 | null = null;
+        let targetId: string | null = null;
+        let minDistance = Infinity;
+
+        this.otherPlayerHitboxes.forEach((hitbox, id) => {
+            const op = this.otherPlayersRef?.get(id);
+            if (op && !op.isDead()) {
+                const box = new THREE.Box3().setFromObject(hitbox);
+                const intersectPoint = new THREE.Vector3();
+                if (this.raycaster.ray.intersectBox(box, intersectPoint)) {
+                    const dist = cameraPos.distanceTo(intersectPoint);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        hitPoint = intersectPoint.clone();
+                        targetId = id;
+                    }
+                }
+            }
         });
+
+        if (this.location) {
+            for (const box of this.location.colliders) {
+                const intersectPoint = new THREE.Vector3();
+                if (this.raycaster.ray.intersectBox(box, intersectPoint)) {
+                    const dist = cameraPos.distanceTo(intersectPoint);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        hitPoint = intersectPoint.clone();
+                        targetId = null;
+                    }
+                }
+            }
+        }
+
+        if (!hitPoint) {
+            hitPoint = cameraPos.clone().add(cameraDir.clone().multiplyScalar(300));
+        }
 
         const weapon = this.player.getWeapon();
         const muzzlePos = weapon.getWorldMuzzle();
-        
-        this.spawnBullet(muzzlePos, direction);
-        this.doRaycast(cameraPos, direction);
-        this.muzzleFlash(muzzlePos, direction);
+
+        const bulletDir = hitPoint.clone().sub(muzzlePos).normalize();
+
+        this.network.sendShoot({
+            origin: muzzlePos.toArray(),
+            direction: bulletDir.toArray(),
+        });
+
+        this.spawnBullet(muzzlePos, bulletDir, hitPoint);
+        this.muzzleFlash(muzzlePos, bulletDir);
+
+        const isPlayerHit = targetId !== null;
+        if (isPlayerHit) {
+            this.spawnBloodEffect(hitPoint);
+        } else {
+            this.spawnImpactEffect(hitPoint);
+        }
+
+        this.network.sendHit({
+            target: targetId,
+            point: hitPoint.toArray(),
+        });
     }
 
-    private spawnBullet(origin: THREE.Vector3, direction: THREE.Vector3) {
+    private spawnBullet(origin: THREE.Vector3, direction: THREE.Vector3, hitPoint: THREE.Vector3) {
         const data = this.resourceManager.getModel("bullet");
         if (!data) {
             throw new Error("Bullet model not found. Cannot spawn bullet.");
@@ -108,17 +162,25 @@ export class ShootingSystem extends System {
             origin.clone(),
             origin.clone(),
         ]);
-        const trailMat = new THREE.LineBasicMaterial({ color: 0xffff88, transparent: true, opacity: 0.6 });
+        const trailMat = new THREE.LineBasicMaterial({
+            color: 0xffff88,
+            transparent: true,
+            opacity: 0.6
+        });
         const trail = new THREE.Line(trailGeo, trailMat);
         this.scene.add(trail);
 
+        const distanceToHit = origin.distanceTo(hitPoint);
         const speed = 120;
+        const timeToHit = distanceToHit / speed;
+
         this.bullets.push({
             mesh: bulletMesh,
             trail,
             velocity: direction.clone().multiplyScalar(speed),
-            life: 1.5,
+            life: timeToHit,
             origin: origin.clone(),
+            hasHit: false,
         });
     }
 
@@ -127,39 +189,6 @@ export class ShootingSystem extends System {
         flash.position.copy(origin);
         this.scene.add(flash);
         setTimeout(() => this.scene.remove(flash), 60);
-    }
-
-    private doRaycast(origin: THREE.Vector3, direction: THREE.Vector3) {
-        this.raycaster.set(origin, direction);
-        this.raycaster.far = 300;
-
-        const targets: THREE.Object3D[] = [];
-        
-        this.otherPlayerHitboxes.forEach((hitbox, id) => {
-            const op = this.otherPlayersRef?.get(id);
-            if (op && !op.isDead()) {
-                targets.push(hitbox);
-            }
-        });
-        targets.push(...this.collidableObjects);
-
-        const hits = this.raycaster.intersectObjects(targets, true);
-        if (hits.length > 0) {
-            const hit = hits[0];
-            const targetId = this.findPlayerIdFromHitbox(hit.object);
-            const isPlayerHit = targetId !== null;
-
-            if (isPlayerHit) {
-                this.spawnBloodEffect(hit.point);
-            } else {
-                this.spawnImpactEffect(hit.point);
-            }
-
-            this.network.sendHit({
-                target: targetId,
-                point: hit.point.toArray(),
-            });
-        }
     }
 
     private spawnBloodEffect(point: THREE.Vector3) {
@@ -205,51 +234,22 @@ export class ShootingSystem extends System {
         }, 300);
     }
 
-    private findPlayerIdFromHitbox(obj: THREE.Object3D): string | null {
-        if (obj.userData.playerId) {
-            return obj.userData.playerId;
-        }
-        
-        let current: THREE.Object3D | null = obj;
-        while (current) {
-            if (current.userData.playerId) {
-                return current.userData.playerId;
-            }
-            current = current.parent;
-        }
-        
-        return null;
-    }
-
     private updateBullets(delta: number) {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
+
+            if (b.hasHit) {
+                continue;
+            }
+
             const step = b.velocity.clone().multiplyScalar(delta);
-            const stepLength = step.length();
+            const nextPos = b.mesh.position.clone().add(step);
 
-            this.raycaster.set(b.mesh.position, b.velocity.clone().normalize());
-            this.raycaster.far = stepLength;
+            const distanceTraveled = b.origin.distanceTo(nextPos);
+            const maxDistance = b.velocity.length() * b.life;
 
-            const allTargets: THREE.Object3D[] = [
-                ...this.collidableObjects,
-                ...Array.from(this.otherPlayerHitboxes.values())
-            ];
-
-            const hits = this.raycaster.intersectObjects(allTargets, true);
-
-            if (hits.length > 0) {
-                const hit = hits[0];
-                const targetId = this.findPlayerIdFromHitbox(hit.object);
-                
-                if (targetId !== null) {
-                    this.spawnBloodEffect(hit.point);
-                    this.network.sendHit({
-                        target: targetId,
-                        point: hit.point.toArray(),
-                    });
-                } else {
-                    this.spawnImpactEffect(hit.point);
-                }
+            if (distanceTraveled >= maxDistance) {
+                this.spawnImpactEffect(nextPos);
 
                 this.scene.remove(b.mesh);
                 this.scene.remove(b.trail);
@@ -258,8 +258,7 @@ export class ShootingSystem extends System {
                 continue;
             }
 
-            b.mesh.position.add(step);
-            b.life -= delta;
+            b.mesh.position.copy(nextPos);
 
             const positions = b.trail.geometry.attributes.position as THREE.BufferAttribute;
             if (positions) {
@@ -267,6 +266,8 @@ export class ShootingSystem extends System {
                 positions.setXYZ(1, b.mesh.position.x, b.mesh.position.y, b.mesh.position.z);
                 positions.needsUpdate = true;
             }
+
+            b.life -= delta;
 
             if (b.life <= 0) {
                 this.scene.remove(b.mesh);
@@ -280,7 +281,8 @@ export class ShootingSystem extends System {
     handleNetworkShoot(data: { origin: number[]; direction: number[] }) {
         const origin = new THREE.Vector3().fromArray(data.origin);
         const direction = new THREE.Vector3().fromArray(data.direction);
-        this.spawnBullet(origin, direction);
+        const farPoint = origin.clone().add(direction.clone().multiplyScalar(300));
+        this.spawnBullet(origin, direction, farPoint);
         this.muzzleFlash(origin, direction);
     }
 

@@ -3,57 +3,108 @@
 
 import { useEffect, useState } from "react";
 
-export interface DamageEvent {
-  id: number;
-  direction: number;
-  damage: number;
-  timestamp: number;
-}
-
 interface DamageIndicatorProps {
-  events: DamageEvent[];
-}
+    attackerId: string | null;
+    direction: number; 
+    }
 
-export function DamageIndicator({ events }: DamageIndicatorProps) {
-  return (
-    <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-40">
-      {events.map((event) => (
-        <DamageArrow key={event.id} event={event} />
-      ))}
-    </div>
-  );
-}
 
-function DamageArrow({ event }: { event: DamageEvent }) {
-  const [opacity, setOpacity] = useState(1);
-  const [offsetY, setOffsetY] = useState(0);
+export function DamageIndicator({ attackerId, direction }: DamageIndicatorProps) {
+    const [visible, setVisible] = useState(false);
+    const [displayDirection, setDisplayDirection] = useState(0);
 
-  useEffect(() => {
-    const fadeTimer = setTimeout(() => setOpacity(0), 1500);
-    const floatTimer = setTimeout(() => setOffsetY(-20), 50);
-    
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(floatTimer);
-    };
-  }, []);
+    useEffect(() => {
+        if (attackerId !== null) {
+            setVisible(true);
+        } else {
+            const t = setTimeout(() => setVisible(false), 100);
+            return () => clearTimeout(t);
+        }
+    }, [attackerId]);
 
-  const rotation = (event.direction * 180) / Math.PI;
+    useEffect(() => {
+        if (attackerId !== null) {
+            setDisplayDirection(direction);
+        }
+    }, [direction, attackerId]);
 
-  return (
-    <div
-      className="absolute transition-all duration-1500 ease-out"
-      style={{
-        opacity,
-        transform: `rotate(${rotation}deg) translateY(${-80 + offsetY}px)`,
-      }}
-    >
-      <div className="flex flex-col items-center">
-        <div className="w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-b-[24px] border-b-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-        <div className="text-red-500 font-bold text-lg mt-1 drop-shadow-[0_0_4px_rgba(0,0,0,0.8)]">
-          -{event.damage}
+    if (!visible || attackerId === null) return null;
+
+
+    const rotationDeg = (displayDirection * 180) / Math.PI;
+
+    return (
+        <div className="absolute inset-0 pointer-events-none z-30 flex items-start justify-center overflow-hidden">
+            <div
+                className="absolute top-0 left-1/2 transition-transform duration-75 ease-out"
+                style={{
+                    transform: `translateX(-50%) rotate(${rotationDeg}deg)`,
+                    transformOrigin: '50% 400px',
+                }}
+            >
+                <svg
+                    width="600"
+                    height="200"
+                    viewBox="-300 -200 600 200"
+                    className="drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]"
+                    style={{
+                        transform: 'translateY(-100px)',
+                    }}
+                >
+                    <defs>
+                        <linearGradient id="damageGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="rgba(239, 68, 68, 0)" />
+                            <stop offset="50%" stopColor="rgba(239, 68, 68, 0.9)" />
+                            <stop offset="100%" stopColor="rgba(239, 68, 68, 0.3)" />
+                        </linearGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                            <feMerge>
+                                <feMergeNode in="coloredBlur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+
+                    <path
+                        d="M -250 -50 A 250 250 0 0 1 250 -50"
+                        fill="none"
+                        stroke="url(#damageGradient)"
+                        strokeWidth="16"
+                        strokeLinecap="round"
+                        filter="url(#glow)"
+                        opacity="0.95"
+                    />
+
+                    <path
+                        d="M -250 -50 A 250 250 0 0 1 250 -50"
+                        fill="none"
+                        stroke="rgba(255, 150, 150, 0.6)"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                    />
+
+                    <g transform="translate(0, -50)">
+                        <polygon
+                            points="0,-25 -12,0 12,0"
+                            fill="rgb(239, 68, 68)"
+                            filter="url(#glow)"
+                        />
+                        <polygon
+                            points="0,-20 -7,-3 7,-3"
+                            fill="rgba(255, 200, 200, 0.8)"
+                        />
+                    </g>
+                </svg>
+            </div>
+
+            <div
+                className="absolute inset-0 transition-opacity duration-200"
+                style={{
+                    opacity: visible ? 0.3 : 0,
+                    background: `radial-gradient(ellipse at ${50 + Math.sin(displayDirection) * 30}% ${50 - Math.cos(displayDirection) * 30}%, rgba(239, 68, 68, 0.4) 0%, transparent 50%)`,
+                }}
+            />
         </div>
-      </div>
-    </div>
-  );
+    );
 }

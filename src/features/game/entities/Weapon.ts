@@ -18,12 +18,29 @@ export class Weapon {
         }
         
         const rifle = data.scene;
+        
+        const box = new THREE.Box3().setFromObject(rifle);
+        const size = box.getSize(new THREE.Vector3());
+        
+        const targetLength = 0.9;
+        
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = targetLength / maxDim;
+        rifle.scale.setScalar(scale);
+        
+        console.log(`🔫 [Weapon] Original size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+        console.log(`🔫 [Weapon] Scaled by: ${scale.toFixed(3)} (target: ${targetLength}m)`);
+        
+        const scaledBox = new THREE.Box3().setFromObject(rifle);
+        const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+        rifle.position.sub(scaledCenter);
+        
         rifle.position.set(0.25, 1.35, -0.4);
         rifle.rotation.set(0, Math.PI, 0);
         
         this.mesh.add(rifle);
 
-        this.muzzle.position.set(0, 0, -0.8);
+        this.muzzle.position.set(0.25, 1.35, -0.8);
         this.mesh.add(this.muzzle);
 
         playerMesh.add(this.mesh);

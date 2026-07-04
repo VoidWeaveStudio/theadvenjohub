@@ -16,7 +16,7 @@ interface NotificationsProps {
 
 export function Notifications({ notifications, onRemove }: NotificationsProps) {
     return (
-        <div className="absolute top-24 left-1/2 -translate-x-1/2 space-y-2 pointer-events-none z-40">
+        <div className="absolute top-20 right-4 space-y-2 pointer-events-none z-40 w-80">
             {notifications.map((n) => (
                 <NotificationItem key={n.id} notification={n} onRemove={onRemove} />
             ))}
@@ -47,8 +47,9 @@ function NotificationItem({
 
     return (
         <div
-            className={`px-6 py-3 bg-black/80 backdrop-blur border border-cyan-400/50 rounded-lg text-cyan-300 font-medium shadow-lg shadow-cyan-500/20 transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
-                }`}
+            className={`px-4 py-2 bg-black/80 backdrop-blur border border-cyan-400/50 rounded-lg text-cyan-300 font-medium text-sm shadow-lg shadow-cyan-500/20 transition-all duration-300 ${
+                visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4"
+            }`}
         >
             {notification.message}
         </div>
