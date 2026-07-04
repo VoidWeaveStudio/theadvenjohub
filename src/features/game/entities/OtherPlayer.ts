@@ -23,9 +23,21 @@ export class OtherPlayer extends Entity {
     private dead: boolean = false;
     private health: number = 100;
 
+    private hitbox: THREE.Mesh;
+
     constructor(id: string, nickname: string) {
         super(id);
         this.nickname = nickname;
+
+        const hitboxGeometry = new THREE.BoxGeometry(0.8, 1.8, 0.8);
+        const hitboxMaterial = new THREE.MeshBasicMaterial({
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+        });
+        this.hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+        this.hitbox.position.set(0, 0.9, 0);
+        this.hitbox.userData.playerId = id;
     }
 
     create(scene: THREE.Scene, resourceManager: ResourceManager) {
@@ -63,6 +75,8 @@ export class OtherPlayer extends Entity {
         this.nameSprite = this.createNameTag(this.nickname);
         this.mesh.add(this.nameSprite);
 
+        scene.add(this.hitbox);
+
         scene.add(this.mesh);
     }
 
@@ -90,6 +104,7 @@ export class OtherPlayer extends Entity {
     public setDead(dead: boolean) {
         this.dead = dead;
         this.mesh.visible = !dead;
+        this.hitbox.visible = !dead;
     }
 
     public isDead(): boolean {
@@ -104,14 +119,22 @@ export class OtherPlayer extends Entity {
         return this.health;
     }
 
+    public getHitbox(): THREE.Mesh {
+        return this.hitbox;
+    }
+
     update(delta: number) {
         if (this.dead) return;
 
         this.time += delta;
         this.mesh.position.lerp(this.targetPosition, Math.min(1, delta * 12));
 
+        this.hitbox.position.copy(this.mesh.position);
+        this.hitbox.position.y += 0.9;
+
         const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.targetRotation, 0));
         this.mesh.quaternion.slerp(targetQuat, Math.min(1, delta * 12));
+        this.hitbox.quaternion.copy(this.mesh.quaternion);
 
         if (this.headBone) {
             const headQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.targetPitch, 0, 0));
@@ -164,6 +187,8 @@ export class OtherPlayer extends Entity {
 
         if (!this.initialized) {
             this.mesh.position.copy(this.targetPosition);
+            this.hitbox.position.copy(this.targetPosition);
+            this.hitbox.position.y += 0.9;
             this.initialized = true;
         }
 
@@ -177,5 +202,11 @@ export class OtherPlayer extends Entity {
         if (data.health !== undefined) {
             this.setHealth(data.health);
         }
+    }
+
+    dispose(scene: THREE.Scene) {
+        super.dispose(scene);
+        scene.remove(this.hitbox);
+        this.hitbox.geometry.dispose();
     }
 }

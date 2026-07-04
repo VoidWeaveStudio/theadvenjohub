@@ -196,7 +196,7 @@ export class Game {
             op.create(currentLocation.scene, this.resourceManager);
             op.updateFromNetwork(data);
             this.otherPlayers.set(data.id, op);
-            this.shootingSystem.registerOtherPlayer(data.id, op.mesh);
+            this.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
             this.hudState.online = this.otherPlayers.size + 1;
             this.emitState(true);
 

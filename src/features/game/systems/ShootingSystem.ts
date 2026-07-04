@@ -26,7 +26,8 @@ export class ShootingSystem extends System {
     private raycaster: THREE.Raycaster = new THREE.Raycaster();
     private bullets: Bullet[] = [];
     private collidableObjects: THREE.Object3D[] = [];
-    private otherPlayerMeshes: Map<string, THREE.Object3D> = new Map();
+
+    private otherPlayerHitboxes: Map<string, THREE.Mesh> = new Map();
     private otherPlayersRef: Map<string, OtherPlayer> | null = null;
 
     init(
@@ -51,12 +52,12 @@ export class ShootingSystem extends System {
         this.collidableObjects.push(obj);
     }
 
-    registerOtherPlayer(id: string, mesh: THREE.Object3D) {
-        this.otherPlayerMeshes.set(id, mesh);
+    registerOtherPlayer(id: string, hitbox: THREE.Mesh) {
+        this.otherPlayerHitboxes.set(id, hitbox);
     }
 
     unregisterOtherPlayer(id: string) {
-        this.otherPlayerMeshes.delete(id);
+        this.otherPlayerHitboxes.delete(id);
     }
 
     update(delta: number) {
@@ -132,10 +133,11 @@ export class ShootingSystem extends System {
         this.raycaster.far = 300;
 
         const targets: THREE.Object3D[] = [];
-        this.otherPlayerMeshes.forEach((m, id) => {
+
+        this.otherPlayerHitboxes.forEach((hitbox, id) => {
             const op = this.otherPlayersRef?.get(id);
             if (op && !op.isDead()) {
-                targets.push(m);
+                targets.push(hitbox);
             }
         });
         targets.push(...this.collidableObjects);
@@ -143,7 +145,7 @@ export class ShootingSystem extends System {
         const hits = this.raycaster.intersectObjects(targets, true);
         if (hits.length > 0) {
             const hit = hits[0];
-            const targetId = this.findPlayerIdFromMesh(hit.object);
+            const targetId = this.findPlayerIdFromHitbox(hit.object);
             const isPlayerHit = targetId !== null;
 
             if (isPlayerHit) {
@@ -202,14 +204,19 @@ export class ShootingSystem extends System {
         }, 300);
     }
 
-    private findPlayerIdFromMesh(obj: THREE.Object3D): string | null {
-        for (const [id, mesh] of this.otherPlayerMeshes.entries()) {
-            let cur: THREE.Object3D | null = obj;
-            while (cur) {
-                if (cur === mesh) return id;
-                cur = cur.parent;
-            }
+    private findPlayerIdFromHitbox(obj: THREE.Object3D): string | null {
+        if (obj.userData.playerId) {
+            return obj.userData.playerId;
         }
+
+        let current: THREE.Object3D | null = obj;
+        while (current) {
+            if (current.userData.playerId) {
+                return current.userData.playerId;
+            }
+            current = current.parent;
+        }
+
         return null;
     }
 
