@@ -5,7 +5,11 @@ export type PlayerNetData = {
   position: number[];
   rotation: number;
   pitch: number;
-  animation: string;
+  state: 'idle' | 'walk' | 'sprint' | 'jump';
+  jumping: boolean;
+  velocityY: number;
+  health: number;
+  alive: boolean;
 };
 
 export interface GameSession {
@@ -42,6 +46,32 @@ export class NetworkManager {
   public onProgressLoaded?: (data: any) => void;
   public onAuthError?: (error: string) => void;
 
+  public onPlayerDamaged?: (data: {
+    targetId: string;
+    attackerId: string;
+    damage: number;
+    health: number;
+    point: number[];
+    historicalPosition?: number[];
+  }) => void;
+
+  public onPlayerDeath?: (data: {
+    playerId: string;
+    killerId: string;
+    position: number[];
+  }) => void;
+
+  public onPlayerRespawn?: (data: {
+    id: string;
+    position: number[];
+    health: number;
+  }) => void;
+
+  public onRespawn?: (data: {
+    position: number[];
+    health: number;
+  }) => void;
+
   connect(session: GameSession) {
     this.session = session;
     this.authenticated = false;
@@ -61,7 +91,6 @@ export class NetworkManager {
           const data = JSON.parse(event.data);
           this.handleMessage(data);
         } catch (e) {
-          // Parse error
         }
       };
 
@@ -79,7 +108,6 @@ export class NetworkManager {
 
       this.ws.onerror = () => { };
     } catch (e) {
-      // Connect failed
     }
   }
 
@@ -116,19 +144,43 @@ export class NetworkManager {
               position: p.position,
               rotation: p.rotation,
               pitch: p.pitch || 0,
-              animation: p.animation || "idle",
+              state: p.state || 'idle',
+              jumping: !!p.jumping,
+              velocityY: p.velocityY || 0,
+              health: p.health ?? 100,
+              alive: p.alive ?? true,
             });
           }
         }
         break;
       case "playerJoin":
-        this.onPlayerJoin?.(data);
+        this.onPlayerJoin?.({
+          ...data,
+          health: data.health ?? 100,
+          alive: data.alive ?? true,
+        });
         break;
       case "playerLeave":
         this.onPlayerLeave?.(data.playerId);
         break;
       case "playerUpdate":
-        this.onPlayerUpdate?.(data);
+        this.onPlayerUpdate?.({
+          ...data,
+          health: data.health ?? 100,
+          alive: data.alive ?? true,
+        });
+        break;
+      case "playerDamaged":
+        this.onPlayerDamaged?.(data);
+        break;
+      case "playerDeath":
+        this.onPlayerDeath?.(data);
+        break;
+      case "playerRespawn":
+        this.onPlayerRespawn?.(data);
+        break;
+      case "respawn":
+        this.onRespawn?.(data);
         break;
       case "shoot":
         this.onShoot?.(data);
@@ -174,7 +226,6 @@ export class NetworkManager {
       try {
         this.ws.send(JSON.stringify(data));
       } catch (e) {
-        // Send error
       }
     }
   }
@@ -183,7 +234,9 @@ export class NetworkManager {
     position: number[];
     rotation: number;
     pitch: number;
-    animation: string;
+    state: string;
+    jumping: boolean;
+    velocityY: number;
   }) {
     if (!this.authenticated) return;
 
@@ -196,6 +249,11 @@ export class NetworkManager {
   sendShoot(data: { origin: number[]; direction: number[] }) {
     if (!this.authenticated) return;
     this.send({ type: "shoot", ...data });
+  }
+
+  sendHit(data: { target: string | null; point: number[] }) {
+    if (!this.authenticated) return;
+    this.send({ type: "hit", ...data });
   }
 
   sendChatMessage(message: string) {

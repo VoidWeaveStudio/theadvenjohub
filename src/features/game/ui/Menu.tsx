@@ -96,9 +96,10 @@ export function Menu({ isOpen, onClose, nickname, onNicknameChange }: MenuProps)
                 {tab === "controls" && (
                     <div className="bg-zinc-800/50 p-4 rounded-lg border border-zinc-700">
                         <div className="space-y-2 text-sm">
-                            {[
+                             {[
                                 ["WASD", "Move"],
                                 ["Shift", "Sprint"],
+                                ["Space", "Jump"],
                                 ["Mouse", "Look around"],
                                 ["Left Click", "Shoot"],
                                 ["R", "Reload"],

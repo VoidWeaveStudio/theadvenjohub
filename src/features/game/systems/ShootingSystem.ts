@@ -6,6 +6,7 @@ import { InputManager } from "../core/InputManager";
 import { CameraController } from "../core/CameraController";
 import { ResourceManager } from "../core/ResourceManager";
 import { NetworkManager } from "../network/NetworkManager";
+import { OtherPlayer } from "../entities/OtherPlayer";
 
 interface Bullet {
     mesh: THREE.Mesh;
@@ -14,7 +15,7 @@ interface Bullet {
     life: number;
     origin: THREE.Vector3;
 }
- 
+
 export class ShootingSystem extends System {
     private scene!: THREE.Scene;
     private player!: Player;
@@ -26,6 +27,7 @@ export class ShootingSystem extends System {
     private bullets: Bullet[] = [];
     private collidableObjects: THREE.Object3D[] = [];
     private otherPlayerMeshes: Map<string, THREE.Object3D> = new Map();
+    private otherPlayersRef: Map<string, OtherPlayer> | null = null;
 
     init(
         scene: THREE.Scene,
@@ -33,7 +35,8 @@ export class ShootingSystem extends System {
         inputManager: InputManager,
         camera: CameraController,
         resourceManager: ResourceManager,
-        network: NetworkManager
+        network: NetworkManager,
+        otherPlayersRef?: Map<string, OtherPlayer>
     ) {
         this.scene = scene;
         this.player = player;
@@ -41,6 +44,7 @@ export class ShootingSystem extends System {
         this.camera = camera;
         this.resourceManager = resourceManager;
         this.network = network;
+        this.otherPlayersRef = otherPlayersRef || null;
     }
 
     registerCollidable(obj: THREE.Object3D) {
@@ -128,26 +132,74 @@ export class ShootingSystem extends System {
         this.raycaster.far = 300;
 
         const targets: THREE.Object3D[] = [];
-        this.otherPlayerMeshes.forEach((m) => targets.push(m));
+        this.otherPlayerMeshes.forEach((m, id) => {
+            const op = this.otherPlayersRef?.get(id);
+            if (op && !op.isDead()) {
+                targets.push(m);
+            }
+        });
         targets.push(...this.collidableObjects);
 
         const hits = this.raycaster.intersectObjects(targets, true);
         if (hits.length > 0) {
             const hit = hits[0];
-            const impact = new THREE.Mesh(
-                new THREE.SphereGeometry(0.1, 6, 6),
-                new THREE.MeshBasicMaterial({ color: 0xff6600 })
-            );
-            impact.position.copy(hit.point);
-            this.scene.add(impact);
-            setTimeout(() => this.scene.remove(impact), 200);
+            const targetId = this.findPlayerIdFromMesh(hit.object);
+            const isPlayerHit = targetId !== null;
 
-            this.network.send({
-                type: "hit",
-                target: this.findPlayerIdFromMesh(hit.object),
+            if (isPlayerHit) {
+                this.spawnBloodEffect(hit.point);
+            } else {
+                this.spawnImpactEffect(hit.point);
+            }
+
+            this.network.sendHit({
+                target: targetId,
                 point: hit.point.toArray(),
             });
         }
+    }
+
+    private spawnBloodEffect(point: THREE.Vector3) {
+        for (let i = 0; i < 5; i++) {
+            const particle = new THREE.Mesh(
+                new THREE.SphereGeometry(0.05, 4, 4),
+                new THREE.MeshBasicMaterial({ color: 0xff0000 })
+            );
+            particle.position.copy(point);
+            this.scene.add(particle);
+
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 2,
+                (Math.random() - 0.5) * 2
+            );
+
+            const animate = () => {
+                particle.position.add(velocity.clone().multiplyScalar(0.016));
+                velocity.y -= 0.1;
+                particle.scale.multiplyScalar(0.95);
+                if (particle.scale.x > 0.1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    this.scene.remove(particle);
+                    particle.geometry.dispose();
+                }
+            };
+            animate();
+        }
+    }
+
+    private spawnImpactEffect(point: THREE.Vector3) {
+        const impact = new THREE.Mesh(
+            new THREE.SphereGeometry(0.1, 6, 6),
+            new THREE.MeshBasicMaterial({ color: 0xffaa00 })
+        );
+        impact.position.copy(point);
+        this.scene.add(impact);
+        setTimeout(() => {
+            this.scene.remove(impact);
+            impact.geometry.dispose();
+        }, 300);
     }
 
     private findPlayerIdFromMesh(obj: THREE.Object3D): string | null {
@@ -165,6 +217,20 @@ export class ShootingSystem extends System {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
             const step = b.velocity.clone().multiplyScalar(delta);
+
+            this.raycaster.set(b.mesh.position, b.velocity.clone().normalize());
+            this.raycaster.far = step.length();
+            const hits = this.raycaster.intersectObjects(this.collidableObjects, true);
+
+            if (hits.length > 0) {
+                this.spawnImpactEffect(hits[0].point);
+                this.scene.remove(b.mesh);
+                this.scene.remove(b.trail);
+                b.trail.geometry.dispose();
+                this.bullets.splice(i, 1);
+                continue;
+            }
+
             b.mesh.position.add(step);
             b.life -= delta;
 

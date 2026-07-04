@@ -2,12 +2,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Game, HUDState } from "./core/Game";
+import { Game, HUDState, DamageEvent } from "./core/Game";
 import { HUD } from "./ui/HUD";
 import { Menu } from "./ui/Menu";
 import { Hotbar } from "./ui/Hotbar";
 import { Notifications } from "./ui/Notifications";
 import { Chat, ChatMessage } from "./ui/Chat";
+import { DamageIndicator } from "./ui/DamageIndicator";
 import { Spinner } from "@/core/ui/Spinner";
 import { apiPost } from "@/core/api/client";
 
@@ -36,12 +37,14 @@ export function GameClient({ slug }: GameClientProps) {
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing game...");
   const [isPointerLocked, setIsPointerLocked] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false); // 🔥 ДОБАВЛЕНО
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [nickname, setNickname] = useState("Player");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isChatVisible, setIsChatVisible] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  const [damageEvents, setDamageEvents] = useState<DamageEvent[]>([]);
 
   const [hudState, setHudState] = useState<HUDState>({
     health: 100,
@@ -125,6 +128,13 @@ export function GameClient({ slug }: GameClientProps) {
         };
         game.onNicknameLoaded = (nick: string) => {
           if (nick) setNickname(nick);
+        };
+
+        game.onDamageEvent = (event) => {
+          setDamageEvents((prev) => [...prev, event]);
+          setTimeout(() => {
+            setDamageEvents((prev) => prev.filter((e) => e.id !== event.id));
+          }, 2000);
         };
 
         await game.init();
@@ -234,6 +244,8 @@ export function GameClient({ slug }: GameClientProps) {
       <HUD state={hudState} isPointerLocked={isPointerLocked} />
       <Hotbar slots={hotbar} />
       <Notifications notifications={notifications} onRemove={removeNotification} />
+
+      <DamageIndicator events={damageEvents} />
 
       <Chat
         messages={chatMessages}

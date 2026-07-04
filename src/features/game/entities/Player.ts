@@ -6,18 +6,33 @@ import { ResourceManager } from "../core/ResourceManager";
 import { CameraController } from "../core/CameraController";
 import { Weapon } from "./Weapon";
 
+export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
+
 export class Player extends Entity {
     private speed: number = 7;
     private sprintMultiplier: number = 1.6;
     private weapon: Weapon;
-    private mixer: THREE.AnimationMixer | null = null;
-    private actions: Record<string, THREE.AnimationAction> = {};
-    private currentAnim: string = "idle";
     private time: number = 0;
+
+    private velocityY: number = 0;
+    private isGrounded: boolean = true;
+    private jumpCooldown: number = 0;
+    private baseY: number = 0;
+    private readonly GRAVITY = 22;
+    private readonly JUMP_FORCE = 8.5;
+    private readonly JUMP_COOLDOWN_TIME = 0.15;
 
     private inputManager!: InputManager;
     private camera!: CameraController;
     private colliders: THREE.Box3[] = [];
+
+    private head: THREE.Object3D | null = null;
+    private neck: THREE.Object3D | null = null;
+    private leftLeg: THREE.Object3D | null = null;
+    private rightLeg: THREE.Object3D | null = null;
+    private leftArm: THREE.Object3D | null = null;
+    private rightArm: THREE.Object3D | null = null;
+    private spine: THREE.Object3D | null = null;
 
     private static readonly _moveDir = new THREE.Vector3();
     private static readonly _step = new THREE.Vector3();
@@ -54,29 +69,35 @@ export class Player extends Entity {
 
         this.mesh.add(data.scene);
 
-        if (data.animations.length > 0) {
-            this.mixer = new THREE.AnimationMixer(data.scene);
+        data.scene.traverse((child: THREE.Object3D) => {
+            const name = child.name.toLowerCase();
 
-            for (const clip of data.animations) {
-                const key = clip.name.toLowerCase();
-                this.actions[key] = this.mixer.clipAction(clip);
-            }
-
-            const idleKey = Object.keys(this.actions).find(k => k.includes("idle"));
-            if (idleKey) {
-                this.actions[idleKey].play();
-                this.currentAnim = idleKey;
-            } else {
-                const firstKey = Object.keys(this.actions)[0];
-                if (firstKey) {
-                    this.actions[firstKey].play();
-                    this.currentAnim = firstKey;
-                }
-            }
-        }
+            if (name.includes('head')) this.head = child;
+            else if (name.includes('neck')) this.neck = child;
+            else if (name.includes('leg') && name.includes('left')) this.leftLeg = child;
+            else if (name.includes('leg') && name.includes('right')) this.rightLeg = child;
+            else if (name.includes('arm') && name.includes('left')) this.leftArm = child;
+            else if (name.includes('arm') && name.includes('right')) this.rightArm = child;
+            else if (name.includes('spine') || name.includes('body')) this.spine = child;
+        });
 
         this.weapon.create(this.mesh, resourceManager);
+
+        let handBone: THREE.Object3D | undefined;
+        data.scene.traverse((child: THREE.Object3D) => {
+            const name = child.name.toLowerCase();
+            if (name.includes('hand') && name.includes('right')) {
+                handBone = child;
+            }
+        });
+
+        if (handBone) {
+            this.mesh.remove(this.weapon.mesh);
+            (handBone as THREE.Object3D).add(this.weapon.mesh);
+        }
+
         this.mesh.position.set(0, 0, 0);
+        this.baseY = 0;
         scene.add(this.mesh);
     }
 
@@ -86,22 +107,19 @@ export class Player extends Entity {
         this.colliders = colliders;
     }
 
-    playAnimation(name: string) {
-        if (!this.mixer) return;
+    public setHealth(health: number) {
+        this.health = Math.max(0, Math.min(this.maxHealth, health));
+    }
 
-        const next = this.actions[name.toLowerCase()];
-        if (!next || this.currentAnim === name.toLowerCase()) return;
-
-        const current = this.actions[this.currentAnim];
-        if (current) current.fadeOut(0.3);
-        next.reset().fadeIn(0.3).play();
-        this.currentAnim = name.toLowerCase();
+    public takeDamage(damage: number) {
+        this.health = Math.max(0, this.health - damage);
     }
 
     update(delta: number) {
         if (!this.inputManager || !this.camera) return;
 
         this.time += delta;
+        if (this.jumpCooldown > 0) this.jumpCooldown -= delta;
 
         const moveDir = Player._moveDir.set(0, 0, 0);
         if (this.inputManager.isKeyPressed("KeyW")) moveDir.z -= 1;
@@ -109,18 +127,42 @@ export class Player extends Entity {
         if (this.inputManager.isKeyPressed("KeyA")) moveDir.x -= 1;
         if (this.inputManager.isKeyPressed("KeyD")) moveDir.x += 1;
 
-        this.mesh.rotation.y = this.camera.getYaw();
-
         const isSprinting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
         const currentSpeed = this.speed * (isSprinting ? this.sprintMultiplier : 1);
 
         let moved = false;
+
+        if (this.inputManager.isKeyJustPressed("Space") && this.isGrounded && this.jumpCooldown <= 0) {
+            this.velocityY = this.JUMP_FORCE;
+            this.isGrounded = false;
+            this.jumpCooldown = this.JUMP_COOLDOWN_TIME;
+        }
+
+        if (!this.isGrounded) {
+            this.velocityY -= this.GRAVITY * delta;
+            this.baseY += this.velocityY * delta;
+
+            if (this.baseY <= 0) {
+                this.baseY = 0;
+                this.velocityY = 0;
+                this.isGrounded = true;
+            }
+        }
+
+        const isShooting = this.inputManager.isMousePressed(0);
+        const isInteracting = this.inputManager.isKeyJustPressed("KeyE");
+        const shouldFaceLookDirection = isShooting || isInteracting;
+
         if (moveDir.lengthSq() > 0) {
             moveDir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camera.getYaw());
-            const step = Player._step.copy(moveDir).multiplyScalar(currentSpeed * delta);
+            const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+            this.rotateToAngle(targetAngle, delta);
 
+            const step = Player._step.copy(moveDir).multiplyScalar(currentSpeed * delta);
             const nextPos = Player._nextPos.copy(this.mesh.position).add(step);
-            const playerBox = Player._playerBox.setFromCenterAndSize(nextPos, Player._playerSize);
+
+            const groundPos = new THREE.Vector3(nextPos.x, 0, nextPos.z);
+            const playerBox = Player._playerBox.setFromCenterAndSize(groundPos, Player._playerSize);
 
             let blocked = false;
             for (let i = 0; i < this.colliders.length; i++) {
@@ -131,21 +173,131 @@ export class Player extends Entity {
             }
 
             if (!blocked) {
-                this.mesh.position.copy(nextPos);
+                this.mesh.position.x = nextPos.x;
+                this.mesh.position.z = nextPos.z;
                 moved = true;
             }
+        } else if (shouldFaceLookDirection) {
+            const targetAngle = this.getCameraLookAngle();
+            this.rotateToAngle(targetAngle, delta);
         }
 
-        if (moved) {
-            const bobFreq = isSprinting ? 14 : 10;
-            const bobAmp = isSprinting ? 0.08 : 0.05;
-            this.mesh.position.y = Math.abs(Math.sin(this.time * bobFreq)) * bobAmp;
-        } else {
-            this.mesh.position.y = Math.sin(this.time * 2) * 0.02;
+        let bobOffset = 0;
+        if (this.isGrounded) {
+            if (moved) {
+                const bobFreq = isSprinting ? 14 : 10;
+                const bobAmp = isSprinting ? 0.08 : 0.05;
+                bobOffset = Math.abs(Math.sin(this.time * bobFreq)) * bobAmp;
+            } else {
+                bobOffset = Math.sin(this.time * 2) * 0.02;
+            }
         }
+        this.mesh.position.y = this.baseY + bobOffset;
 
-        this.mixer?.update(delta);
+        this.updateHeadRotation();
+
+        const currentState = this.getCurrentState(moved, isSprinting);
+        this.updateProceduralAnimation(currentState, moved, isSprinting, delta);
+
         this.weapon.update(delta);
+    }
+
+    private getCameraLookAngle(): number {
+        const camYaw = this.camera.getYaw();
+        return Math.atan2(-Math.sin(camYaw), -Math.cos(camYaw));
+    }
+
+    private rotateToAngle(targetAngle: number, delta: number) {
+        let angleDiff = targetAngle - this.mesh.rotation.y;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+        const turnSpeed = 10;
+        this.mesh.rotation.y += angleDiff * Math.min(1, turnSpeed * delta);
+    }
+
+    private getCurrentState(isMoving: boolean, isSprinting: boolean): PlayerState {
+        if (!this.isGrounded) return 'jump';
+        if (isMoving && isSprinting) return 'sprint';
+        if (isMoving) return 'walk';
+        return 'idle';
+    }
+
+    public getState(): PlayerState {
+        const moveDir = new THREE.Vector3();
+        if (this.inputManager?.isKeyPressed("KeyW")) moveDir.z -= 1;
+        if (this.inputManager?.isKeyPressed("KeyS")) moveDir.z += 1;
+        if (this.inputManager?.isKeyPressed("KeyA")) moveDir.x -= 1;
+        if (this.inputManager?.isKeyPressed("KeyD")) moveDir.x += 1;
+        const isSprinting = this.inputManager?.isKeyPressed("ShiftLeft") || this.inputManager?.isKeyPressed("ShiftRight");
+        return this.getCurrentState(moveDir.lengthSq() > 0, !!isSprinting);
+    }
+
+    public isJumping(): boolean {
+        return !this.isGrounded;
+    }
+
+    public getVelocityY(): number {
+        return this.velocityY;
+    }
+
+    private updateHeadRotation() {
+        if (!this.head) return;
+
+        let headYaw = this.camera.getYaw() - this.mesh.rotation.y;
+        while (headYaw > Math.PI) headYaw -= Math.PI * 2;
+        while (headYaw < -Math.PI) headYaw += Math.PI * 2;
+
+        const maxHeadYaw = Math.PI * 0.5;
+        const clampedYaw = Math.max(-maxHeadYaw, Math.min(maxHeadYaw, headYaw));
+
+        this.head.rotation.y += (clampedYaw - this.head.rotation.y) * 0.3;
+
+        const targetPitchX = -this.camera.getPitch();
+        const maxPitchX = Math.PI * 0.4;
+        const clampedPitchX = Math.max(-maxPitchX, Math.min(maxPitchX, targetPitchX));
+
+        if (this.neck) {
+            this.neck.rotation.x += (clampedPitchX * 0.6 - this.neck.rotation.x) * 0.3;
+        }
+        this.head.rotation.x += (clampedPitchX - this.head.rotation.x) * 0.3;
+    }
+
+    private updateProceduralAnimation(state: PlayerState, isMoving: boolean, isSprinting: boolean, delta: number) {
+        const walkSpeed = isSprinting ? 12 : 8;
+        const walkAmplitude = isSprinting ? 0.8 : 0.5;
+        const armAmplitude = isSprinting ? 0.6 : 0.4;
+
+        if (state === 'jump') {
+            const isRising = this.velocityY > 0;
+
+            if (this.leftLeg) this.leftLeg.rotation.x = isRising ? -0.5 : 0.3;
+            if (this.rightLeg) this.rightLeg.rotation.x = isRising ? -0.5 : 0.3;
+            if (this.leftArm) {
+                this.leftArm.rotation.x = isRising ? -0.8 : 0.2;
+                this.leftArm.rotation.z = isRising ? -0.3 : 0;
+            }
+            if (this.rightArm) {
+                this.rightArm.rotation.x = isRising ? -0.8 : 0.2;
+                this.rightArm.rotation.z = isRising ? 0.3 : 0;
+            }
+            if (this.spine) this.spine.rotation.x = isRising ? -0.1 : 0.05;
+        } else if (isMoving) {
+            if (this.leftLeg) this.leftLeg.rotation.x = Math.sin(this.time * walkSpeed) * walkAmplitude;
+            if (this.rightLeg) this.rightLeg.rotation.x = -Math.sin(this.time * walkSpeed) * walkAmplitude;
+            if (this.leftArm) this.leftArm.rotation.x = -Math.sin(this.time * walkSpeed) * armAmplitude;
+            if (this.rightArm) this.rightArm.rotation.x = Math.sin(this.time * walkSpeed) * (armAmplitude * 0.3);
+            if (this.spine) this.spine.rotation.x = isSprinting ? 0.15 : 0.05;
+        } else {
+            const breathSpeed = 2;
+            const breathAmplitude = 0.05;
+
+            if (this.leftLeg) this.leftLeg.rotation.x = 0;
+            if (this.rightLeg) this.rightLeg.rotation.x = 0;
+            if (this.leftArm) this.leftArm.rotation.x = Math.sin(this.time * breathSpeed) * breathAmplitude;
+            if (this.rightArm) this.rightArm.rotation.x = Math.sin(this.time * breathSpeed) * breathAmplitude;
+            if (this.spine) this.spine.rotation.x = Math.sin(this.time * breathSpeed) * breathAmplitude * 0.5;
+        }
     }
 
     getWeapon(): Weapon {

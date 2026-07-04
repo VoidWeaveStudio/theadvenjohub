@@ -32,6 +32,13 @@ export interface HUDState {
     prompt: string | null;
 }
 
+export interface DamageEvent {
+    id: number;
+    direction: number;
+    damage: number;
+    timestamp: number;
+}
+
 export class Game {
     private canvas: HTMLCanvasElement;
     private slug: string;
@@ -77,6 +84,7 @@ export class Game {
     public onLoadStateChange?: (loading: boolean) => void;
     public onChatMessage?: (message: ChatMessage) => void;
     public onNicknameLoaded?: (nickname: string) => void;
+    public onDamageEvent?: (event: DamageEvent) => void;
 
     constructor(canvas: HTMLCanvasElement, slug: string, session: GameSession) {
         this.canvas = canvas;
@@ -147,7 +155,8 @@ export class Game {
             this.inputManager,
             this.cameraController,
             this.resourceManager,
-            this.networkManager
+            this.networkManager,
+            this.otherPlayers
         );
 
         this.safeZoneSystem.init(this.safeZone);
@@ -164,7 +173,6 @@ export class Game {
             this.emitState(true);
         };
 
-
         this.setupNetwork();
 
         this.isLoaded = true;
@@ -177,26 +185,15 @@ export class Game {
         window.addEventListener("orientationchange", this.handleResize);
     }
 
-
     private setupNetwork() {
         this.networkManager.connect(this.session);
 
         this.networkManager.onPlayerJoin = (data) => {
-            console.log(`[NET] Spawning other player: ${data.nickname} (${data.id}) at`, data.position);
-
             const currentLocation = this.locationManager.getCurrentLocation();
-            if (!currentLocation) {
-                console.error(`[NET] ❌ No current location when spawning ${data.id}`);
-                return;
-            }
-
-            console.log(`[3D] Current location scene:`, currentLocation.scene.uuid);
+            if (!currentLocation) return;
 
             const op = new OtherPlayer(data.id, data.nickname);
             op.create(currentLocation.scene, this.resourceManager);
-
-            console.log(`[3D] Created other player ${data.id}, mesh parent:`, op.mesh.parent?.uuid);
-
             op.updateFromNetwork(data);
             this.otherPlayers.set(data.id, op);
             this.shootingSystem.registerOtherPlayer(data.id, op.mesh);
@@ -271,6 +268,71 @@ export class Game {
                 this.onNicknameLoaded?.(data.nickname);
             }
         };
+
+        this.networkManager.onPlayerDamaged = (data) => {
+            if (data.targetId === 'local-player') {
+                this.player.takeDamage(data.damage);
+                this.hudState.health = this.player.health;
+                this.emitState(true);
+
+                this.onNotification?.(`💥 Hit! -${data.damage} HP`, 2000);
+
+                const attacker = this.otherPlayers.get(data.attackerId);
+                if (attacker) {
+                    const playerPos = this.player.mesh.position;
+                    const attackerPos = attacker.mesh.position;
+                    const direction = Math.atan2(
+                        attackerPos.x - playerPos.x,
+                        attackerPos.z - playerPos.z
+                    );
+
+                    this.onDamageEvent?.({
+                        id: Date.now() + Math.random(),
+                        direction,
+                        damage: data.damage,
+                        timestamp: Date.now(),
+                    });
+                }
+            }
+        };
+
+        this.networkManager.onPlayerDeath = (data) => {
+            const op = this.otherPlayers.get(data.playerId);
+            if (op) {
+                op.setDead(true);
+                this.onChatMessage?.({
+                    id: `system-${Date.now()}`,
+                    sender: "System",
+                    message: `${op.nickname} was eliminated`,
+                    timestamp: Date.now(),
+                    type: "system",
+                });
+            }
+        };
+
+        this.networkManager.onPlayerRespawn = (data) => {
+            const op = this.otherPlayers.get(data.id);
+            if (op) {
+                op.setDead(false);
+                op.setHealth(data.health);
+                op.updateFromNetwork({
+                    position: data.position,
+                    rotation: op.mesh.rotation.y,
+                    pitch: 0,
+                    state: 'idle',
+                    alive: true,
+                    health: data.health,
+                });
+            }
+        };
+
+        this.networkManager.onRespawn = (data) => {
+            this.player.mesh.position.fromArray(data.position);
+            this.player.setHealth(data.health);
+            this.hudState.health = this.player.health;
+            this.emitState(true);
+            this.onNotification?.('✨ Respawned!', 2000);
+        };
     }
 
     private emitState(force: boolean = false) {
@@ -299,21 +361,6 @@ export class Game {
 
         this.frameCount++;
 
-        if (this.frameCount % 60 === 0) {
-            const currentLocation = this.locationManager.getCurrentLocation();
-            console.log(`\n[RENDER] Frame ${this.frameCount}:`);
-            console.log(`   📍 Current location:`, currentLocation?.id);
-            console.log(`   🎭 Scene children:`, currentLocation?.scene.children.length);
-            console.log(`   👥 Other players:`, this.otherPlayers.size);
-
-            this.otherPlayers.forEach((op, id) => {
-                console.log(`   👤 Player ${id}:`);
-                console.log(`      Position: (${op.mesh.position.x.toFixed(2)}, ${op.mesh.position.y.toFixed(2)}, ${op.mesh.position.z.toFixed(2)})`);
-                console.log(`      Parent:`, op.mesh.parent?.uuid || 'NULL');
-                console.log(`      Visible:`, op.mesh.visible);
-            });
-        }
-
         const portal = this.locationManager.checkPortals(this.player.mesh.position);
         if (portal) {
             this.interactionSystem.onPrompt?.(`[E] Enter ${portal.targetLocationId}`);
@@ -325,7 +372,6 @@ export class Game {
         this.timer.update();
         const delta = Math.min(this.timer.getDelta(), 0.1);
 
-        // 🔥 УБРАНО: проверка if (!this.isPaused)
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
             this.player.update(delta);
@@ -354,7 +400,9 @@ export class Game {
                 position: this.player.mesh.position.toArray(),
                 rotation: this.player.mesh.rotation.y,
                 pitch: this.cameraController.getPitch(),
-                animation: "idle",
+                state: this.player.getState(),
+                jumping: this.player.isJumping(),
+                velocityY: this.player.getVelocityY(),
             });
 
             this.emitState(false);
@@ -374,7 +422,6 @@ export class Game {
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
     };
-
 
     setNickname(nickname: string) {
         this.networkManager.setNickname(nickname);
