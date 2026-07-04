@@ -44,7 +44,6 @@ export class ResourceManager {
         },
         undefined,
         () => {
-          console.warn(`[ResourceManager] Model "${name}" not found, using primitive`);
           const placeholder = this.createPlaceholder(name);
           this.models.set(name, { scene: placeholder, animations: [] });
           resolve();
@@ -153,7 +152,6 @@ export class ResourceManager {
         animations: m.animations,
       };
     } catch (error) {
-      console.warn('[ResourceManager] SkeletonUtils.clone failed, using simple clone:', error);
       return {
         scene: m.scene.clone(),
         animations: m.animations,

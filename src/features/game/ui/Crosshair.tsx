@@ -1,11 +1,24 @@
 //src\features\game\ui\Crosshair.tsx
 "use client";
 
+import { useEffect, useState } from "react";
+
 interface CrosshairProps {
     visible: boolean;
+    isHitMark?: boolean;
 }
 
-export function Crosshair({ visible }: CrosshairProps) {
+export function Crosshair({ visible, isHitMark = false }: CrosshairProps) {
+    const [showHitMark, setShowHitMark] = useState(false);
+
+    useEffect(() => {
+        if (isHitMark) {
+            setShowHitMark(true);
+            const timer = setTimeout(() => setShowHitMark(false), 200);
+            return () => clearTimeout(timer);
+        }
+    }, [isHitMark]);
+
     if (!visible) return null;
 
     return (
@@ -16,6 +29,13 @@ export function Crosshair({ visible }: CrosshairProps) {
                 <div className="absolute left-1/2 top-0 h-2 w-0.5 bg-white/80 -translate-x-1/2" />
                 <div className="absolute left-1/2 bottom-0 h-2 w-0.5 bg-white/80 -translate-x-1/2" />
                 <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-red-500 rounded-full -translate-x-1/2 -translate-y-1/2" />
+
+                {showHitMark && (
+                    <>
+                        <div className="absolute top-1/2 left-1/2 w-4 h-0.5 bg-red-500 -translate-x-1/2 -translate-y-1/2 rotate-45 drop-shadow-[0_0_4px_rgba(239,68,68,0.9)]" />
+                        <div className="absolute top-1/2 left-1/2 w-4 h-0.5 bg-red-500 -translate-x-1/2 -translate-y-1/2 -rotate-45 drop-shadow-[0_0_4px_rgba(239,68,68,0.9)]" />
+                    </>
+                )}
             </div>
         </div>
     );

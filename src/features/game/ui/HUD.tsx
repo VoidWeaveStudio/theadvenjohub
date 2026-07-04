@@ -6,9 +6,10 @@ import { OnlineCounter } from "./OnlineCounter";
 interface HUDProps {
     state: HUDState;
     isPointerLocked: boolean;
+    isHitMark?: boolean;
 }
 
-export function HUD({ state, isPointerLocked }: HUDProps) {
+export function HUD({ state, isPointerLocked, isHitMark = false }: HUDProps) {
     return (
         <div className="absolute inset-0 pointer-events-none select-none">
             <div className="absolute top-4 left-4">
@@ -30,17 +31,24 @@ export function HUD({ state, isPointerLocked }: HUDProps) {
                 <OnlineCounter count={state.online} maxCount={100} />
             </div>
 
-            <div className="absolute bottom-6 right-6">
-                <div className="bg-black/60 backdrop-blur px-5 py-3 rounded-lg border border-white/10">
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-white text-3xl font-bold">{state.ammo}</span>
-                        <span className="text-zinc-400">/</span>
-                        <span className="text-zinc-400 text-xl">{state.maxAmmo}</span>
-                        <span className="text-zinc-500 text-sm ml-2">({state.reserve})</span>
+            {state.isWeaponEquipped && (
+                <div className="absolute bottom-6 right-6">
+                    <div className="bg-black/60 backdrop-blur px-5 py-3 rounded-lg border border-white/10">
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-white text-3xl font-bold">{state.ammo}</span>
+                            <span className="text-zinc-400">/</span>
+                            <span className="text-zinc-400 text-xl">{state.maxAmmo}</span>
+                        </div>
+                        <div className="text-xs text-zinc-500 mt-1">
+                            {state.isReloading ? (
+                                <span className="text-yellow-400 animate-pulse">⟳ Reloading...</span>
+                            ) : (
+                                "[R] Reload"
+                            )}
+                        </div>
                     </div>
-                    <div className="text-xs text-zinc-500 mt-1">[R] Reload</div>
                 </div>
-            </div>
+            )}
 
             {state.inSafeZone && (
                 <div className="absolute top-20 left-1/2 -translate-x-1/2">
@@ -58,8 +66,10 @@ export function HUD({ state, isPointerLocked }: HUDProps) {
                 </div>
             )}
 
-
-            <Crosshair visible={isPointerLocked && !state.inSafeZone} />
+            <Crosshair
+                visible={isPointerLocked && !state.inSafeZone && state.isWeaponEquipped}
+                isHitMark={isHitMark}
+            />
         </div>
     );
 }

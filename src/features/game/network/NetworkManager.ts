@@ -10,6 +10,8 @@ export type PlayerNetData = {
   velocityY: number;
   health: number;
   alive: boolean;
+  weaponEquipped: boolean;
+  isShooting: boolean;
 };
 
 export interface GameSession {
@@ -149,6 +151,8 @@ export class NetworkManager {
               velocityY: p.velocityY || 0,
               health: p.health ?? 100,
               alive: p.alive ?? true,
+              weaponEquipped: p.weaponEquipped !== false,
+              isShooting: p.isShooting || false,  
             });
           }
         }
@@ -158,6 +162,8 @@ export class NetworkManager {
           ...data,
           health: data.health ?? 100,
           alive: data.alive ?? true,
+          weaponEquipped: data.weaponEquipped !== false,
+          isShooting: data.isShooting || false, 
         });
         break;
       case "playerLeave":
@@ -168,6 +174,8 @@ export class NetworkManager {
           ...data,
           health: data.health ?? 100,
           alive: data.alive ?? true,
+          weaponEquipped: data.weaponEquipped !== false,
+          isShooting: data.isShooting || false,
         });
         break;
       case "playerDamaged":
@@ -237,6 +245,8 @@ export class NetworkManager {
     state: string;
     jumping: boolean;
     velocityY: number;
+    weaponEquipped: boolean;
+    isShooting: boolean; 
   }) {
     if (!this.authenticated) return;
 

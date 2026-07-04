@@ -13,12 +13,23 @@ interface Bullet {
     mesh: THREE.Mesh;
     trail: THREE.Line;
     velocity: THREE.Vector3;
+    direction: THREE.Vector3;
     life: number;
+    maxLife: number;
     origin: THREE.Vector3;
+    hitPoint: THREE.Vector3;
     hasHit: boolean;
 }
 
+interface Particle {
+    mesh: THREE.Mesh;
+    velocity: THREE.Vector3;
+    life: number;
+    active: boolean;
+}
+
 export class ShootingSystem extends System {
+    public onHitPlayer?: () => void;
     private scene!: THREE.Scene;
     private player!: Player;
     private inputManager!: InputManager;
@@ -30,6 +41,17 @@ export class ShootingSystem extends System {
     private otherPlayerHitboxes: Map<string, THREE.Mesh> = new Map();
     private otherPlayersRef: Map<string, OtherPlayer> | null = null;
     private location: Location | null = null;
+
+    private readonly TRAIL_LENGTH = 1.5;
+    private readonly BULLET_SPEED = 200;
+
+    private readonly MAX_PARTICLES = 100;
+    private particlePool: Particle[] = [];
+    private particleGeometry: THREE.SphereGeometry | null = null;
+    private particleMaterial: THREE.MeshBasicMaterial | null = null;
+
+    private muzzleLight: THREE.PointLight | null = null;
+    private muzzleLightTimeout: ReturnType<typeof setTimeout> | null = null;
 
     init(
         scene: THREE.Scene,
@@ -49,6 +71,26 @@ export class ShootingSystem extends System {
         this.network = network;
         this.otherPlayersRef = otherPlayersRef || null;
         this.location = location || null;
+
+        this.initParticlePool();
+    }
+
+    private initParticlePool() {
+        this.particleGeometry = new THREE.SphereGeometry(0.05, 4, 4);
+        this.particleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+        for (let i = 0; i < this.MAX_PARTICLES; i++) {
+            const mesh = new THREE.Mesh(this.particleGeometry, this.particleMaterial);
+            mesh.visible = false;
+            this.scene.add(mesh);
+
+            this.particlePool.push({
+                mesh,
+                velocity: new THREE.Vector3(),
+                life: 0,
+                active: false
+            });
+        }
     }
 
     registerOtherPlayer(id: string, hitbox: THREE.Mesh) {
@@ -74,7 +116,26 @@ export class ShootingSystem extends System {
         }
 
         this.updateBullets(delta);
+        this.updateParticles(delta); // 🔥 FIX #1
         this.player.getWeapon().update(delta);
+    }
+
+    private updateParticles(delta: number) {
+        for (const p of this.particlePool) {
+            if (!p.active) continue;
+
+            p.mesh.position.add(p.velocity.clone().multiplyScalar(delta));
+            p.velocity.y -= 9.8 * delta;
+            p.life -= delta * 2;
+
+            const scale = Math.max(0, p.life);
+            p.mesh.scale.setScalar(scale);
+
+            if (p.life <= 0) {
+                p.mesh.visible = false;
+                p.active = false;
+            }
+        }
     }
 
     private localShoot() {
@@ -118,34 +179,37 @@ export class ShootingSystem extends System {
             }
         }
 
-        if (!hitPoint) {
-            hitPoint = cameraPos.clone().add(cameraDir.clone().multiplyScalar(300));
-        }
-
         const weapon = this.player.getWeapon();
         const muzzlePos = weapon.getWorldMuzzle();
 
-        const bulletDir = hitPoint.clone().sub(muzzlePos).normalize();
+        const finalHitPoint = hitPoint
+            ? hitPoint
+            : cameraPos.clone().add(cameraDir.clone().multiplyScalar(300));
+
+        const bulletDir = finalHitPoint.clone().sub(muzzlePos).normalize();
 
         this.network.sendShoot({
             origin: muzzlePos.toArray(),
             direction: bulletDir.toArray(),
         });
 
-        this.spawnBullet(muzzlePos, bulletDir, hitPoint);
-        this.muzzleFlash(muzzlePos, bulletDir);
+        this.spawnBullet(muzzlePos, bulletDir, finalHitPoint);
+        this.muzzleFlash(muzzlePos);
 
-        const isPlayerHit = targetId !== null;
-        if (isPlayerHit) {
-            this.spawnBloodEffect(hitPoint);
-        } else {
-            this.spawnImpactEffect(hitPoint);
+        if (hitPoint) {
+            const isPlayerHit = targetId !== null;
+            if (isPlayerHit) {
+                this.spawnBloodEffect(hitPoint);
+                this.onHitPlayer?.();
+            } else {
+                this.spawnImpactEffect(hitPoint);
+            }
+
+            this.network.sendHit({
+                target: targetId,
+                point: hitPoint.toArray(),
+            });
         }
-
-        this.network.sendHit({
-            target: targetId,
-            point: hitPoint.toArray(),
-        });
     }
 
     private spawnBullet(origin: THREE.Vector3, direction: THREE.Vector3, hitPoint: THREE.Vector3) {
@@ -165,72 +229,79 @@ export class ShootingSystem extends System {
         const trailMat = new THREE.LineBasicMaterial({
             color: 0xffff88,
             transparent: true,
-            opacity: 0.6
+            opacity: 0.8,
+            linewidth: 2
         });
         const trail = new THREE.Line(trailGeo, trailMat);
         this.scene.add(trail);
 
         const distanceToHit = origin.distanceTo(hitPoint);
-        const speed = 120;
-        const timeToHit = distanceToHit / speed;
+        const timeToHit = distanceToHit / this.BULLET_SPEED;
 
         this.bullets.push({
             mesh: bulletMesh,
             trail,
-            velocity: direction.clone().multiplyScalar(speed),
+            velocity: direction.clone().multiplyScalar(this.BULLET_SPEED),
+            direction: direction.clone(),
             life: timeToHit,
+            maxLife: timeToHit,
             origin: origin.clone(),
+            hitPoint: hitPoint.clone(),
             hasHit: false,
         });
     }
 
-    private muzzleFlash(origin: THREE.Vector3, direction: THREE.Vector3) {
-        const flash = new THREE.PointLight(0xffaa00, 3, 8);
-        flash.position.copy(origin);
-        this.scene.add(flash);
-        setTimeout(() => this.scene.remove(flash), 60);
+    private muzzleFlash(origin: THREE.Vector3) {
+        if (!this.muzzleLight) {
+            this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 8);
+            this.scene.add(this.muzzleLight);
+        }
+
+        this.muzzleLight.position.copy(origin);
+        this.muzzleLight.intensity = 3;
+
+        if (this.muzzleLightTimeout) {
+            clearTimeout(this.muzzleLightTimeout);
+        }
+
+        this.muzzleLightTimeout = setTimeout(() => {
+            if (this.muzzleLight) {
+                this.muzzleLight.intensity = 0;
+            }
+        }, 60);
     }
 
     private spawnBloodEffect(point: THREE.Vector3) {
-        for (let i = 0; i < 5; i++) {
-            const particle = new THREE.Mesh(
-                new THREE.SphereGeometry(0.05, 4, 4),
-                new THREE.MeshBasicMaterial({ color: 0xff0000 })
-            );
-            particle.position.copy(point);
-            this.scene.add(particle);
+        let spawned = 0;
+        for (const p of this.particlePool) {
+            if (spawned >= 5) break;
+            if (p.active) continue;
 
-            const velocity = new THREE.Vector3(
+            p.mesh.position.copy(point);
+            p.mesh.visible = true;
+            p.mesh.scale.setScalar(1);
+            p.velocity.set(
                 (Math.random() - 0.5) * 2,
                 Math.random() * 2,
                 (Math.random() - 0.5) * 2
             );
-
-            const animate = () => {
-                particle.position.add(velocity.clone().multiplyScalar(0.016));
-                velocity.y -= 0.1;
-                particle.scale.multiplyScalar(0.95);
-                if (particle.scale.x > 0.1) {
-                    requestAnimationFrame(animate);
-                } else {
-                    this.scene.remove(particle);
-                    particle.geometry.dispose();
-                }
-            };
-            animate();
+            p.life = 1.0;
+            p.active = true;
+            spawned++;
         }
     }
 
     private spawnImpactEffect(point: THREE.Vector3) {
-        const impact = new THREE.Mesh(
-            new THREE.SphereGeometry(0.1, 6, 6),
-            new THREE.MeshBasicMaterial({ color: 0xffaa00 })
-        );
+        const geo = new THREE.SphereGeometry(0.1, 6, 6);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        const impact = new THREE.Mesh(geo, mat);
         impact.position.copy(point);
         this.scene.add(impact);
+
         setTimeout(() => {
             this.scene.remove(impact);
-            impact.geometry.dispose();
+            geo.dispose();
+            mat.dispose();
         }, 300);
     }
 
@@ -238,41 +309,31 @@ export class ShootingSystem extends System {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
 
-            if (b.hasHit) {
-                continue;
-            }
-
             const step = b.velocity.clone().multiplyScalar(delta);
-            const nextPos = b.mesh.position.clone().add(step);
+            b.mesh.position.add(step);
+            b.life -= delta;
 
-            const distanceTraveled = b.origin.distanceTo(nextPos);
-            const maxDistance = b.velocity.length() * b.life;
-
-            if (distanceTraveled >= maxDistance) {
-                this.spawnImpactEffect(nextPos);
-
-                this.scene.remove(b.mesh);
-                this.scene.remove(b.trail);
-                b.trail.geometry.dispose();
-                this.bullets.splice(i, 1);
-                continue;
-            }
-
-            b.mesh.position.copy(nextPos);
+            const head = b.mesh.position.clone();
+            const tail = head.clone().sub(b.direction.clone().multiplyScalar(this.TRAIL_LENGTH));
 
             const positions = b.trail.geometry.attributes.position as THREE.BufferAttribute;
             if (positions) {
-                positions.setXYZ(0, b.origin.x, b.origin.y, b.origin.z);
-                positions.setXYZ(1, b.mesh.position.x, b.mesh.position.y, b.mesh.position.z);
+                positions.setXYZ(0, head.x, head.y, head.z);
+                positions.setXYZ(1, tail.x, tail.y, tail.z);
                 positions.needsUpdate = true;
             }
 
-            b.life -= delta;
+            const lifeRatio = b.life / b.maxLife;
+            const trailMat = b.trail.material as THREE.LineBasicMaterial;
+            if (lifeRatio < 0.3) {
+                trailMat.opacity = 0.8 * (lifeRatio / 0.3);
+            }
 
             if (b.life <= 0) {
                 this.scene.remove(b.mesh);
                 this.scene.remove(b.trail);
                 b.trail.geometry.dispose();
+                trailMat.dispose();
                 this.bullets.splice(i, 1);
             }
         }
@@ -283,19 +344,49 @@ export class ShootingSystem extends System {
         const direction = new THREE.Vector3().fromArray(data.direction);
         const farPoint = origin.clone().add(direction.clone().multiplyScalar(300));
         this.spawnBullet(origin, direction, farPoint);
-        this.muzzleFlash(origin, direction);
+        this.muzzleFlash(origin);
     }
 
     getAmmoState() {
         const w = this.player.getWeapon();
-        return { ammo: w.ammo, maxAmmo: w.maxAmmo, reserve: w.reserveAmmo };
+        return {
+            ammo: w.ammo,
+            maxAmmo: w.maxAmmo,
+            reserve: 0,
+            isReloading: w.isReloading
+        };
     }
 
     dispose() {
         this.bullets.forEach((b) => {
             this.scene.remove(b.mesh);
             this.scene.remove(b.trail);
+            b.trail.geometry.dispose();
+            (b.trail.material as THREE.Material).dispose();
         });
         this.bullets = [];
+
+        for (const p of this.particlePool) {
+            this.scene.remove(p.mesh);
+        }
+        this.particlePool = [];
+
+        if (this.particleGeometry) {
+            this.particleGeometry.dispose();
+            this.particleGeometry = null;
+        }
+        if (this.particleMaterial) {
+            this.particleMaterial.dispose();
+            this.particleMaterial = null;
+        }
+
+        if (this.muzzleLightTimeout) {
+            clearTimeout(this.muzzleLightTimeout);
+            this.muzzleLightTimeout = null;
+        }
+        if (this.muzzleLight) {
+            this.scene.remove(this.muzzleLight);
+            this.muzzleLight = null;
+        }
     }
 }

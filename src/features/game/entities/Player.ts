@@ -28,13 +28,16 @@ export class Player extends Entity {
     private colliders: THREE.Box3[] = [];
     private terrain: Terrain | null = null;
 
+    private mixer: THREE.AnimationMixer | null = null;
+    private animations: Map<string, THREE.AnimationAction> = new Map();
+    private currentAnimation: string = 'idle';
+
     private head: THREE.Object3D | null = null;
     private neck: THREE.Object3D | null = null;
-    private leftLeg: THREE.Object3D | null = null;
-    private rightLeg: THREE.Object3D | null = null;
-    private leftArm: THREE.Object3D | null = null;
-    private rightArm: THREE.Object3D | null = null;
-    private spine: THREE.Object3D | null = null;
+    private rightHand: THREE.Object3D | null = null;
+    private hips: THREE.Object3D | null = null;
+
+    private isShooting: boolean = false;
 
     private static readonly _moveDir = new THREE.Vector3();
     private static readonly _step = new THREE.Vector3();
@@ -69,33 +72,62 @@ export class Player extends Entity {
             -(scaledBox.min.z + scaledBox.max.z) / 2
         );
 
+        data.scene.rotation.y = -Math.PI / 2;
+
         this.mesh.add(data.scene);
 
         data.scene.traverse((child: THREE.Object3D) => {
             const name = child.name.toLowerCase();
 
+            if (!this.rightHand) {
+                if (name === 'handr' ||
+                    (name.includes('right') && name.includes('hand')) ||
+                    name === 'r_hand' || name === 'rhand' ||
+                    name.includes('righthand') || name.includes('rightarm')) {
+                    this.rightHand = child;
+                }
+            }
+
+            if (!this.hips) {
+                if (name === 'hips' || name === 'pelvis' || name.includes('hips')) {
+                    this.hips = child;
+                }
+            }
+
             if (name.includes('head')) this.head = child;
             else if (name.includes('neck')) this.neck = child;
-            else if (name.includes('leg') && name.includes('left')) this.leftLeg = child;
-            else if (name.includes('leg') && name.includes('right')) this.rightLeg = child;
-            else if (name.includes('arm') && name.includes('left')) this.leftArm = child;
-            else if (name.includes('arm') && name.includes('right')) this.rightArm = child;
-            else if (name.includes('spine') || name.includes('body')) this.spine = child;
         });
+
+        this.mixer = new THREE.AnimationMixer(data.scene);
+
+        if (data.animations && data.animations.length > 0) {
+            const animMapping: Record<string, string> = {
+                'idle': 'idle',
+                'walk': 'walk',
+                'run': 'run',
+                'jump': 'jump'
+            };
+
+            for (const clip of data.animations) {
+                for (const [key, value] of Object.entries(animMapping)) {
+                    if (clip.name.toLowerCase().includes(key)) {
+                        const action = this.mixer.clipAction(clip);
+                        action.setEffectiveTimeScale(1);
+                        action.setEffectiveWeight(1);
+                        this.animations.set(value, action);
+                        break;
+                    }
+                }
+            }
+        }
+
+        this.playAnimation('idle');
 
         this.weapon.create(this.mesh, resourceManager);
 
-        let handBone: THREE.Object3D | undefined;
-        data.scene.traverse((child: THREE.Object3D) => {
-            const name = child.name.toLowerCase();
-            if (name.includes('hand') && name.includes('right')) {
-                handBone = child;
-            }
-        });
-
-        if (handBone) {
+        if (this.rightHand) {
             this.mesh.remove(this.weapon.mesh);
-            (handBone as THREE.Object3D).add(this.weapon.mesh);
+            this.rightHand.add(this.weapon.mesh);
         }
 
         this.mesh.position.set(0, 0, 0);
@@ -103,10 +135,29 @@ export class Player extends Entity {
         scene.add(this.mesh);
     }
 
+    private playAnimation(name: string) {
+        if (this.currentAnimation === name) return;
+
+        const nextAction = this.animations.get(name);
+        const currentAction = this.animations.get(this.currentAnimation);
+
+        if (nextAction) {
+            if (currentAction) {
+                currentAction.fadeOut(0.2);
+            }
+            nextAction.reset().fadeIn(0.2).play();
+            this.currentAnimation = name;
+        }
+    }
+
     setDependencies(inputManager: InputManager, camera: CameraController, colliders: THREE.Box3[]) {
         this.inputManager = inputManager;
         this.camera = camera;
         this.colliders = colliders;
+    }
+
+    setWeaponVisible(visible: boolean) {
+        this.weapon.mesh.visible = visible;
     }
 
     setTerrain(terrain: Terrain) {
@@ -162,9 +213,9 @@ export class Player extends Entity {
             this.baseY = terrainHeight;
         }
 
-        const isShooting = this.inputManager.isMousePressed(0);
+        this.isShooting = this.inputManager.isMousePressed(0);
         const isInteracting = this.inputManager.isKeyJustPressed("KeyE");
-        const shouldFaceLookDirection = isShooting || isInteracting;
+        const shouldFaceLookDirection = this.isShooting || isInteracting;
 
         if (moveDir.lengthSq() > 0) {
             moveDir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camera.getYaw());
@@ -196,6 +247,14 @@ export class Player extends Entity {
             this.rotateToAngle(targetAngle, delta);
         }
 
+        if (!this.isGrounded) {
+            this.playAnimation('jump');
+        } else if (moved) {
+            this.playAnimation(isSprinting ? 'run' : 'walk');
+        } else {
+            this.playAnimation('idle');
+        }
+
         let bobOffset = 0;
         if (this.isGrounded) {
             if (moved) {
@@ -206,13 +265,21 @@ export class Player extends Entity {
                 bobOffset = Math.sin(this.time * 2) * 0.02;
             }
         }
-        
+
         this.mesh.position.y = this.baseY + bobOffset;
 
         this.updateHeadRotation();
 
-        const currentState = this.getCurrentState(moved, isSprinting);
-        this.updateProceduralAnimation(currentState, moved, isSprinting, delta);
+        if (this.hips) {
+            this.hips.rotation.x = 0;
+            this.hips.rotation.z = 0;
+            this.hips.position.x = 0;
+            this.hips.position.z = 0;
+        }
+
+        if (this.mixer) {
+            this.mixer.update(delta);
+        }
 
         this.weapon.update(delta);
     }
@@ -231,13 +298,6 @@ export class Player extends Entity {
         this.mesh.rotation.y += angleDiff * Math.min(1, turnSpeed * delta);
     }
 
-    private getCurrentState(isMoving: boolean, isSprinting: boolean): PlayerState {
-        if (!this.isGrounded) return 'jump';
-        if (isMoving && isSprinting) return 'sprint';
-        if (isMoving) return 'walk';
-        return 'idle';
-    }
-
     public getState(): PlayerState {
         const moveDir = new THREE.Vector3();
         if (this.inputManager?.isKeyPressed("KeyW")) moveDir.z -= 1;
@@ -245,7 +305,12 @@ export class Player extends Entity {
         if (this.inputManager?.isKeyPressed("KeyA")) moveDir.x -= 1;
         if (this.inputManager?.isKeyPressed("KeyD")) moveDir.x += 1;
         const isSprinting = this.inputManager?.isKeyPressed("ShiftLeft") || this.inputManager?.isKeyPressed("ShiftRight");
-        return this.getCurrentState(moveDir.lengthSq() > 0, !!isSprinting);
+
+        if (!this.isGrounded) return 'jump';
+        if (moveDir.lengthSq() > 0) {
+            return isSprinting ? 'sprint' : 'walk';
+        }
+        return 'idle';
     }
 
     public isJumping(): boolean {
@@ -254,6 +319,10 @@ export class Player extends Entity {
 
     public getVelocityY(): number {
         return this.velocityY;
+    }
+
+    public getIsShooting(): boolean {
+        return this.isShooting;
     }
 
     private updateHeadRotation() {
@@ -276,43 +345,6 @@ export class Player extends Entity {
             this.neck.rotation.x += (clampedPitchX * 0.6 - this.neck.rotation.x) * 0.3;
         }
         this.head.rotation.x += (clampedPitchX - this.head.rotation.x) * 0.3;
-    }
-
-    private updateProceduralAnimation(state: PlayerState, isMoving: boolean, isSprinting: boolean, delta: number) {
-        const walkSpeed = isSprinting ? 12 : 8;
-        const walkAmplitude = isSprinting ? 0.8 : 0.5;
-        const armAmplitude = isSprinting ? 0.6 : 0.4;
-
-        if (state === 'jump') {
-            const isRising = this.velocityY > 0;
-
-            if (this.leftLeg) this.leftLeg.rotation.x = isRising ? -0.5 : 0.3;
-            if (this.rightLeg) this.rightLeg.rotation.x = isRising ? -0.5 : 0.3;
-            if (this.leftArm) {
-                this.leftArm.rotation.x = isRising ? -0.8 : 0.2;
-                this.leftArm.rotation.z = isRising ? -0.3 : 0;
-            }
-            if (this.rightArm) {
-                this.rightArm.rotation.x = isRising ? -0.8 : 0.2;
-                this.rightArm.rotation.z = isRising ? 0.3 : 0;
-            }
-            if (this.spine) this.spine.rotation.x = isRising ? -0.1 : 0.05;
-        } else if (isMoving) {
-            if (this.leftLeg) this.leftLeg.rotation.x = Math.sin(this.time * walkSpeed) * walkAmplitude;
-            if (this.rightLeg) this.rightLeg.rotation.x = -Math.sin(this.time * walkSpeed) * walkAmplitude;
-            if (this.leftArm) this.leftArm.rotation.x = -Math.sin(this.time * walkSpeed) * armAmplitude;
-            if (this.rightArm) this.rightArm.rotation.x = Math.sin(this.time * walkSpeed) * (armAmplitude * 0.3);
-            if (this.spine) this.spine.rotation.x = isSprinting ? 0.15 : 0.05;
-        } else {
-            const breathSpeed = 2;
-            const breathAmplitude = 0.05;
-
-            if (this.leftLeg) this.leftLeg.rotation.x = 0;
-            if (this.rightLeg) this.rightLeg.rotation.x = 0;
-            if (this.leftArm) this.leftArm.rotation.x = Math.sin(this.time * breathSpeed) * breathAmplitude;
-            if (this.rightArm) this.rightArm.rotation.x = Math.sin(this.time * breathSpeed) * breathAmplitude;
-            if (this.spine) this.spine.rotation.x = Math.sin(this.time * breathSpeed) * breathAmplitude * 0.5;
-        }
     }
 
     getWeapon(): Weapon {

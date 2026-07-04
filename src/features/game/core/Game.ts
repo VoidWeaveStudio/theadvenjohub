@@ -31,6 +31,8 @@ export interface HUDState {
     online: number;
     inSafeZone: boolean;
     prompt: string | null;
+    isReloading: boolean;
+    isWeaponEquipped: boolean;
 }
 
 export interface DamageEvent {
@@ -41,6 +43,7 @@ export interface DamageEvent {
 }
 
 export class Game {
+    private hitMarkTrigger: number = 0;
     private canvas: HTMLCanvasElement;
     private slug: string;
     private renderer: THREE.WebGLRenderer;
@@ -80,10 +83,12 @@ export class Game {
         maxHealth: 100,
         ammo: 30,
         maxAmmo: 30,
-        reserve: 90,
+        reserve: 0,
         online: 1,
         inSafeZone: true,
         prompt: null,
+        isReloading: false,
+        isWeaponEquipped: true,
     };
 
     private lastStateEmit: number = 0;
@@ -121,10 +126,10 @@ export class Game {
         while (relativeAngle > Math.PI) relativeAngle -= Math.PI * 2;
         while (relativeAngle < -Math.PI) relativeAngle += Math.PI * 2;
 
-
         this.onDamageIndicatorUpdate?.(this.damageAttackerId, relativeAngle);
     }
 
+    public onHitMark?: () => void;
     public onStateChange?: (state: HUDState) => void;
     public onNotification?: (msg: string, duration?: number) => void;
     public onLoadStateChange?: (loading: boolean) => void;
@@ -132,7 +137,6 @@ export class Game {
     public onNicknameLoaded?: (nickname: string) => void;
     public onDamageEvent?: (event: DamageEvent) => void;
     public onDeathStateChange?: (isDead: boolean, killerName: string | null) => void;
-
     public onDamageIndicatorUpdate?: (attackerId: string | null, direction: number) => void;
 
     constructor(canvas: HTMLCanvasElement, slug: string, session: GameSession) {
@@ -193,6 +197,9 @@ export class Game {
         this.player.create(currentLocation.scene, this.resourceManager);
         this.player.setDependencies(this.inputManager, this.cameraController, currentLocation.colliders);
 
+        const spawnPoint = currentLocation.getSpawnPoint();
+        this.player.mesh.position.copy(spawnPoint);
+
         if (currentLocation instanceof MainWorld) {
             this.player.setTerrain(currentLocation.terrain);
         }
@@ -200,7 +207,16 @@ export class Game {
         currentLocation.scene.add(this.cameraController.yawObject);
         this.cameraController.setTarget(this.player.mesh);
 
-        this.safeZone.create(currentLocation.scene, this.resourceManager);
+        if (currentLocation instanceof MainWorld) {
+            this.safeZone.create(currentLocation.scene, this.resourceManager, currentLocation.terrain);
+
+            const crystalCollider = this.safeZone.getCrystalCollider();
+            if (crystalCollider) {
+                currentLocation.colliders.push(crystalCollider);
+            }
+        } else {
+            this.safeZone.create(currentLocation.scene, this.resourceManager);
+        }
 
         this.shootingSystem.init(
             currentLocation.scene,
@@ -212,6 +228,10 @@ export class Game {
             this.otherPlayers,
             currentLocation
         );
+        this.shootingSystem.onHitPlayer = () => {
+            this.hitMarkTrigger = Date.now();
+            this.onHitMark?.();
+        };
 
         this.safeZoneSystem.init(this.safeZone);
         this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
@@ -339,11 +359,6 @@ export class Game {
                 this.damageAttackerId = data.attackerId;
                 this.lastDamageTime = Date.now();
 
-
-                if (!this.isDead) {
-
-                }
-
                 const attacker = this.otherPlayers.get(data.attackerId);
                 let direction = 0;
 
@@ -430,6 +445,7 @@ export class Game {
         this.hudState.ammo = ammoState.ammo;
         this.hudState.maxAmmo = ammoState.maxAmmo;
         this.hudState.reserve = ammoState.reserve;
+        this.hudState.isReloading = ammoState.isReloading;
         this.onStateChange?.({ ...this.hudState });
     }
 
@@ -472,6 +488,10 @@ export class Game {
                 this.player.getWeapon().update(delta);
             }
 
+            if (currentLocation instanceof MainWorld) {
+                currentLocation.updateWater(delta);
+            }
+
             this.interactionSystem.update(delta);
             this.safeZone.update(delta);
             this.networkSystem.update(delta);
@@ -486,6 +506,8 @@ export class Game {
                 state: this.player.getState(),
                 jumping: this.player.isJumping(),
                 velocityY: this.player.getVelocityY(),
+                weaponEquipped: this.hudState.isWeaponEquipped,
+                isShooting: this.player.getIsShooting(),
             });
 
             this.emitState(false);
@@ -505,6 +527,12 @@ export class Game {
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
     };
+
+    setWeaponEquipped(equipped: boolean) {
+        this.hudState.isWeaponEquipped = equipped;
+        this.player.setWeaponVisible(equipped);
+        this.emitState(true);
+    }
 
     setNickname(nickname: string) {
         this.networkManager.setNickname(nickname);

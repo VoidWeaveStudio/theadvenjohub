@@ -93,9 +93,10 @@ export class GridSystem {
             0x000000,
             0x000000
         );
-        (this.gridHelper.material as THREE.Material).opacity = 0.08;
+        (this.gridHelper.material as THREE.Material).opacity = 0.15;
         (this.gridHelper.material as THREE.Material).transparent = true;
         this.gridHelper.position.y = 0.02;
+        this.gridHelper.visible = false;
         scene.add(this.gridHelper);
 
         const geometry = new THREE.PlaneGeometry(this.cellSize, this.cellSize);
@@ -110,6 +111,12 @@ export class GridSystem {
         this.highlightMesh.position.y = 0.05;
         this.highlightMesh.visible = false;
         scene.add(this.highlightMesh);
+    }
+
+    setVisible(visible: boolean) {
+        if (this.gridHelper) {
+            this.gridHelper.visible = visible;
+        }
     }
 
     highlightCell(gridX: number, gridZ: number, valid: boolean = true) {

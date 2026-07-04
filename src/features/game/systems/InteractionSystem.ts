@@ -11,6 +11,8 @@ export class InteractionSystem extends System {
     private inputManager!: InputManager;
     private safeZone!: SafeZone;
     private interactableObjects: THREE.Object3D[] = [];
+    
+    private interactionRadius: number = 5;
 
     public onNotification?: (msg: string, duration?: number) => void;
     public onPrompt?: (text: string | null) => void;
@@ -32,7 +34,7 @@ export class InteractionSystem extends System {
 
         for (const obj of this.interactableObjects) {
             const d = playerPos.distanceTo(obj.position);
-            if (d < 3 && (!nearest || d < nearest.dist)) {
+            if (d < this.interactionRadius && (!nearest || d < nearest.dist)) {
                 nearest = { obj, dist: d };
             }
         }

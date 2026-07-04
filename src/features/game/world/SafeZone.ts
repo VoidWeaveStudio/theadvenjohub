@@ -1,6 +1,7 @@
 //src\features\game\world\SafeZone.ts
 import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
+import { Terrain } from "./Terrain";
 
 export class SafeZone {
   private radius: number = 30;
@@ -8,20 +9,34 @@ export class SafeZone {
   private crystal!: THREE.Group;
   private textSprite!: THREE.Sprite;
   private time: number = 0;
-
-  create(scene: THREE.Scene, resourceManager: ResourceManager) {
+  private terrain: Terrain | null = null;
+  private crystalCollider: THREE.Box3 | null = null; 
+  
+  create(scene: THREE.Scene, resourceManager: ResourceManager, terrain?: Terrain) {
+    this.terrain = terrain || null;
+    
     const data = resourceManager.getModel("crystal");
     if (!data) {
       throw new Error("Crystal model not found. Cannot create safe zone.");
     }
 
     this.crystal = data.scene;
-    this.crystal.position.set(0, 3, 0);
-    this.crystal.scale.setScalar(1.2);
+    
+    const groundY = this.terrain ? this.terrain.getHeightAt(0, 0) : 0;
+    
+    this.crystal.position.set(0, groundY - 1.5, 0);
+    this.crystal.scale.setScalar(1.5);
     scene.add(this.crystal);
 
+    const crystalBox = new THREE.Box3().setFromObject(this.crystal);
+    const center = crystalBox.getCenter(new THREE.Vector3());
+    const size = crystalBox.getSize(new THREE.Vector3());
+    size.multiplyScalar(0.8); 
+    crystalBox.setFromCenterAndSize(center, size);
+    this.crystalCollider = crystalBox;
+
     const light = new THREE.PointLight(0x00ffff, 2, 25);
-    light.position.set(0, 4, 0);
+    light.position.set(0, groundY - 1, 0);
     scene.add(light);
 
     const ringGeo = new THREE.RingGeometry(this.radius - 0.5, this.radius, 128);
@@ -33,7 +48,7 @@ export class SafeZone {
     });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.05;
+    ring.position.y = groundY + 0.05;
     scene.add(ring);
 
     const discGeo = new THREE.CircleGeometry(this.radius - 0.5, 64);
@@ -45,7 +60,7 @@ export class SafeZone {
     });
     const disc = new THREE.Mesh(discGeo, discMat);
     disc.rotation.x = -Math.PI / 2;
-    disc.position.y = 0.03;
+    disc.position.y = groundY + 0.03;
     scene.add(disc);
 
     const canvas = document.createElement("canvas");
@@ -62,7 +77,7 @@ export class SafeZone {
     const tex = new THREE.CanvasTexture(canvas);
     const textMat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
     this.textSprite = new THREE.Sprite(textMat);
-    this.textSprite.position.set(0, 6.5, 0);
+    this.textSprite.position.set(0, groundY + 10, 0);
     this.textSprite.scale.set(8, 2, 1);
     scene.add(this.textSprite);
 
@@ -73,8 +88,21 @@ export class SafeZone {
     this.time += delta;
     
     this.crystal.rotation.y = this.time * 0.5;
-    this.crystal.position.y = 3 + Math.sin(this.time * 1.2) * 0.4;
-    this.textSprite.position.y = 6.5 + Math.sin(this.time * 1.2) * 0.4;
+    const groundY = this.terrain ? this.terrain.getHeightAt(0, 0) : 0;
+    this.crystal.position.y = groundY - 1.5 + Math.sin(this.time * 1.2) * 0.2;
+    this.textSprite.position.y = groundY + 10 + Math.sin(this.time * 1.2) * 0.2;
+    
+    if (this.crystalCollider) {
+      this.crystalCollider.setFromObject(this.crystal);
+      const center = this.crystalCollider.getCenter(new THREE.Vector3());
+      const size = this.crystalCollider.getSize(new THREE.Vector3());
+      size.multiplyScalar(0.8);
+      this.crystalCollider.setFromCenterAndSize(center, size);
+    }
+  }
+
+  getCrystalCollider(): THREE.Box3 | null {
+    return this.crystalCollider;
   }
 
   getInteractableObject(): THREE.Object3D {

@@ -30,6 +30,13 @@ interface GameSession {
   wallet: string;
 }
 
+interface HotbarSlot {
+  id: string;
+  icon: string;
+  name: string;
+  equipped: boolean;
+}
+
 export function GameClient({ slug }: GameClientProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
@@ -46,33 +53,55 @@ export function GameClient({ slug }: GameClientProps) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [damageEvents, setDamageEvents] = useState<DamageEvent[]>([]);
-
   const [isDead, setIsDead] = useState(false);
   const [killerName, setKillerName] = useState<string | null>(null);
-
-   const [damageIndicator, setDamageIndicator] = useState<{
+  const [damageIndicator, setDamageIndicator] = useState<{
     attackerId: string | null;
     direction: number;
   }>({ attackerId: null, direction: 0 });
+
+  const [isHitMark, setIsHitMark] = useState(false);
+
+  const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
+    { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
+    { id: "slot2", icon: "", name: "", equipped: false },
+    { id: "slot3", icon: "", name: "", equipped: false },
+    { id: "slot4", icon: "", name: "", equipped: false },
+    { id: "slot5", icon: "", name: "", equipped: false },
+  ]);
 
   const [hudState, setHudState] = useState<HUDState>({
     health: 100,
     maxHealth: 100,
     ammo: 30,
     maxAmmo: 30,
-    reserve: 90,
+    reserve: 0,
     online: 1,
     inSafeZone: true,
     prompt: null,
+    isReloading: false,
+    isWeaponEquipped: true,
   });
 
-  const hotbar = [
-    { id: "rifle", icon: "🔫", name: "Rifle", active: true },
-    { id: "fist", icon: "👊", name: "Fists", active: false },
-    { id: "slot3", icon: "", name: "", active: false },
-    { id: "slot4", icon: "", name: "", active: false },
-    { id: "slot5", icon: "", name: "", active: false },
-  ];
+  const handleSlotClick = (index: number) => {
+    setHotbarSlots((prev) => {
+      const slot = prev[index];
+      if (!slot.icon) return prev;
+
+      if (slot.equipped) {
+        const newSlots = prev.map((s) => ({ ...s, equipped: false }));
+        gameRef.current?.setWeaponEquipped(false);
+        return newSlots;
+      }
+
+      const newSlots = prev.map((s, i) => ({
+        ...s,
+        equipped: i === index,
+      }));
+      gameRef.current?.setWeaponEquipped(true);
+      return newSlots;
+    });
+  };
 
   useEffect(() => {
     const handleScrollKeys = (e: KeyboardEvent) => {
@@ -125,9 +154,7 @@ export function GameClient({ slug }: GameClientProps) {
         gameRef.current = game;
 
         game.onStateChange = (state) => setHudState(state);
-        game.onLoadStateChange = (loading) => {
-          setLoading(loading);
-        };
+        game.onLoadStateChange = (loading) => setLoading(loading);
         game.onNotification = (msg, duration = 3000) => {
           const id = ++notifIdRef.current;
           setNotifications((prev) => {
@@ -159,6 +186,11 @@ export function GameClient({ slug }: GameClientProps) {
 
         game.onDamageIndicatorUpdate = (attackerId, direction) => {
           setDamageIndicator({ attackerId, direction });
+        };
+
+        game.onHitMark = () => {
+          setIsHitMark(true);
+          setTimeout(() => setIsHitMark(false), 200);
         };
 
         await game.init();
@@ -200,10 +232,18 @@ export function GameClient({ slug }: GameClientProps) {
       if (e.code === "Enter" && isPointerLocked) {
         setIsChatVisible((prev) => !prev);
       }
+
+      if (isPointerLocked && !isMenuOpen) {
+        const digitKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"];
+        const index = digitKeys.indexOf(e.code);
+        if (index !== -1) {
+          handleSlotClick(index);
+        }
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked]);
+  }, [isPointerLocked, isMenuOpen]);
 
   const handleNicknameChange = (nick: string) => {
     setNickname(nick);
@@ -265,8 +305,15 @@ export function GameClient({ slug }: GameClientProps) {
         </div>
       )}
 
-      <HUD state={hudState} isPointerLocked={isPointerLocked} />
-      <Hotbar slots={hotbar} />
+      <HUD
+        state={hudState}
+        isPointerLocked={isPointerLocked}
+        isHitMark={isHitMark}
+      />
+      <Hotbar
+        slots={hotbarSlots}
+        onSlotClick={handleSlotClick}
+      />
       <Notifications notifications={notifications} onRemove={removeNotification} />
 
       <DamageIndicator
