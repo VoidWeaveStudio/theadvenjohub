@@ -11,6 +11,7 @@ import { Chat, ChatMessage } from "./ui/Chat";
 import { DamageIndicator } from "./ui/DamageIndicator";
 import { Spinner } from "@/core/ui/Spinner";
 import { apiPost } from "@/core/api/client";
+import { DeathScreen } from "./ui/DeathScreen";
 
 interface GameClientProps {
   slug: string;
@@ -45,6 +46,9 @@ export function GameClient({ slug }: GameClientProps) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [damageEvents, setDamageEvents] = useState<DamageEvent[]>([]);
+
+  const [isDead, setIsDead] = useState(false);
+  const [killerName, setKillerName] = useState<string | null>(null);
 
   const [hudState, setHudState] = useState<HUDState>({
     health: 100,
@@ -135,6 +139,11 @@ export function GameClient({ slug }: GameClientProps) {
           setTimeout(() => {
             setDamageEvents((prev) => prev.filter((e) => e.id !== event.id));
           }, 2000);
+        };
+
+        game.onDeathStateChange = (dead, killer) => {
+          setIsDead(dead);
+          setKillerName(killer);
         };
 
         await game.init();
@@ -246,6 +255,12 @@ export function GameClient({ slug }: GameClientProps) {
       <Notifications notifications={notifications} onRemove={removeNotification} />
 
       <DamageIndicator events={damageEvents} />
+
+      <DeathScreen
+        isVisible={isDead}
+        killerName={killerName}
+        respawnTime={3}
+      />
 
       <Chat
         messages={chatMessages}

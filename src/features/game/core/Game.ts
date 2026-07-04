@@ -61,9 +61,14 @@ export class Game {
     private networkSystem: NetworkSystem;
     private locationManager: LocationManager;
 
+    private isDead: boolean = false;
+    private killerName: string | null = null;
+
     private isLoaded: boolean = false;
     private animationFrameId: number | null = null;
     private frameCount: number = 0;
+
+    private localPlayerNetId: string | null = null;
 
     private hudState: HUDState = {
         health: 100,
@@ -85,6 +90,8 @@ export class Game {
     public onChatMessage?: (message: ChatMessage) => void;
     public onNicknameLoaded?: (nickname: string) => void;
     public onDamageEvent?: (event: DamageEvent) => void;
+
+    public onDeathStateChange?: (isDead: boolean, killerName: string | null) => void;
 
     constructor(canvas: HTMLCanvasElement, slug: string, session: GameSession) {
         this.canvas = canvas;
@@ -188,7 +195,14 @@ export class Game {
     private setupNetwork() {
         this.networkManager.connect(this.session);
 
+        this.networkManager.onAuthenticated = (data) => {
+            this.localPlayerNetId = data.playerId;
+            this.onNicknameLoaded?.(data.nickname);
+        };
+
         this.networkManager.onPlayerJoin = (data) => {
+            if (data.id === this.localPlayerNetId) return;
+
             const currentLocation = this.locationManager.getCurrentLocation();
             if (!currentLocation) return;
 
@@ -270,43 +284,57 @@ export class Game {
         };
 
         this.networkManager.onPlayerDamaged = (data) => {
-            if (data.targetId === 'local-player') {
+            if (data.targetId === this.localPlayerNetId) {
                 this.player.takeDamage(data.damage);
                 this.hudState.health = this.player.health;
                 this.emitState(true);
 
-                this.onNotification?.(`💥 Hit! -${data.damage} HP`, 2000);
+                if (!this.isDead) {
+                    this.onNotification?.(`💥 Hit! -${data.damage} HP`, 2000);
+                }
 
                 const attacker = this.otherPlayers.get(data.attackerId);
+                let direction = 0;
+
                 if (attacker) {
                     const playerPos = this.player.mesh.position;
                     const attackerPos = attacker.mesh.position;
-                    const direction = Math.atan2(
+                    direction = Math.atan2(
                         attackerPos.x - playerPos.x,
                         attackerPos.z - playerPos.z
                     );
-
-                    this.onDamageEvent?.({
-                        id: Date.now() + Math.random(),
-                        direction,
-                        damage: data.damage,
-                        timestamp: Date.now(),
-                    });
+                } else {
+                    direction = this.cameraController.getYaw() + Math.PI;
                 }
+
+                this.onDamageEvent?.({
+                    id: Date.now() + Math.random(),
+                    direction,
+                    damage: data.damage,
+                    timestamp: Date.now(),
+                });
             }
         };
 
         this.networkManager.onPlayerDeath = (data) => {
-            const op = this.otherPlayers.get(data.playerId);
-            if (op) {
-                op.setDead(true);
-                this.onChatMessage?.({
-                    id: `system-${Date.now()}`,
-                    sender: "System",
-                    message: `${op.nickname} was eliminated`,
-                    timestamp: Date.now(),
-                    type: "system",
-                });
+            if (data.playerId === this.localPlayerNetId) {
+                this.isDead = true;
+                const killer = this.otherPlayers.get(data.killerId);
+                this.killerName = killer?.nickname || 'Unknown';
+                this.onDeathStateChange?.(true, this.killerName);
+                this.onNotification?.(`💀 You were eliminated by ${this.killerName}`, 3000);
+            } else {
+                const op = this.otherPlayers.get(data.playerId);
+                if (op) {
+                    op.setDead(true);
+                    this.onChatMessage?.({
+                        id: `system-${Date.now()}`,
+                        sender: "System",
+                        message: `${op.nickname} was eliminated`,
+                        timestamp: Date.now(),
+                        type: "system",
+                    });
+                }
             }
         };
 
@@ -332,6 +360,10 @@ export class Game {
             this.hudState.health = this.player.health;
             this.emitState(true);
             this.onNotification?.('✨ Respawned!', 2000);
+
+            this.isDead = false;
+            this.killerName = null;
+            this.onDeathStateChange?.(false, null);
         };
     }
 
