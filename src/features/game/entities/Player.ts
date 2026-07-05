@@ -1,11 +1,12 @@
-//src\features\game\entities\Player.ts
+// src/features/game/entities/Player.ts
 import * as THREE from "three";
 import { Entity } from "./Entity";
 import { InputManager } from "../core/InputManager";
 import { ResourceManager } from "../core/ResourceManager";
 import { CameraController } from "../core/CameraController";
 import { Weapon } from "./Weapon";
-import { Terrain } from "../world/Terrain";
+import { TerrainChunkManager } from "../world/TerrainChunkManager";
+import { CollisionGrid } from "../world/CollisionGrid";
 
 export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
@@ -25,8 +26,8 @@ export class Player extends Entity {
 
     private inputManager!: InputManager;
     private camera!: CameraController;
-    private colliders: THREE.Box3[] = [];
-    private terrain: Terrain | null = null;
+    private terrain: TerrainChunkManager | null = null;
+    private collisionGrid: CollisionGrid | null = null;
 
     private mixer: THREE.AnimationMixer | null = null;
     private animations: Map<string, THREE.AnimationAction> = new Map();
@@ -150,21 +151,24 @@ export class Player extends Entity {
         }
     }
 
-    setDependencies(inputManager: InputManager, camera: CameraController, colliders: THREE.Box3[]) {
+    setDependencies(inputManager: InputManager, camera: CameraController) {
         this.inputManager = inputManager;
         this.camera = camera;
-        this.colliders = colliders;
     }
 
-    setWeaponVisible(visible: boolean) {
-        this.weapon.mesh.visible = visible;
-    }
-
-    setTerrain(terrain: Terrain) {
+    setTerrain(terrain: TerrainChunkManager) {
         this.terrain = terrain;
         const initialHeight = terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z);
         this.baseY = initialHeight;
         this.mesh.position.y = initialHeight;
+    }
+
+    setCollisionGrid(grid: CollisionGrid) {
+        this.collisionGrid = grid;
+    }
+
+    setWeaponVisible(visible: boolean) {
+        this.weapon.mesh.visible = visible;
     }
 
     public setHealth(health: number) {
@@ -230,16 +234,15 @@ export class Player extends Entity {
             const playerBox = Player._playerBox.setFromCenterAndSize(groundPos, Player._playerSize);
 
             let blocked = false;
-            for (let i = 0; i < this.colliders.length; i++) {
-                if (this.colliders[i].intersectsBox(playerBox)) {
-                    blocked = true;
-                    break;
-                }
+
+            if (this.collisionGrid) {
+                blocked = this.collisionGrid.checkCollision(groundPos, Player._playerSize);
             }
 
             if (!blocked) {
                 this.mesh.position.x = nextPos.x;
                 this.mesh.position.z = nextPos.z;
+                this.baseY = nextTerrainHeight;
                 moved = true;
             }
         } else if (shouldFaceLookDirection) {

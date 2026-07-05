@@ -1,4 +1,4 @@
-//src\features\game\core\Game.ts
+// src/features/game/core/Game.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
@@ -195,28 +195,33 @@ export class Game {
         };
 
         this.player.create(currentLocation.scene, this.resourceManager);
-        this.player.setDependencies(this.inputManager, this.cameraController, currentLocation.colliders);
+        this.player.setDependencies(this.inputManager, this.cameraController);
 
         const spawnPoint = currentLocation.getSpawnPoint();
         this.player.mesh.position.copy(spawnPoint);
 
         if (currentLocation instanceof MainWorld) {
             this.player.setTerrain(currentLocation.terrain);
+            this.player.setCollisionGrid(currentLocation.collisionGrid);
         }
 
         currentLocation.scene.add(this.cameraController.yawObject);
         this.cameraController.setTarget(this.player.mesh);
 
         if (currentLocation instanceof MainWorld) {
-            this.safeZone.create(currentLocation.scene, this.resourceManager, currentLocation.terrain);
+            this.safeZone.create(currentLocation.scene, this.resourceManager, currentLocation.terrain as any);
 
             const crystalCollider = this.safeZone.getCrystalCollider();
             if (crystalCollider) {
-                currentLocation.colliders.push(crystalCollider);
+                currentLocation.collisionGrid.insert(crystalCollider);
             }
         } else {
             this.safeZone.create(currentLocation.scene, this.resourceManager);
         }
+
+        const collisionGrid = currentLocation instanceof MainWorld
+            ? currentLocation.collisionGrid
+            : undefined;
 
         this.shootingSystem.init(
             currentLocation.scene,
@@ -226,7 +231,8 @@ export class Game {
             this.resourceManager,
             this.networkManager,
             this.otherPlayers,
-            currentLocation
+            currentLocation,
+            collisionGrid
         );
         this.shootingSystem.onHitPlayer = () => {
             this.hitMarkTrigger = Date.now();
@@ -489,7 +495,7 @@ export class Game {
             }
 
             if (currentLocation instanceof MainWorld) {
-                currentLocation.updateWater(delta);
+                currentLocation.update(this.player.mesh.position, delta);
             }
 
             this.interactionSystem.update(delta);

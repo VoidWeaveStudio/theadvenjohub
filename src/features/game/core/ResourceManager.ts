@@ -9,8 +9,9 @@ export class ResourceManager {
   private gltfLoader: GLTFLoader;
   private dracoLoader: DRACOLoader;
   private models: Map<string, { scene: THREE.Group; animations: THREE.AnimationClip[] }> = new Map();
+  private textures: Map<string, THREE.Texture> = new Map();
 
-  constructor() { 
+  constructor() {
     this.gltfLoader = new GLTFLoader();
     this.dracoLoader = new DRACOLoader();
     this.dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
@@ -25,7 +26,44 @@ export class ResourceManager {
       this.loadModel("crystal", "/models/crystal.glb"),
       this.loadModel("tree", "/models/tree.glb"),
       this.loadModel("rock", "/models/rock.glb"),
+
+      this.loadTexture("ground-color", "/models/textures/ground/Ground037_1K-JPG_Color.jpg", true),
+      this.loadTexture("ground-normal", "/models/textures/ground/Ground037_1K-JPG_NormalGL.jpg", false),
+      this.loadTexture("ground-roughness", "/models/textures/ground/Ground037_1K-JPG_Roughness.jpg", false),
+      this.loadTexture("ground-ao", "/models/textures/ground/Ground037_1K-JPG_AmbientOcclusion.jpg", false),
     ]);
+  }
+
+  private async loadTexture(name: string, url: string, isSRGB: boolean): Promise<void> {
+    return new Promise((resolve) => {
+      const loader = new THREE.TextureLoader();
+      loader.load(
+        url,
+        (texture) => {
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.anisotropy = 8;
+          texture.generateMipmaps = true;
+
+          if (isSRGB) {
+            texture.colorSpace = THREE.SRGBColorSpace;
+          }
+
+          this.textures.set(name, texture);
+          resolve();
+        },
+        undefined,
+        () => {
+          resolve();
+        }
+      );
+    });
+  }
+
+  getTexture(name: string): THREE.Texture | null {
+    return this.textures.get(name) || null;
   }
 
   private async loadModel(name: string, url: string): Promise<void> {
@@ -91,10 +129,10 @@ export class ResourceManager {
       case "crystal": {
         const c = new THREE.Mesh(
           new THREE.OctahedronGeometry(1.5, 0),
-          new THREE.MeshStandardMaterial({ 
-            color: 0x00ffff, 
-            emissive: 0x00ffff, 
-            emissiveIntensity: 0.5 
+          new THREE.MeshStandardMaterial({
+            color: 0x00ffff,
+            emissive: 0x00ffff,
+            emissiveIntensity: 0.5
           })
         );
         c.castShadow = true;

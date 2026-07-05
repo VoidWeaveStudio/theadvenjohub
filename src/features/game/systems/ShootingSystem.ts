@@ -1,4 +1,4 @@
-//src\features\game\systems\ShootingSystem.ts
+// src/features/game/systems/ShootingSystem.ts
 import * as THREE from "three";
 import { System } from "./System";
 import { Player } from "../entities/Player";
@@ -8,6 +8,7 @@ import { ResourceManager } from "../core/ResourceManager";
 import { NetworkManager } from "../network/NetworkManager";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { Location } from "../world/Location";
+import { CollisionGrid } from "../world/CollisionGrid";
 
 interface Bullet {
     mesh: THREE.Mesh;
@@ -41,6 +42,7 @@ export class ShootingSystem extends System {
     private otherPlayerHitboxes: Map<string, THREE.Mesh> = new Map();
     private otherPlayersRef: Map<string, OtherPlayer> | null = null;
     private location: Location | null = null;
+    private collisionGrid: CollisionGrid | null = null;
 
     private readonly TRAIL_LENGTH = 1.5;
     private readonly BULLET_SPEED = 200;
@@ -49,6 +51,9 @@ export class ShootingSystem extends System {
     private particlePool: Particle[] = [];
     private particleGeometry: THREE.SphereGeometry | null = null;
     private particleMaterial: THREE.MeshBasicMaterial | null = null;
+
+    private impactPool: THREE.Mesh[] = [];
+    private readonly MAX_IMPACTS = 20;
 
     private muzzleLight: THREE.PointLight | null = null;
     private muzzleLightTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -61,7 +66,8 @@ export class ShootingSystem extends System {
         resourceManager: ResourceManager,
         network: NetworkManager,
         otherPlayersRef?: Map<string, OtherPlayer>,
-        location?: Location
+        location?: Location,
+        collisionGrid?: CollisionGrid
     ) {
         this.scene = scene;
         this.player = player;
@@ -71,8 +77,10 @@ export class ShootingSystem extends System {
         this.network = network;
         this.otherPlayersRef = otherPlayersRef || null;
         this.location = location || null;
+        this.collisionGrid = collisionGrid || null;
 
         this.initParticlePool();
+        this.initImpactPool();
     }
 
     private initParticlePool() {
@@ -90,6 +98,18 @@ export class ShootingSystem extends System {
                 life: 0,
                 active: false
             });
+        }
+    }
+
+    private initImpactPool() {
+        const geo = new THREE.SphereGeometry(0.1, 6, 6);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+
+        for (let i = 0; i < this.MAX_IMPACTS; i++) {
+            const impact = new THREE.Mesh(geo, mat);
+            impact.visible = false;
+            this.scene.add(impact);
+            this.impactPool.push(impact);
         }
     }
 
@@ -116,7 +136,7 @@ export class ShootingSystem extends System {
         }
 
         this.updateBullets(delta);
-        this.updateParticles(delta); // 🔥 FIX #1
+        this.updateParticles(delta);
         this.player.getWeapon().update(delta);
     }
 
@@ -165,7 +185,24 @@ export class ShootingSystem extends System {
             }
         });
 
-        if (this.location) {
+        if (this.collisionGrid) {
+            const endPoint = cameraPos.clone().add(cameraDir.clone().multiplyScalar(300));
+            const center = cameraPos.clone().add(endPoint).multiplyScalar(0.5);
+            const size = new THREE.Vector3(300, 50, 300);
+
+            const candidates = this.collisionGrid.query(center, size);
+            for (const box of candidates) {
+                const intersectPoint = new THREE.Vector3();
+                if (this.raycaster.ray.intersectBox(box, intersectPoint)) {
+                    const dist = cameraPos.distanceTo(intersectPoint);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        hitPoint = intersectPoint.clone();
+                        targetId = null;
+                    }
+                }
+            }
+        } else if (this.location) {
             for (const box of this.location.colliders) {
                 const intersectPoint = new THREE.Vector3();
                 if (this.raycaster.ray.intersectBox(box, intersectPoint)) {
@@ -292,17 +329,17 @@ export class ShootingSystem extends System {
     }
 
     private spawnImpactEffect(point: THREE.Vector3) {
-        const geo = new THREE.SphereGeometry(0.1, 6, 6);
-        const mat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
-        const impact = new THREE.Mesh(geo, mat);
-        impact.position.copy(point);
-        this.scene.add(impact);
+        for (const impact of this.impactPool) {
+            if (!impact.visible) {
+                impact.position.copy(point);
+                impact.visible = true;
 
-        setTimeout(() => {
-            this.scene.remove(impact);
-            geo.dispose();
-            mat.dispose();
-        }, 300);
+                setTimeout(() => {
+                    impact.visible = false;
+                }, 300);
+                return;
+            }
+        }
     }
 
     private updateBullets(delta: number) {
@@ -370,6 +407,11 @@ export class ShootingSystem extends System {
             this.scene.remove(p.mesh);
         }
         this.particlePool = [];
+
+        for (const impact of this.impactPool) {
+            this.scene.remove(impact);
+        }
+        this.impactPool = [];
 
         if (this.particleGeometry) {
             this.particleGeometry.dispose();

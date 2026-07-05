@@ -1,64 +1,83 @@
-//src\features\game\world\MainWorld.ts
+//src\features\game\world\locations\MainWorld.ts
 import * as THREE from "three";
 import { Location, Portal } from "../Location";
 import { ResourceManager } from "../../core/ResourceManager";
-import { Terrain } from "../Terrain";
+import { TerrainChunkManager } from "../TerrainChunkManager";
 import { GridSystem } from "../GridSystem";
-
-interface LakeConfig {
-  centerX: number;
-  centerZ: number;
-  radius: number;
-  depth: number;
-  beachWidth: number;
-  beachHeight: number;
-}
+import { CollisionGrid } from "../CollisionGrid";
 
 export class MainWorld extends Location {
-  public readonly size = 500;
+  public readonly size = 1000;
+  public terrain: TerrainChunkManager;
   public gridSystem: GridSystem;
-  public terrain: Terrain;
-  private treeInstances: THREE.InstancedMesh | null = null;
-  private rockInstances: THREE.InstancedMesh | null = null;
+  public collisionGrid: CollisionGrid;
 
-  private waterMeshes: THREE.Mesh[] = [];
-  private waterTime: number = 0;
+  private treeInstances: Map<string, THREE.InstancedMesh> = new Map();
+  private rockInstances: Map<string, THREE.InstancedMesh> = new Map();
 
-  private lakes: LakeConfig[] = [
-    { centerX: -100, centerZ: -90, radius: 40, depth: 5, beachWidth: 6, beachHeight: 1.2 },
-    { centerX: 80, centerZ: 100, radius: 25, depth: 4, beachWidth: 5, beachHeight: 1.0 },
-    { centerX: -50, centerZ: 150, radius: 15, depth: 3, beachWidth: 4, beachHeight: 0.8 },
-    { centerX: 150, centerZ: -80, radius: 20, depth: 3.5, beachWidth: 5, beachHeight: 1.0 },
-  ];
+  private treeGeometry: THREE.BufferGeometry | null = null;
+  private treeMaterial: THREE.Material | null = null;
+  private rockGeometry: THREE.BufferGeometry | null = null;
+  private rockMaterial: THREE.Material | null = null;
+
+  private sun: THREE.DirectionalLight | null = null;
+  private sunTarget: THREE.Object3D | null = null;
+
+  private streamingRadius: number = 4;
+  private loadedChunkKeys: Set<string> = new Set();
 
   constructor() {
     super("main-world", "TANJO World");
-    this.terrain = new Terrain(this.size, 64);
+
+    const heightFunction = (x: number, z: number): number => {
+      const dist = Math.sqrt(x * x + z * z);
+      if (dist < 40) return 0;
+      return (
+        Math.sin(x * 0.05) * Math.cos(z * 0.05) * 2 +
+        Math.sin(x * 0.1 + 1.5) * Math.cos(z * 0.08 + 0.7) * 1.5 +
+        Math.sin(x * 0.02) * Math.cos(z * 0.03) * 3
+      );
+    };
+
+    this.terrain = new TerrainChunkManager(
+      {
+        chunkSize: 100,
+        segmentsPerChunk: 32,
+        worldSize: this.size,
+      },
+      heightFunction
+    );
+
     this.gridSystem = new GridSystem(this.size, 5);
+    this.collisionGrid = new CollisionGrid(20);
   }
 
   create(rm: ResourceManager) {
+    this.createAtmosphere();
     this.createSky();
 
-    this.terrain.create(this.scene);
-
-    for (const lake of this.lakes) {
-      this.terrain.createWaterDepression(
-        lake.centerX,
-        lake.centerZ,
-        lake.radius,
-        lake.depth,
-        lake.beachWidth,
-        lake.beachHeight
-      );
+    const chunks = this.terrain.generateAll(rm);
+    for (const chunk of chunks) {
+      this.scene.add(chunk.mesh);
+      chunk.mesh.visible = true;
+      this.loadedChunkKeys.add(`${chunk.chunkX},${chunk.chunkZ}`);
     }
 
+    this.terrain.computeAllNormals();
+
     this.gridSystem.createVisualization(this.scene);
-    this.createWater();
-    this.createVegetation(rm);
-    this.createRocks(rm);
+
+    this.prepareVegetationAssets(rm);
+    this.createVegetationByChunks(rm);
+    this.createRocksByChunks(rm);
+
+    this.buildCollisionGrid();
     this.createLighting();
     this.createCaveEntrance();
+  }
+
+  private createAtmosphere() {
+    this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0025);
   }
 
   private createSky() {
@@ -81,28 +100,27 @@ export class MainWorld extends Location {
     this.scene.background = texture;
   }
 
-  public updateSky(_playerPosition: THREE.Vector3) {
-  }
-
   private createCaveEntrance() {
     const archGeo = new THREE.TorusGeometry(3, 0.5, 8, 16, Math.PI);
     const archMat = new THREE.MeshStandardMaterial({ color: 0x555555 });
     const arch = new THREE.Mesh(archGeo, archMat);
 
-    const caveY = this.terrain.getHeightAt(200, -150);
-    arch.position.set(200, caveY, -150);
+    const caveX = 250;
+    const caveZ = -50;
+    const caveY = this.terrain.getHeightAt(caveX, caveZ);
+    arch.position.set(caveX, caveY, caveZ);
     arch.rotation.x = Math.PI;
     this.scene.add(arch);
 
     const entranceGeo = new THREE.CircleGeometry(2.8, 32);
     const entranceMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
     const entrance = new THREE.Mesh(entranceGeo, entranceMat);
-    entrance.position.set(200, caveY + 2.8, -150);
+    entrance.position.set(caveX, caveY + 2.8, caveZ);
     this.scene.add(entrance);
 
     this.addPortal({
       id: "main-to-cave",
-      position: new THREE.Vector3(200, caveY, -150),
+      position: new THREE.Vector3(caveX, caveY, caveZ),
       radius: 3,
       targetLocationId: "cave",
       targetSpawnPoint: new THREE.Vector3(0, 0, 0),
@@ -110,54 +128,162 @@ export class MainWorld extends Location {
     });
   }
 
-  private createWater() {
-    const waterMat = new THREE.MeshStandardMaterial({
-      color: 0x1a8fd5,
-      transparent: true,
-      opacity: 0.85,
-      roughness: 0.1,
-      metalness: 0.1,
-      emissive: 0x0a4f7a,
-      emissiveIntensity: 0.15,
-    });
+  private prepareVegetationAssets(rm: ResourceManager) {
+    const treeData = rm.getModel("tree");
+    if (treeData) {
+      const treeMesh = this.findFirstMesh(treeData.scene);
+      if (treeMesh && treeMesh.geometry) {
+        const { geometry, material } = this.cloneAndRotateGeometry(treeMesh);
+        this.treeGeometry = geometry;
+        this.treeMaterial = material;
+      }
+    }
 
-    for (const lake of this.lakes) {
-      const centerOriginalHeight = this.terrain.getOriginalHeightAt(lake.centerX, lake.centerZ);
-      const waterLevel = centerOriginalHeight - lake.depth;
-
-      const lakeGeometry = new THREE.CircleGeometry(lake.radius - 0.5, 64);
-
-      const lakeMesh = new THREE.Mesh(lakeGeometry, waterMat.clone());
-      lakeMesh.rotation.x = -Math.PI / 2;
-      lakeMesh.position.set(lake.centerX, waterLevel + 0.05, lake.centerZ);
-      lakeMesh.receiveShadow = true;
-
-      lakeMesh.userData.originalY = waterLevel + 0.05;
-      lakeMesh.userData.phase = Math.random() * Math.PI * 2;
-
-      this.scene.add(lakeMesh);
-      this.waterMeshes.push(lakeMesh);
+    const rockData = rm.getModel("rock");
+    if (rockData) {
+      const rockMesh = this.findFirstMesh(rockData.scene);
+      if (rockMesh && rockMesh.geometry) {
+        const { geometry, material } = this.cloneAndRotateGeometry(rockMesh);
+        this.rockGeometry = geometry;
+        this.rockMaterial = material;
+      }
     }
   }
 
-  public updateWater(delta: number) {
-    this.waterTime += delta;
+  private createVegetationByChunks(rm: ResourceManager) {
+    if (!this.treeGeometry || !this.treeMaterial) return;
 
-    for (const waterMesh of this.waterMeshes) {
-      const originalY = waterMesh.userData.originalY || waterMesh.position.y;
-      const phase = waterMesh.userData.phase || 0;
+    const treesPerChunk = 60;
+    const clearZoneRadius = 50;
 
-      const waveHeight = 0.05;
-      const waveFrequency = 1.5;
-      const offsetY = Math.sin(this.waterTime * waveFrequency + phase) * waveHeight;
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
 
-      waterMesh.position.y = originalY + offsetY;
+    this.terrain.chunks.forEach((chunk, key) => {
+      const instances = new THREE.InstancedMesh(
+        this.treeGeometry!,
+        this.treeMaterial!,
+        treesPerChunk
+      );
+      instances.castShadow = true;
+      instances.receiveShadow = true;
 
-      const material = waterMesh.material as THREE.MeshStandardMaterial;
-      const baseOpacity = 0.85;
-      const opacityVariation = Math.sin(this.waterTime * 2 + phase) * 0.05;
-      material.opacity = baseOpacity + opacityVariation;
-    }
+      let placed = 0;
+      for (let i = 0; i < treesPerChunk; i++) {
+        let worldX: number, worldZ: number;
+        let attempts = 0;
+
+        do {
+          const localX = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
+          const localZ = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
+          worldX = chunk.worldX + localX;
+          worldZ = chunk.worldZ + localZ;
+          attempts++;
+        } while (this.isInSafeZone(worldX, worldZ) && attempts < 10);
+
+        if (this.isInSafeZone(worldX, worldZ)) continue;
+
+        const terrainHeight = this.terrain.getHeightAt(worldX, worldZ);
+        const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
+        if (dist < clearZoneRadius) continue;
+
+        position.set(worldX, terrainHeight, worldZ);
+        rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
+        
+        const s = 0.8 + Math.random() * 0.6;
+        const heightMultiplier = 2.5 + Math.random() * 1.5;
+        scale.set(s, s * heightMultiplier, s);
+
+        matrix.compose(position, rotation, scale);
+        instances.setMatrixAt(placed, matrix);
+
+        const treeHeight = 4 * heightMultiplier;
+        chunk.colliders.push(new THREE.Box3(
+          new THREE.Vector3(worldX - 0.5, terrainHeight, worldZ - 0.5),
+          new THREE.Vector3(worldX + 0.5, terrainHeight + treeHeight, worldZ + 0.5)
+        ));
+
+        placed++;
+      }
+
+      instances.count = placed;
+      instances.instanceMatrix.needsUpdate = true;
+      this.scene.add(instances);
+      this.treeInstances.set(key, instances);
+    });
+  }
+
+  private createRocksByChunks(rm: ResourceManager) {
+    if (!this.rockGeometry || !this.rockMaterial) return;
+
+    const rocksPerChunk = 6;
+    const clearZoneRadius = 50;
+
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+
+    this.terrain.chunks.forEach((chunk, key) => {
+      const instances = new THREE.InstancedMesh(
+        this.rockGeometry!,
+        this.rockMaterial!,
+        rocksPerChunk
+      );
+      instances.castShadow = true;
+      instances.receiveShadow = true;
+
+      let placed = 0;
+      for (let i = 0; i < rocksPerChunk; i++) {
+        let worldX: number, worldZ: number;
+        let attempts = 0;
+
+        do {
+          const localX = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
+          const localZ = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
+          worldX = chunk.worldX + localX;
+          worldZ = chunk.worldZ + localZ;
+          attempts++;
+        } while (this.isInSafeZone(worldX, worldZ) && attempts < 10);
+
+        if (this.isInSafeZone(worldX, worldZ)) continue;
+
+        const terrainHeight = this.terrain.getHeightAt(worldX, worldZ);
+        const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
+        if (dist < clearZoneRadius) continue;
+
+        position.set(worldX, terrainHeight, worldZ);
+        rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
+        const s = 0.6 + Math.random() * 1.2;
+        scale.set(s, s, s);
+
+        matrix.compose(position, rotation, scale);
+        instances.setMatrixAt(placed, matrix);
+
+        chunk.colliders.push(new THREE.Box3(
+          new THREE.Vector3(worldX - 1, terrainHeight, worldZ - 1),
+          new THREE.Vector3(worldX + 1, terrainHeight + 2, worldZ + 1)
+        ));
+
+        placed++;
+      }
+
+      instances.count = placed;
+      instances.instanceMatrix.needsUpdate = true;
+      this.scene.add(instances);
+      this.rockInstances.set(key, instances);
+    });
+  }
+
+  private buildCollisionGrid() {
+    this.collisionGrid.clear();
+    this.terrain.chunks.forEach(chunk => {
+      for (const collider of chunk.colliders) {
+        this.collisionGrid.insert(collider);
+      }
+    });
   }
 
   private findFirstMesh(scene: THREE.Group): THREE.Mesh | null {
@@ -184,150 +310,106 @@ export class MainWorld extends Location {
     return { geometry, material };
   }
 
-  private createVegetation(rm: ResourceManager) {
-    const count = 180;
-    const data = rm.getModel("tree");
-    if (!data) return;
-
-    const treeMesh = this.findFirstMesh(data.scene);
-    if (!treeMesh || !treeMesh.geometry) return;
-
-    const { geometry, material } = this.cloneAndRotateGeometry(treeMesh);
-
-    this.treeInstances = new THREE.InstancedMesh(geometry, material, count);
-    this.treeInstances.castShadow = true;
-    this.treeInstances.receiveShadow = true;
-
-    const matrix = new THREE.Matrix4();
-    const position = new THREE.Vector3();
-    const rotation = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-
-    const clearZoneRadius = 50;
-
-    for (let i = 0; i < count; i++) {
-      let x: number, z: number;
-      let attempts = 0;
-
-      do {
-        const angle = Math.random() * Math.PI * 2;
-        const r = clearZoneRadius + Math.random() * (this.size * 0.45 - clearZoneRadius);
-        x = Math.cos(angle) * r;
-        z = Math.sin(angle) * r;
-        attempts++;
-      } while ((this.isInWater(x, z) || this.isInSafeZone(x, z)) && attempts < 10);
-
-      if (this.isInWater(x, z) || this.isInSafeZone(x, z)) continue;
-
-      const terrainHeight = this.terrain.getHeightAt(x, z);
-
-      position.set(x, terrainHeight, z);
-      rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
-      const s = 0.8 + Math.random() * 0.6;
-      scale.set(s, s, s);
-
-      matrix.compose(position, rotation, scale);
-      this.treeInstances.setMatrixAt(i, matrix);
-
-      const colliderBox = new THREE.Box3(
-        new THREE.Vector3(x - 0.5, terrainHeight, z - 0.5),
-        new THREE.Vector3(x + 0.5, terrainHeight + 4, z + 0.5)
-      );
-      this.colliders.push(colliderBox);
-    }
-
-    this.treeInstances.instanceMatrix.needsUpdate = true;
-    this.scene.add(this.treeInstances);
-  }
-
-  private createRocks(rm: ResourceManager) {
-    const count = 40;
-    const data = rm.getModel("rock");
-    if (!data) return;
-
-    const rockMesh = this.findFirstMesh(data.scene);
-    if (!rockMesh || !rockMesh.geometry) return;
-
-    const { geometry, material } = this.cloneAndRotateGeometry(rockMesh);
-
-    this.rockInstances = new THREE.InstancedMesh(geometry, material, count);
-    this.rockInstances.castShadow = true;
-    this.rockInstances.receiveShadow = true;
-
-    const matrix = new THREE.Matrix4();
-    const position = new THREE.Vector3();
-    const rotation = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-
-    const clearZoneRadius = 50;
-
-    for (let i = 0; i < count; i++) {
-      let x: number, z: number;
-      let attempts = 0;
-
-      do {
-        x = (Math.random() - 0.5) * this.size * 0.8;
-        z = (Math.random() - 0.5) * this.size * 0.8;
-        attempts++;
-      } while ((this.isInWater(x, z) || this.isInSafeZone(x, z)) && attempts < 10);
-
-      if (this.isInWater(x, z) || this.isInSafeZone(x, z)) continue;
-
-      const dist = Math.sqrt(x * x + z * z);
-      if (dist < clearZoneRadius) continue;
-
-      const terrainHeight = this.terrain.getHeightAt(x, z);
-
-      position.set(x, terrainHeight, z);
-      rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
-      const s = 0.6 + Math.random() * 1.2;
-      scale.set(s, s, s);
-
-      matrix.compose(position, rotation, scale);
-      this.rockInstances.setMatrixAt(i, matrix);
-
-      const colliderBox = new THREE.Box3(
-        new THREE.Vector3(x - 1, terrainHeight, z - 1),
-        new THREE.Vector3(x + 1, terrainHeight + 2, z + 1)
-      );
-      this.colliders.push(colliderBox);
-    }
-
-    this.rockInstances.instanceMatrix.needsUpdate = true;
-    this.scene.add(this.rockInstances);
-  }
-
   private isInSafeZone(x: number, z: number): boolean {
     const dist = Math.sqrt(x * x + z * z);
     return dist < 45;
-  }
-
-  private isInWater(x: number, z: number): boolean {
-    for (const lake of this.lakes) {
-      const dist = Math.sqrt((x - lake.centerX) ** 2 + (z - lake.centerZ) ** 2);
-      if (dist < lake.radius + lake.beachWidth) return true;
-    }
-    return false;
   }
 
   private createLighting() {
     const hemi = new THREE.HemisphereLight(0xbde0ff, 0x4a6b3a, 0.7);
     this.scene.add(hemi);
 
-    const sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
-    sun.position.set(80, 150, 60);
-    sun.castShadow = true;
+    this.sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
+    this.sun.castShadow = true;
 
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 300;
-    sun.shadow.camera.left = -100;
-    sun.shadow.camera.right = 100;
-    sun.shadow.camera.top = 100;
-    sun.shadow.camera.bottom = -100;
-    sun.shadow.bias = -0.0005;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.camera.near = 0.5;
+    this.sun.shadow.camera.far = 200;
+    this.sun.shadow.camera.left = -80;
+    this.sun.shadow.camera.right = 80;
+    this.sun.shadow.camera.top = 80;
+    this.sun.shadow.camera.bottom = -80;
+    this.sun.shadow.bias = -0.0005;
 
-    this.scene.add(sun);
+    this.sunTarget = new THREE.Object3D();
+    this.sun.target = this.sunTarget;
+
+    this.scene.add(this.sun);
+    this.scene.add(this.sunTarget);
+  }
+
+  public update(playerPosition: THREE.Vector3, delta: number) {
+    if (this.sun && this.sunTarget) {
+      this.sun.position.set(
+        playerPosition.x + 80,
+        150,
+        playerPosition.z + 60
+      );
+      this.sunTarget.position.copy(playerPosition);
+      this.sunTarget.updateMatrixWorld();
+    }
+
+    this.updateStreaming(playerPosition.x, playerPosition.z);
+  }
+
+  private updateStreaming(playerX: number, playerZ: number) {
+    const playerChunk = this.terrain.getChunkAtWorldPos(playerX, playerZ);
+    if (!playerChunk) return;
+
+    const toShow: string[] = [];
+    const toHide: string[] = [];
+
+    for (let dx = -this.streamingRadius; dx <= this.streamingRadius; dx++) {
+      for (let dz = -this.streamingRadius; dz <= this.streamingRadius; dz++) {
+        const cx = playerChunk.chunkX + dx;
+        const cz = playerChunk.chunkZ + dz;
+        const key = `${cx},${cz}`;
+        const chunk = this.terrain.chunks.get(key);
+        if (chunk && !this.loadedChunkKeys.has(key)) {
+          toShow.push(key);
+        }
+      }
+    }
+
+    this.loadedChunkKeys.forEach(key => {
+      const chunk = this.terrain.chunks.get(key);
+      if (!chunk) return;
+      const dx = Math.abs(chunk.chunkX - playerChunk.chunkX);
+      const dz = Math.abs(chunk.chunkZ - playerChunk.chunkZ);
+      if (dx > this.streamingRadius || dz > this.streamingRadius) {
+        toHide.push(key);
+      }
+    });
+
+    for (const key of toShow) {
+      const chunk = this.terrain.chunks.get(key);
+      if (chunk) {
+        chunk.mesh.visible = true;
+        const trees = this.treeInstances.get(key);
+        if (trees) trees.visible = true;
+        const rocks = this.rockInstances.get(key);
+        if (rocks) rocks.visible = true;
+
+        this.loadedChunkKeys.add(key);
+      }
+    }
+
+    for (const key of toHide) {
+      const chunk = this.terrain.chunks.get(key);
+      if (chunk) {
+        chunk.mesh.visible = false;
+        const trees = this.treeInstances.get(key);
+        if (trees) trees.visible = false;
+        const rocks = this.rockInstances.get(key);
+        if (rocks) rocks.visible = false;
+
+        this.loadedChunkKeys.delete(key);
+      }
+    }
+  }
+
+  public getCollidersInRadius(center: THREE.Vector3, radius: number): THREE.Box3[] {
+    return this.collisionGrid.query(center, new THREE.Vector3(radius * 2, radius * 2, radius * 2));
   }
 
   getSpawnPoint(): THREE.Vector3 {
@@ -343,22 +425,34 @@ export class MainWorld extends Location {
     this.terrain.dispose();
     this.gridSystem.dispose();
 
-    if (this.treeInstances) {
-      this.treeInstances.dispose();
-    }
-    if (this.rockInstances) {
-      this.rockInstances.dispose();
-    }
+    this.treeInstances.forEach(instances => {
+      this.scene.remove(instances);
+      instances.dispose();
+    });
+    this.treeInstances.clear();
 
-    for (const mesh of this.waterMeshes) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const mat of materials) {
-        mat.dispose();
-      }
+    this.rockInstances.forEach(instances => {
+      this.scene.remove(instances);
+      instances.dispose();
+    });
+    this.rockInstances.clear();
+
+    if (this.treeGeometry) {
+      this.treeGeometry.dispose();
+      this.treeGeometry = null;
     }
-    this.waterMeshes = [];
+    if (this.treeMaterial) {
+      this.treeMaterial.dispose();
+      this.treeMaterial = null;
+    }
+    if (this.rockGeometry) {
+      this.rockGeometry.dispose();
+      this.rockGeometry = null;
+    }
+    if (this.rockMaterial) {
+      this.rockMaterial.dispose();
+      this.rockMaterial = null;
+    }
 
     if (this.scene.background instanceof THREE.Texture) {
       this.scene.background.dispose();
