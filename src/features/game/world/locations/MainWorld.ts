@@ -22,13 +22,13 @@ export class MainWorld extends Location {
   public terrainCollisionGrid: CollisionGrid;
 
   private treeInstances: Map<string, THREE.InstancedMesh> = new Map();
-  private tree2Instances: Map<string, THREE.InstancedMesh> = new Map(); // === НОВОЕ ===
+  private tree2Instances: Map<string, THREE.InstancedMesh> = new Map();
   private rockInstances: Map<string, THREE.InstancedMesh> = new Map();
 
   private treeGeometry: THREE.BufferGeometry | null = null;
   private treeMaterial: THREE.Material | null = null;
-  private tree2Geometry: THREE.BufferGeometry | null = null; // === НОВОЕ ===
-  private tree2Material: THREE.Material | null = null; // === НОВОЕ ===
+  private tree2Geometry: THREE.BufferGeometry | null = null;
+  private tree2Material: THREE.Material | null = null;
   private rockGeometry: THREE.BufferGeometry | null = null;
   private rockMaterial: THREE.Material | null = null;
 
@@ -123,11 +123,11 @@ export class MainWorld extends Location {
 
     this.prepareVegetationAssets(rm);
     this.prepareDecorationAssets(rm);
-    this.prepareTreeBillboards(rm); // === НОВОЕ ===
+    this.prepareTreeBillboards(rm);
     this.createVegetationByChunks(rm);
     this.createRocksByChunks(rm);
     this.createDecorationsByChunks(rm);
-    this.createTreeBillboardsByChunks(); // === НОВОЕ ===
+    this.createTreeBillboardsByChunks();
 
     this.buildCollisionGrid();
     this.buildTerrainCollisionGrid();
@@ -141,7 +141,6 @@ export class MainWorld extends Location {
     if (texture) {
       this.treeBillboardTexture = texture;
 
-      // Создаем материал с альфа-каналом
       this.treeBillboardMaterial = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
@@ -150,12 +149,10 @@ export class MainWorld extends Location {
         depthWrite: false,
       });
 
-      // Создаем геометрию плоскости (вертикальная)
       this.treeBillboardGeometry = new THREE.PlaneGeometry(4, 8);
     }
   }
 
-  // === НОВЫЙ МЕТОД ===
   private createTreeBillboardsByChunks() {
     if (!this.treeBillboardGeometry || !this.treeBillboardMaterial) return;
 
@@ -171,7 +168,6 @@ export class MainWorld extends Location {
         billboardsPerChunk
       );
 
-      // Билборды не отбрасывают тени
       billboardInstances.castShadow = false;
       billboardInstances.receiveShadow = false;
 
@@ -185,12 +181,11 @@ export class MainWorld extends Location {
         if (this.isInSafeZone(worldX, worldZ)) continue;
 
         const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
-        if (dist < 50) continue; // Не ставим билборды близко к спавну
+        if (dist < 50) continue;
 
         const terrainHeight = this.terrain.getHeightAt(worldX, worldZ);
         position.set(worldX, terrainHeight, worldZ);
 
-        // Случайный размер
         const s = 0.8 + Math.random() * 0.6;
         scale.set(s, s, s);
 
@@ -343,11 +338,10 @@ export class MainWorld extends Location {
 
   private clearVegetationAroundPortal(centerX: number, centerZ: number, radius: number) {
     let treesRemoved = 0;
-    let trees2Removed = 0; // === НОВОЕ ===
+    let trees2Removed = 0;
     let rocksRemoved = 0;
 
     this.terrain.chunks.forEach((chunk, key) => {
-      // === TREE 1 ===
       const trees = this.treeInstances.get(key);
       if (trees) {
         const matrix = new THREE.Matrix4();
@@ -374,7 +368,6 @@ export class MainWorld extends Location {
         }
       }
 
-      // === TREE 2 ===
       const trees2 = this.tree2Instances.get(key);
       if (trees2) {
         const matrix = new THREE.Matrix4();
@@ -401,7 +394,6 @@ export class MainWorld extends Location {
         }
       }
 
-      // === ROCKS ===
       const rocks = this.rockInstances.get(key);
       if (rocks) {
         const matrix = new THREE.Matrix4();
@@ -517,7 +509,6 @@ export class MainWorld extends Location {
   }
 
   private prepareVegetationAssets(rm: ResourceManager) {
-    // === TREE 1 ===
     const treeData = rm.getModel("tree");
     if (treeData) {
       const treeMesh = this.findFirstMesh(treeData.scene);
@@ -528,7 +519,6 @@ export class MainWorld extends Location {
       }
     }
 
-    // === TREE 2 ===
     const tree2Data = rm.getModel("tree2");
     if (tree2Data) {
       const tree2Mesh = this.findFirstMesh(tree2Data.scene);
@@ -539,7 +529,6 @@ export class MainWorld extends Location {
       }
     }
 
-    // === ROCK ===
     const rockData = rm.getModel("rock");
     if (rockData) {
       const rockMesh = this.findFirstMesh(rockData.scene);
@@ -616,7 +605,6 @@ export class MainWorld extends Location {
       return { geometry, material };
     };
 
-    // === GRASS ===
     const grassData = rm.getModel("grass");
     if (grassData) {
       const result = prepareGeometry(grassData.scene, 0.4, "GRASS");
@@ -626,7 +614,6 @@ export class MainWorld extends Location {
       }
     }
 
-    // === BUSH1 ===
     const bush1Data = rm.getModel("bush1");
     if (bush1Data) {
       const result = prepareGeometry(bush1Data.scene, 0.8, "BUSH1");
@@ -636,7 +623,6 @@ export class MainWorld extends Location {
       }
     }
 
-    // === BUSH2 ===
     const bush2Data = rm.getModel("bush2");
     if (bush2Data) {
       const result = prepareGeometry(bush2Data.scene, 0.7, "BUSH2");
@@ -659,7 +645,6 @@ export class MainWorld extends Location {
     const scale = new THREE.Vector3();
 
     this.terrain.chunks.forEach((chunk, key) => {
-      // === TREE 1 INSTANCES ===
       if (this.treeGeometry && this.treeMaterial) {
         const treeInstances = new THREE.InstancedMesh(
           this.treeGeometry!,
@@ -688,7 +673,6 @@ export class MainWorld extends Location {
           const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
           if (dist < clearZoneRadius) continue;
 
-          // === СЛУЧАЙНЫЙ ВЫБОР ТИПА ДЕРЕВА (70% tree1, 30% tree2) ===
           const treeType = Math.random();
           if (treeType > 0.3) continue;
 
@@ -723,7 +707,6 @@ export class MainWorld extends Location {
         this.treeInstances.set(key, treeInstances);
       }
 
-      // === TREE 2 INSTANCES ===
       if (this.tree2Geometry && this.tree2Material) {
         const tree2Instances = new THREE.InstancedMesh(
           this.tree2Geometry!,
@@ -752,16 +735,14 @@ export class MainWorld extends Location {
           const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
           if (dist < clearZoneRadius) continue;
 
-          // === СЛУЧАЙНЫЙ ВЫБОР ТИПА ДЕРЕВА (30% tree2) ===
           const treeType = Math.random();
           if (treeType <= 0.3) continue;
 
           position.set(worldX, terrainHeight, worldZ);
           rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
 
-          // === ИСПРАВЛЕННЫЕ ПРОПОРЦИИ ДЛЯ TREE2 ===
-          const baseSize = 0.6 + Math.random() * 0.4; // 0.6-1.0 (нормальный размер)
-          const heightMultiplier = 2.0 + Math.random() * 1.0; // 2.0-3.0 (нормальная высота)
+          const baseSize = 0.6 + Math.random() * 0.4;
+          const heightMultiplier = 2.0 + Math.random() * 1.0;
           const thicknessMultiplier = Math.sqrt(heightMultiplier);
 
           const scaleXZ = baseSize * thicknessMultiplier;
@@ -864,7 +845,6 @@ export class MainWorld extends Location {
     const scale = new THREE.Vector3();
 
     this.terrain.chunks.forEach((chunk, key) => {
-      // === GRASS ===
       if (this.grassGeometry && this.grassMaterial) {
         const grassInstances = new THREE.InstancedMesh(
           this.grassGeometry!,
@@ -903,7 +883,6 @@ export class MainWorld extends Location {
         this.grassInstances.set(key, grassInstances);
       }
 
-      // === BUSH1 ===
       if (this.bush1Geometry && this.bush1Material) {
         const bush1Instances = new THREE.InstancedMesh(
           this.bush1Geometry!,
@@ -942,7 +921,6 @@ export class MainWorld extends Location {
         this.bush1Instances.set(key, bush1Instances);
       }
 
-      // === BUSH2 ===
       if (this.bush2Geometry && this.bush2Material) {
         const bush2Instances = new THREE.InstancedMesh(
           this.bush2Geometry!,
@@ -1057,11 +1035,10 @@ export class MainWorld extends Location {
 
     this.updateStreaming(playerPosition.x, playerPosition.z);
     this.updateDecorationVisibility(playerPosition);
-    this.updateTreeBillboardVisibility(playerPosition); // === НОВОЕ ===
+    this.updateTreeBillboardVisibility(playerPosition);
     this.updateFogParticles(delta);
   }
 
-  // === НОВЫЙ МЕТОД ===
   private updateTreeBillboardVisibility(playerPosition: THREE.Vector3) {
     const billboardDistSq = this.BILLBOARD_DISTANCE * this.BILLBOARD_DISTANCE;
 
@@ -1073,7 +1050,6 @@ export class MainWorld extends Location {
       const dz = chunk.worldZ - playerPosition.z;
       const distSq = dx * dx + dz * dz;
 
-      // Показываем билборды только на дальних дистанциях
       const showBillboards = distSq > billboardDistSq;
 
       const billboards = this.treeBillboardInstances.get(key);
@@ -1105,7 +1081,6 @@ export class MainWorld extends Location {
       const bush2 = this.bush2Instances.get(key);
       if (bush2) bush2.visible = isVisible;
 
-      // Скрываем 3D деревья на дальних дистанциях (показываем билборды)
       const trees = this.treeInstances.get(key);
       if (trees) {
         trees.visible = distSq <= (this.BILLBOARD_DISTANCE * this.BILLBOARD_DISTANCE);
@@ -1202,7 +1177,7 @@ export class MainWorld extends Location {
     });
     this.treeInstances.clear();
 
-    this.treeBillboardInstances.forEach(instances => { // === НОВОЕ ===
+    this.treeBillboardInstances.forEach(instances => {
       this.scene.remove(instances);
       instances.dispose();
     });
@@ -1219,7 +1194,7 @@ export class MainWorld extends Location {
       this.treeBillboardTexture = null;
     }
 
-    this.tree2Instances.forEach(instances => { // === НОВОЕ ===
+    this.tree2Instances.forEach(instances => {
       this.scene.remove(instances);
       instances.dispose();
     });
@@ -1261,11 +1236,11 @@ export class MainWorld extends Location {
       this.treeMaterial.dispose();
       this.treeMaterial = null;
     }
-    if (this.tree2Geometry) { // === НОВОЕ ===
+    if (this.tree2Geometry) {
       this.tree2Geometry.dispose();
       this.tree2Geometry = null;
     }
-    if (this.tree2Material) { // === НОВОЕ ===
+    if (this.tree2Material) {
       this.tree2Material.dispose();
       this.tree2Material = null;
     }
