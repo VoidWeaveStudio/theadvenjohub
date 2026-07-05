@@ -14,6 +14,7 @@ import { NetworkSystem } from "../systems/NetworkSystem";
 import { ChatMessage } from "../ui/Chat";
 import { LocationManager } from "../world/LocationManager";
 import { MainWorld } from "../world/locations/MainWorld";
+import { Cave } from "../world/locations/Cave";
 
 export interface GameSession {
     gameToken: string;
@@ -107,7 +108,7 @@ export class Game {
         }
 
         const attacker = this.otherPlayers.get(this.damageAttackerId);
-        if (!attacker || attacker.isDead()) {
+        if (!attacker || attacker.isDead() || attacker.isHidden()) {
             this.damageAttackerId = null;
             this.onDamageIndicatorUpdate?.(null, 0);
             return;
@@ -203,6 +204,11 @@ export class Game {
         if (currentLocation instanceof MainWorld) {
             this.player.setTerrain(currentLocation.terrain);
             this.player.setCollisionGrid(currentLocation.collisionGrid);
+            this.cameraController.setCollisionGrid(currentLocation.terrainCollisionGrid);
+        } else if (currentLocation instanceof Cave) {
+            this.player.setTerrain(currentLocation as any);
+            this.player.setCollisionGrid(currentLocation.collisionGrid);
+            this.cameraController.setCollisionGrid(currentLocation.collisionGrid);
         }
 
         currentLocation.scene.add(this.cameraController.yawObject);
@@ -221,7 +227,9 @@ export class Game {
 
         const collisionGrid = currentLocation instanceof MainWorld
             ? currentLocation.collisionGrid
-            : undefined;
+            : currentLocation instanceof Cave
+                ? currentLocation.collisionGrid
+                : undefined;
 
         this.shootingSystem.init(
             currentLocation.scene,
@@ -266,6 +274,61 @@ export class Game {
     }
 
     private setupNetwork() {
+        this.networkManager.onPlayerLeaveLocation = (data) => {
+            const op = this.otherPlayers.get(data.playerId);
+            if (!op) return;
+
+            const currentLocation = this.locationManager.getCurrentLocation();
+            if (!currentLocation) return;
+
+            if (currentLocation.id === data.fromLocation) {
+                currentLocation.scene.remove(op.mesh);
+                currentLocation.scene.remove(op.getHitbox());
+                this.shootingSystem.unregisterOtherPlayer(data.playerId);
+
+                op.setHidden(true);
+
+                this.onChatMessage?.({
+                    id: `system-${Date.now()}`,
+                    sender: "System",
+                    message: `${op.nickname} left the area`,
+                    timestamp: Date.now(),
+                    type: "system",
+                });
+            }
+        };
+
+        this.networkManager.onPlayerJoinLocation = (data) => {
+            const currentLocation = this.locationManager.getCurrentLocation();
+            if (!currentLocation) return;
+
+            if (currentLocation.id === data.locationId) {
+                let op = this.otherPlayers.get(data.id);
+
+                if (!op) {
+                    op = new OtherPlayer(data.id, data.nickname);
+                    op.create(currentLocation.scene, this.resourceManager);
+                    this.otherPlayers.set(data.id, op);
+                } else {
+                    currentLocation.scene.add(op.mesh);
+                    currentLocation.scene.add(op.getHitbox());
+                    op.setHidden(false);
+                }
+
+                this.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
+                op.updateFromNetwork(data);
+                this.updateOnlineCount();
+
+                this.onChatMessage?.({
+                    id: `system-${Date.now()}`,
+                    sender: "System",
+                    message: `${data.nickname} entered the area`,
+                    timestamp: Date.now(),
+                    type: "system",
+                });
+            }
+        };
+
         this.networkManager.connect(this.session);
 
         this.networkManager.onAuthenticated = (data) => {
@@ -279,13 +342,32 @@ export class Game {
             const currentLocation = this.locationManager.getCurrentLocation();
             if (!currentLocation) return;
 
-            const op = new OtherPlayer(data.id, data.nickname);
-            op.create(currentLocation.scene, this.resourceManager);
-            op.updateFromNetwork(data);
-            this.otherPlayers.set(data.id, op);
+            const playerLocation = data.locationId || 'main-world';
+
+            if (playerLocation !== currentLocation.id) {
+                if (!this.otherPlayers.has(data.id)) {
+                    const op = new OtherPlayer(data.id, data.nickname);
+                    op.setHidden(true);
+                    this.otherPlayers.set(data.id, op);
+                    this.updateOnlineCount();
+                }
+                return;
+            }
+
+            let op = this.otherPlayers.get(data.id);
+            if (!op) {
+                op = new OtherPlayer(data.id, data.nickname);
+                op.create(currentLocation.scene, this.resourceManager);
+                this.otherPlayers.set(data.id, op);
+            } else if (op.isHidden()) {
+                currentLocation.scene.add(op.mesh);
+                currentLocation.scene.add(op.getHitbox());
+                op.setHidden(false);
+            }
+
             this.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
-            this.hudState.online = this.otherPlayers.size + 1;
-            this.emitState(true);
+            op.updateFromNetwork(data);
+            this.updateOnlineCount();
 
             this.onChatMessage?.({
                 id: `system-${Date.now()}`,
@@ -308,20 +390,23 @@ export class Game {
                 });
 
                 const currentLocation = this.locationManager.getCurrentLocation();
-                if (currentLocation) {
+                if (currentLocation && !op.isHidden()) {
                     op.dispose(currentLocation.scene);
                 }
 
                 this.otherPlayers.delete(playerId);
                 this.shootingSystem.unregisterOtherPlayer(playerId);
-                this.hudState.online = this.otherPlayers.size + 1;
-                this.emitState(true);
+                this.updateOnlineCount();
             }
         };
 
         this.networkManager.onPlayerUpdate = (data) => {
             const op = this.otherPlayers.get(data.id);
-            if (op) op.updateFromNetwork(data);
+            if (!op) return;
+
+            if (op.isHidden()) return;
+
+            op.updateFromNetwork(data);
         };
 
         this.networkManager.onShoot = (data) => {
@@ -368,7 +453,7 @@ export class Game {
                 const attacker = this.otherPlayers.get(data.attackerId);
                 let direction = 0;
 
-                if (attacker) {
+                if (attacker && !attacker.isHidden()) {
                     const playerPos = this.player.mesh.position;
                     const attackerPos = attacker.mesh.position;
                     direction = Math.atan2(
@@ -396,7 +481,7 @@ export class Game {
                 this.onDeathStateChange?.(true, this.killerName);
             } else {
                 const op = this.otherPlayers.get(data.playerId);
-                if (op) {
+                if (op && !op.isHidden()) {
                     op.setDead(true);
                     this.onChatMessage?.({
                         id: `system-${Date.now()}`,
@@ -411,7 +496,7 @@ export class Game {
 
         this.networkManager.onPlayerRespawn = (data) => {
             const op = this.otherPlayers.get(data.id);
-            if (op) {
+            if (op && !op.isHidden()) {
                 op.setDead(false);
                 op.setHealth(data.health);
                 op.updateFromNetwork({
@@ -436,6 +521,15 @@ export class Game {
             this.killerName = null;
             this.onDeathStateChange?.(false, null);
         };
+    }
+
+    private updateOnlineCount() {
+        let visibleCount = 1;
+        this.otherPlayers.forEach((op) => {
+            if (!op.isHidden()) visibleCount++;
+        });
+        this.hudState.online = visibleCount;
+        this.emitState(true);
     }
 
     private emitState(force: boolean = false) {
@@ -469,7 +563,48 @@ export class Game {
         if (portal) {
             this.interactionSystem.onPrompt?.(`[E] Enter ${portal.targetLocationId}`);
             if (this.inputManager.isKeyJustPressed("KeyE")) {
+                const previousLocation = this.locationManager.getCurrentLocation();
+
                 await this.locationManager.teleportTo(portal, this.player);
+                const newLocation = this.locationManager.getCurrentLocation();
+
+                if (newLocation && previousLocation && newLocation !== previousLocation) {
+                    this.networkManager.sendLocationChange(newLocation.id);
+
+                    this.shootingSystem.clearAllEffects();
+
+                    previousLocation.scene.remove(this.player.mesh);
+                    newLocation.scene.add(this.player.mesh);
+
+                    previousLocation.scene.remove(this.cameraController.yawObject);
+                    newLocation.scene.add(this.cameraController.yawObject);
+
+                    this.otherPlayers.forEach((op) => {
+                        if (!op.isHidden()) {
+                            previousLocation.scene.remove(op.mesh);
+                            previousLocation.scene.remove(op.getHitbox());
+                            newLocation.scene.add(op.mesh);
+                            newLocation.scene.add(op.getHitbox());
+                        }
+                    });
+
+                    this.shootingSystem.setScene(newLocation.scene);
+                    this.interactionSystem.setScene(newLocation.scene);
+
+                    this.interactionSystem.clearInteractables();
+
+                    if (newLocation instanceof MainWorld) {
+                        this.player.setTerrain(newLocation.terrain);
+                        this.player.setCollisionGrid(newLocation.collisionGrid);
+                        this.cameraController.setCollisionGrid(newLocation.terrainCollisionGrid);
+                    } else if (newLocation instanceof Cave) {
+                        this.player.setTerrain(newLocation as any);
+                        this.player.setCollisionGrid(newLocation.collisionGrid);
+                        this.cameraController.setCollisionGrid(newLocation.collisionGrid);
+                    }
+
+                    this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
+                }
             }
         }
 
@@ -494,7 +629,7 @@ export class Game {
                 this.player.getWeapon().update(delta);
             }
 
-            if (currentLocation instanceof MainWorld) {
+            if (currentLocation.update) {
                 currentLocation.update(this.player.mesh.position, delta);
             }
 
@@ -564,7 +699,11 @@ export class Game {
 
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
-            this.otherPlayers.forEach((op) => op.dispose(currentLocation.scene));
+            this.otherPlayers.forEach((op) => {
+                if (!op.isHidden()) {
+                    op.dispose(currentLocation.scene);
+                }
+            });
             this.player.dispose(currentLocation.scene);
         }
 

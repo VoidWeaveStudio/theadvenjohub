@@ -12,28 +12,28 @@ interface CaveChunk {
 
 export class Cave extends Location {
     public collisionGrid: CollisionGrid;
-    
+
     private caveMap: number[][] = [];
     private floorHeights: number[][] = [];
     private ceilingHeights: number[][] = [];
-    
+
     private chunks: Map<string, CaveChunk> = new Map();
     private loadedChunkKeys: Set<string> = new Set();
     private streamingRadius: number = 3;
-    
+
     private floorGeometry: THREE.BufferGeometry | null = null;
     private floorMaterial: THREE.Material | null = null;
     private ceilingGeometry: THREE.BufferGeometry | null = null;
     private ceilingMaterial: THREE.Material | null = null;
     private wallGeometry: THREE.BufferGeometry | null = null;
     private wallMaterial: THREE.Material | null = null;
-    
+
     private torches: { position: THREE.Vector3; light: THREE.PointLight; mesh: THREE.Mesh }[] = [];
     private stalactites: THREE.InstancedMesh | null = null;
     private stalactiteShadows: THREE.InstancedMesh | null = null;
     private mossMesh: THREE.InstancedMesh | null = null;
     private shadowTexture: THREE.Texture | null = null;
-    
+
     private cellSize = 10;
     private mapSize = 30;
     private worldSize = 300;
@@ -133,13 +133,47 @@ export class Cave extends Location {
             this.ceilingHeights[x] = [];
             for (let z = 0; z < this.mapSize; z++) {
                 if (this.caveMap[x][z] === 1) {
-                    this.floorHeights[x][z] = (Math.random() - 0.5) * 4;
-                    this.ceilingHeights[x][z] = this.floorHeights[x][z] + 10 + Math.random() * 5;
+                    const baseHeight = (Math.random() - 0.5) * 2;
+                    this.floorHeights[x][z] = baseHeight;
+                    this.ceilingHeights[x][z] = baseHeight + 12;
                 } else {
                     this.floorHeights[x][z] = -5;
                     this.ceilingHeights[x][z] = 15;
                 }
             }
+        }
+
+        this.smoothHeights();
+    }
+
+    private smoothHeights() {
+        const iterations = 3;
+        for (let iter = 0; iter < iterations; iter++) {
+            const newFloors = this.floorHeights.map(row => [...row]);
+            const newCeilings = this.ceilingHeights.map(row => [...row]);
+
+            for (let x = 1; x < this.mapSize - 1; x++) {
+                for (let z = 1; z < this.mapSize - 1; z++) {
+                    if (this.caveMap[x][z] === 1) {
+                        let floorSum = 0, ceilingSum = 0, count = 0;
+                        for (let dx = -1; dx <= 1; dx++) {
+                            for (let dz = -1; dz <= 1; dz++) {
+                                if (this.caveMap[x + dx][z + dz] === 1) {
+                                    floorSum += this.floorHeights[x + dx][z + dz];
+                                    ceilingSum += this.ceilingHeights[x + dx][z + dz];
+                                    count++;
+                                }
+                            }
+                        }
+                        if (count > 0) {
+                            newFloors[x][z] = floorSum / count;
+                            newCeilings[x][z] = ceilingSum / count;
+                        }
+                    }
+                }
+            }
+            this.floorHeights = newFloors;
+            this.ceilingHeights = newCeilings;
         }
     }
 
@@ -421,8 +455,9 @@ export class Cave extends Location {
     }
 
     private createPortal() {
-        const portalX = 14.5 * this.cellSize - this.worldSize / 2;
-        const portalZ = 25 * this.cellSize - this.worldSize / 2;
+
+        const portalX = 0;
+        const portalZ = 0;
         const portalY = this.getHeightAt(portalX, portalZ) + 2;
 
         const portalGeo = new THREE.TorusGeometry(2, 0.3, 8, 16);
@@ -431,16 +466,26 @@ export class Cave extends Location {
         portal.position.set(portalX, portalY, portalZ);
         this.scene.add(portal);
 
-        const portalLight = new THREE.PointLight(0x00ffff, 2, 15);
+        const portalLight = new THREE.PointLight(0x00ffff, 3, 25);
         portalLight.position.set(portalX, portalY, portalZ);
         this.scene.add(portalLight);
+
+        const pillarGeo = new THREE.CylinderGeometry(0.3, 0.3, 10, 8);
+        const pillarMat = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.25
+        });
+        const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+        pillar.position.set(portalX, portalY, portalZ);
+        this.scene.add(pillar);
 
         this.addPortal({
             id: "cave-to-main",
             position: new THREE.Vector3(portalX, portalY, portalZ),
-            radius: 2.5,
+            radius: 3,
             targetLocationId: "main-world",
-            targetSpawnPoint: new THREE.Vector3(195, 0, -145),
+            targetSpawnPoint: new THREE.Vector3(55, 0, 0),
             mesh: portal,
         });
     }
@@ -515,7 +560,7 @@ export class Cave extends Location {
     }
 
     private updateTorches(playerPos: THREE.Vector3) {
-        const sorted = [...this.torches].sort((a, b) => 
+        const sorted = [...this.torches].sort((a, b) =>
             a.position.distanceTo(playerPos) - b.position.distanceTo(playerPos)
         );
 

@@ -17,6 +17,7 @@ export class OtherPlayer extends Entity {
 
     private dead: boolean = false;
     private health: number = 100;
+    private hidden: boolean = false;
 
     private hitbox: THREE.Mesh;
 
@@ -161,12 +162,24 @@ export class OtherPlayer extends Entity {
 
     public setDead(dead: boolean) {
         this.dead = dead;
-        this.mesh.visible = !dead;
-        this.hitbox.visible = !dead;
+        if (!this.hidden) {
+            this.mesh.visible = !dead;
+            this.hitbox.visible = !dead;
+        }
     }
 
     public isDead(): boolean {
         return this.dead;
+    }
+
+    public setHidden(hidden: boolean) {
+        this.hidden = hidden;
+        this.mesh.visible = !hidden && !this.dead;
+        this.hitbox.visible = !hidden && !this.dead;
+    }
+
+    public isHidden(): boolean {
+        return this.hidden;
     }
 
     public setHealth(health: number) {
@@ -189,7 +202,7 @@ export class OtherPlayer extends Entity {
     }
 
     update(delta: number) {
-        if (this.dead) return;
+        if (this.dead || this.hidden) return;
 
         this.time += delta;
         this.mesh.position.lerp(this.targetPosition, Math.min(1, delta * 12));

@@ -19,7 +19,9 @@ export class Player extends Entity {
     private velocityY: number = 0;
     private isGrounded: boolean = true;
     private jumpCooldown: number = 0;
+
     private baseY: number = 0;
+
     private readonly GRAVITY = 22;
     private readonly JUMP_FORCE = 8.5;
     private readonly JUMP_COOLDOWN_TIME = 0.15;
@@ -45,6 +47,8 @@ export class Player extends Entity {
     private static readonly _nextPos = new THREE.Vector3();
     private static readonly _playerBox = new THREE.Box3();
     private static readonly _playerSize = new THREE.Vector3(0.8, 2, 0.8);
+
+    private static readonly HALF_HEIGHT = Player._playerSize.y * 0.5;
 
     public health: number = 100;
     public maxHealth: number = 100;
@@ -73,7 +77,7 @@ export class Player extends Entity {
             -(scaledBox.min.z + scaledBox.max.z) / 2
         );
 
-        data.scene.rotation.y = -Math.PI / 2;
+        data.scene.rotation.y = Math.PI / 2;
 
         this.mesh.add(data.scene);
 
@@ -158,9 +162,8 @@ export class Player extends Entity {
 
     setTerrain(terrain: TerrainChunkManager) {
         this.terrain = terrain;
-        const initialHeight = terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z);
-        this.baseY = initialHeight;
-        this.mesh.position.y = initialHeight;
+        this.baseY = terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z);
+        this.mesh.position.y = this.baseY;
     }
 
     setCollisionGrid(grid: CollisionGrid) {
@@ -177,6 +180,26 @@ export class Player extends Entity {
 
     public takeDamage(damage: number) {
         this.health = Math.max(0, this.health - damage);
+    }
+
+    private getSurfaceHeight(x: number, z: number): number {
+        const terrainHeight = this.terrain?.getHeightAt(x, z) || 0;
+        let platformHeight = -Infinity;
+
+        if (this.collisionGrid) {
+            const centerY = this.baseY + Player.HALF_HEIGHT;
+            const platformCheck = this.collisionGrid.checkPlatformBelow(
+                new THREE.Vector3(x, centerY, z),
+                Player._playerSize.y,
+                2.5
+            );
+
+            if (platformCheck.found) {
+                platformHeight = platformCheck.platformY;
+            }
+        }
+
+        return Math.max(terrainHeight, platformHeight);
     }
 
     update(delta: number) {
@@ -206,15 +229,21 @@ export class Player extends Entity {
             this.velocityY -= this.GRAVITY * delta;
             this.baseY += this.velocityY * delta;
 
-            const terrainHeight = this.terrain?.getHeightAt(this.mesh.position.x, this.mesh.position.z) || 0;
-            if (this.baseY <= terrainHeight) {
-                this.baseY = terrainHeight;
+            const surfaceHeight = this.getSurfaceHeight(this.mesh.position.x, this.mesh.position.z);
+
+            if (this.baseY <= surfaceHeight) {
+                this.baseY = surfaceHeight;
                 this.velocityY = 0;
                 this.isGrounded = true;
             }
         } else {
-            const terrainHeight = this.terrain?.getHeightAt(this.mesh.position.x, this.mesh.position.z) || 0;
-            this.baseY = terrainHeight;
+            const surfaceHeight = this.getSurfaceHeight(this.mesh.position.x, this.mesh.position.z);
+
+            if (this.baseY > surfaceHeight + 0.1) {
+                this.isGrounded = false;
+            } else {
+                this.baseY = surfaceHeight;
+            }
         }
 
         this.isShooting = this.inputManager.isMousePressed(0);
@@ -229,27 +258,30 @@ export class Player extends Entity {
             const step = Player._step.copy(moveDir).multiplyScalar(currentSpeed * delta);
             const nextPos = Player._nextPos.copy(this.mesh.position).add(step);
 
-            const nextTerrainHeight = this.terrain?.getHeightAt(nextPos.x, nextPos.z) || 0;
-            const groundPos = new THREE.Vector3(nextPos.x, nextTerrainHeight + 1, nextPos.z);
-            const playerBox = Player._playerBox.setFromCenterAndSize(groundPos, Player._playerSize);
-
             let blocked = false;
-
             if (this.collisionGrid) {
-                blocked = this.collisionGrid.checkCollision(groundPos, Player._playerSize);
+                const centerY = this.baseY + Player.HALF_HEIGHT;
+                const checkPos = new THREE.Vector3(nextPos.x, centerY, nextPos.z);
+                blocked = this.collisionGrid.checkCollisionHorizontal(checkPos, Player._playerSize);
             }
 
             if (!blocked) {
                 this.mesh.position.x = nextPos.x;
                 this.mesh.position.z = nextPos.z;
 
-
                 if (this.isGrounded) {
-                    if (nextTerrainHeight < this.baseY - 0.5) {
+                    const surfaceHeight = this.getSurfaceHeight(nextPos.x, nextPos.z);
+
+                    const STEP_UP_HEIGHT = CollisionGrid.STEP_UP_HEIGHT;
+                    const heightDiff = surfaceHeight - this.baseY;
+
+                    if (heightDiff > 0 && heightDiff <= STEP_UP_HEIGHT) {
+                        this.baseY = surfaceHeight;
+                    } else if (heightDiff < -0.5) {
                         this.isGrounded = false;
                         this.velocityY = 0;
                     } else {
-                        this.baseY = nextTerrainHeight;
+                        this.baseY = surfaceHeight;
                     }
                 }
 

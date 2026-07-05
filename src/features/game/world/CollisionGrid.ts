@@ -6,6 +6,8 @@ export class CollisionGrid {
     private cells: Map<string, THREE.Box3[]> = new Map();
     private tempBox: THREE.Box3 = new THREE.Box3();
 
+    public static readonly STEP_UP_HEIGHT = 0.6;
+
     constructor(cellSize: number = 20) {
         this.cellSize = cellSize;
     }
@@ -68,6 +70,94 @@ export class CollisionGrid {
         }
 
         return result;
+    }
+
+    checkCollisionHorizontal(position: THREE.Vector3, size: THREE.Vector3): boolean {
+        this.tempBox.setFromCenterAndSize(position, size);
+        const candidates = this.query(position, size);
+
+        const feetY = position.y - size.y / 2;
+        const FEET_TOLERANCE = 0.1;
+
+        for (const box of candidates) {
+            const intersectsX = this.tempBox.max.x > box.min.x && this.tempBox.min.x < box.max.x;
+            const intersectsZ = this.tempBox.max.z > box.min.z && this.tempBox.min.z < box.max.z;
+
+            if (intersectsX && intersectsZ) {
+                if (box.max.y <= feetY + FEET_TOLERANCE) {
+                    continue;
+                }
+
+                const heightDiff = box.max.y - feetY;
+                if (heightDiff > 0 && heightDiff <= CollisionGrid.STEP_UP_HEIGHT) {
+                    continue;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    checkPlatformBelow(
+        position: THREE.Vector3,
+        playerHeight: number,
+        maxFallDistance: number = 2.5
+    ): { found: boolean; platformY: number } {
+        const feetY = position.y - playerHeight / 2;
+
+        const searchBox = new THREE.Box3(
+            new THREE.Vector3(position.x - 0.4, feetY - maxFallDistance, position.z - 0.4),
+            new THREE.Vector3(position.x + 0.4, feetY + 0.1, position.z + 0.4)
+        );
+
+        const candidates = this.query(position, new THREE.Vector3(1, maxFallDistance + playerHeight + 1, 1));
+
+        let highestPlatform = -Infinity;
+        let found = false;
+
+        for (const box of candidates) {
+            const intersectsX = searchBox.max.x > box.min.x && searchBox.min.x < box.max.x;
+            const intersectsZ = searchBox.max.z > box.min.z && searchBox.min.z < box.max.z;
+
+            if (intersectsX && intersectsZ) {
+                if (box.max.y <= feetY + 0.1 && box.max.y >= feetY - maxFallDistance) {
+                    if (box.max.y > highestPlatform) {
+                        highestPlatform = box.max.y;
+                        found = true;
+                    }
+                }
+            }
+        }
+
+        return { found, platformY: highestPlatform };
+    }
+
+    checkStepUp(position: THREE.Vector3, size: THREE.Vector3): { canStep: boolean; stepHeight: number } {
+        this.tempBox.setFromCenterAndSize(position, size);
+        const candidates = this.query(position, size);
+
+        const feetY = position.y - size.y / 2;
+        let highestStep = -Infinity;
+        let found = false;
+
+        for (const box of candidates) {
+            const intersectsX = this.tempBox.max.x > box.min.x && this.tempBox.min.x < box.max.x;
+            const intersectsZ = this.tempBox.max.z > box.min.z && this.tempBox.min.z < box.max.z;
+
+            if (intersectsX && intersectsZ) {
+                const heightDiff = box.max.y - feetY;
+                if (heightDiff > 0 && heightDiff <= CollisionGrid.STEP_UP_HEIGHT) {
+                    if (box.max.y > highestStep) {
+                        highestStep = box.max.y;
+                        found = true;
+                    }
+                }
+            }
+        }
+
+        return { canStep: found, stepHeight: highestStep };
     }
 
     checkCollision(position: THREE.Vector3, size: THREE.Vector3): boolean {

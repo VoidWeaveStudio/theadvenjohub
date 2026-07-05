@@ -19,6 +19,10 @@ export class TerrainChunk {
     public cacheSize: number = 0;
     public colliders: THREE.Box3[] = [];
 
+    public get chunkSize(): number {
+        return this._chunkSize;
+    }
+
     private readonly _chunkSize: number;
     private readonly _segmentsPerChunk: number;
     private readonly _heightFunction: (x: number, z: number) => number;

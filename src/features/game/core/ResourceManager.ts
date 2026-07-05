@@ -1,4 +1,4 @@
-//src\features\game\core\ResourceManager.ts
+// src/features/game/core/ResourceManager.ts
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
@@ -25,12 +25,18 @@ export class ResourceManager {
       this.loadModel("bullet", "/models/bullet.glb"),
       this.loadModel("crystal", "/models/crystal.glb"),
       this.loadModel("tree", "/models/tree.glb"),
+      this.loadModel("tree2", "/models/tree2.glb"),
       this.loadModel("rock", "/models/rock.glb"),
+      this.loadModel("portal", "/models/portal.glb"),
+      this.loadModel("grass", "/models/grass.glb"),
+      this.loadModel("bush1", "/models/bush1.glb"),
+      this.loadModel("bush2", "/models/bush2.glb"),
 
       this.loadTexture("ground-color", "/models/textures/ground/Ground037_1K-JPG_Color.jpg", true),
       this.loadTexture("ground-normal", "/models/textures/ground/Ground037_1K-JPG_NormalGL.jpg", false),
       this.loadTexture("ground-roughness", "/models/textures/ground/Ground037_1K-JPG_Roughness.jpg", false),
       this.loadTexture("ground-ao", "/models/textures/ground/Ground037_1K-JPG_AmbientOcclusion.jpg", false),
+      this.loadTexture("tree-billboard", "/models/tree_bilbord.png", true),
     ]);
   }
 
@@ -166,6 +172,47 @@ export class ResourceManager {
         r.castShadow = true;
         r.receiveShadow = true;
         group.add(r);
+        break;
+      }
+      case "grass": {
+        for (let i = 0; i < 5; i++) {
+          const blade = new THREE.Mesh(
+            new THREE.ConeGeometry(0.05, 0.5, 4),
+            new THREE.MeshStandardMaterial({ color: 0x4a8f2a })
+          );
+          blade.position.set(
+            (Math.random() - 0.5) * 0.3,
+            0.25,
+            (Math.random() - 0.5) * 0.3
+          );
+          blade.rotation.z = (Math.random() - 0.5) * 0.3;
+          group.add(blade);
+        }
+        break;
+      }
+      case "bush1": {
+        const bush = new THREE.Mesh(
+          new THREE.SphereGeometry(0.5, 8, 8),
+          new THREE.MeshStandardMaterial({ color: 0x3a7a2a })
+        );
+        bush.position.y = 0.3;
+        bush.scale.y = 0.7;
+        group.add(bush);
+        break;
+      }
+      case "bush2": {
+        for (let i = 0; i < 3; i++) {
+          const part = new THREE.Mesh(
+            new THREE.SphereGeometry(0.3, 6, 6),
+            new THREE.MeshStandardMaterial({ color: 0x4a8a3a })
+          );
+          part.position.set(
+            (Math.random() - 0.5) * 0.4,
+            0.2 + Math.random() * 0.2,
+            (Math.random() - 0.5) * 0.4
+          );
+          group.add(part);
+        }
         break;
       }
       default: {

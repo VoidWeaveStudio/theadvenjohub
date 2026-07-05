@@ -1,6 +1,7 @@
 //src\features\game\core\CameraController.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
+import { CollisionGrid } from "../world/CollisionGrid";
 
 export class CameraController {
     public camera: THREE.PerspectiveCamera;
@@ -9,6 +10,7 @@ export class CameraController {
 
     private target: THREE.Object3D | null = null;
     private distance: number = 6;
+    private currentDistance: number = 6;
     private heightOffset: number = 2.5;
     private pitch: number = 0;
     private yaw: number = 0;
@@ -16,6 +18,16 @@ export class CameraController {
     private minPitch: number = -Math.PI / 3;
     private maxPitch: number = Math.PI / 3;
     private sensitivity: number = 0.002;
+
+    private collisionGrid: CollisionGrid | null = null;
+    private raycaster: THREE.Raycaster = new THREE.Raycaster();
+    private cameraOffset: number = 0.3;
+    private lerpSpeed: number = 10;
+
+    resize(width: number, height: number) {
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+    }
 
     constructor() {
         this.camera = new THREE.PerspectiveCamera(
@@ -31,7 +43,6 @@ export class CameraController {
         this.yawObject.add(this.pitchObject);
         this.pitchObject.add(this.camera);
 
-   
         this.camera.position.set(0, 0, this.distance);
     }
 
@@ -43,6 +54,10 @@ export class CameraController {
             targetPos.y += this.heightOffset;
             this.yawObject.position.copy(targetPos);
         }
+    }
+
+    setCollisionGrid(grid: CollisionGrid) {
+        this.collisionGrid = grid;
     }
 
     getYaw(): number {
@@ -73,10 +88,38 @@ export class CameraController {
         const targetPos = this.target.position.clone();
         targetPos.y += this.heightOffset;
         this.yawObject.position.copy(targetPos);
-    }
 
-    resize(width: number, height: number) {
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
+        if (this.collisionGrid) {
+            const cameraWorldPos = new THREE.Vector3();
+            this.camera.getWorldPosition(cameraWorldPos);
+
+            const direction = new THREE.Vector3().subVectors(cameraWorldPos, targetPos).normalize();
+            const rayDistance = this.distance + 2;
+
+            this.raycaster.set(targetPos, direction);
+            this.raycaster.far = rayDistance;
+
+            const colliders = this.collisionGrid.query(targetPos, new THREE.Vector3(rayDistance * 2, rayDistance * 2, rayDistance * 2));
+
+            let closestDistance = this.distance;
+
+            for (const box of colliders) {
+                const intersection = new THREE.Vector3();
+                if (this.raycaster.ray.intersectBox(box, intersection)) {
+                    const dist = targetPos.distanceTo(intersection);
+                    if (dist < closestDistance) {
+                        closestDistance = dist;
+                    }
+                }
+            }
+
+
+            const targetDistance = Math.max(this.cameraOffset, closestDistance - this.cameraOffset);
+            this.currentDistance = THREE.MathUtils.lerp(this.currentDistance, targetDistance, this.lerpSpeed * delta);
+        } else {
+            this.currentDistance = THREE.MathUtils.lerp(this.currentDistance, this.distance, this.lerpSpeed * delta);
+        }
+
+        this.camera.position.z = this.currentDistance;
     }
 }

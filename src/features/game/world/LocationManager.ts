@@ -62,6 +62,8 @@ export class LocationManager {
     }
 
     async teleportTo(portal: Portal, player: any): Promise<boolean> {
+        const previousLocation = this.currentLocation;
+
         const target = await this.loadLocation(portal.targetLocationId);
         if (!target) return false;
 
@@ -71,6 +73,12 @@ export class LocationManager {
         if ('getHeightAt' in target) {
             const getHeightAt = (target as any).getHeightAt.bind(target);
             player.mesh.position.y = getHeightAt(player.mesh.position.x, player.mesh.position.z);
+        }
+
+        if (previousLocation && previousLocation.id !== 'main-world') {
+            previousLocation.dispose();
+            this.locations.delete(previousLocation.id);
+            console.log(`[LocationManager] Unloaded location: ${previousLocation.id}`);
         }
 
         this.onLocationChange?.(target.id);

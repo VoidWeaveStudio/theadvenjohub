@@ -11,11 +11,19 @@ export class InteractionSystem extends System {
     private inputManager!: InputManager;
     private safeZone!: SafeZone;
     private interactableObjects: THREE.Object3D[] = [];
-    
+
     private interactionRadius: number = 5;
 
     public onNotification?: (msg: string, duration?: number) => void;
     public onPrompt?: (text: string | null) => void;
+
+    public setScene(scene: THREE.Scene) {
+        this.scene = scene;
+    }
+
+    public clearInteractables() {
+        this.interactableObjects = [];
+    }
 
     init(scene: THREE.Scene, player: Player, inputManager: InputManager, safeZone: SafeZone) {
         this.scene = scene;

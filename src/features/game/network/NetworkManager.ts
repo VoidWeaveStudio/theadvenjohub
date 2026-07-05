@@ -12,6 +12,7 @@ export type PlayerNetData = {
   alive: boolean;
   weaponEquipped: boolean;
   isShooting: boolean;
+  locationId?: string;
 };
 
 export interface GameSession {
@@ -35,6 +36,19 @@ export class NetworkManager {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private lastPong: number = Date.now();
   private heartbeatTimeoutMs: number = 15000;
+
+  public onPlayerLocationChange?: (data: {
+    playerId: string;
+    fromLocation: string;
+    toLocation: string;
+  }) => void;
+
+  public onPlayerJoinLocation?: (data: PlayerNetData) => void;
+  public onPlayerLeaveLocation?: (data: {
+    playerId: string;
+    fromLocation: string;
+    toLocation: string;
+  }) => void;
 
   public onPlayerJoin?: (data: PlayerNetData) => void;
   public onPlayerLeave?: (playerId: string) => void;
@@ -152,7 +166,8 @@ export class NetworkManager {
               health: p.health ?? 100,
               alive: p.alive ?? true,
               weaponEquipped: p.weaponEquipped !== false,
-              isShooting: p.isShooting || false,  
+              isShooting: p.isShooting || false,
+              locationId: p.locationId || 'main-world',
             });
           }
         }
@@ -163,7 +178,8 @@ export class NetworkManager {
           health: data.health ?? 100,
           alive: data.alive ?? true,
           weaponEquipped: data.weaponEquipped !== false,
-          isShooting: data.isShooting || false, 
+          isShooting: data.isShooting || false,
+          locationId: data.locationId || 'main-world',
         });
         break;
       case "playerLeave":
@@ -171,6 +187,19 @@ export class NetworkManager {
         break;
       case "playerUpdate":
         this.onPlayerUpdate?.({
+          ...data,
+          health: data.health ?? 100,
+          alive: data.alive ?? true,
+          weaponEquipped: data.weaponEquipped !== false,
+          isShooting: data.isShooting || false,
+          locationId: data.locationId || 'main-world',
+        });
+        break;
+      case 'playerLeaveLocation':
+        this.onPlayerLeaveLocation?.(data);
+        break;
+      case 'playerJoinLocation':
+        this.onPlayerJoinLocation?.({
           ...data,
           health: data.health ?? 100,
           alive: data.alive ?? true,
@@ -246,7 +275,7 @@ export class NetworkManager {
     jumping: boolean;
     velocityY: number;
     weaponEquipped: boolean;
-    isShooting: boolean; 
+    isShooting: boolean;
   }) {
     if (!this.authenticated) return;
 
@@ -273,6 +302,11 @@ export class NetworkManager {
       message: message.slice(0, 200),
       timestamp: Date.now(),
     });
+  }
+
+  sendLocationChange(locationId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: 'locationChange', locationId });
   }
 
   sendProgressSave(progressData: any) {
