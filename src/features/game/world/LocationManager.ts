@@ -7,9 +7,11 @@ import { Cave } from "./locations/Cave";
 
 export class LocationManager {
     private locations: Map<string, Location> = new Map();
+    private locationFactories: Map<string, () => Location> = new Map();
     private currentLocation: Location | null = null;
     private renderer: THREE.WebGLRenderer;
     private activeCamera: THREE.Camera;
+    private resourceManager: ResourceManager | null = null;
 
     public onLocationChange?: (locationId: string) => void;
     public onPortalApproach?: (portal: Portal | null) => void;
@@ -20,19 +22,23 @@ export class LocationManager {
     }
 
     registerLocations(rm: ResourceManager) {
-        const main = new MainWorld();
-        main.create(rm);
-        this.locations.set(main.id, main);
-
-        const cave = new Cave();
-        cave.create(rm);
-        this.locations.set(cave.id, cave);
+        this.resourceManager = rm;
+        this.locationFactories.set("main-world", () => new MainWorld());
+        this.locationFactories.set("cave", () => new Cave());
     }
 
     async loadLocation(locationId: string): Promise<Location | null> {
-        const location = this.locations.get(locationId);
+        let location = this.locations.get(locationId);
         if (!location) {
-            throw new Error(`Location not found: ${locationId}`);
+            const factory = this.locationFactories.get(locationId);
+            if (!factory) {
+                throw new Error(`Location not found: ${locationId}`);
+            }
+            location = factory();
+            if (this.resourceManager) {
+                location.create(this.resourceManager);
+            }
+            this.locations.set(locationId, location);
         }
         this.currentLocation = location;
         this.onLocationChange?.(locationId);
@@ -56,11 +62,17 @@ export class LocationManager {
     }
 
     async teleportTo(portal: Portal, player: any): Promise<boolean> {
-        const target = this.locations.get(portal.targetLocationId);
+        const target = await this.loadLocation(portal.targetLocationId);
         if (!target) return false;
 
         this.currentLocation = target;
         player.mesh.position.copy(portal.targetSpawnPoint);
+
+        if ('getHeightAt' in target) {
+            const getHeightAt = (target as any).getHeightAt.bind(target);
+            player.mesh.position.y = getHeightAt(player.mesh.position.x, player.mesh.position.z);
+        }
+
         this.onLocationChange?.(target.id);
         return true;
     }

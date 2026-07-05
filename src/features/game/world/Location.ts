@@ -28,6 +28,8 @@ export abstract class Location {
     abstract getSpawnPoint(): THREE.Vector3;
     abstract dispose(): void;
 
+    update?(playerPosition: THREE.Vector3, delta: number): void;
+
     addPortal(portal: Portal) {
         this.portals.push(portal);
         this.scene.add(portal.mesh);

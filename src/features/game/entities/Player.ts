@@ -242,7 +242,17 @@ export class Player extends Entity {
             if (!blocked) {
                 this.mesh.position.x = nextPos.x;
                 this.mesh.position.z = nextPos.z;
-                this.baseY = nextTerrainHeight;
+
+
+                if (this.isGrounded) {
+                    if (nextTerrainHeight < this.baseY - 0.5) {
+                        this.isGrounded = false;
+                        this.velocityY = 0;
+                    } else {
+                        this.baseY = nextTerrainHeight;
+                    }
+                }
+
                 moved = true;
             }
         } else if (shouldFaceLookDirection) {
