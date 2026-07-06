@@ -98,6 +98,7 @@ export class TerrainChunk {
         }
 
         positions.needsUpdate = true;
+        geometry.computeVertexNormals();
         return geometry;
     }
 
@@ -146,23 +147,23 @@ export class TerrainChunk {
         const repeatPerChunk = 10;
 
         if (colorMap) {
-            material.map = colorMap.clone();
+            material.map = colorMap;
             material.map.repeat.set(repeatPerChunk, repeatPerChunk);
             material.map.needsUpdate = true;
         }
         if (normalMap) {
-            material.normalMap = normalMap.clone();
+            material.normalMap = normalMap;
             material.normalMap.repeat.set(repeatPerChunk, repeatPerChunk);
             material.normalScale.set(1.5, 1.5);
             material.normalMap.needsUpdate = true;
         }
         if (roughnessMap) {
-            material.roughnessMap = roughnessMap.clone();
+            material.roughnessMap = roughnessMap;
             material.roughnessMap.repeat.set(repeatPerChunk, repeatPerChunk);
             material.roughnessMap.needsUpdate = true;
         }
         if (aoMap) {
-            material.aoMap = aoMap.clone();
+            material.aoMap = aoMap;
             material.aoMap.repeat.set(repeatPerChunk, repeatPerChunk);
             material.aoMapIntensity = 0.7;
             material.aoMap.needsUpdate = true;
@@ -212,6 +213,7 @@ export class TerrainChunk {
         if (modified) {
             positions.needsUpdate = true;
             this.rebuildHeightCache();
+            geometry.computeVertexNormals();
         }
     }
 
@@ -246,10 +248,6 @@ export class TerrainChunk {
     dispose() {
         this.mesh.geometry.dispose();
         const material = this.mesh.material as THREE.MeshStandardMaterial;
-        if (material.map) material.map.dispose();
-        if (material.normalMap) material.normalMap.dispose();
-        if (material.roughnessMap) material.roughnessMap.dispose();
-        if (material.aoMap) material.aoMap.dispose();
         material.dispose();
     }
 }
@@ -284,7 +282,6 @@ export class TerrainChunkManager {
     }
 
     computeAllNormals() {
-        this.chunks.forEach(chunk => chunk.computeNormals());
     }
 
     getChunkAtWorldPos(worldX: number, worldZ: number): TerrainChunk | null {

@@ -1,4 +1,4 @@
-//src\features\game\world\Terrain.ts
+// src/features/game/world/Terrain.ts
 import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
 

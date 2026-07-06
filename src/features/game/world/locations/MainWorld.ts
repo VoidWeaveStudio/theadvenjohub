@@ -22,13 +22,10 @@ export class MainWorld extends Location {
   public terrainCollisionGrid: CollisionGrid;
 
   private treeInstances: Map<string, THREE.InstancedMesh> = new Map();
-  private tree2Instances: Map<string, THREE.InstancedMesh> = new Map();
   private rockInstances: Map<string, THREE.InstancedMesh> = new Map();
 
   private treeGeometry: THREE.BufferGeometry | null = null;
   private treeMaterial: THREE.Material | null = null;
-  private tree2Geometry: THREE.BufferGeometry | null = null;
-  private tree2Material: THREE.Material | null = null;
   private rockGeometry: THREE.BufferGeometry | null = null;
   private rockMaterial: THREE.Material | null = null;
 
@@ -62,12 +59,6 @@ export class MainWorld extends Location {
 
   private readonly DECORATION_DRAW_DISTANCE = 60;
 
-  private treeBillboardTexture: THREE.Texture | null = null;
-  private treeBillboardMaterial: THREE.Material | null = null;
-  private treeBillboardGeometry: THREE.BufferGeometry | null = null;
-  private treeBillboardInstances: Map<string, THREE.InstancedMesh> = new Map();
-  private readonly BILLBOARD_DISTANCE = 100;
-
   constructor() {
     super("main-world", "TANJO World");
 
@@ -95,7 +86,7 @@ export class MainWorld extends Location {
     this.terrain = new TerrainChunkManager(
       {
         chunkSize: 100,
-        segmentsPerChunk: 32,
+        segmentsPerChunk: 64,
         worldSize: this.size,
       },
       heightFunction
@@ -117,88 +108,19 @@ export class MainWorld extends Location {
       this.loadedChunkKeys.add(`${chunk.chunkX},${chunk.chunkZ}`);
     }
 
-    this.terrain.computeAllNormals();
 
     this.gridSystem.createVisualization(this.scene);
 
     this.prepareVegetationAssets(rm);
     this.prepareDecorationAssets(rm);
-    this.prepareTreeBillboards(rm);
     this.createVegetationByChunks(rm);
     this.createRocksByChunks(rm);
     this.createDecorationsByChunks(rm);
-    this.createTreeBillboardsByChunks();
 
     this.buildCollisionGrid();
     this.buildTerrainCollisionGrid();
     this.createLighting();
     this.createCaveEntrance(rm);
-  }
-
-
-  private prepareTreeBillboards(rm: ResourceManager) {
-    const texture = rm.getTexture("tree-billboard");
-    if (texture) {
-      this.treeBillboardTexture = texture;
-
-      this.treeBillboardMaterial = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        alphaTest: 0.5,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      });
-
-      this.treeBillboardGeometry = new THREE.PlaneGeometry(4, 8);
-    }
-  }
-
-  private createTreeBillboardsByChunks() {
-    if (!this.treeBillboardGeometry || !this.treeBillboardMaterial) return;
-
-    const billboardsPerChunk = 60;
-    const matrix = new THREE.Matrix4();
-    const position = new THREE.Vector3();
-    const scale = new THREE.Vector3();
-
-    this.terrain.chunks.forEach((chunk, key) => {
-      const billboardInstances = new THREE.InstancedMesh(
-        this.treeBillboardGeometry!,
-        this.treeBillboardMaterial!,
-        billboardsPerChunk
-      );
-
-      billboardInstances.castShadow = false;
-      billboardInstances.receiveShadow = false;
-
-      let placed = 0;
-      for (let i = 0; i < billboardsPerChunk; i++) {
-        const localX = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
-        const localZ = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
-        const worldX = chunk.worldX + localX;
-        const worldZ = chunk.worldZ + localZ;
-
-        if (this.isInSafeZone(worldX, worldZ)) continue;
-
-        const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
-        if (dist < 50) continue;
-
-        const terrainHeight = this.terrain.getHeightAt(worldX, worldZ);
-        position.set(worldX, terrainHeight, worldZ);
-
-        const s = 0.8 + Math.random() * 0.6;
-        scale.set(s, s, s);
-
-        matrix.compose(position, new THREE.Quaternion(), scale);
-        billboardInstances.setMatrixAt(placed, matrix);
-        placed++;
-      }
-
-      billboardInstances.count = placed;
-      billboardInstances.instanceMatrix.needsUpdate = true;
-      this.scene.add(billboardInstances);
-      this.treeBillboardInstances.set(key, billboardInstances);
-    });
   }
 
   private buildTerrainCollisionGrid() {
@@ -338,7 +260,6 @@ export class MainWorld extends Location {
 
   private clearVegetationAroundPortal(centerX: number, centerZ: number, radius: number) {
     let treesRemoved = 0;
-    let trees2Removed = 0;
     let rocksRemoved = 0;
 
     this.terrain.chunks.forEach((chunk, key) => {
@@ -365,32 +286,6 @@ export class MainWorld extends Location {
 
         if (treesRemoved > 0) {
           trees.instanceMatrix.needsUpdate = true;
-        }
-      }
-
-      const trees2 = this.tree2Instances.get(key);
-      if (trees2) {
-        const matrix = new THREE.Matrix4();
-        const pos = new THREE.Vector3();
-
-        for (let i = 0; i < trees2.count; i++) {
-          trees2.getMatrixAt(i, matrix);
-          pos.setFromMatrixPosition(matrix);
-
-          const dist = Math.sqrt(
-            Math.pow(pos.x - centerX, 2) +
-            Math.pow(pos.z - centerZ, 2)
-          );
-
-          if (dist <= radius) {
-            matrix.makeScale(0, 0, 0);
-            trees2.setMatrixAt(i, matrix);
-            trees2Removed++;
-          }
-        }
-
-        if (trees2Removed > 0) {
-          trees2.instanceMatrix.needsUpdate = true;
         }
       }
 
@@ -519,16 +414,6 @@ export class MainWorld extends Location {
       }
     }
 
-    const tree2Data = rm.getModel("tree2");
-    if (tree2Data) {
-      const tree2Mesh = this.findFirstMesh(tree2Data.scene);
-      if (tree2Mesh && tree2Mesh.geometry) {
-        const { geometry, material } = this.cloneAndRotateGeometry(tree2Mesh);
-        this.tree2Geometry = geometry;
-        this.tree2Material = material;
-      }
-    }
-
     const rockData = rm.getModel("rock");
     if (rockData) {
       const rockMesh = this.findFirstMesh(rockData.scene);
@@ -636,6 +521,8 @@ export class MainWorld extends Location {
   }
 
   private createVegetationByChunks(rm: ResourceManager) {
+    if (!this.treeGeometry || !this.treeMaterial) return;
+
     const treesPerChunk = 60;
     const clearZoneRadius = 50;
 
@@ -645,129 +532,62 @@ export class MainWorld extends Location {
     const scale = new THREE.Vector3();
 
     this.terrain.chunks.forEach((chunk, key) => {
-      if (this.treeGeometry && this.treeMaterial) {
-        const treeInstances = new THREE.InstancedMesh(
-          this.treeGeometry!,
-          this.treeMaterial!,
-          treesPerChunk
-        );
-        treeInstances.castShadow = true;
-        treeInstances.receiveShadow = true;
+      const treeInstances = new THREE.InstancedMesh(
+        this.treeGeometry!,
+        this.treeMaterial!,
+        treesPerChunk
+      );
+      treeInstances.castShadow = true;
+      treeInstances.receiveShadow = true;
 
-        let treePlaced = 0;
-        for (let i = 0; i < treesPerChunk; i++) {
-          let worldX: number, worldZ: number;
-          let attempts = 0;
+      let treePlaced = 0;
+      for (let i = 0; i < treesPerChunk; i++) {
+        let worldX: number, worldZ: number;
+        let attempts = 0;
 
-          do {
-            const localX = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
-            const localZ = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
-            worldX = chunk.worldX + localX;
-            worldZ = chunk.worldZ + localZ;
-            attempts++;
-          } while (this.isInSafeZone(worldX, worldZ) && attempts < 10);
+        do {
+          const localX = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
+          const localZ = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
+          worldX = chunk.worldX + localX;
+          worldZ = chunk.worldZ + localZ;
+          attempts++;
+        } while (this.isInSafeZone(worldX, worldZ) && attempts < 10);
 
-          if (this.isInSafeZone(worldX, worldZ)) continue;
+        if (this.isInSafeZone(worldX, worldZ)) continue;
 
-          const terrainHeight = this.terrain.getHeightAt(worldX, worldZ);
-          const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
-          if (dist < clearZoneRadius) continue;
+        const terrainHeight = this.terrain.getHeightAt(worldX, worldZ);
+        const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
+        if (dist < clearZoneRadius) continue;
 
-          const treeType = Math.random();
-          if (treeType > 0.3) continue;
+        position.set(worldX, terrainHeight, worldZ);
+        rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
 
-          position.set(worldX, terrainHeight, worldZ);
-          rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
+        const baseSize = 0.8 + Math.random() * 0.6;
+        const heightMultiplier = 2.5 + Math.random() * 1.5;
+        const thicknessMultiplier = Math.sqrt(heightMultiplier);
 
-          const baseSize = 0.8 + Math.random() * 0.6;
-          const heightMultiplier = 2.5 + Math.random() * 1.5;
-          const thicknessMultiplier = Math.sqrt(heightMultiplier);
+        const scaleXZ = baseSize * thicknessMultiplier;
+        const scaleY = baseSize * heightMultiplier;
+        scale.set(scaleXZ, scaleY, scaleXZ);
 
-          const scaleXZ = baseSize * thicknessMultiplier;
-          const scaleY = baseSize * heightMultiplier;
-          scale.set(scaleXZ, scaleY, scaleXZ);
+        matrix.compose(position, rotation, scale);
+        treeInstances.setMatrixAt(treePlaced, matrix);
 
-          matrix.compose(position, rotation, scale);
-          treeInstances.setMatrixAt(treePlaced, matrix);
+        const treeHeight = 4 * heightMultiplier;
+        const treeRadius = 0.5 * thicknessMultiplier;
 
-          const treeHeight = 4 * heightMultiplier;
-          const treeRadius = 0.5 * thicknessMultiplier;
+        chunk.colliders.push(new THREE.Box3(
+          new THREE.Vector3(worldX - treeRadius, terrainHeight, worldZ - treeRadius),
+          new THREE.Vector3(worldX + treeRadius, terrainHeight + treeHeight, worldZ + treeRadius)
+        ));
 
-          chunk.colliders.push(new THREE.Box3(
-            new THREE.Vector3(worldX - treeRadius, terrainHeight, worldZ - treeRadius),
-            new THREE.Vector3(worldX + treeRadius, terrainHeight + treeHeight, worldZ + treeRadius)
-          ));
-
-          treePlaced++;
-        }
-
-        treeInstances.count = treePlaced;
-        treeInstances.instanceMatrix.needsUpdate = true;
-        this.scene.add(treeInstances);
-        this.treeInstances.set(key, treeInstances);
+        treePlaced++;
       }
 
-      if (this.tree2Geometry && this.tree2Material) {
-        const tree2Instances = new THREE.InstancedMesh(
-          this.tree2Geometry!,
-          this.tree2Material!,
-          treesPerChunk
-        );
-        tree2Instances.castShadow = true;
-        tree2Instances.receiveShadow = true;
-
-        let tree2Placed = 0;
-        for (let i = 0; i < treesPerChunk; i++) {
-          let worldX: number, worldZ: number;
-          let attempts = 0;
-
-          do {
-            const localX = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
-            const localZ = -this.terrain.config.chunkSize / 2 + Math.random() * this.terrain.config.chunkSize;
-            worldX = chunk.worldX + localX;
-            worldZ = chunk.worldZ + localZ;
-            attempts++;
-          } while (this.isInSafeZone(worldX, worldZ) && attempts < 10);
-
-          if (this.isInSafeZone(worldX, worldZ)) continue;
-
-          const terrainHeight = this.terrain.getHeightAt(worldX, worldZ);
-          const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
-          if (dist < clearZoneRadius) continue;
-
-          const treeType = Math.random();
-          if (treeType <= 0.3) continue;
-
-          position.set(worldX, terrainHeight, worldZ);
-          rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
-
-          const baseSize = 0.6 + Math.random() * 0.4;
-          const heightMultiplier = 2.0 + Math.random() * 1.0;
-          const thicknessMultiplier = Math.sqrt(heightMultiplier);
-
-          const scaleXZ = baseSize * thicknessMultiplier;
-          const scaleY = baseSize * heightMultiplier;
-          scale.set(scaleXZ, scaleY, scaleXZ);
-
-          matrix.compose(position, rotation, scale);
-          tree2Instances.setMatrixAt(tree2Placed, matrix);
-
-          const treeHeight = 4 * heightMultiplier;
-          const treeRadius = 0.5 * thicknessMultiplier;
-
-          chunk.colliders.push(new THREE.Box3(
-            new THREE.Vector3(worldX - treeRadius, terrainHeight, worldZ - treeRadius),
-            new THREE.Vector3(worldX + treeRadius, terrainHeight + treeHeight, worldZ + treeRadius)
-          ));
-
-          tree2Placed++;
-        }
-
-        tree2Instances.count = tree2Placed;
-        tree2Instances.instanceMatrix.needsUpdate = true;
-        this.scene.add(tree2Instances);
-        this.tree2Instances.set(key, tree2Instances);
-      }
+      treeInstances.count = treePlaced;
+      treeInstances.instanceMatrix.needsUpdate = true;
+      this.scene.add(treeInstances);
+      this.treeInstances.set(key, treeInstances);
     });
   }
 
@@ -1035,28 +855,7 @@ export class MainWorld extends Location {
 
     this.updateStreaming(playerPosition.x, playerPosition.z);
     this.updateDecorationVisibility(playerPosition);
-    this.updateTreeBillboardVisibility(playerPosition);
     this.updateFogParticles(delta);
-  }
-
-  private updateTreeBillboardVisibility(playerPosition: THREE.Vector3) {
-    const billboardDistSq = this.BILLBOARD_DISTANCE * this.BILLBOARD_DISTANCE;
-
-    this.loadedChunkKeys.forEach(key => {
-      const chunk = this.terrain.chunks.get(key);
-      if (!chunk) return;
-
-      const dx = chunk.worldX - playerPosition.x;
-      const dz = chunk.worldZ - playerPosition.z;
-      const distSq = dx * dx + dz * dz;
-
-      const showBillboards = distSq > billboardDistSq;
-
-      const billboards = this.treeBillboardInstances.get(key);
-      if (billboards) {
-        billboards.visible = showBillboards;
-      }
-    });
   }
 
   private updateDecorationVisibility(playerPosition: THREE.Vector3) {
@@ -1080,16 +879,6 @@ export class MainWorld extends Location {
 
       const bush2 = this.bush2Instances.get(key);
       if (bush2) bush2.visible = isVisible;
-
-      const trees = this.treeInstances.get(key);
-      if (trees) {
-        trees.visible = distSq <= (this.BILLBOARD_DISTANCE * this.BILLBOARD_DISTANCE);
-      }
-
-      const trees2 = this.tree2Instances.get(key);
-      if (trees2) {
-        trees2.visible = distSq <= (this.BILLBOARD_DISTANCE * this.BILLBOARD_DISTANCE);
-      }
     });
   }
 
@@ -1129,8 +918,6 @@ export class MainWorld extends Location {
         chunk.mesh.visible = true;
         const trees = this.treeInstances.get(key);
         if (trees) trees.visible = true;
-        const trees2 = this.tree2Instances.get(key);
-        if (trees2) trees2.visible = true;
         const rocks = this.rockInstances.get(key);
         if (rocks) rocks.visible = true;
 
@@ -1144,8 +931,6 @@ export class MainWorld extends Location {
         chunk.mesh.visible = false;
         const trees = this.treeInstances.get(key);
         if (trees) trees.visible = false;
-        const trees2 = this.tree2Instances.get(key);
-        if (trees2) trees2.visible = false;
         const rocks = this.rockInstances.get(key);
         if (rocks) rocks.visible = false;
 
@@ -1177,29 +962,6 @@ export class MainWorld extends Location {
     });
     this.treeInstances.clear();
 
-    this.treeBillboardInstances.forEach(instances => {
-      this.scene.remove(instances);
-      instances.dispose();
-    });
-    if (this.treeBillboardGeometry) {
-      this.treeBillboardGeometry.dispose();
-      this.treeBillboardGeometry = null;
-    }
-    if (this.treeBillboardMaterial) {
-      this.treeBillboardMaterial.dispose();
-      this.treeBillboardMaterial = null;
-    }
-    if (this.treeBillboardTexture) {
-      this.treeBillboardTexture.dispose();
-      this.treeBillboardTexture = null;
-    }
-
-    this.tree2Instances.forEach(instances => {
-      this.scene.remove(instances);
-      instances.dispose();
-    });
-    this.tree2Instances.clear();
-
     this.rockInstances.forEach(instances => {
       this.scene.remove(instances);
       instances.dispose();
@@ -1222,11 +984,7 @@ export class MainWorld extends Location {
       this.scene.remove(instances);
       instances.dispose();
     });
-
-
     this.bush2Instances.clear();
-
-
 
     if (this.treeGeometry) {
       this.treeGeometry.dispose();
@@ -1235,14 +993,6 @@ export class MainWorld extends Location {
     if (this.treeMaterial) {
       this.treeMaterial.dispose();
       this.treeMaterial = null;
-    }
-    if (this.tree2Geometry) {
-      this.tree2Geometry.dispose();
-      this.tree2Geometry = null;
-    }
-    if (this.tree2Material) {
-      this.tree2Material.dispose();
-      this.tree2Material = null;
     }
     if (this.rockGeometry) {
       this.rockGeometry.dispose();
@@ -1307,6 +1057,4 @@ export class MainWorld extends Location {
     }
     this.scene.background = null;
   }
-
-
 }
