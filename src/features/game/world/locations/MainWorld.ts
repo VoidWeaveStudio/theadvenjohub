@@ -32,7 +32,7 @@ export class MainWorld extends Location {
   private sun: THREE.DirectionalLight | null = null;
   private sunTarget: THREE.Object3D | null = null;
 
-  private streamingRadius: number = 4;
+  private streamingRadius: number = 2;
   private loadedChunkKeys: Set<string> = new Set();
 
   private portalMesh: THREE.Object3D | null = null;
@@ -57,7 +57,7 @@ export class MainWorld extends Location {
   private bush1Instances: Map<string, THREE.InstancedMesh> = new Map();
   private bush2Instances: Map<string, THREE.InstancedMesh> = new Map();
 
-  private readonly DECORATION_DRAW_DISTANCE = 60;
+  private readonly DECORATION_DRAW_DISTANCE = 40;
 
   constructor() {
     super("main-world", "TANJO World");
@@ -108,7 +108,6 @@ export class MainWorld extends Location {
       this.loadedChunkKeys.add(`${chunk.chunkX},${chunk.chunkZ}`);
     }
 
-
     this.gridSystem.createVisualization(this.scene);
 
     this.prepareVegetationAssets(rm);
@@ -142,7 +141,7 @@ export class MainWorld extends Location {
   }
 
   private createAtmosphere() {
-    this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0025);
+    this.scene.fog = new THREE.Fog(0x87ceeb, 100, 250);
   }
 
   private createSky() {
