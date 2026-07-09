@@ -28,8 +28,6 @@ export class ResourceManager {
       this.loadModel("rock", "/models/rock.glb"),
       this.loadModel("portal", "/models/portal.glb"),
       this.loadModel("grass", "/models/grass.glb"),
-      this.loadModel("bush1", "/models/bush1.glb"),
-      this.loadModel("bush2", "/models/bush2.glb"),
 
       this.loadTexture("ground-color", "/models/textures/ground/Ground037_1K-JPG_Color.jpg", true),
       this.loadTexture("ground-normal", "/models/textures/ground/Ground037_1K-JPG_NormalGL.jpg", false),
@@ -183,29 +181,6 @@ export class ResourceManager {
         blade.castShadow = false;
         blade.receiveShadow = true;
         group.add(blade);
-        break;
-      }
-      case "bush1": {
-        const bush = new THREE.Mesh(
-          new THREE.SphereGeometry(0.5, 8, 8),
-          new THREE.MeshStandardMaterial({ color: 0x3a7a2a })
-        );
-        bush.position.y = 0.3;
-        bush.scale.y = 0.7;
-        bush.castShadow = false;
-        bush.receiveShadow = true;
-        group.add(bush);
-        break;
-      }
-      case "bush2": {
-        const part = new THREE.Mesh(
-          new THREE.SphereGeometry(0.3, 6, 6),
-          new THREE.MeshStandardMaterial({ color: 0x4a8a3a })
-        );
-        part.position.y = 0.2;
-        part.castShadow = false;
-        part.receiveShadow = true;
-        group.add(part);
         break;
       }
       default: {
