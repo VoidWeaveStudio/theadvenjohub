@@ -50,6 +50,7 @@
     "drizzle-kit": "^0.30.6",
     "drizzle-orm": "^0.39.3",
     "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^1.23.0",
     "next": "^16.2.3",
     "postgres": "^3.4.5",
     "rate-limiter-flexible": "^11.2.0",
@@ -64,6 +65,5 @@
     "tweetnacl-util": "^0.15.1",
     "typescript": "^5.8.3",
     "zod": "^3.25.76"
-  },
-  "devDependencies": {}
+  }
 }

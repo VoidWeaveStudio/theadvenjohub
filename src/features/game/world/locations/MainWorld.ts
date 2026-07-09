@@ -8,7 +8,6 @@ import { GridSystem } from "../GridSystem";
 import { CollisionGrid } from "../CollisionGrid";
 
 interface FogParticle {
-  mesh: THREE.Mesh;
   velocity: THREE.Vector3;
   life: number;
   maxLife: number;
@@ -38,9 +37,10 @@ export class MainWorld extends Location {
 
   private portalMesh: THREE.Object3D | null = null;
   private portalCollider: THREE.Box3 | null = null;
+
+  private fogInstances: THREE.InstancedMesh | null = null;
+  private fogMaterial: THREE.ShaderMaterial | null = null;
   private fogParticles: FogParticle[] = [];
-  private fogGeometry: THREE.SphereGeometry | null = null;
-  private fogMaterial: THREE.MeshBasicMaterial | null = null;
   private readonly FOG_PARTICLE_COUNT = 300;
   private readonly FOG_RADIUS = 1;
   private readonly FOG_HEIGHT = 3;
@@ -62,6 +62,10 @@ export class MainWorld extends Location {
   private stars: THREE.Points | null = null;
   private clouds: THREE.Mesh | null = null;
   private cloudTexture: THREE.Texture | null = null;
+
+  private readonly isLowEnd = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency != null)
+    ? navigator.hardwareConcurrency <= 4
+    : false;
 
   constructor() {
     super("main-world", "TANJO World");
@@ -222,7 +226,7 @@ export class MainWorld extends Location {
 
   private createGrassMaterial(baseMaterial: THREE.MeshStandardMaterial): THREE.Material {
     const mat = baseMaterial.clone();
-    mat.side = THREE.DoubleSide;
+    mat.side = THREE.FrontSide;
 
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = { value: 0 };
@@ -253,46 +257,27 @@ export class MainWorld extends Location {
               vGrassUv = uv;
               vGrassHeight = uv.y;
               
-              vec3 instancePos = vec3(0.0);
               #ifdef USE_INSTANCING
-                  instancePos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+                  vec3 instancePos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
                   vWorldPos = instancePos;
                   
-                  vec3 right = vec3(instanceMatrix[0][0], instanceMatrix[1][0], instanceMatrix[2][0]);
-                  vec3 forward = vec3(instanceMatrix[0][2], instanceMatrix[1][2], instanceMatrix[2][2]);
+                  float wind = sin(uTime * 0.8 + instancePos.x * 0.1 + instancePos.z * 0.1);
                   
-                  float wind1 = sin(uTime * 0.8 + instancePos.x * 0.1 + instancePos.z * 0.1);
-                  float wind2 = sin(uTime * 0.4 + instancePos.x * 0.05 + instancePos.z * 0.05) * 0.5;
-                  float wind3 = cos(uTime * 1.2 + instancePos.x * 0.15 + instancePos.z * 0.15) * 0.3;
-                  float totalWind = wind1 + wind2 + wind3;
-                  
-                  vec3 worldWind = vec3(totalWind * 0.15, 0.0, totalWind * 0.1);
-                  
-                  vec3 toPlayer = instancePos - uPlayerPos;
-                  float distToPlayer = length(toPlayer.xz);
+                  vec2 toPlayer = instancePos.xz - uPlayerPos.xz;
+                  float distToPlayer = length(toPlayer);
                   float interactionRadius = 2.0;
-                  vec3 pushDir = normalize(vec3(toPlayer.x, 0.0, toPlayer.z) + vec3(0.001));
-                  float pushStrength = (1.0 - smoothstep(0.0, interactionRadius, distToPlayer)) * 1.0;
-                  vec3 worldPush = pushDir * pushStrength;
-                  
-                  vec3 localWind = vec3(
-                      dot(worldWind, right),
-                      0.0,
-                      dot(worldWind, forward)
-                  );
-                  vec3 localPush = vec3(
-                      dot(worldPush, right),
-                      0.0,
-                      dot(worldPush, forward)
-                  );
-                  
-                  float bend = uv.y * uv.y * 0.1;
-                  transformed.x += bend;
+                  float pushStrength = max(0.0, 1.0 - distToPlayer / interactionRadius);
+                  vec2 pushDir = (distToPlayer > 0.001) ? toPlayer / distToPlayer : vec2(0.0);
                   
                   float heightFactor = uv.y * uv.y;
                   
-                  transformed.x += (localWind.x + localPush.x) * heightFactor * uWindStrength;
-                  transformed.z += (localWind.z + localPush.z) * heightFactor * uWindStrength;
+                  transformed.x += wind * 0.15 * heightFactor * uWindStrength;
+                  transformed.z += wind * 0.1 * heightFactor * uWindStrength;
+                  
+                  transformed.x += pushDir.x * pushStrength * heightFactor;
+                  transformed.z += pushDir.y * pushStrength * heightFactor;
+                  
+                  transformed.x += heightFactor * 0.1;
                   
                   vGrassDist = distance(instancePos, uPlayerPos);
               #endif
@@ -318,9 +303,6 @@ export class MainWorld extends Location {
               
               float colorNoise = sin(vWorldPos.x * 0.2 + vWorldPos.z * 0.2) * 0.5 + 0.5;
               grassColor *= 0.8 + colorNoise * 0.4;
-              
-              float detailNoise = sin(vWorldPos.x * 1.5 + vWorldPos.z * 1.3) * 0.5 + 0.5;
-              grassColor *= 0.9 + detailNoise * 0.2;
               
               diffuseColor.rgb = grassColor;
               `
@@ -366,7 +348,7 @@ export class MainWorld extends Location {
   }
 
   private createCelestialBodies() {
-    const sunGeo = new THREE.SphereGeometry(50, 32, 32);
+    const sunGeo = new THREE.SphereGeometry(50, 16, 16);
     const sunMat = new THREE.MeshBasicMaterial({
       color: 0xffdd88,
       fog: false
@@ -374,7 +356,7 @@ export class MainWorld extends Location {
     this.sunMesh = new THREE.Mesh(sunGeo, sunMat);
     this.scene.add(this.sunMesh);
 
-    const moonGeo = new THREE.SphereGeometry(30, 32, 32);
+    const moonGeo = new THREE.SphereGeometry(30, 16, 16);
     const moonMat = new THREE.MeshBasicMaterial({
       color: 0xddddee,
       fog: false
@@ -411,18 +393,19 @@ export class MainWorld extends Location {
     this.scene.add(this.stars);
 
     this.cloudTexture = this.createCloudTexture();
-    const cloudGeo = new THREE.PlaneGeometry(2000, 2000);
+    const cloudGeo = new THREE.SphereGeometry(2500, 64, 32);
+    cloudGeo.scale(-1, 1, 1);
     const cloudMat = new THREE.MeshBasicMaterial({
       map: this.cloudTexture,
       transparent: true,
       opacity: 0.6,
       depthWrite: false,
       fog: false,
-      side: THREE.DoubleSide
+      side: THREE.BackSide
     });
+
     this.clouds = new THREE.Mesh(cloudGeo, cloudMat);
-    this.clouds.position.y = 300;
-    this.clouds.rotation.x = -Math.PI / 2;
+    this.clouds.position.y = 0;
     this.scene.add(this.clouds);
   }
 
@@ -688,32 +671,69 @@ export class MainWorld extends Location {
   }
 
   private createFogParticles(centerX: number, centerY: number, centerZ: number) {
-    this.fogGeometry = new THREE.SphereGeometry(0.15, 8, 8);
-    this.fogMaterial = new THREE.MeshBasicMaterial({
-      color: 0x4488ff,
+    const fogGeo = new THREE.SphereGeometry(0.15, 6, 6);
+
+    this.fogMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0x4488ff) }
+      },
+      vertexShader: `
+        attribute float aOpacity;
+        attribute float aScale;
+        varying float vOpacity;
+        
+        void main() {
+          vOpacity = aOpacity;
+          
+          vec3 scaled = position * aScale;
+          
+          vec4 worldPos = instanceMatrix * vec4(scaled, 1.0);
+          gl_Position = projectionMatrix * modelViewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        varying float vOpacity;
+        
+        void main() {
+          gl_FragColor = vec4(uColor, vOpacity);
+        }
+      `,
       transparent: true,
-      opacity: 0.25,
       depthWrite: false,
+      side: THREE.FrontSide
     });
 
-    for (let i = 0; i < this.FOG_PARTICLE_COUNT; i++) {
-      const mesh = new THREE.Mesh(this.fogGeometry, this.fogMaterial);
+    this.fogInstances = new THREE.InstancedMesh(fogGeo, this.fogMaterial, this.FOG_PARTICLE_COUNT);
+    this.fogInstances.frustumCulled = false;
 
+    const opacities = new Float32Array(this.FOG_PARTICLE_COUNT);
+    const scales = new Float32Array(this.FOG_PARTICLE_COUNT);
+
+    this.fogInstances.geometry.setAttribute(
+      'aOpacity',
+      new THREE.InstancedBufferAttribute(opacities, 1)
+    );
+    this.fogInstances.geometry.setAttribute(
+      'aScale',
+      new THREE.InstancedBufferAttribute(scales, 1)
+    );
+
+    const matrix = new THREE.Matrix4();
+
+    for (let i = 0; i < this.FOG_PARTICLE_COUNT; i++) {
       const angle = Math.random() * Math.PI * 2;
       const radius = Math.random() * this.FOG_RADIUS;
       const x = centerX + Math.cos(angle) * radius;
       const z = centerZ + Math.sin(angle) * radius;
-
       const y = centerY + (i / this.FOG_PARTICLE_COUNT) * this.FOG_HEIGHT;
 
-      mesh.position.set(x, y, z);
-      mesh.visible = true;
-      this.scene.add(mesh);
+      matrix.makeTranslation(x, y, z);
+      this.fogInstances.setMatrixAt(i, matrix);
 
       const maxLife = 4 + Math.random() * 2;
 
       this.fogParticles.push({
-        mesh,
         velocity: new THREE.Vector3(
           (Math.random() - 0.5) * 0.1,
           0.4 + Math.random() * 0.2,
@@ -723,13 +743,28 @@ export class MainWorld extends Location {
         maxLife,
         baseY: centerY,
       });
+
+      opacities[i] = 0.25;
+      scales[i] = 1.0;
     }
+
+    this.fogInstances.instanceMatrix.needsUpdate = true;
+    (this.fogInstances.geometry.getAttribute('aOpacity') as THREE.InstancedBufferAttribute).needsUpdate = true;
+    (this.fogInstances.geometry.getAttribute('aScale') as THREE.InstancedBufferAttribute).needsUpdate = true;
+
+    this.scene.add(this.fogInstances);
   }
 
   private updateFogParticles(delta: number) {
-    if (!this.portalPosition || !this.fogParticles.length) return;
+    if (!this.portalPosition || !this.fogInstances || !this.fogParticles.length) return;
 
-    for (const particle of this.fogParticles) {
+    const matrix = new THREE.Matrix4();
+    const pos = new THREE.Vector3();
+    const opacities = this.fogInstances.geometry.getAttribute('aOpacity') as THREE.InstancedBufferAttribute;
+    const scales = this.fogInstances.geometry.getAttribute('aScale') as THREE.InstancedBufferAttribute;
+
+    for (let i = 0; i < this.FOG_PARTICLE_COUNT; i++) {
+      const particle = this.fogParticles[i];
       particle.life += delta;
 
       if (particle.life >= particle.maxLife) {
@@ -737,7 +772,7 @@ export class MainWorld extends Location {
 
         const angle = Math.random() * Math.PI * 2;
         const radius = Math.random() * this.FOG_RADIUS;
-        particle.mesh.position.set(
+        pos.set(
           this.portalPosition.x + Math.cos(angle) * radius,
           particle.baseY,
           this.portalPosition.z + Math.sin(angle) * radius
@@ -750,27 +785,33 @@ export class MainWorld extends Location {
         );
 
         particle.maxLife = 4 + Math.random() * 2;
+      } else {
+        this.fogInstances.getMatrixAt(i, matrix);
+        pos.setFromMatrixPosition(matrix);
+        pos.x += particle.velocity.x * delta;
+        pos.y += particle.velocity.y * delta;
+        pos.z += particle.velocity.z * delta;
       }
 
-      particle.mesh.position.x += particle.velocity.x * delta;
-      particle.mesh.position.y += particle.velocity.y * delta;
-      particle.mesh.position.z += particle.velocity.z * delta;
+      matrix.makeTranslation(pos.x, pos.y, pos.z);
+      this.fogInstances.setMatrixAt(i, matrix);
 
       const lifeRatio = particle.life / particle.maxLife;
       let opacity = 0.25;
 
       if (lifeRatio < 0.1) {
         opacity = (lifeRatio / 0.1) * 0.25;
-      }
-      else if (lifeRatio > 0.85) {
+      } else if (lifeRatio > 0.85) {
         opacity = ((1 - lifeRatio) / 0.15) * 0.25;
       }
 
-      (particle.mesh.material as THREE.MeshBasicMaterial).opacity = opacity;
-
-      const scale = 1.0 + lifeRatio * 0.5;
-      particle.mesh.scale.setScalar(scale);
+      opacities.setX(i, opacity);
+      scales.setX(i, 1.0 + lifeRatio * 0.5);
     }
+
+    this.fogInstances.instanceMatrix.needsUpdate = true;
+    opacities.needsUpdate = true;
+    scales.needsUpdate = true;
   }
 
   private prepareVegetationAssets(rm: ResourceManager) {
@@ -822,7 +863,7 @@ export class MainWorld extends Location {
   private createVegetationByChunks(rm: ResourceManager) {
     if (!this.treeGeometry || !this.treeMaterial) return;
 
-    const treesPerChunk = 60;
+    const treesPerChunk = 100;
     const clearZoneRadius = 50;
 
     const matrix = new THREE.Matrix4();
@@ -840,6 +881,7 @@ export class MainWorld extends Location {
       treeInstances.receiveShadow = true;
 
       let treePlaced = 0;
+
       for (let i = 0; i < treesPerChunk; i++) {
         let worldX: number, worldZ: number;
         let attempts = 0;
@@ -858,29 +900,104 @@ export class MainWorld extends Location {
         const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
         if (dist < clearZoneRadius) continue;
 
+        const forestDensity = this.fbm(worldX * 0.015, worldZ * 0.015);
+        if (forestDensity < 0.42) continue;
+
         position.set(worldX, terrainHeight, worldZ);
         rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
 
-        const baseSize = 0.8 + Math.random() * 0.6;
-        const heightMultiplier = 2.5 + Math.random() * 1.5;
+        const r = Math.pow(Math.random(), 2.2);
+        const heightMultiplier = THREE.MathUtils.lerp(1.6, 5.8, r);
         const thicknessMultiplier = Math.sqrt(heightMultiplier);
+        const widthNoise = 0.85 + Math.random() * 0.35;
 
-        const scaleXZ = baseSize * thicknessMultiplier;
-        const scaleY = baseSize * heightMultiplier;
-        scale.set(scaleXZ, scaleY, scaleXZ);
+        scale.set(
+          thicknessMultiplier * widthNoise,
+          heightMultiplier,
+          thicknessMultiplier * widthNoise
+        );
+
+        if (Math.random() < 0.03) {
+          scale.multiplyScalar(1.8);
+          scale.y *= 1.4;
+        }
 
         matrix.compose(position, rotation, scale);
         treeInstances.setMatrixAt(treePlaced, matrix);
 
-        const treeHeight = 4 * heightMultiplier;
-        const treeRadius = 0.5 * thicknessMultiplier;
-
-        chunk.colliders.push(new THREE.Box3(
-          new THREE.Vector3(worldX - treeRadius, terrainHeight, worldZ - treeRadius),
-          new THREE.Vector3(worldX + treeRadius, terrainHeight + treeHeight, worldZ + treeRadius)
-        ));
+        const trunkRadius = 0.05 * scale.x;
+        const trunkHeight = 2.2 * scale.y;  
+        
+        const treeBox = new THREE.Box3(
+          new THREE.Vector3(
+            worldX - trunkRadius,
+            terrainHeight,
+            worldZ - trunkRadius
+          ),
+          new THREE.Vector3(
+            worldX + trunkRadius,
+            terrainHeight + trunkHeight,
+            worldZ + trunkRadius
+          )
+        );
+        
+        chunk.colliders.push(treeBox);
 
         treePlaced++;
+
+        if (treePlaced < treesPerChunk && forestDensity > 0.55 && Math.random() < 0.4) {
+          const offset = new THREE.Vector2(
+            (Math.random() - 0.5) * 5,
+            (Math.random() - 0.5) * 5
+          );
+          const clusterX = worldX + offset.x;
+          const clusterZ = worldZ + offset.y;
+
+          if (!this.isInSafeZone(clusterX, clusterZ)) {
+            const clusterHeight = this.terrain.getHeightAt(clusterX, clusterZ);
+            position.set(clusterX, clusterHeight, clusterZ);
+            rotation.setFromEuler(new THREE.Euler(0, Math.random() * Math.PI * 2, 0));
+
+            const clusterR = Math.pow(Math.random(), 2.2);
+            const clusterHeightMult = THREE.MathUtils.lerp(1.6, 5.8, clusterR);
+            const clusterThickness = Math.sqrt(clusterHeightMult);
+            const clusterWidth = 0.85 + Math.random() * 0.35;
+
+            scale.set(
+              clusterThickness * clusterWidth,
+              clusterHeightMult,
+              clusterThickness * clusterWidth
+            );
+
+            if (Math.random() < 0.03) {
+              scale.multiplyScalar(1.8);
+              scale.y *= 1.4;
+            }
+
+            matrix.compose(position, rotation, scale);
+            treeInstances.setMatrixAt(treePlaced, matrix);
+
+            const clusterTrunkRadius = 0.35 * scale.x;
+            const clusterTrunkHeight = 2.2 * scale.y;
+            
+            const clusterBox = new THREE.Box3(
+              new THREE.Vector3(
+                clusterX - clusterTrunkRadius,
+                clusterHeight,
+                clusterZ - clusterTrunkRadius
+              ),
+              new THREE.Vector3(
+                clusterX + clusterTrunkRadius,
+                clusterHeight + clusterTrunkHeight,
+                clusterZ + clusterTrunkRadius
+              )
+            );
+            
+            chunk.colliders.push(clusterBox);
+
+            treePlaced++;
+          }
+        }
       }
 
       treeInstances.count = treePlaced;
@@ -907,7 +1024,7 @@ export class MainWorld extends Location {
         this.rockMaterial!,
         rocksPerChunk
       );
-      instances.castShadow = true;
+      instances.castShadow = false;
       instances.receiveShadow = true;
 
       let placed = 0;
@@ -953,7 +1070,7 @@ export class MainWorld extends Location {
   }
 
   private createDecorationsByChunks(rm: ResourceManager) {
-    const maxGrassPerChunk = 10000;
+    const maxGrassPerChunk = 4000;
     const clearZoneRadius = 30;
 
     const matrix = new THREE.Matrix4();
@@ -969,11 +1086,11 @@ export class MainWorld extends Location {
           maxGrassPerChunk
         );
         grassInstances.castShadow = false;
-        grassInstances.receiveShadow = true;
+        grassInstances.receiveShadow = false;
         grassInstances.frustumCulled = true;
 
         let grassPlaced = 0;
-        const gridSize = 120;
+        const gridSize = 63;
         const cellSize = this.terrain.config.chunkSize / gridSize;
 
         for (let gx = 0; gx < gridSize; gx++) {
@@ -1067,33 +1184,34 @@ export class MainWorld extends Location {
   }
 
   private createLighting() {
-  const hemi = new THREE.HemisphereLight(0xbde0ff, 0x4a6b3a, 1.2);
-  this.scene.add(hemi);
+    const hemi = new THREE.HemisphereLight(0xbde0ff, 0x4a6b3a, 1.2);
+    this.scene.add(hemi);
 
-  this.sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
-  this.sun.castShadow = true;
+    this.sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
+    this.sun.castShadow = true;
 
-  this.sun.shadow.mapSize.set(4096, 4096);
-  this.sun.shadow.camera.near = 0.5;
-  this.sun.shadow.camera.far = 500;
-  
-  const d = 200;
-  this.sun.shadow.camera.left = -d;
-  this.sun.shadow.camera.right = d;
-  this.sun.shadow.camera.top = d;
-  this.sun.shadow.camera.bottom = -d;
-  
-  this.sun.shadow.bias = -0.0001;
-  this.sun.shadow.normalBias = 0.02;
-  this.sun.shadow.radius = 2;
+    const shadowRes = this.isLowEnd ? 1024 : 2048;
+    this.sun.shadow.mapSize.set(shadowRes, shadowRes);
+    this.sun.shadow.camera.near = 0.5;
+    this.sun.shadow.camera.far = 500;
 
-  this.sunTarget = new THREE.Object3D();
-  this.sun.target = this.sunTarget;
-  this.sunTarget.position.set(0, 0, 0);
+    const d = 100;
+    this.sun.shadow.camera.left = -d;
+    this.sun.shadow.camera.right = d;
+    this.sun.shadow.camera.top = d;
+    this.sun.shadow.camera.bottom = -d;
 
-  this.scene.add(this.sun);
-  this.scene.add(this.sunTarget);
-}
+    this.sun.shadow.bias = -0.0001;
+    this.sun.shadow.normalBias = 0.02;
+    this.sun.shadow.radius = 2;
+
+    this.sunTarget = new THREE.Object3D();
+    this.sun.target = this.sunTarget;
+    this.sunTarget.position.set(0, 0, 0);
+
+    this.scene.add(this.sun);
+    this.scene.add(this.sunTarget);
+  }
 
   public update(playerPosition: THREE.Vector3, delta: number) {
     this.dayTime += delta * 0.01;
@@ -1106,8 +1224,6 @@ export class MainWorld extends Location {
 
     if (this.sun && this.sun.shadow && this.sunTarget) {
       const shadowCam = this.sun.shadow.camera as THREE.OrthographicCamera;
-
-      const shadowSize = 150;
 
       shadowCam.position.set(
         playerPosition.x,
@@ -1269,19 +1385,16 @@ export class MainWorld extends Location {
       this.grassMaterial = null;
     }
 
-    for (const particle of this.fogParticles) {
-      this.scene.remove(particle.mesh);
-    }
-    this.fogParticles = [];
-
-    if (this.fogGeometry) {
-      this.fogGeometry.dispose();
-      this.fogGeometry = null;
+    if (this.fogInstances) {
+      this.scene.remove(this.fogInstances);
+      this.fogInstances.dispose();
+      this.fogInstances = null;
     }
     if (this.fogMaterial) {
       this.fogMaterial.dispose();
       this.fogMaterial = null;
     }
+    this.fogParticles = [];
 
     if (this.portalMesh) {
       this.scene.remove(this.portalMesh);

@@ -2,7 +2,7 @@
 import "@/core/init";
 import type { Metadata, Viewport } from "next"; 
 import "@/core/styles/globals.css";
-import { Inter } from "next/font/google";
+import { Inter, Oxanium } from "next/font/google";
 import { Header } from "@/core/ui/Header";
 import { SolanaProviders } from "@/core/providers/SolanaProviders";
 import { LanguageProvider } from "@/core/i18n/LanguageContext";
@@ -13,6 +13,15 @@ const inter = Inter({
   display: "swap",
   preload: true,
   fallback: ["system-ui", "arial"],
+  variable: "--font-inter",
+});
+
+const oxanium = Oxanium({
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+  preload: true,
+  fallback: ["system-ui", "arial"],
+  variable: "--font-oxanium",
 });
 
 export const metadata: Metadata = {
@@ -59,7 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <Head />
       </head>
-      <body className={`${inter.className} text-foreground font-sans antialiased`}>
+      <body className={`${inter.variable} ${oxanium.variable} text-foreground font-sans antialiased`}>
         <div className="site-background" aria-hidden="true" />
         <LanguageProvider>
           <SolanaProviders>

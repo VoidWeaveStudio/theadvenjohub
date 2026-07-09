@@ -1,5 +1,7 @@
-//src\features\game\ui\OnlineCounter.tsx
+// src/features/game/ui/OnlineCounter.tsx
 "use client";
+
+import { Users } from "lucide-react";
 
 interface OnlineCounterProps {
     count: number;
@@ -7,25 +9,20 @@ interface OnlineCounterProps {
 }
 
 export function OnlineCounter({ count, maxCount = 100 }: OnlineCounterProps) {
-    const percentage = (count / maxCount) * 100;
-
     return (
-        <div className="bg-black/60 backdrop-blur px-4 py-2 rounded-lg border border-white/10 flex items-center gap-3">
-            <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
-                </span>
-                <span className="text-white font-bold text-lg">{count}</span>
-                <span className="text-zinc-400 text-sm">/ {maxCount}</span>
-            </div>
-
-            <div className="w-20 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                <div
-                    className={`h-full transition-all duration-300 ${percentage > 80 ? "bg-red-500" : percentage > 50 ? "bg-yellow-500" : "bg-green-500"
-                        }`}
-                    style={{ width: `${percentage}%` }}
-                />
+        <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] px-5 py-3 font-oxanium">
+            <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                    <div className="relative flex items-center justify-center">
+                        <span className="absolute inline-flex h-2 w-2 rounded-full bg-[#4ADE80] animate-ping opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#4ADE80]" />
+                    </div>
+                    <Users className="w-4 h-4 text-[#8B8F98]" />
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-[#8B8F98] text-[10px] font-bold tracking-wider">ONLINE</span>
+                    <span className="text-[#E5E7EB] text-xl font-bold leading-none">{count}</span>
+                </div>
             </div>
         </div>
     );

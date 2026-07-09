@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+:root {
+  --game-primary: #4FD1FF;
+  --game-danger: #FF5757;
+  --game-success: #4ADE80;
+  --game-neutral: #E5E7EB;
+  --game-secondary: #8B8F98;
+}
+
 :root,
 [data-theme="dark"] {
   --background: #161618;
@@ -492,7 +500,6 @@ button:focus-visible,
   }
 }
 
-
 .animate-shimmer {
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -512,6 +519,7 @@ button:focus-visible,
 .animate-shimmer {
   animation: shimmer 1.5s ease-in-out infinite;
 }
+
 @supports (-webkit-touch-callout: none) {
   html, body {
     max-width: 100vw;
@@ -605,8 +613,6 @@ button:focus-visible,
   font-size: 1rem;
 }
 
-
-
 .auth-retry-btn {
   width: 100%;
   margin-top: 0.5rem;
@@ -665,4 +671,22 @@ button:focus-visible,
   outline: 2px solid var(--primary);
   outline-offset: 2px;
   box-shadow: var(--input-focus-shadow);
+}
+
+/* Игровой UI класс */
+.game-ui {
+  font-family: var(--font-oxanium), monospace;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(79, 209, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(79, 209, 255, 0.5);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
