@@ -188,39 +188,47 @@ export class MainWorld extends Location {
   }
 
   private createGrassBladeGeometry(): THREE.BufferGeometry {
-    const w = 0.12;
-    const h = 0.4;
+    const blades = 6;
+    const geo = new THREE.BufferGeometry();
 
     const positions: number[] = [];
     const uvs: number[] = [];
     const indices: number[] = [];
 
-    const angles = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4];
+    let indexOffset = 0;
 
-    angles.forEach((angle, idx) => {
+    for (let i = 0; i < blades; i++) {
+      const angle = (i / blades) * Math.PI * 2;
+      const offsetX = (Math.random() - 0.5) * 0.15;
+      const offsetZ = (Math.random() - 0.5) * 0.15;
+
+      const w = 0.05 + Math.random() * 0.05;
+      const h = 0.3 + Math.random() * 0.4;
+
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
 
-      const v0 = [-w * cos, 0, -w * sin];
-      const v1 = [w * cos, 0, w * sin];
-      const v2 = [w * cos, h, w * sin];
-      const v3 = [-w * cos, h, -w * sin];
+      const v0 = [-w * cos + offsetX, 0, -w * sin + offsetZ];
+      const v1 = [w * cos + offsetX, 0, w * sin + offsetZ];
+      const v2 = [w * cos + offsetX, h, w * sin + offsetZ];
+      const v3 = [-w * cos + offsetX, h, -w * sin + offsetZ];
 
       positions.push(...v0, ...v1, ...v2, ...v3);
       uvs.push(0, 0, 1, 0, 1, 1, 0, 1);
 
-      const baseIdx = idx * 4;
       indices.push(
-        baseIdx, baseIdx + 1, baseIdx + 2,
-        baseIdx, baseIdx + 2, baseIdx + 3
+        indexOffset, indexOffset + 1, indexOffset + 2,
+        indexOffset, indexOffset + 2, indexOffset + 3
       );
-    });
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+      indexOffset += 4;
+    }
+
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
+
     return geo;
   }
 
@@ -247,6 +255,8 @@ export class MainWorld extends Location {
               varying float vGrassHeight;
               varying float vGrassDist;
               varying vec3 vWorldPos;
+              varying float vColorVar;  
+              varying vec3 vGrassNormal;
           ` + shader.vertexShader;
 
       shader.vertexShader = shader.vertexShader.replace(
@@ -261,6 +271,9 @@ export class MainWorld extends Location {
                   vec3 instancePos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
                   vWorldPos = instancePos;
                   
+                  float colorVar = fract(sin(dot(instancePos.xz, vec2(12.9898,78.233))) * 43758.5453);
+                  vColorVar = colorVar;
+
                   float wind = sin(uTime * 0.8 + instancePos.x * 0.1 + instancePos.z * 0.1);
                   
                   vec2 toPlayer = instancePos.xz - uPlayerPos.xz;
@@ -269,17 +282,28 @@ export class MainWorld extends Location {
                   float pushStrength = max(0.0, 1.0 - distToPlayer / interactionRadius);
                   vec2 pushDir = (distToPlayer > 0.001) ? toPlayer / distToPlayer : vec2(0.0);
                   
-                  float heightFactor = uv.y * uv.y;
+                  float heightFactor = pow(uv.y, 2.5);
                   
                   transformed.x += wind * 0.15 * heightFactor * uWindStrength;
                   transformed.z += wind * 0.1 * heightFactor * uWindStrength;
                   
-                  transformed.x += pushDir.x * pushStrength * heightFactor;
-                  transformed.z += pushDir.y * pushStrength * heightFactor;
+                  float bend = pushStrength * heightFactor;
+                  vec3 bendDir = normalize(vec3(pushDir.x, 0.0, pushDir.y));
+                  transformed.xyz += bendDir * bend * 0.3;
+                  transformed.y -= bend * 0.2; // трава немного прогибается вниз
                   
-                  transformed.x += heightFactor * 0.1;
+                  transformed.x += (sin(instancePos.x) * 0.1) * uv.y;
+                  transformed.z += (cos(instancePos.z) * 0.1) * uv.y;
                   
-                  vGrassDist = distance(instancePos, uPlayerPos);
+                  vec3 grassNormal = vec3(0.0, 1.0, 0.0);
+                  grassNormal.x += sin(instancePos.x) * 0.1;
+                  grassNormal.z += cos(instancePos.z) * 0.1;
+                  vGrassNormal = normalize(normalMatrix * grassNormal);
+                  
+                  float dist = distance(instancePos, uPlayerPos);
+                  float lodFactor = smoothstep(20.0, 80.0, dist);
+                  transformed *= (1.0 - lodFactor * 0.7);
+                  vGrassDist = dist;
               #endif
               `
       );
@@ -292,6 +316,8 @@ export class MainWorld extends Location {
               varying float vGrassHeight;
               varying float vGrassDist;
               varying vec3 vWorldPos;
+              varying float vColorVar;  
+              varying vec3 vGrassNormal;
           ` + shader.fragmentShader;
 
       shader.fragmentShader = shader.fragmentShader.replace(
@@ -301,8 +327,10 @@ export class MainWorld extends Location {
               
               vec3 grassColor = mix(uColorBottom, uColorTop, vGrassHeight);
               
-              float colorNoise = sin(vWorldPos.x * 0.2 + vWorldPos.z * 0.2) * 0.5 + 0.5;
-              grassColor *= 0.8 + colorNoise * 0.4;
+              grassColor *= 0.8 + vColorVar * 0.4;
+              
+              float light = dot(normalize(vGrassNormal), normalize(vec3(0.3, 1.0, 0.2)));
+              grassColor *= 0.6 + light * 0.4;
               
               diffuseColor.rgb = grassColor;
               `
@@ -926,8 +954,8 @@ export class MainWorld extends Location {
         treeInstances.setMatrixAt(treePlaced, matrix);
 
         const trunkRadius = 0.05 * scale.x;
-        const trunkHeight = 2.2 * scale.y;  
-        
+        const trunkHeight = 2.2 * scale.y;
+
         const treeBox = new THREE.Box3(
           new THREE.Vector3(
             worldX - trunkRadius,
@@ -940,7 +968,7 @@ export class MainWorld extends Location {
             worldZ + trunkRadius
           )
         );
-        
+
         chunk.colliders.push(treeBox);
 
         treePlaced++;
@@ -979,7 +1007,7 @@ export class MainWorld extends Location {
 
             const clusterTrunkRadius = 0.35 * scale.x;
             const clusterTrunkHeight = 2.2 * scale.y;
-            
+
             const clusterBox = new THREE.Box3(
               new THREE.Vector3(
                 clusterX - clusterTrunkRadius,
@@ -992,7 +1020,7 @@ export class MainWorld extends Location {
                 clusterZ + clusterTrunkRadius
               )
             );
-            
+
             chunk.colliders.push(clusterBox);
 
             treePlaced++;
@@ -1121,11 +1149,8 @@ export class MainWorld extends Location {
             const rotY = this.hash2D(finalX * 10, finalZ * 10) * Math.PI * 2;
             rotation.setFromEuler(new THREE.Euler(0, rotY, 0));
 
-            const distFromChunkCenter = Math.sqrt(localX * localX + localZ * localZ);
-            const lodFactor = 1.0 - smoothstep(30, 50, distFromChunkCenter);
-
-            const s = (0.7 + density * 0.6) * lodFactor;
-            const hScale = (s + this.hash2D(finalX, finalZ) * 0.4) * lodFactor;
+            const s = 0.7 + density * 0.6;
+            const hScale = s + this.hash2D(finalX, finalZ) * 0.4;
             scale.set(s, hScale, s);
 
             matrix.compose(position, rotation, scale);

@@ -52,6 +52,42 @@ export class TerrainChunk {
             side: THREE.FrontSide,
         });
 
+        material.onBeforeCompile = (shader) => {
+            shader.vertexShader = `
+                varying vec3 vTerrainWorldPos;
+            ` + shader.vertexShader;
+
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <begin_vertex>',
+                `
+                #include <begin_vertex>
+                vTerrainWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                `
+            );
+
+            shader.fragmentShader = `
+                varying vec3 vTerrainWorldPos;
+            ` + shader.fragmentShader;
+
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <map_fragment>',
+                `
+                #include <map_fragment>
+                
+                float noise1 = fract(sin(dot(vTerrainWorldPos.xz * 0.5, vec2(12.9898, 78.233))) * 43758.5453);
+                float noise2 = fract(sin(dot(vTerrainWorldPos.xz * 2.0, vec2(39.346, 11.135))) * 43758.5453);
+                float combinedNoise = (noise1 + noise2) * 0.5;
+                
+                vec3 grassColor = vec3(0.15, 0.4, 0.1); 
+                
+                float dist = distance(vTerrainWorldPos, cameraPosition);
+                float fade = smoothstep(15.0, 50.0, dist); // Начинаем проявляться с 15 метров
+                
+                diffuseColor.rgb = mix(diffuseColor.rgb, grassColor, combinedNoise * 0.5 * fade);
+                `
+            );
+        };
+
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.rotation.x = -Math.PI / 2;
         this.mesh.position.set(this.worldX, 0, this.worldZ);
