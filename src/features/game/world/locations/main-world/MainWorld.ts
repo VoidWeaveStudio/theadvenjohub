@@ -30,10 +30,9 @@ export class MainWorld extends Location {
   constructor() {
     super("main-world", "TANJO World");
 
-    const towerX = 150;
+    const towerX = 300;
     const towerZ = 0;
-    const towerRadius = 40;
-    const towerClearRadius = 55;
+    const towerClearRadius = 180;
 
     const portalX = 50;
     const portalZ = 0;
@@ -43,16 +42,10 @@ export class MainWorld extends Location {
       const distFromCenter = Math.sqrt(x * x + z * z);
       if (distFromCenter < 40) return 0;
 
-      const distFromPortal = Math.sqrt(
-        Math.pow(x - portalX, 2) +
-        Math.pow(z - portalZ, 2)
-      );
+      const distFromPortal = Math.sqrt(Math.pow(x - portalX, 2) + Math.pow(z - portalZ, 2));
       if (distFromPortal < portalRadius) return 0;
 
-      const distFromTower = Math.sqrt(
-        Math.pow(x - towerX, 2) +
-        Math.pow(z - towerZ, 2)
-      );
+      const distFromTower = Math.sqrt(Math.pow(x - towerX, 2) + Math.pow(z - towerZ, 2));
       if (distFromTower < towerClearRadius) return 0;
 
       return (
@@ -62,15 +55,7 @@ export class MainWorld extends Location {
       );
     };
 
-    this.terrain = new TerrainChunkManager(
-      {
-        chunkSize: 100,
-        segmentsPerChunk: 64,
-        worldSize: this.size,
-      },
-      heightFunction
-    );
-
+    this.terrain = new TerrainChunkManager({ chunkSize: 100, segmentsPerChunk: 64, worldSize: this.size }, heightFunction);
     this.gridSystem = new GridSystem(this.size, 5);
     this.collisionGrid = new CollisionGrid(20);
     this.terrainCollisionGrid = new CollisionGrid(100);
@@ -92,7 +77,6 @@ export class MainWorld extends Location {
     }
 
     this.gridSystem.createVisualization(this.scene);
-
     this.vegetation.prepareAssets(rm);
     this.vegetation.createVegetationByChunks(rm);
     this.vegetation.createRocksByChunks(rm);
@@ -129,7 +113,8 @@ export class MainWorld extends Location {
     });
   }
 
-  public update(playerPosition: THREE.Vector3, delta: number) {
+  // Обновленная сигнатура с isEPressed
+  public update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean) {
     const LIMIT = 235;
     playerPosition.x = THREE.MathUtils.clamp(playerPosition.x, -LIMIT, LIMIT);
     playerPosition.z = THREE.MathUtils.clamp(playerPosition.z, -LIMIT, LIMIT);
@@ -137,7 +122,14 @@ export class MainWorld extends Location {
     this.atmosphere.update(delta, playerPosition);
     this.portal.updateFogParticles(delta);
     this.vegetation.updateStreamingAndVisibility(playerPosition.x, playerPosition.z);
-    this.features.update(delta, playerPosition);
+    
+    // Передаем состояние клавиши E в FeatureSystem
+    this.features.update(delta, playerPosition, isEPressed ?? false);
+  }
+
+  // Возвращаем подсказку из FeatureSystem
+  public getInteractionPrompt(playerPosition: THREE.Vector3): string | null {
+    return this.features.getInteractionPrompt(playerPosition);
   }
 
   public getCollidersInRadius(center: THREE.Vector3, radius: number): THREE.Box3[] {

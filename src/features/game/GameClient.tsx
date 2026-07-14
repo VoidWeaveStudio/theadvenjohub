@@ -154,7 +154,15 @@ export function GameClient({ slug }: GameClientProps) {
         gameRef.current = game;
 
         game.onStateChange = (state) => setHudState(state);
-        game.onLoadStateChange = (loading) => setLoading(loading);
+        
+        // === ОБНОВЛЕНО: Теперь обрабатываем и состояние загрузки, и сообщение ===
+        game.onLoadStateChange = (loading, message) => {
+          setLoading(loading);
+          if (message) {
+            setLoadingMessage(message);
+          }
+        };
+        
         game.onNotification = (msg, duration = 3000) => {
           const id = ++notifIdRef.current;
           setNotifications((prev) => {

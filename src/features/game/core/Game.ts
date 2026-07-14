@@ -130,7 +130,7 @@ export class Game {
     public onHitMark?: () => void;
     public onStateChange?: (state: HUDState) => void;
     public onNotification?: (msg: string, duration?: number) => void;
-    public onLoadStateChange?: (loading: boolean) => void;
+    public onLoadStateChange?: (loading: boolean, message?: string) => void; // <-- ОБНОВЛЕНО
     public onChatMessage?: (message: ChatMessage) => void;
     public onNicknameLoaded?: (nickname: string) => void;
     public onDamageEvent?: (event: DamageEvent) => void;
@@ -180,7 +180,7 @@ export class Game {
     }
 
     async init() {
-        this.onLoadStateChange?.(true);
+        this.onLoadStateChange?.(true, "Initializing game..."); // <-- ДОБАВЛЕНО СООБЩЕНИЕ
 
         await this.resourceManager.loadAll();
         this.locationManager.registerLocations(this.resourceManager);
@@ -261,7 +261,7 @@ export class Game {
         this.setupNetwork();
 
         this.isLoaded = true;
-        this.onLoadStateChange?.(false);
+        this.onLoadStateChange?.(false); // <-- ВЫКЛЮЧАЕМ СПИННЕР
         this.emitState(true);
 
         this.animate();
@@ -271,10 +271,16 @@ export class Game {
     }
 
     private async changeLocation(targetLocationId: string) {
+        // ВКЛЮЧАЕМ СПИННЕР ПЕРЕД ЗАГРУЗКОЙ
+        this.onLoadStateChange?.(true, "Traveling to new location...");
+
         const previousLocation = this.locationManager.getCurrentLocation();
 
         const newLocation = await this.locationManager.loadLocation(targetLocationId);
-        if (!newLocation || !previousLocation || newLocation === previousLocation) return;
+        if (!newLocation || !previousLocation || newLocation === previousLocation) {
+            this.onLoadStateChange?.(false); // Выключаем, если что-то пошло не так
+            return;
+        }
 
         this.networkManager.sendLocationChange(newLocation.id);
         this.shootingSystem.clearAllEffects();
@@ -317,6 +323,9 @@ export class Game {
         this.cameraController.yawObject.position.copy(spawnPoint);
 
         this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
+        
+        // ВЫКЛЮЧАЕМ СПИННЕР ПОСЛЕ УСПЕШНОЙ ЗАГРУЗКИ
+        this.onLoadStateChange?.(false);
     }
 
     private setupNetwork() {
@@ -573,7 +582,24 @@ export class Game {
             }
 
             if (currentLocation.update) {
-                currentLocation.update(this.player.mesh.position, delta);
+                // СЧИТЫВАЕМ НАЖАТИЕ E И ПЕРЕДАЕМ ЕГО В UPDATE ЛОКАЦИИ
+                const isEPressed = this.inputManager.isKeyJustPressed("KeyE");
+                currentLocation.update(this.player.mesh.position, delta, isEPressed);
+            }
+
+            // ОБРАБАТЫВАЕМ ПОДСКАЗКУ ДЛЯ БАШНИ (если игрок не у обычного портала)
+            if (currentLocation.getInteractionPrompt && !portal) {
+                const prompt = currentLocation.getInteractionPrompt(this.player.mesh.position);
+                
+                if (prompt !== null) {
+                    // Если башня хочет показать подсказку, показываем её
+                    this.interactionSystem.onPrompt?.(prompt);
+                } else if (this.hudState.prompt === "[E] Enter the Tower") {
+                    // ВАЖНО: Очищаем подсказку ТОЛЬКО если это была подсказка башни.
+                    // Это предотвращает затирание других уведомлений (например, подбора предметов),
+                    // когда игрок отходит от башни.
+                    this.interactionSystem.onPrompt?.(null);
+                }
             }
 
             if (currentLocation.pendingTeleport) {
