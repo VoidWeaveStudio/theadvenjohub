@@ -113,7 +113,6 @@ export class MainWorld extends Location {
     });
   }
 
-  // Обновленная сигнатура с isEPressed
   public update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean) {
     const LIMIT = 235;
     playerPosition.x = THREE.MathUtils.clamp(playerPosition.x, -LIMIT, LIMIT);
@@ -123,11 +122,9 @@ export class MainWorld extends Location {
     this.portal.updateFogParticles(delta);
     this.vegetation.updateStreamingAndVisibility(playerPosition.x, playerPosition.z);
     
-    // Передаем состояние клавиши E в FeatureSystem
     this.features.update(delta, playerPosition, isEPressed ?? false);
   }
 
-  // Возвращаем подсказку из FeatureSystem
   public getInteractionPrompt(playerPosition: THREE.Vector3): string | null {
     return this.features.getInteractionPrompt(playerPosition);
   }

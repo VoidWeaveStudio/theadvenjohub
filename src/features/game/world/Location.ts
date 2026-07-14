@@ -30,10 +30,8 @@ export abstract class Location {
     abstract getSpawnPoint(): THREE.Vector3;
     abstract dispose(): void;
 
-    // Добавлен параметр isEPressed
     update?(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean): void;
     
-    // Новый метод для получения подсказки взаимодействия
     getInteractionPrompt?(playerPosition: THREE.Vector3): string | null;
 
     addPortal(portal: Portal) {

@@ -155,7 +155,6 @@ export function GameClient({ slug }: GameClientProps) {
 
         game.onStateChange = (state) => setHudState(state);
         
-        // === ОБНОВЛЕНО: Теперь обрабатываем и состояние загрузки, и сообщение ===
         game.onLoadStateChange = (loading, message) => {
           setLoading(loading);
           if (message) {

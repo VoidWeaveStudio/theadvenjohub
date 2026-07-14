@@ -5,7 +5,7 @@ import { MainWorld } from "../MainWorld";
 export class FeatureSystem {
     private leftDoorGroup: THREE.Group | null = null;
     private rightDoorGroup: THREE.Group | null = null;
-    private towerPortalMesh: THREE.Mesh | null = null; // Новый меш портала
+    private towerPortalMesh: THREE.Mesh | null = null; 
     
     private isDoorOpening = false;
     private doorOpenProgress = 0;
@@ -288,9 +288,7 @@ export class FeatureSystem {
         this.rightDoorGroup.add(rightDoorMesh, rightHinge, rightRing);
         towerGroup.add(this.rightDoorGroup);
 
-        // ==========================================
-        // === ЧЕРНЫЙ ПОРТАЛ МЕЖДУ ДВЕРЬМИ ===
-        // ==========================================
+
         const portalGeo = new THREE.BoxGeometry(doorWidth - 2, doorHeight - 4, 1);
         const portalMat = new THREE.MeshBasicMaterial({
             color: 0x000000,
@@ -299,11 +297,9 @@ export class FeatureSystem {
             side: THREE.DoubleSide
         });
         this.towerPortalMesh = new THREE.Mesh(portalGeo, portalMat);
-        // Размещаем ровно по центру между дверьми
         this.towerPortalMesh.position.set(0, doorHeight / 2, doorZ);
-        this.towerPortalMesh.visible = false; // Скрыт по умолчанию
+        this.towerPortalMesh.visible = false; 
         towerGroup.add(this.towerPortalMesh);
-        // ==========================================
 
         const leftFire = new THREE.PointLight(0xff8844, 6, 40);
         leftFire.position.set(-20, 30, 98);
@@ -335,7 +331,6 @@ export class FeatureSystem {
         this.world.scene.add(towerGroup);
         towerGroup.updateMatrixWorld(true);
 
-        // Точка входа для проверки расстояния (Y = groundY + 2, чтобы 2D-расстояние работало идеально)
         const doorWorldPos = new THREE.Vector3(0, groundY + 2, 100);
         doorWorldPos.applyMatrix4(towerGroup.matrixWorld);
         this.towerEntrancePos.copy(doorWorldPos);
@@ -464,13 +459,11 @@ export class FeatureSystem {
         parent.add(this.sparkParticleSystem);
     }
 
-    // === МАКСИМАЛЬНО ПРОСТАЯ ЛОГИКА UPDATE ===
     update(delta: number, playerPosition: THREE.Vector3, isEPressed: boolean) {
         const dx = playerPosition.x - this.towerEntrancePos.x;
         const dz = playerPosition.z - this.towerEntrancePos.z;
         const dist2D = Math.sqrt(dx * dx + dz * dz);
 
-        // 1. Анимация дверей (открываются при приближении < 30м)
         if (dist2D < 30) {
             this.isDoorOpening = true;
         } else if (dist2D > 35) {
@@ -493,17 +486,14 @@ export class FeatureSystem {
             this.rightDoorGroup.rotation.y = (Math.PI / 2.5) * this.doorOpenProgress;
         }
 
-        // 2. Управление видимостью портала: виден только когда двери открыты > 50%
         if (this.towerPortalMesh) {
             this.towerPortalMesh.visible = this.doorOpenProgress > 0.5;
         }
 
-        // 3. АВТОМАТИЧЕСКАЯ ТЕЛЕПОРТАЦИЯ: если игрок вошел в портал (расстояние < 3м) и двери открыты
         if (dist2D < 3.0 && this.doorOpenProgress > 0.8) {
             this.world.pendingTeleport = "tower";
         }
 
-        // 4. Анимация освещения и частиц (без изменений)
         const time = Date.now() * 0.001;
         this.towerLights.forEach((light, index) => {
             if (light.color.getHex() === 0xff8844 || light.color.getHex() === 0xffddaa) {
@@ -550,7 +540,6 @@ export class FeatureSystem {
         }
     }
 
-    // === ПРОСТАЯ ПОДСКАЗКА ===
     public getInteractionPrompt(playerPosition: THREE.Vector3): string | null {
         const dx = playerPosition.x - this.towerEntrancePos.x;
         const dz = playerPosition.z - this.towerEntrancePos.z;

@@ -103,9 +103,7 @@ export class Tower extends Location {
 
         this.scene.add(floorGroup);
         
-        // УДАЛЕНО: Гигантский Box3 для пола, который блокировал движение по X/Z
-        // Если нужна проверка пола, лучше использовать raycast вниз из позиции игрока,
-        // а не добавлять плоский бокс в общую сетку горизонтальных коллизий.
+
     }
 
     private createWalls(radius: number, wallMat: THREE.Material, corniceMat: THREE.Material, darkStoneMat: THREE.Material) {
@@ -159,15 +157,13 @@ export class Tower extends Location {
 
         this.scene.add(wallGroup);
 
-        // ИСПРАВЛЕНО: Вместо одного гигантского Box3, создаем кольцевую сетку из сегментов
         const wallSegments = 32;
         for (let i = 0; i < wallSegments; i++) {
             const midAngle = ((i + 0.5) / wallSegments) * Math.PI * 2;
             const x = Math.cos(midAngle) * radius;
             const z = Math.sin(midAngle) * radius;
             
-            // Размер сегмента подобран так, чтобы боксы перекрывали друг друга и не оставляли щелей
-            // При радиусе 46 и 32 сегментах, длина дуги ~9, берем 10 для надежного перекрытия
+      
             const segmentSize = 10; 
             
             const wallBox = new THREE.Box3(
@@ -188,7 +184,6 @@ export class Tower extends Location {
             const x = Math.cos(angle) * columnRadius;
             const z = Math.sin(angle) * columnRadius;
 
-            // База колонны
             const base1 = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 5, 1, 12), pillarMat);
             base1.position.set(x, 0.5, z);
             base1.castShadow = true;
@@ -200,14 +195,12 @@ export class Tower extends Location {
             base2.castShadow = true;
             columnGroup.add(base2);
 
-            // Тело колонны
             const columnBody = new THREE.Mesh(new THREE.CylinderGeometry(3, 3.2, 30, 24, 1), pillarMat);
             columnBody.position.set(x, 18, z);
             columnBody.castShadow = true;
             columnBody.receiveShadow = true;
             columnGroup.add(columnBody);
 
-            // Каннелюры
             for (let j = 0; j < 12; j++) {
                 const fluteAngle = (j / 12) * Math.PI * 2;
                 const flute = new THREE.Mesh(
@@ -219,7 +212,6 @@ export class Tower extends Location {
                 columnGroup.add(flute);
             }
 
-            // Капитель
             const capital1 = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3, 1, 12), pillarMat);
             capital1.position.set(x, 33.5, z);
             capital1.castShadow = true;
@@ -235,13 +227,11 @@ export class Tower extends Location {
             capital3.castShadow = true;
             columnGroup.add(capital3);
 
-            // ИСПРАВЛЕНО: Добавляем коллизию для каждой колонны, чтобы сквозь них нельзя было пройти
             this.collisionGrid.insert(new THREE.Box3(
                 new THREE.Vector3(x - 2.5, 0, z - 2.5),
                 new THREE.Vector3(x + 2.5, 36, z + 2.5)
             ));
 
-            // Арки между колоннами
             const nextAngle = ((i + 1) / columnCount) * Math.PI * 2;
             const midAngle = (angle + nextAngle) / 2;
             const midX = Math.cos(midAngle) * columnRadius;
@@ -263,7 +253,6 @@ export class Tower extends Location {
             archTop.receiveShadow = true;
             columnGroup.add(archTop);
 
-            // Ниши
             const nicheDepth = 3;
             const nicheX = Math.cos(midAngle) * (radius - nicheDepth / 2);
             const nicheZ = Math.sin(midAngle) * (radius - nicheDepth / 2);
@@ -581,7 +570,6 @@ export class Tower extends Location {
         altarGroup.add(basementLight);
 
         this.scene.add(altarGroup);
-        // Это корректный способ: коллизия только вокруг самого объекта
         this.collisionGrid.insert(new THREE.Box3().setFromObject(altarBase));
     }
 
