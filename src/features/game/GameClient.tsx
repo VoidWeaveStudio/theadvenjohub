@@ -339,6 +339,7 @@ export function GameClient({ slug }: GameClientProps) {
         onClose={handleCloseMenu}
         nickname={nickname}
         onNicknameChange={handleNicknameChange}
+        onTeleportToSafeZone={() => gameRef.current?.teleportToSafeZone()}
       />
     </div>
   );

@@ -17,6 +17,8 @@ export abstract class Location {
     public scene: THREE.Scene;
     public portals: Portal[] = [];
     public colliders: THREE.Box3[] = [];
+    
+    public pendingTeleport: string | null = null;
 
     constructor(id: string, name: string) {
         this.id = id;

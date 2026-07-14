@@ -160,10 +160,14 @@ export class Player extends Entity {
         this.camera = camera;
     }
 
-    setTerrain(terrain: TerrainChunkManager) {
+    setTerrain(terrain: TerrainChunkManager | null) {
         this.terrain = terrain;
-        this.baseY = terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z);
-        this.mesh.position.y = this.baseY;
+        if (this.terrain) {
+            this.baseY = this.terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z);
+            this.mesh.position.y = this.baseY;
+        } else {
+            this.baseY = this.mesh.position.y;
+        }
     }
 
     setCollisionGrid(grid: CollisionGrid) {
@@ -180,6 +184,16 @@ export class Player extends Entity {
 
     public takeDamage(damage: number) {
         this.health = Math.max(0, this.health - damage);
+    }
+    public teleportTo(position: THREE.Vector3) {
+        this.mesh.position.copy(position);
+        this.velocityY = 0;
+        this.isGrounded = true;
+        this.jumpCooldown = 0;
+
+        if (this.terrain) {
+            this.baseY = this.terrain.getHeightAt(position.x, position.z);
+        }
     }
 
     private getSurfaceHeight(x: number, z: number): number {

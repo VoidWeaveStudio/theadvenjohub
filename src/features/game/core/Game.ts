@@ -1,4 +1,4 @@
-// src/features/game/core/Game.ts
+//src\features\game\core\Game.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
@@ -13,8 +13,9 @@ import { InteractionSystem } from "../systems/InteractionSystem";
 import { NetworkSystem } from "../systems/NetworkSystem";
 import { ChatMessage } from "../ui/Chat";
 import { LocationManager } from "../world/LocationManager";
-import { MainWorld } from "../world/locations/MainWorld";
+import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { Cave } from "../world/locations/Cave";
+import { Tower } from "../world/locations/Tower";
 
 export interface GameSession {
     gameToken: string;
@@ -96,9 +97,7 @@ export class Game {
     private stateEmitInterval: number = 100;
 
     private updateDamageIndicator() {
-        if (this.damageAttackerId === null) {
-            return;
-        }
+        if (this.damageAttackerId === null) return;
 
         const timeSinceDamage = Date.now() - this.lastDamageTime;
         if (timeSinceDamage > this.DAMAGE_INDICATOR_DURATION) {
@@ -119,11 +118,9 @@ export class Game {
         const dx = attackerPos.x - playerPos.x;
         const dz = attackerPos.z - playerPos.z;
         const worldAngle = Math.atan2(dx, dz);
-
         const cameraYaw = this.cameraController.getYaw();
 
         let relativeAngle = worldAngle - cameraYaw;
-
         while (relativeAngle > Math.PI) relativeAngle -= Math.PI * 2;
         while (relativeAngle < -Math.PI) relativeAngle += Math.PI * 2;
 
@@ -219,11 +216,8 @@ export class Game {
 
         if (currentLocation instanceof MainWorld) {
             this.safeZone.create(currentLocation.scene, this.resourceManager, currentLocation.terrain as any);
-
             const crystalCollider = this.safeZone.getCrystalCollider();
-            if (crystalCollider) {
-                currentLocation.collisionGrid.insert(crystalCollider);
-            }
+            if (crystalCollider) currentLocation.collisionGrid.insert(crystalCollider);
         } else {
             this.safeZone.create(currentLocation.scene, this.resourceManager);
         }
@@ -276,27 +270,70 @@ export class Game {
         window.addEventListener("orientationchange", this.handleResize);
     }
 
+    private async changeLocation(targetLocationId: string) {
+        const previousLocation = this.locationManager.getCurrentLocation();
+
+        const newLocation = await this.locationManager.loadLocation(targetLocationId);
+        if (!newLocation || !previousLocation || newLocation === previousLocation) return;
+
+        this.networkManager.sendLocationChange(newLocation.id);
+        this.shootingSystem.clearAllEffects();
+
+        previousLocation.scene.remove(this.player.mesh);
+        newLocation.scene.add(this.player.mesh);
+
+        previousLocation.scene.remove(this.cameraController.yawObject);
+        newLocation.scene.add(this.cameraController.yawObject);
+
+        this.otherPlayers.forEach((op) => {
+            if (!op.isHidden()) {
+                previousLocation.scene.remove(op.mesh);
+                previousLocation.scene.remove(op.getHitbox());
+                newLocation.scene.add(op.mesh);
+                newLocation.scene.add(op.getHitbox());
+            }
+        });
+
+        this.shootingSystem.setScene(newLocation.scene);
+        this.interactionSystem.setScene(newLocation.scene);
+        this.interactionSystem.clearInteractables();
+
+        if (newLocation instanceof MainWorld) {
+            this.player.setTerrain(newLocation.terrain);
+            this.player.setCollisionGrid(newLocation.collisionGrid);
+            this.cameraController.setCollisionGrid(newLocation.terrainCollisionGrid);
+        } else if (newLocation instanceof Cave) {
+            this.player.setTerrain(newLocation as any);
+            this.player.setCollisionGrid(newLocation.collisionGrid);
+            this.cameraController.setCollisionGrid(newLocation.collisionGrid);
+        } else if (newLocation instanceof Tower) {
+            this.player.setTerrain(null);
+            this.player.setCollisionGrid(newLocation.collisionGrid);
+            this.cameraController.setCollisionGrid(newLocation.collisionGrid);
+        }
+
+        const spawnPoint = newLocation.getSpawnPoint();
+        this.player.teleportTo(spawnPoint);
+        this.cameraController.yawObject.position.copy(spawnPoint);
+
+        this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
+    }
+
     private setupNetwork() {
         this.networkManager.onPlayerLeaveLocation = (data) => {
             const op = this.otherPlayers.get(data.playerId);
             if (!op) return;
-
             const currentLocation = this.locationManager.getCurrentLocation();
             if (!currentLocation) return;
-
             if (currentLocation.id === data.fromLocation) {
                 currentLocation.scene.remove(op.mesh);
                 currentLocation.scene.remove(op.getHitbox());
                 this.shootingSystem.unregisterOtherPlayer(data.playerId);
-
                 op.setHidden(true);
-
                 this.onChatMessage?.({
-                    id: `system-${Date.now()}`,
-                    sender: "System",
+                    id: `system-${Date.now()}`, sender: "System",
                     message: `${op.nickname} left the area`,
-                    timestamp: Date.now(),
-                    type: "system",
+                    timestamp: Date.now(), type: "system",
                 });
             }
         };
@@ -304,10 +341,8 @@ export class Game {
         this.networkManager.onPlayerJoinLocation = (data) => {
             const currentLocation = this.locationManager.getCurrentLocation();
             if (!currentLocation) return;
-
             if (currentLocation.id === data.locationId) {
                 let op = this.otherPlayers.get(data.id);
-
                 if (!op) {
                     op = new OtherPlayer(data.id, data.nickname);
                     op.create(currentLocation.scene, this.resourceManager);
@@ -317,17 +352,13 @@ export class Game {
                     currentLocation.scene.add(op.getHitbox());
                     op.setHidden(false);
                 }
-
                 this.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
                 op.updateFromNetwork(data);
                 this.updateOnlineCount();
-
                 this.onChatMessage?.({
-                    id: `system-${Date.now()}`,
-                    sender: "System",
+                    id: `system-${Date.now()}`, sender: "System",
                     message: `${data.nickname} entered the area`,
-                    timestamp: Date.now(),
-                    type: "system",
+                    timestamp: Date.now(), type: "system",
                 });
             }
         };
@@ -341,12 +372,9 @@ export class Game {
 
         this.networkManager.onPlayerJoin = (data) => {
             if (data.id === this.localPlayerNetId) return;
-
             const currentLocation = this.locationManager.getCurrentLocation();
             if (!currentLocation) return;
-
             const playerLocation = data.locationId || 'main-world';
-
             if (playerLocation !== currentLocation.id) {
                 if (!this.otherPlayers.has(data.id)) {
                     const op = new OtherPlayer(data.id, data.nickname);
@@ -356,7 +384,6 @@ export class Game {
                 }
                 return;
             }
-
             let op = this.otherPlayers.get(data.id);
             if (!op) {
                 op = new OtherPlayer(data.id, data.nickname);
@@ -367,17 +394,13 @@ export class Game {
                 currentLocation.scene.add(op.getHitbox());
                 op.setHidden(false);
             }
-
             this.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
             op.updateFromNetwork(data);
             this.updateOnlineCount();
-
             this.onChatMessage?.({
-                id: `system-${Date.now()}`,
-                sender: "System",
+                id: `system-${Date.now()}`, sender: "System",
                 message: `${data.nickname} joined the game`,
-                timestamp: Date.now(),
-                type: "system",
+                timestamp: Date.now(), type: "system",
             });
         };
 
@@ -385,18 +408,12 @@ export class Game {
             const op = this.otherPlayers.get(playerId);
             if (op) {
                 this.onChatMessage?.({
-                    id: `system-${Date.now()}`,
-                    sender: "System",
+                    id: `system-${Date.now()}`, sender: "System",
                     message: `${op.nickname} left the game`,
-                    timestamp: Date.now(),
-                    type: "system",
+                    timestamp: Date.now(), type: "system",
                 });
-
                 const currentLocation = this.locationManager.getCurrentLocation();
-                if (currentLocation && !op.isHidden()) {
-                    op.dispose(currentLocation.scene);
-                }
-
+                if (currentLocation && !op.isHidden()) op.dispose(currentLocation.scene);
                 this.otherPlayers.delete(playerId);
                 this.shootingSystem.unregisterOtherPlayer(playerId);
                 this.updateOnlineCount();
@@ -405,18 +422,12 @@ export class Game {
 
         this.networkManager.onPlayerUpdate = (data) => {
             const op = this.otherPlayers.get(data.id);
-            if (!op) return;
-
-            if (op.isHidden()) return;
-
+            if (!op || op.isHidden()) return;
             op.updateFromNetwork(data);
         };
 
         this.networkManager.onShoot = (data) => {
-            this.shootingSystem.handleNetworkShoot({
-                origin: data.origin,
-                direction: data.direction,
-            });
+            this.shootingSystem.handleNetworkShoot({ origin: data.origin, direction: data.direction });
         };
 
         this.networkManager.onCount = (count) => {
@@ -426,22 +437,14 @@ export class Game {
 
         this.networkManager.onChatMessage = (data) => {
             this.onChatMessage?.({
-                id: data.id,
-                sender: data.sender,
-                message: data.message,
-                timestamp: data.timestamp,
-                type: "player",
+                id: data.id, sender: data.sender,
+                message: data.message, timestamp: data.timestamp, type: "player",
             });
         };
 
         this.networkManager.onProgressLoaded = (data) => {
-            if (data?.progress?.position) {
-                this.player.mesh.position.fromArray(data.progress.position);
-            }
-
-            if (data?.nickname) {
-                this.onNicknameLoaded?.(data.nickname);
-            }
+            if (data?.progress?.position) this.player.mesh.position.fromArray(data.progress.position);
+            if (data?.nickname) this.onNicknameLoaded?.(data.nickname);
         };
 
         this.networkManager.onPlayerDamaged = (data) => {
@@ -449,29 +452,20 @@ export class Game {
                 this.player.takeDamage(data.damage);
                 this.hudState.health = this.player.health;
                 this.emitState(true);
-
                 this.damageAttackerId = data.attackerId;
                 this.lastDamageTime = Date.now();
-
                 const attacker = this.otherPlayers.get(data.attackerId);
                 let direction = 0;
-
                 if (attacker && !attacker.isHidden()) {
                     const playerPos = this.player.mesh.position;
                     const attackerPos = attacker.mesh.position;
-                    direction = Math.atan2(
-                        attackerPos.x - playerPos.x,
-                        attackerPos.z - playerPos.z
-                    );
+                    direction = Math.atan2(attackerPos.x - playerPos.x, attackerPos.z - playerPos.z);
                 } else {
                     direction = this.cameraController.getYaw() + Math.PI;
                 }
-
                 this.onDamageEvent?.({
                     id: Date.now() + Math.random(),
-                    direction,
-                    damage: data.damage,
-                    timestamp: Date.now(),
+                    direction, damage: data.damage, timestamp: Date.now(),
                 });
             }
         };
@@ -487,11 +481,9 @@ export class Game {
                 if (op && !op.isHidden()) {
                     op.setDead(true);
                     this.onChatMessage?.({
-                        id: `system-${Date.now()}`,
-                        sender: "System",
+                        id: `system-${Date.now()}`, sender: "System",
                         message: `${op.nickname} was eliminated`,
-                        timestamp: Date.now(),
-                        type: "system",
+                        timestamp: Date.now(), type: "system",
                     });
                 }
             }
@@ -503,12 +495,8 @@ export class Game {
                 op.setDead(false);
                 op.setHealth(data.health);
                 op.updateFromNetwork({
-                    position: data.position,
-                    rotation: op.mesh.rotation.y,
-                    pitch: 0,
-                    state: 'idle',
-                    alive: true,
-                    health: data.health,
+                    position: data.position, rotation: op.mesh.rotation.y,
+                    pitch: 0, state: 'idle', alive: true, health: data.health,
                 });
             }
         };
@@ -519,7 +507,6 @@ export class Game {
             this.hudState.health = this.player.health;
             this.emitState(true);
             this.onNotification?.('✨ Respawned!', 2000);
-
             this.isDead = false;
             this.killerName = null;
             this.onDeathStateChange?.(false, null);
@@ -528,21 +515,15 @@ export class Game {
 
     private updateOnlineCount() {
         let visibleCount = 1;
-        this.otherPlayers.forEach((op) => {
-            if (!op.isHidden()) visibleCount++;
-        });
+        this.otherPlayers.forEach((op) => { if (!op.isHidden()) visibleCount++; });
         this.hudState.online = visibleCount;
         this.emitState(true);
     }
 
     private emitState(force: boolean = false) {
         const now = performance.now();
-        if (!force && now - this.lastStateEmit < this.stateEmitInterval) {
-            return;
-        }
-
+        if (!force && now - this.lastStateEmit < this.stateEmitInterval) return;
         this.lastStateEmit = now;
-
         const ammoState = this.shootingSystem.getAmmoState();
         this.hudState.health = this.player.health;
         this.hudState.ammo = ammoState.ammo;
@@ -566,48 +547,7 @@ export class Game {
         if (portal) {
             this.interactionSystem.onPrompt?.(`[E] Enter ${portal.targetLocationId}`);
             if (this.inputManager.isKeyJustPressed("KeyE")) {
-                const previousLocation = this.locationManager.getCurrentLocation();
-
-                await this.locationManager.teleportTo(portal, this.player);
-                const newLocation = this.locationManager.getCurrentLocation();
-
-                if (newLocation && previousLocation && newLocation !== previousLocation) {
-                    this.networkManager.sendLocationChange(newLocation.id);
-
-                    this.shootingSystem.clearAllEffects();
-
-                    previousLocation.scene.remove(this.player.mesh);
-                    newLocation.scene.add(this.player.mesh);
-
-                    previousLocation.scene.remove(this.cameraController.yawObject);
-                    newLocation.scene.add(this.cameraController.yawObject);
-
-                    this.otherPlayers.forEach((op) => {
-                        if (!op.isHidden()) {
-                            previousLocation.scene.remove(op.mesh);
-                            previousLocation.scene.remove(op.getHitbox());
-                            newLocation.scene.add(op.mesh);
-                            newLocation.scene.add(op.getHitbox());
-                        }
-                    });
-
-                    this.shootingSystem.setScene(newLocation.scene);
-                    this.interactionSystem.setScene(newLocation.scene);
-
-                    this.interactionSystem.clearInteractables();
-
-                    if (newLocation instanceof MainWorld) {
-                        this.player.setTerrain(newLocation.terrain);
-                        this.player.setCollisionGrid(newLocation.collisionGrid);
-                        this.cameraController.setCollisionGrid(newLocation.terrainCollisionGrid);
-                    } else if (newLocation instanceof Cave) {
-                        this.player.setTerrain(newLocation as any);
-                        this.player.setCollisionGrid(newLocation.collisionGrid);
-                        this.cameraController.setCollisionGrid(newLocation.collisionGrid);
-                    }
-
-                    this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
-                }
+                await this.changeLocation(portal.targetLocationId);
             }
         }
 
@@ -636,12 +576,16 @@ export class Game {
                 currentLocation.update(this.player.mesh.position, delta);
             }
 
+            if (currentLocation.pendingTeleport) {
+                const targetId = currentLocation.pendingTeleport;
+                currentLocation.pendingTeleport = null;
+                await this.changeLocation(targetId);
+            }
+
             this.interactionSystem.update(delta);
             this.safeZone.update(delta);
             this.networkSystem.update(delta);
-            this.otherPlayers.forEach((op) => {
-                op.update(delta);
-            });
+            this.otherPlayers.forEach((op) => op.update(delta));
 
             this.networkManager.sendPlayerUpdate({
                 position: this.player.mesh.position.toArray(),
@@ -664,10 +608,8 @@ export class Game {
         const container = this.canvas.parentElement;
         const width = container?.clientWidth || window.innerWidth;
         const height = container?.clientHeight || window.innerHeight;
-
         this.cameraController.resize(width, height);
         this.renderer.setSize(width, height, false);
-
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
     };
@@ -684,6 +626,51 @@ export class Game {
 
     sendChatMessage(message: string) {
         this.networkManager.sendChatMessage(message);
+    }
+
+    public teleportToSafeZone() {
+        const currentLocation = this.locationManager.getCurrentLocation();
+        if (!currentLocation) return;
+
+        if (currentLocation.id !== 'main-world') {
+            this.changeLocation('main-world').then(() => {
+                const mainWorld = this.locationManager.getCurrentLocation();
+                if (mainWorld) {
+                    const safePoint = mainWorld.getSpawnPoint();
+                    this.player.teleportTo(safePoint);
+                    this.cameraController.yawObject.position.copy(safePoint);
+                    this.networkManager.sendPlayerUpdate({
+                        position: safePoint.toArray(),
+                        rotation: this.player.mesh.rotation.y,
+                        pitch: this.cameraController.getPitch(),
+                        state: 'idle', jumping: false, velocityY: 0,
+                        weaponEquipped: this.hudState.isWeaponEquipped, isShooting: false,
+                    });
+                    this.onNotification?.("🛡️ Teleported to Safe Zone", 2500);
+                }
+            });
+            return;
+        }
+
+        const safePoint = currentLocation.getSpawnPoint();
+        this.player.teleportTo(safePoint);
+        this.cameraController.yawObject.position.copy(safePoint);
+
+        if (this.isDead) {
+            this.isDead = false;
+            this.killerName = null;
+            this.onDeathStateChange?.(false, null);
+        }
+
+        this.networkManager.sendPlayerUpdate({
+            position: safePoint.toArray(),
+            rotation: this.player.mesh.rotation.y,
+            pitch: this.cameraController.getPitch(),
+            state: 'idle', jumping: false, velocityY: 0,
+            weaponEquipped: this.hudState.isWeaponEquipped, isShooting: false,
+        });
+
+        this.onNotification?.("🛡️ Teleported to Safe Zone", 2500);
     }
 
     dispose() {
@@ -703,9 +690,7 @@ export class Game {
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
             this.otherPlayers.forEach((op) => {
-                if (!op.isHidden()) {
-                    op.dispose(currentLocation.scene);
-                }
+                if (!op.isHidden()) op.dispose(currentLocation.scene);
             });
             this.player.dispose(currentLocation.scene);
         }

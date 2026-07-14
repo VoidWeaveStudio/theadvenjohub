@@ -2,16 +2,17 @@
 "use client";
 
 import { useState } from "react";
-import { X, Settings, Info, Save, ChevronRight, Keyboard } from "lucide-react";
+import { X, Settings, Info, Save, ChevronRight, Keyboard, TriangleAlert } from "lucide-react";
 
 interface MenuProps {
     isOpen: boolean;
     onClose: () => void;
     nickname: string;
     onNicknameChange: (nickname: string) => void;
+    onTeleportToSafeZone?: () => void;
 }
 
-export function Menu({ isOpen, onClose, nickname, onNicknameChange }: MenuProps) {
+export function Menu({ isOpen, onClose, nickname, onNicknameChange, onTeleportToSafeZone }: MenuProps) {
     const [editNickname, setEditNickname] = useState(false);
     const [tempNickname, setTempNickname] = useState(nickname);
     const [tab, setTab] = useState<"main" | "controls" | "about">("main");
@@ -98,6 +99,17 @@ export function Menu({ isOpen, onClose, nickname, onNicknameChange }: MenuProps)
                                 </div>
                             )}
                         </div>
+
+                        <button
+                            onClick={() => {
+                                onTeleportToSafeZone?.();
+                                onClose();
+                            }}
+                            className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-4 rounded-[10px] shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2 group border border-orange-400/30"
+                        >
+                            <TriangleAlert className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                            <span>I'm Stuck (Teleport to SafeZone)</span>
+                        </button>
 
                         <button
                             onClick={onClose}
