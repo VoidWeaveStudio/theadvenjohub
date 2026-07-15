@@ -53,11 +53,11 @@ export class Basement extends TowerFloor {
     private activeCoins: ActiveCoin[] = [];
     private tokenQueue: MemeToken[] = [];
     private textureCache = new Map<string, THREE.Texture>();
-    
+
     private pollInterval: NodeJS.Timeout | null = null;
     private spawnInterval: NodeJS.Timeout | null = null;
     private clearQueueInterval: NodeJS.Timeout | null = null;
-    
+
     private readonly MAX_COINS = 50;
     private readonly MAX_QUEUE_SIZE = 200;
     private readonly HOLE_Y = 14.5;
@@ -134,7 +134,7 @@ export class Basement extends TowerFloor {
             const z1 = Math.sin(angle) * (radius - wallThickness / 2);
             const x2 = Math.cos(nextAngle) * (radius - wallThickness / 2);
             const z2 = Math.sin(nextAngle) * (radius - wallThickness / 2);
-            
+
             this.collisionGrid.insert(new THREE.Box3(
                 new THREE.Vector3(Math.min(x1, x2) - wallThickness, 0, Math.min(z1, z2) - wallThickness),
                 new THREE.Vector3(Math.max(x1, x2) + wallThickness, height, Math.max(z1, z2) + wallThickness)
@@ -142,7 +142,7 @@ export class Basement extends TowerFloor {
         }
 
         this.createCentralCrystal();
-        
+
         for (let i = 0; i < 5; i++) {
             const angle = (i / 5) * Math.PI * 2;
             const x = Math.cos(angle) * (radius - 3);
@@ -177,15 +177,15 @@ export class Basement extends TowerFloor {
         const particleCount = 200;
         const geo = new THREE.BufferGeometry();
         const pos = new Float32Array(particleCount * 3);
-        
+
         for (let i = 0; i < particleCount; i++) {
             pos[i * 3] = (Math.random() - 0.5) * 6;
             pos[i * 3 + 1] = Math.random() * 14;
             pos[i * 3 + 2] = (Math.random() - 0.5) * 6;
         }
-        
+
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        
+
         const mat = new THREE.PointsMaterial({
             color: 0xffddaa,
             size: 0.08,
@@ -194,7 +194,7 @@ export class Basement extends TowerFloor {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
-        
+
         const particles = new THREE.Points(geo, mat);
         particles.name = "dustParticles";
         this.scene.add(particles);
@@ -205,7 +205,7 @@ export class Basement extends TowerFloor {
             try {
                 const res = await fetch("/api/new-tokens");
                 if (!res.ok) throw new Error("API request failed");
-                
+
                 const tokens: MemeToken[] = await res.json();
 
                 for (const token of tokens) {
@@ -247,10 +247,12 @@ export class Basement extends TowerFloor {
 
         const fallbackTexture = this.textureCache.get('fallback')!;
         let texture: THREE.Texture | undefined = this.textureCache.get(token.image);
-        
-        if (!texture && token.image) {
+
+        if (!texture && token.image && token.image !== 'fallback') {
+            const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(token.image)}`;
+
             texture = new THREE.TextureLoader().load(
-                token.image,
+                proxyUrl,
                 undefined,
                 undefined,
                 () => {
@@ -260,8 +262,8 @@ export class Basement extends TowerFloor {
             texture.colorSpace = THREE.SRGBColorSpace;
             this.textureCache.set(token.image, texture);
         }
-        
-        const finalTexture = texture || fallbackTexture;
+
+        const finalTexture = (texture && token.image !== 'fallback') ? texture : fallbackTexture;
 
         const mat = new THREE.MeshStandardMaterial({
             map: finalTexture,
@@ -280,7 +282,7 @@ export class Basement extends TowerFloor {
             this.HOLE_Y,
             (Math.random() - 0.5) * 3
         );
-        
+
         coin.castShadow = true;
         coin.receiveShadow = true;
         this.scene.add(coin);
@@ -309,7 +311,7 @@ export class Basement extends TowerFloor {
 
         for (let i = this.activeCoins.length - 1; i >= 0; i--) {
             const coin = this.activeCoins[i];
-            
+
             coin.mesh.position.y += coin.velocity * delta;
             coin.mesh.rotation.y += coin.rotationSpeed * delta;
             coin.mesh.rotation.x += coin.rotationSpeed * 0.5 * delta;
