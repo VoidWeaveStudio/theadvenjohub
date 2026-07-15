@@ -1,14 +1,46 @@
-// src/features/game/world/locations/tower/floors/Basement.ts
+//src\features\game\world\locations\tower\floors\Basement.ts
 import * as THREE from "three";
 import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";
-import { SolanaMintListener, RawMintData } from "../SolanaMintListener";
+
+function createFallbackCoinTexture(): THREE.Texture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(64, 64, 60, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#DAA520';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    ctx.fillStyle = '#FFF8DC';
+    ctx.beginPath();
+    ctx.arc(64, 64, 45, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#DAA520';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('MEME', 64, 64);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+}
 
 export interface MemeToken {
     address: string;
     name: string;
     symbol: string;
     image: string;
+    chainId?: string;
+    url?: string;
 }
 
 interface ActiveCoin {
@@ -21,41 +53,18 @@ export class Basement extends TowerFloor {
     private activeCoins: ActiveCoin[] = [];
     private tokenQueue: MemeToken[] = [];
     private textureCache = new Map<string, THREE.Texture>();
+    
+    private pollInterval: NodeJS.Timeout | null = null;
     private spawnInterval: NodeJS.Timeout | null = null;
-    private mintListener: SolanaMintListener;
+    private clearQueueInterval: NodeJS.Timeout | null = null;
     
-    private spawnedTokens = new Set<string>();
     private readonly MAX_COINS = 50;
-    private readonly MAX_QUEUE_SIZE = 100;
+    private readonly MAX_QUEUE_SIZE = 200;
     private readonly HOLE_Y = 14.5;
-    
-    private lastMintTime = 0;
-    private readonly MINT_THROTTLE_MS = 50;
-    
-    private readonly MYSTERY_COIN_IMAGE = "https://cryptologos.cc/logos/solana-sol-logo.png";
 
     constructor() {
         super("tower-basement", "Gloomy Tower Basement");
-        this.mintListener = new SolanaMintListener();
-        
-        this.mintListener.onNewMint = (rawData: RawMintData) => {
-            const now = performance.now();
-            if (now - this.lastMintTime < this.MINT_THROTTLE_MS) return;
-            this.lastMintTime = now;
-
-            if (!this.spawnedTokens.has(rawData.address)) {
-                if (this.tokenQueue.length >= this.MAX_QUEUE_SIZE) {
-                    this.tokenQueue.length = Math.floor(this.MAX_QUEUE_SIZE / 2); 
-                }
-                
-                this.tokenQueue.push({
-                    address: rawData.address,
-                    name: "Fresh Mint",
-                    symbol: "NEW",
-                    image: this.MYSTERY_COIN_IMAGE
-                });
-            }
-        };
+        this.textureCache.set('fallback', createFallbackCoinTexture());
     }
 
     create(rm: ResourceManager) {
@@ -150,12 +159,18 @@ export class Basement extends TowerFloor {
         }
 
         if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-            (window as any).requestIdleCallback(() => this.mintListener.start());
+            (window as any).requestIdleCallback(() => {
+                this.startMemeCoinPoller();
+                this.startCoinSpawner();
+                this.startQueueClearer();
+            });
         } else {
-            setTimeout(() => this.mintListener.start(), 100);
+            setTimeout(() => {
+                this.startMemeCoinPoller();
+                this.startCoinSpawner();
+                this.startQueueClearer();
+            }, 100);
         }
-        
-        this.startCoinSpawner();
     }
 
     private createDustParticles() {
@@ -185,19 +200,42 @@ export class Basement extends TowerFloor {
         this.scene.add(particles);
     }
 
+    private startMemeCoinPoller() {
+        this.pollInterval = setInterval(async () => {
+            try {
+                const res = await fetch("/api/new-tokens");
+                if (!res.ok) throw new Error("API request failed");
+                
+                const tokens: MemeToken[] = await res.json();
+
+                for (const token of tokens) {
+                    if (this.tokenQueue.length >= this.MAX_QUEUE_SIZE) {
+                        break;
+                    }
+                    this.tokenQueue.push(token);
+                }
+            } catch (e) {
+                // Silent fail for polling
+            }
+        }, 10000);
+    }
+
     private startCoinSpawner() {
         this.spawnInterval = setInterval(() => {
             if (this.tokenQueue.length > 0 && this.activeCoins.length < this.MAX_COINS) {
                 const token = this.tokenQueue.shift()!;
                 this.spawnCoin(token);
             }
-        }, 800);
+        }, 500);
+    }
+
+    private startQueueClearer() {
+        this.clearQueueInterval = setInterval(() => {
+            this.tokenQueue = [];
+        }, 300000);
     }
 
     private spawnCoin(token: MemeToken) {
-        if (this.spawnedTokens.has(token.address)) return;
-        this.spawnedTokens.add(token.address);
-
         if (this.activeCoins.length >= this.MAX_COINS) {
             const oldCoin = this.activeCoins.shift();
             if (oldCoin) {
@@ -207,38 +245,40 @@ export class Basement extends TowerFloor {
             }
         }
 
-        let texture = this.textureCache.get(token.image);
-        if (!texture) {
+        const fallbackTexture = this.textureCache.get('fallback')!;
+        let texture: THREE.Texture | undefined = this.textureCache.get(token.image);
+        
+        if (!texture && token.image) {
             texture = new THREE.TextureLoader().load(
                 token.image,
                 undefined,
                 undefined,
                 () => {
-                    console.warn(`Failed to load texture, using fallback`);
-                    const fallback = this.textureCache.get(this.MYSTERY_COIN_IMAGE) || new THREE.TextureLoader().load(this.MYSTERY_COIN_IMAGE);
-                    this.textureCache.set(token.image, fallback);
+                    this.textureCache.set(token.image, fallbackTexture);
                 }
             );
             texture.colorSpace = THREE.SRGBColorSpace;
             this.textureCache.set(token.image, texture);
         }
+        
+        const finalTexture = texture || fallbackTexture;
 
         const mat = new THREE.MeshStandardMaterial({
-            map: texture,
-            metalness: 0.3,
-            roughness: 0.5,
+            map: finalTexture,
+            metalness: 0.4,
+            roughness: 0.4,
             emissive: 0xffffff,
-            emissiveMap: texture,
-            emissiveIntensity: 0.4
+            emissiveMap: finalTexture,
+            emissiveIntensity: 0.3
         });
 
         const geo = new THREE.CylinderGeometry(0.4, 0.4, 0.05, 32);
         const coin = new THREE.Mesh(geo, mat);
 
         coin.position.set(
-            (Math.random() - 0.5) * 4,
+            (Math.random() - 0.5) * 3,
             this.HOLE_Y,
-            (Math.random() - 0.5) * 4
+            (Math.random() - 0.5) * 3
         );
         
         coin.castShadow = true;
@@ -247,8 +287,8 @@ export class Basement extends TowerFloor {
 
         this.activeCoins.push({
             mesh: coin,
-            velocity: -(0.03 + Math.random() * 0.04),
-            rotationSpeed: 0.1 + Math.random() * 0.2
+            velocity: -(2.0 + Math.random() * 1.5),
+            rotationSpeed: 1.0 + Math.random() * 2.0
         });
     }
 
@@ -270,9 +310,9 @@ export class Basement extends TowerFloor {
         for (let i = this.activeCoins.length - 1; i >= 0; i--) {
             const coin = this.activeCoins[i];
             
-            coin.mesh.position.y += coin.velocity;
-            coin.mesh.rotation.y += coin.rotationSpeed;
-            coin.mesh.rotation.x += coin.rotationSpeed * 0.5;
+            coin.mesh.position.y += coin.velocity * delta;
+            coin.mesh.rotation.y += coin.rotationSpeed * delta;
+            coin.mesh.rotation.x += coin.rotationSpeed * 0.5 * delta;
 
             if (coin.mesh.position.y <= 0.5) {
                 this.scene.remove(coin.mesh);
@@ -288,11 +328,17 @@ export class Basement extends TowerFloor {
     }
 
     dispose() {
-        this.mintListener.stop();
-
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+        }
         if (this.spawnInterval) {
             clearInterval(this.spawnInterval);
             this.spawnInterval = null;
+        }
+        if (this.clearQueueInterval) {
+            clearInterval(this.clearQueueInterval);
+            this.clearQueueInterval = null;
         }
 
         for (const coin of this.activeCoins) {
@@ -305,7 +351,6 @@ export class Basement extends TowerFloor {
 
         this.textureCache.forEach(texture => texture.dispose());
         this.textureCache.clear();
-        this.spawnedTokens.clear();
 
         super.dispose();
     }
