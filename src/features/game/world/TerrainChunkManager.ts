@@ -81,7 +81,7 @@ export class TerrainChunk {
                 vec3 grassColor = vec3(0.15, 0.4, 0.1); 
                 
                 float dist = distance(vTerrainWorldPos, cameraPosition);
-                float fade = smoothstep(15.0, 50.0, dist); // Начинаем проявляться с 15 метров
+                float fade = smoothstep(15.0, 50.0, dist); 
                 
                 diffuseColor.rgb = mix(diffuseColor.rgb, grassColor, combinedNoise * 0.5 * fade);
                 `

@@ -1,4 +1,4 @@
-//src\features\game\GameClient.tsx
+// src/features/game/GameClient.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +12,7 @@ import { DamageIndicator } from "./ui/DamageIndicator";
 import { Spinner } from "@/core/ui/Spinner";
 import { apiPost } from "@/core/api/client";
 import { DeathScreen } from "./ui/DeathScreen";
+import { FloorSelector } from "./ui/FloorSelector";
 
 interface GameClientProps {
   slug: string;
@@ -61,6 +62,9 @@ export function GameClient({ slug }: GameClientProps) {
   }>({ attackerId: null, direction: 0 });
 
   const [isHitMark, setIsHitMark] = useState(false);
+
+  const [showFloorSelector, setShowFloorSelector] = useState(false);
+  const [currentLocationId, setCurrentLocationId] = useState("main-world");
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
@@ -179,6 +183,17 @@ export function GameClient({ slug }: GameClientProps) {
           if (nick) setNickname(nick);
         };
 
+        game.onLocationChange = (id: string) => {
+          setCurrentLocationId(id);
+        };
+
+        game.onFloorSelectorToggle = (isOpen: boolean) => {
+          setShowFloorSelector(isOpen);
+          if (isOpen) {
+            document.exitPointerLock();
+          }
+        };
+
         game.onDamageEvent = (event) => {
           setDamageEvents((prev) => [...prev, event]);
           setTimeout(() => {
@@ -234,13 +249,18 @@ export function GameClient({ slug }: GameClientProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Escape") {
+        if (showFloorSelector) {
+          setShowFloorSelector(false);
+          gameRef.current?.closeFloorSelector();
+          return;
+        }
         setIsMenuOpen((prev) => !prev);
       }
       if (e.code === "Enter" && isPointerLocked) {
         setIsChatVisible((prev) => !prev);
       }
 
-      if (isPointerLocked && !isMenuOpen) {
+      if (isPointerLocked && !isMenuOpen && !showFloorSelector) {
         const digitKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"];
         const index = digitKeys.indexOf(e.code);
         if (index !== -1) {
@@ -250,7 +270,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, isMenuOpen]);
+  }, [isPointerLocked, isMenuOpen, showFloorSelector]);
 
   const handleNicknameChange = (nick: string) => {
     setNickname(nick);
@@ -267,6 +287,10 @@ export function GameClient({ slug }: GameClientProps) {
 
   const handleCloseMenu = () => {
     setIsMenuOpen(false);
+  };
+
+  const handleSelectFloor = (floorId: string) => {
+    gameRef.current?.selectFloor(floorId);
   };
 
   if (authError) {
@@ -346,7 +370,19 @@ export function GameClient({ slug }: GameClientProps) {
         onClose={handleCloseMenu}
         nickname={nickname}
         onNicknameChange={handleNicknameChange}
+        onTeleportToTower={() => gameRef.current?.teleportToTower()}
         onTeleportToSafeZone={() => gameRef.current?.teleportToSafeZone()}
+      />
+
+
+      <FloorSelector
+        isOpen={showFloorSelector}
+        onClose={() => {
+          setShowFloorSelector(false);
+          gameRef.current?.closeFloorSelector();
+        }}
+        onSelectFloor={handleSelectFloor}
+        currentLocationId={currentLocationId}
       />
     </div>
   );

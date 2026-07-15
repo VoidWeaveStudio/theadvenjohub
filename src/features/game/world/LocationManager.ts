@@ -1,11 +1,10 @@
 //src\features\game\world\LocationManager.ts
-
 import * as THREE from "three";
 import { Location, Portal } from "./Location";
 import { ResourceManager } from "../core/ResourceManager";
 import { MainWorld } from "./locations/main-world/MainWorld";
 import { Cave } from "./locations/Cave";
-import { Tower } from "./locations/Tower";
+import { TOWER_FLOORS } from "./locations/tower/TowerRegistry";
 
 export class LocationManager {
     private locations: Map<string, Location> = new Map();
@@ -27,7 +26,10 @@ export class LocationManager {
         this.resourceManager = rm;
         this.locationFactories.set("main-world", () => new MainWorld());
         this.locationFactories.set("cave", () => new Cave());
-        this.locationFactories.set("tower", () => new Tower());
+        
+        TOWER_FLOORS.forEach(floor => {
+            this.locationFactories.set(floor.id, () => new floor.locationClass());
+        });
     }
 
     async loadLocation(locationId: string): Promise<Location | null> {
@@ -54,10 +56,8 @@ export class LocationManager {
 
     checkPortals(playerPosition: THREE.Vector3): Portal | null {
         if (!this.currentLocation) return null;
-
         for (const portal of this.currentLocation.portals) {
-            const dist = playerPosition.distanceTo(portal.position);
-            if (dist <= portal.radius) {
+            if (playerPosition.distanceTo(portal.position) <= portal.radius) {
                 return portal;
             }
         }
@@ -66,7 +66,6 @@ export class LocationManager {
 
     async teleportTo(portal: Portal, player: any): Promise<boolean> {
         const previousLocation = this.currentLocation;
-
         const target = await this.loadLocation(portal.targetLocationId);
         if (!target) return false;
 
@@ -74,14 +73,12 @@ export class LocationManager {
         player.mesh.position.copy(portal.targetSpawnPoint);
 
         if ('getHeightAt' in target) {
-            const getHeightAt = (target as any).getHeightAt.bind(target);
-            player.mesh.position.y = getHeightAt(player.mesh.position.x, player.mesh.position.z);
+            player.mesh.position.y = (target as any).getHeightAt(player.mesh.position.x, player.mesh.position.z);
         }
 
         if (previousLocation && previousLocation.id !== 'main-world') {
             previousLocation.dispose();
             this.locations.delete(previousLocation.id);
-            console.log(`[LocationManager] Unloaded location: ${previousLocation.id}`);
         }
 
         this.onLocationChange?.(target.id);
@@ -91,25 +88,13 @@ export class LocationManager {
     async teleportToLocation(locationId: string, player: any): Promise<boolean> {
         const target = await this.loadLocation(locationId);
         if (!target) return false;
-
-        const spawnPoint = target.getSpawnPoint();
-        player.teleportTo(spawnPoint);
-        
+        player.teleportTo(target.getSpawnPoint());
         this.onLocationChange?.(target.id);
         return true;
     }
 
     render() {
-        if (!this.currentLocation) {
-            console.warn("[LocationManager] No current location to render");
-            return;
-        }
-
-        if (!this.currentLocation.scene) {
-            console.error("[LocationManager] Current location has no scene!");
-            return;
-        }
-
+        if (!this.currentLocation || !this.currentLocation.scene) return;
         this.renderer.render(this.currentLocation.scene, this.activeCamera);
     }
 

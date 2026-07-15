@@ -85,14 +85,14 @@ export class SafeZone {
   }
 
   update(delta: number) {
+    if (!this.crystal) return;
+    
     this.time += delta;
 
     this.crystal.rotation.y = this.time * 0.5;
     const groundY = this.terrain ? this.terrain.getHeightAt(0, 0) : 0;
     this.crystal.position.y = groundY - 1.5 + Math.sin(this.time * 1.2) * 0.2;
     this.textSprite.position.y = groundY + 10 + Math.sin(this.time * 1.2) * 0.2;
-
-
   }
 
   getCrystalCollider(): THREE.Box3 | null {

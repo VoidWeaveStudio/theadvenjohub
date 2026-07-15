@@ -1,4 +1,4 @@
-//src\features\game\world\Location.ts
+// src/features/game/world/Location.ts
 import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
 
@@ -17,8 +17,9 @@ export abstract class Location {
     public scene: THREE.Scene;
     public portals: Portal[] = [];
     public colliders: THREE.Box3[] = [];
-    
     public pendingTeleport: string | null = null;
+    
+    public onOpenFloorSelector?: () => void;
 
     constructor(id: string, name: string) {
         this.id = id;
@@ -31,8 +32,11 @@ export abstract class Location {
     abstract dispose(): void;
 
     update?(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean): void;
-    
     getInteractionPrompt?(playerPosition: THREE.Vector3): string | null;
+
+    public getInteractables(): THREE.Object3D[] {
+        return [];
+    }
 
     addPortal(portal: Portal) {
         this.portals.push(portal);

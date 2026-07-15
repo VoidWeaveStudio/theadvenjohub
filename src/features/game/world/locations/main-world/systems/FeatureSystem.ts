@@ -1,4 +1,4 @@
-// src\features\game\world\locations\main-world\systems\FeatureSystem.ts
+// src/features/game/world/locations/main-world/systems/FeatureSystem.ts
 import * as THREE from "three";
 import { MainWorld } from "../MainWorld";
 
@@ -288,7 +288,6 @@ export class FeatureSystem {
         this.rightDoorGroup.add(rightDoorMesh, rightHinge, rightRing);
         towerGroup.add(this.rightDoorGroup);
 
-
         const portalGeo = new THREE.BoxGeometry(doorWidth - 2, doorHeight - 4, 1);
         const portalMat = new THREE.MeshBasicMaterial({
             color: 0x000000,
@@ -491,7 +490,7 @@ export class FeatureSystem {
         }
 
         if (dist2D < 3.0 && this.doorOpenProgress > 0.8) {
-            this.world.pendingTeleport = "tower";
+            this.world.pendingTeleport = "tower-main-hall";
         }
 
         const time = Date.now() * 0.001;

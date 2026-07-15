@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Settings, Info, Save, ChevronRight, Keyboard, TriangleAlert } from "lucide-react";
+import { X, Settings, Info, Save, ChevronRight, Keyboard, TriangleAlert, Castle } from "lucide-react";
 
 interface MenuProps {
     isOpen: boolean;
@@ -10,9 +10,10 @@ interface MenuProps {
     nickname: string;
     onNicknameChange: (nickname: string) => void;
     onTeleportToSafeZone?: () => void;
+    onTeleportToTower?: () => void;
 }
 
-export function Menu({ isOpen, onClose, nickname, onNicknameChange, onTeleportToSafeZone }: MenuProps) {
+export function Menu({ isOpen, onClose, nickname, onNicknameChange, onTeleportToSafeZone, onTeleportToTower }: MenuProps) {
     const [editNickname, setEditNickname] = useState(false);
     const [tempNickname, setTempNickname] = useState(nickname);
     const [tab, setTab] = useState<"main" | "controls" | "about">("main");
@@ -99,6 +100,19 @@ export function Menu({ isOpen, onClose, nickname, onNicknameChange, onTeleportTo
                                 </div>
                             )}
                         </div>
+
+                        {onTeleportToTower && (
+                            <button
+                                onClick={() => {
+                                    onTeleportToTower();
+                                    onClose();
+                                }}
+                                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-4 rounded-[10px] shadow-lg shadow-purple-500/20 transition-all flex items-center justify-center gap-2 group border border-purple-400/30"
+                            >
+                                <Castle className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                <span>Teleport to Tower</span>
+                            </button>
+                        )}
 
                         <button
                             onClick={() => {

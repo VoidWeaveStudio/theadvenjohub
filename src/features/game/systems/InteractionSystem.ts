@@ -1,4 +1,4 @@
-//src\features\game\systems\InteractionSystem.ts
+// src/features/game/systems/InteractionSystem.ts
 import * as THREE from "three";
 import { System } from "./System";
 import { Player } from "../entities/Player";
@@ -16,6 +16,7 @@ export class InteractionSystem extends System {
 
     public onNotification?: (msg: string, duration?: number) => void;
     public onPrompt?: (text: string | null) => void;
+    public onCrystalInteract?: () => void;
 
     public setScene(scene: THREE.Scene) {
         this.scene = scene;
@@ -36,7 +37,7 @@ export class InteractionSystem extends System {
         this.interactableObjects.push(obj);
     }
 
-    update(_delta: number) {
+    update(_delta: number, isEJustPressed?: boolean) {
         const playerPos = this.player.mesh.position;
         let nearest: { obj: THREE.Object3D; dist: number } | null = null;
 
@@ -49,9 +50,19 @@ export class InteractionSystem extends System {
 
         if (nearest) {
             const id = nearest.obj.userData.interactionId;
-            if (id === "crystal") {
+            
+            if (id === "tower-crystal") {
+                this.onPrompt?.("[E] Use the elevator");
+                if (isEJustPressed === true) {
+                    if (this.onCrystalInteract) {
+                        this.onCrystalInteract();
+                    } else {
+                        console.error("❌ [InteractionSystem] onCrystalInteract is UNDEFINED in Game.ts!");
+                    }
+                }
+            } else if (id === "crystal") {
                 this.onPrompt?.("[E] Interact with Crystal");
-                if (this.inputManager.isKeyJustPressed("KeyE")) {
+                if (isEJustPressed === true) {
                     this.onNotification?.("⚡ Events coming soon!", 3000);
                 }
             }

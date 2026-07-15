@@ -15,7 +15,6 @@ export function HUD({ state, isPointerLocked, isHitMark = false }: HUDProps) {
 
     return (
         <div className="absolute inset-0 pointer-events-none select-none font-oxanium">
-            {/* Health Bar - Top Left */}
             <div className="absolute top-6 left-6">
                 <div className="flex items-end gap-3">
                     <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-4 min-w-[220px]">

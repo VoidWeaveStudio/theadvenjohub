@@ -1,4 +1,4 @@
-//src\features\game\core\Game.ts
+// src/features/game/core/Game.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
@@ -15,7 +15,8 @@ import { ChatMessage } from "../ui/Chat";
 import { LocationManager } from "../world/LocationManager";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { Cave } from "../world/locations/Cave";
-import { Tower } from "../world/locations/Tower";
+import { TowerFloor } from "../world/locations/tower/TowerFloor";
+import { CollisionGrid } from "../world/CollisionGrid";
 
 export interface GameSession {
     gameToken: string;
@@ -78,6 +79,7 @@ export class Game {
     private animationFrameId: number | null = null;
     private frameCount: number = 0;
 
+    private showFloorSelector: boolean = false;
     private localPlayerNetId: string | null = null;
 
     private hudState: HUDState = {
@@ -137,6 +139,26 @@ export class Game {
     public onDeathStateChange?: (isDead: boolean, killerName: string | null) => void;
     public onDamageIndicatorUpdate?: (attackerId: string | null, direction: number) => void;
 
+    public onFloorSelectorToggle?: (isOpen: boolean) => void;
+    public onLocationChange?: (id: string) => void;
+
+    public openFloorSelector() {
+        this.showFloorSelector = true;
+        this.onFloorSelectorToggle?.(true);
+    }
+
+    public closeFloorSelector() {
+        this.showFloorSelector = false;
+        this.onFloorSelectorToggle?.(false);
+    }
+
+    public async selectFloor(floorId: string) {
+        this.closeFloorSelector();
+        await this.changeLocation(floorId).catch(() => {
+            this.onNotification?.("⚠️ Failed to travel to this floor", 2000);
+        });
+    }
+
     constructor(canvas: HTMLCanvasElement, slug: string, session: GameSession) {
         this.canvas = canvas;
         this.slug = slug;
@@ -193,7 +215,17 @@ export class Game {
 
         this.locationManager.onLocationChange = (id: string) => {
             this.onNotification?.(`📍 Entered: ${id}`, 2000);
+            this.onLocationChange?.(id);
+
+            const loc = this.locationManager.getCurrentLocation();
+            if (loc) {
+                loc.onOpenFloorSelector = () => {
+                    this.openFloorSelector();
+                };
+            }
         };
+
+        this.onLocationChange?.(currentLocation.id);
 
         this.player.create(currentLocation.scene, this.resourceManager);
         this.player.setDependencies(this.inputManager, this.cameraController);
@@ -201,12 +233,18 @@ export class Game {
         const spawnPoint = currentLocation.getSpawnPoint();
         this.player.mesh.position.copy(spawnPoint);
 
+        const getCollisionGrid = (loc: any): CollisionGrid | undefined => loc.collisionGrid;
+
         if (currentLocation instanceof MainWorld) {
             this.player.setTerrain(currentLocation.terrain);
             this.player.setCollisionGrid(currentLocation.collisionGrid);
             this.cameraController.setCollisionGrid(currentLocation.terrainCollisionGrid);
         } else if (currentLocation instanceof Cave) {
             this.player.setTerrain(currentLocation as any);
+            this.player.setCollisionGrid(currentLocation.collisionGrid);
+            this.cameraController.setCollisionGrid(currentLocation.collisionGrid);
+        } else if (currentLocation instanceof TowerFloor) {
+            this.player.setTerrain(null);
             this.player.setCollisionGrid(currentLocation.collisionGrid);
             this.cameraController.setCollisionGrid(currentLocation.collisionGrid);
         }
@@ -217,16 +255,13 @@ export class Game {
         if (currentLocation instanceof MainWorld) {
             this.safeZone.create(currentLocation.scene, this.resourceManager, currentLocation.terrain as any);
             const crystalCollider = this.safeZone.getCrystalCollider();
-            if (crystalCollider) currentLocation.collisionGrid.insert(crystalCollider);
-        } else {
-            this.safeZone.create(currentLocation.scene, this.resourceManager);
+            if (crystalCollider && currentLocation.collisionGrid) {
+                currentLocation.collisionGrid.insert(crystalCollider);
+            }
+            this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
         }
 
-        const collisionGrid = currentLocation instanceof MainWorld
-            ? currentLocation.collisionGrid
-            : currentLocation instanceof Cave
-                ? currentLocation.collisionGrid
-                : undefined;
+        const collisionGrid = getCollisionGrid(currentLocation);
 
         this.shootingSystem.init(
             currentLocation.scene,
@@ -248,14 +283,16 @@ export class Game {
         this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
         this.networkSystem.init();
 
-        this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
-
         this.interactionSystem.onNotification = (msg, duration) => {
             this.onNotification?.(msg, duration);
         };
         this.interactionSystem.onPrompt = (text) => {
             this.hudState.prompt = text;
             this.emitState(true);
+        };
+
+        this.interactionSystem.onCrystalInteract = () => {
+            this.openFloorSelector();
         };
 
         this.setupNetwork();
@@ -304,6 +341,17 @@ export class Game {
         this.interactionSystem.clearInteractables();
 
         if (newLocation instanceof MainWorld) {
+            this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
+        }
+
+        const newLocationInteractables = newLocation.getInteractables();
+        newLocationInteractables.forEach(obj => {
+            this.interactionSystem.registerInteractable(obj);
+        });
+
+        const getCollisionGrid = (loc: any): CollisionGrid | undefined => loc.collisionGrid;
+
+        if (newLocation instanceof MainWorld) {
             this.player.setTerrain(newLocation.terrain);
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.terrainCollisionGrid);
@@ -311,7 +359,7 @@ export class Game {
             this.player.setTerrain(newLocation as any);
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.collisionGrid);
-        } else if (newLocation instanceof Tower) {
+        } else if (newLocation instanceof TowerFloor) {
             this.player.setTerrain(null);
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.collisionGrid);
@@ -322,7 +370,8 @@ export class Game {
         this.cameraController.yawObject.position.copy(spawnPoint);
 
         this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
-        
+        this.onLocationChange?.(newLocation.id);
+
         this.onLoadStateChange?.(false);
     }
 
@@ -540,7 +589,7 @@ export class Game {
         this.onStateChange?.({ ...this.hudState });
     }
 
-    private animate = async () => {
+        private animate = async () => {
         this.animationFrameId = requestAnimationFrame(this.animate);
 
         if (!this.isLoaded) {
@@ -551,9 +600,12 @@ export class Game {
         this.frameCount++;
 
         const portal = this.locationManager.checkPortals(this.player.mesh.position);
+        
+        const isEJustPressed = this.inputManager.isKeyJustPressed("KeyE");
+
         if (portal) {
             this.interactionSystem.onPrompt?.(`[E] Enter ${portal.targetLocationId}`);
-            if (this.inputManager.isKeyJustPressed("KeyE")) {
+            if (isEJustPressed) {
                 await this.changeLocation(portal.targetLocationId);
             }
         }
@@ -567,7 +619,8 @@ export class Game {
             this.player.update(delta);
             this.cameraController.update(delta, this.inputManager);
 
-            const inSafe = this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
+            const inSafe = (currentLocation instanceof MainWorld) && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
+
             if (this.hudState.inSafeZone !== inSafe) {
                 this.hudState.inSafeZone = inSafe;
                 this.emitState(true);
@@ -580,18 +633,15 @@ export class Game {
             }
 
             if (currentLocation.update) {
-                const isEPressed = this.inputManager.isKeyJustPressed("KeyE");
-                currentLocation.update(this.player.mesh.position, delta, isEPressed);
+                currentLocation.update(this.player.mesh.position, delta, isEJustPressed);
             }
+
+            this.interactionSystem.update(delta, isEJustPressed);
 
             if (currentLocation.getInteractionPrompt && !portal) {
                 const prompt = currentLocation.getInteractionPrompt(this.player.mesh.position);
-                
                 if (prompt !== null) {
                     this.interactionSystem.onPrompt?.(prompt);
-                } else if (this.hudState.prompt === "[E] Enter the Tower") {
-          
-                    this.interactionSystem.onPrompt?.(null);
                 }
             }
 
@@ -601,8 +651,10 @@ export class Game {
                 await this.changeLocation(targetId);
             }
 
-            this.interactionSystem.update(delta);
-            this.safeZone.update(delta);
+            if (currentLocation instanceof MainWorld) {
+                this.safeZone.update(delta);
+            }
+
             this.networkSystem.update(delta);
             this.otherPlayers.forEach((op) => op.update(delta));
 
@@ -645,6 +697,20 @@ export class Game {
 
     sendChatMessage(message: string) {
         this.networkManager.sendChatMessage(message);
+    }
+
+    public teleportToTower() {
+        const currentLocation = this.locationManager.getCurrentLocation();
+        if (!currentLocation) return;
+
+        if (currentLocation.id !== 'tower-main-hall') {
+            this.changeLocation('tower-main-hall').then(() => {
+                this.onNotification?.("🗼 Teleported to Tower Main Hall", 2500);
+            });
+            return;
+        }
+
+        this.onNotification?.("🗼 You are already in the Tower Main Hall", 2500);
     }
 
     public teleportToSafeZone() {

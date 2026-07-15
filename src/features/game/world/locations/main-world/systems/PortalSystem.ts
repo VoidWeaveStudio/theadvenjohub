@@ -41,7 +41,7 @@ export class PortalSystem {
             this.portalMesh.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
                     const name = child.name.toLowerCase();
-                    if (name.includes('base') || name.includes('плита') || name.includes('plate') || name.includes('monolith') || name.includes('stone') || name.includes('камень')) {
+                    if (name.includes('base') || name.includes('floor') || name.includes('plate') || name.includes('monolith') || name.includes('stone') || name.includes('stone')) {
                         child.updateMatrixWorld(true);
                         const childBox = new THREE.Box3().setFromObject(child);
                         this.world.collisionGrid.insert(new THREE.Box3(
