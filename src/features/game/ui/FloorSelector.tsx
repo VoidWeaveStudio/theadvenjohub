@@ -61,7 +61,7 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                                         {floor.name}
                                     </div>
                                     <div className="text-xs text-[#8B8F98]">
-                                        {isCurrent ? 'Вы уже здесь' : floor.description}
+                                        {isCurrent ? 'You are here' : floor.description}
                                     </div>
                                 </div>
                             </button>
