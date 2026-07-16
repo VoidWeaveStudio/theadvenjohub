@@ -176,12 +176,14 @@ export class Game {
 
         this.renderer.setSize(width, height, false);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
+
 
         canvas.style.width = '100%';
         canvas.style.height = '100%';
@@ -589,7 +591,7 @@ export class Game {
         this.onStateChange?.({ ...this.hudState });
     }
 
-        private animate = async () => {
+    private animate = async () => {
         this.animationFrameId = requestAnimationFrame(this.animate);
 
         if (!this.isLoaded) {
@@ -600,7 +602,7 @@ export class Game {
         this.frameCount++;
 
         const portal = this.locationManager.checkPortals(this.player.mesh.position);
-        
+
         const isEJustPressed = this.inputManager.isKeyJustPressed("KeyE");
 
         if (portal) {
