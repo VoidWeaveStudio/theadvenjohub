@@ -1,3 +1,4 @@
+//src\features\game\core\ResourceManager.ts
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
@@ -28,6 +29,8 @@ export class ResourceManager {
       this.loadModel("portal", "/models/portal.glb"),
       this.loadModel("portalVFX", "/models/portal-vfx.glb"),
       this.loadModel("cosmos", "/models/cosmos.glb"),
+
+      this.loadModel("column", "/models/column.glb"),
 
       this.loadTexture("nebula-sky", "/models/nebula_7_0.png", true),
 

@@ -37,6 +37,13 @@ export class InteractionSystem extends System {
         this.interactableObjects.push(obj);
     }
 
+    private formatMC(value: number): string {
+        if (value > 1e9) return (value / 1e9).toFixed(1) + "B";
+        if (value > 1e6) return (value / 1e6).toFixed(1) + "M";
+        if (value > 1e3) return (value / 1e3).toFixed(1) + "K";
+        return value.toFixed(0);
+    }
+
     update(_delta: number, isEJustPressed?: boolean) {
         const playerPos = this.player.mesh.position;
         let nearest: { obj: THREE.Object3D; dist: number } | null = null;
@@ -51,7 +58,22 @@ export class InteractionSystem extends System {
         if (nearest) {
             const id = nearest.obj.userData.interactionId;
             
-            if (id === "tower-crystal") {
+            if (id?.startsWith("column-")) {
+                this.onPrompt?.("[E] View Token Info");
+                if (isEJustPressed === true) {
+                    const info = nearest.obj.userData.tokenInfo;
+                    if (!info || info.name === "Loading...") {
+                        this.onNotification?.("⏳ Loading token data...", 2000);
+                    } else if (info.name === "Empty Pedestal") {
+                        this.onNotification?.("🪨 Empty pedestal", 2000);
+                    } else {
+                        this.onNotification?.(
+                            `🪙 ${info.name} (${info.symbol})\n💰 MC: $${this.formatMC(info.mc)}`, 
+                            4000
+                        );
+                    }
+                }
+            } else if (id === "tower-crystal") {
                 this.onPrompt?.("[E] Use the elevator");
                 if (isEJustPressed === true) {
                     if (this.onCrystalInteract) {

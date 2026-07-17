@@ -1,4 +1,3 @@
-// src/features/game/world/locations/tower/floors/Basement.ts
 import * as THREE from "three";
 import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";
@@ -60,10 +59,19 @@ export interface MemeToken {
 }
 
 interface ActiveCoin {
-    mesh: THREE.Object3D; 
+    mesh: THREE.Object3D;
     glow?: THREE.Sprite;
     velocity: number;
     rotationSpeed: number;
+}
+
+interface TokenColumn {
+    group: THREE.Group;
+    coin: THREE.Group;
+    ca: string | null;
+    texture?: THREE.Texture;
+    mcText?: THREE.Sprite;
+    baseCoinY: number;
 }
 
 export class Basement extends TowerFloor {
@@ -102,6 +110,13 @@ export class Basement extends TowerFloor {
     private baseGlowMaterial!: THREE.SpriteMaterial;
     private readonly TARGET_SCALE = new THREE.Vector3(1, 1, 1);
 
+    private columnTokens: (string | null)[] = [
+        "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", "J8PSdNP3QewKq2Z1JJJFDMaqF7KcaiJhR7gbr5KZpump", "CFPkPq1eYPR8GLzEo59wUbbMioX4bshaTQiSGzTSpump",
+        "B4ptaVsUe6YbtBwAS38WFeweSrVNfQLCcj9JRrtjU8vn", null, null, null, null, null, null
+    ];
+    private columns: TokenColumn[] = [];
+    private columnUpdateInterval: NodeJS.Timeout | null = null;
+
     constructor() {
         super("tower-basement", "Gloomy Tower Basement");
         this.textureCache.set('fallback', createFallbackCoinTexture());
@@ -121,7 +136,6 @@ export class Basement extends TowerFloor {
         const nebulaTexture = rm.getTexture("nebula-sky");
 
         if (cosmosData && nebulaTexture) {
-            console.log("[Basement] 🌌 Cosmos data & Nebula texture received. Building skybox...");
             this.skySphere = cosmosData.scene;
 
             this.skySphere.scale.set(100, 100, 100);
@@ -147,9 +161,8 @@ export class Basement extends TowerFloor {
             });
 
             this.scene.add(this.skySphere);
-            console.log("[Basement] ✅ HUGE Skybox added! Scale: 100");
         } else {
-            console.error("[Basement] ❌ Failed to get cosmos model or nebula texture. Check file paths!");
+            console.error("[Basement] Failed to get cosmos model or nebula texture. Check file paths!");
         }
 
         const wallMat = new THREE.MeshStandardMaterial({ color: 0x5a5548, roughness: 0.95, metalness: 0.05 });
@@ -194,7 +207,6 @@ export class Basement extends TowerFloor {
 
         const portalData = rm.getModel("portalVFX");
         if (portalData) {
-            console.log("[Basement] 🌀 Loading portal VFX...");
             this.portalVFX = portalData.scene;
 
             this.portalVFX.scale.set(7.5, 7.5, 7.5);
@@ -224,8 +236,6 @@ export class Basement extends TowerFloor {
                     mesh.receiveShadow = false;
                 }
             });
-
-            console.log(`[Basement] ✅ Portal loaded with ${materialCount} materials. Scale: 7.5`);
 
             if (portalData.animations.length > 0) {
                 this.portalMixer = new THREE.AnimationMixer(this.portalVFX);
@@ -410,20 +420,8 @@ export class Basement extends TowerFloor {
         this.createBasementCrystal(radius);
         this.spawnOrbitCoins(rm);
 
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
-            const x = Math.cos(angle) * (radius - 3);
-            const z = Math.sin(angle) * (radius - 3);
-            const crate = new THREE.Mesh(
-                new THREE.BoxGeometry(2, 2, 2),
-                new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.8 })
-            );
-            crate.position.set(x, 1, z);
-            crate.castShadow = true;
-            crate.receiveShadow = true;
-            this.scene.add(crate);
-            this.collisionGrid.insert(new THREE.Box3().setFromObject(crate));
-        }
+        this.createTokenColumns(rm);
+        this.startColumnUpdater();
 
         if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
             (window as any).requestIdleCallback(() => {
@@ -440,39 +438,62 @@ export class Basement extends TowerFloor {
         }
     }
 
-    private createCoinMesh(texture: THREE.Texture, radius: number = 0.4): THREE.Group {
+    private createCoinMesh(
+        texture: THREE.Texture,
+        radius: number = 0.4,
+        isColumn: boolean = false,
+        isOrbit: boolean = false
+    ): THREE.Group {
         const group = new THREE.Group();
-        const thickness = radius * 0.4; 
-        const segments = radius > 1 ? 96 : 64; 
-        
+        const thickness = isColumn ? radius * 0.08 : radius * 0.4;
+        const segments = radius > 1 ? 96 : 64;
+
         const geo = new THREE.CylinderGeometry(radius, radius, thickness, segments);
-        const mat = new THREE.MeshPhysicalMaterial({
-            map: texture,
-            metalness: 1,
-            roughness: 0.18,
-            clearcoat: 1,
-            clearcoatRoughness: 0,
-            reflectivity: 1,
-            emissive: 0xffffff,
-            emissiveMap: texture,
-            emissiveIntensity: 0.25
-        });
+        
+        let mat: THREE.MeshPhysicalMaterial;
+        if (isColumn) {
+            mat = new THREE.MeshPhysicalMaterial({
+                map: texture,
+                metalness: 0.1,
+                roughness: 0,
+                transmission: 0.6,
+                thickness: 0.6,
+                color: 0x99ccff,
+                emissive: new THREE.Color(0x000000),
+                emissiveIntensity: 0,
+            });
+        } else {
+            mat = new THREE.MeshPhysicalMaterial({
+                map: texture,
+                metalness: 1,
+                roughness: 0.18,
+                clearcoat: 1,
+                clearcoatRoughness: 0,
+                reflectivity: 1,
+                emissive: new THREE.Color(0xffffff),
+                emissiveIntensity: 0.25,
+                emissiveMap: texture
+            });
+        }
+
         const mainMesh = new THREE.Mesh(geo, mat);
         mainMesh.rotation.x = Math.PI / 2;
         mainMesh.castShadow = false;
         mainMesh.receiveShadow = false;
         group.add(mainMesh);
 
-        const rimGeo = new THREE.TorusGeometry(radius * 1.02, radius * 0.035, 16, 64);
-        const rimMat = new THREE.MeshPhysicalMaterial({
-            color: 0xffd44d,
-            metalness: 1,
-            roughness: 0.08,
-            clearcoat: 1
-        });
-        const rim = new THREE.Mesh(rimGeo, rimMat);
-        rim.rotation.x = Math.PI / 2;
-        group.add(rim);
+        if (isOrbit) {
+            const rimGeo = new THREE.TorusGeometry(radius * 1.02, radius * 0.035, 16, 64);
+            const rimMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffd44d,
+                metalness: 1,
+                roughness: 0.08,
+                clearcoat: 1
+            });
+            const rim = new THREE.Mesh(rimGeo, rimMat);
+            rim.rotation.x = Math.PI / 2;
+            group.add(rim);
+        }
 
         const logoGeo = new THREE.CircleGeometry(radius * 0.8, 64);
         const logoMat = new THREE.MeshBasicMaterial({
@@ -480,12 +501,12 @@ export class Basement extends TowerFloor {
             transparent: true,
             opacity: 0.95
         });
-        
+
         const logo = new THREE.Mesh(logoGeo, logoMat);
         logo.position.y = (thickness / 2) + 0.01;
         logo.rotation.x = -Math.PI / 2;
         mainMesh.add(logo);
-        
+
         const logoBack = new THREE.Mesh(logoGeo, logoMat);
         logoBack.position.y = -(thickness / 2) - 0.01;
         logoBack.rotation.x = Math.PI / 2;
@@ -618,15 +639,20 @@ export class Basement extends TowerFloor {
                 );
             }
 
-            const coinGroup = this.createCoinMesh(tex, 3.5);
+            const coinGroup = this.createCoinMesh(tex, 1.2, false, true);
             coinGroup.castShadow = false;
             coinGroup.receiveShadow = false;
+
+            const glow = new THREE.Sprite(this.baseGlowMaterial.clone());
+            glow.material.color.set(0xffd700);
+            glow.scale.set(3.5, 3.5, 3.5);
+            coinGroup.add(glow);
 
             this.scene.add(coinGroup);
 
             this.orbitData.push({
                 mesh: coinGroup,
-                baseRadius: 45 + i * 6,
+                baseRadius: 10 + i * 2.5,
                 speed: 0.05 + Math.random() * 0.05,
                 phase: Math.random() * Math.PI * 2
             });
@@ -634,7 +660,10 @@ export class Basement extends TowerFloor {
     }
 
     public override getInteractables(): THREE.Object3D[] {
-        return this.basementCrystal ? [this.basementCrystal] : [];
+        const interactables: THREE.Object3D[] = [];
+        if (this.basementCrystal) interactables.push(this.basementCrystal);
+        interactables.push(...this.columns.map(c => c.group));
+        return interactables;
     }
 
     private createDustParticles() {
@@ -714,8 +743,8 @@ export class Basement extends TowerFloor {
         }
         const finalTexture = (texture && token.image !== 'fallback') ? texture : fallbackTexture;
 
-        const coinGroup = this.createCoinMesh(finalTexture, 0.4);
-        
+        const coinGroup = this.createCoinMesh(finalTexture, 0.4, false, false);
+
         const spawnRadius = 2.2;
         const angle = Math.random() * Math.PI * 2;
         const r = Math.sqrt(Math.random()) * spawnRadius;
@@ -747,11 +776,25 @@ export class Basement extends TowerFloor {
     update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean) {
         super.update(playerPosition, delta, isEPressed);
 
+        const time = performance.now() * 0.001;
+
+        for (let i = 0; i < this.columns.length; i++) {
+            const col = this.columns[i];
+            if (!col.coin) continue;
+
+            col.coin.position.y = col.baseCoinY + Math.sin(time * 2 + i) * 0.5;
+
+            const speed = (col.coin as any).rotSpeed || { x: 1, y: 1, z: 1 };
+            col.coin.rotation.x += delta * speed.x;
+            col.coin.rotation.y += delta * speed.y;
+            col.coin.rotation.z += delta * speed.z;
+        }
+
         if (this.skySphere && !this._skyLogged) {
             this._skyLogged = true;
             const sphereRadius = 100 * 100;
             const distToCenter = playerPosition.distanceTo(new THREE.Vector3(0, 0, 0));
-            console.log(`[Basement] 🎥 Camera check: Player dist to center = ${distToCenter.toFixed(1)}. Sphere radius = ${sphereRadius}. Inside? ${distToCenter < sphereRadius ? 'YES ✅' : 'NO ❌'}`);
+            console.log(`[Basement] Camera check: Player dist to center = ${distToCenter.toFixed(1)}. Sphere radius = ${sphereRadius}. Inside? ${distToCenter < sphereRadius ? 'YES' : 'NO'}`);
         }
 
         if (this.skySphere) {
@@ -867,10 +910,232 @@ export class Basement extends TowerFloor {
         return new THREE.Vector3(0, 2, 8);
     }
 
+    private createTokenColumns(rm: ResourceManager) {
+        const radius = 30;
+        const count = 10;
+
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+
+            const group = new THREE.Group();
+
+            const columnData = rm.getModel("column");
+            let pedestalHeight = 4;
+
+            if (columnData) {
+                const pedestal = columnData.scene;
+
+                pedestal.scale.set(1, 0.5, 1);
+
+                const box = new THREE.Box3().setFromObject(pedestal);
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+                pedestal.position.sub(center);
+
+                const scaledBox = new THREE.Box3().setFromObject(pedestal);
+                pedestalHeight = scaledBox.max.y - scaledBox.min.y;
+
+                pedestal.traverse((child) => {
+                    if ((child as THREE.Mesh).isMesh) {
+                        const mesh = child as THREE.Mesh;
+                        if (Array.isArray(mesh.material)) {
+                            mesh.material.forEach(m => m.needsUpdate = true);
+                        } else {
+                            mesh.material.needsUpdate = true;
+                        }
+                    }
+                });
+                group.add(pedestal);
+            } else {
+                console.warn("column model not found, using fallback");
+                const column = new THREE.Mesh(
+                    new THREE.CylinderGeometry(1.2, 1.5, 2, 32),
+                    new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.7, metalness: 0.3 })
+                );
+                column.position.y = 1;
+                group.add(column);
+                pedestalHeight = 2;
+            }
+
+            const ca = this.columnTokens[i];
+            const texture = this.textureCache.get("fallback")!;
+            const coin = this.createCoinMesh(texture, 1.2, true, false);
+
+            const baseCoinY = pedestalHeight + 0.5;
+            coin.position.set(0, baseCoinY, 0);
+
+            coin.lookAt(new THREE.Vector3(-x, baseCoinY, -z));
+
+            const glow = new THREE.Sprite(
+                new THREE.SpriteMaterial({
+                    map: this.textureCache.get('glow'),
+                    color: 0x00ffff,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    opacity: 0.6
+                })
+            );
+            glow.scale.set(10, 10, 1);
+            glow.position.y = baseCoinY;
+            group.add(glow);
+
+            (coin as any).rotSpeed = {
+                x: Math.random() * 2,
+                y: Math.random() * 2,
+                z: Math.random() * 2,
+            };
+
+            group.add(coin);
+
+            group.position.set(x, 0, z);
+            group.userData.interactionId = `column-${i}`;
+
+            group.userData.tokenInfo = ca
+                ? { name: "Loading...", symbol: "...", mc: 0 }
+                : { name: "Empty Pedestal", symbol: "N/A", mc: 0 };
+
+            this.scene.add(group);
+            this.columns.push({ group, coin, ca, baseCoinY });
+            this.collisionGrid.insert(new THREE.Box3().setFromObject(group));
+        }
+    }
+
+    private setColumnHighlight(col: TokenColumn, active: boolean) {
+        col.coin.traverse((obj) => {
+            if ((obj as THREE.Mesh).isMesh) {
+                const mat = (obj as THREE.Mesh).material as THREE.MeshPhysicalMaterial;
+                if (active) {
+                    mat.emissive.set(0x00ffff);
+                    mat.emissiveIntensity = 1.5;
+                } else {
+                    mat.emissiveIntensity = 0;
+                }
+            }
+        });
+    }
+
+    private startColumnUpdater() {
+        this.columnUpdateInterval = setInterval(async () => {
+            for (const col of this.columns) {
+                if (!col.ca) continue;
+
+                try {
+                    const res = await fetch(`/api/token-by-ca?ca=${col.ca}`);
+                    const data = await res.json();
+
+                    if (!data) continue;
+
+                    if (data.image) {
+                        const tex = this.textureLoader.load(
+                            `/api/image-proxy?url=${encodeURIComponent(data.image)}`
+                        );
+                        tex.colorSpace = THREE.SRGBColorSpace;
+
+                        col.coin.traverse((child) => {
+                            if (child instanceof THREE.Mesh) {
+                                const mat = child.material as any;
+                                if (mat.map !== undefined) {
+                                    mat.map = tex;
+                                    mat.needsUpdate = true;
+                                }
+                            }
+                        });
+                        col.texture = tex;
+                    }
+
+                    if (col.mcText) {
+                        col.group.remove(col.mcText);
+                        (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
+                        (col.mcText.material as THREE.Material).dispose();
+                    }
+
+                    const sprite = this.createTextSprite(`MC: ${this.formatMC(data.mc || 0)}`);
+                    sprite.position.y = col.baseCoinY + 2;
+                    col.group.add(sprite);
+                    col.mcText = sprite;
+
+                    col.group.userData.tokenInfo = data;
+
+                } catch (e) {
+                    console.warn(`[Basement] Failed to update column ${col.ca}`, e);
+                }
+            }
+        }, 60000);
+    }
+
+    private createTextSprite(text: string): THREE.Sprite {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 128;
+
+        const ctx = canvas.getContext("2d")!;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 48px Arial';
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 15;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, 256, 64);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+
+        const mat = new THREE.SpriteMaterial({
+            map: tex,
+            transparent: true,
+            depthTest: false
+        });
+
+        const sprite = new THREE.Sprite(mat);
+        sprite.scale.set(6, 1.5, 1);
+        sprite.renderOrder = 999;
+
+        return sprite;
+    }
+
+    private formatMC(value: number): string {
+        if (value > 1e9) return (value / 1e9).toFixed(1) + "B";
+        if (value > 1e6) return (value / 1e6).toFixed(1) + "M";
+        if (value > 1e3) return (value / 1e3).toFixed(1) + "K";
+        return value.toFixed(0);
+    }
+
     dispose() {
         if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
         if (this.spawnInterval) { clearInterval(this.spawnInterval); this.spawnInterval = null; }
         if (this.clearQueueInterval) { clearInterval(this.clearQueueInterval); this.clearQueueInterval = null; }
+
+        if (this.columnUpdateInterval) {
+            clearInterval(this.columnUpdateInterval);
+            this.columnUpdateInterval = null;
+        }
+
+        for (const col of this.columns) {
+            this.scene.remove(col.group);
+            col.group.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    child.geometry.dispose();
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        (child.material as THREE.Material).dispose();
+                    }
+                }
+            });
+            if (col.mcText) {
+                (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
+                (col.mcText.material as THREE.Material).dispose();
+            }
+            if (col.texture) {
+                col.texture.dispose();
+            }
+        }
+        this.columns = [];
 
         for (const c of this.orbitData) {
             this.scene.remove(c.mesh);
