@@ -11,7 +11,9 @@ export class ResourceManager {
   private dracoLoader: DRACOLoader;
   private models: Map<string, { scene: THREE.Group; animations: THREE.AnimationClip[] }> = new Map();
   private textures: Map<string, THREE.Texture> = new Map();
+  
   private modelLoadListeners: Map<string, (() => void)[]> = new Map();
+  private textureLoadListeners: Map<string, (() => void)[]> = new Map();
 
   private loadedCount = 0;
   private totalCount = 0;
@@ -115,6 +117,26 @@ export class ResourceManager {
     }
   }
 
+
+  onTextureLoaded(name: string, callback: () => void) {
+    if (this.textures.has(name)) {
+      callback();
+      return;
+    }
+    if (!this.textureLoadListeners.has(name)) {
+      this.textureLoadListeners.set(name, []);
+    }
+    this.textureLoadListeners.get(name)!.push(callback);
+  }
+
+  private notifyTextureLoaded(name: string) {
+    const listeners = this.textureLoadListeners.get(name);
+    if (listeners) {
+      listeners.forEach(cb => cb());
+      this.textureLoadListeners.delete(name);
+    }
+  }
+
   private async loadTexture(name: string, url: string, isSRGB: boolean, progressMsg?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const loader = new THREE.TextureLoader();
@@ -133,6 +155,7 @@ export class ResourceManager {
           }
           
           this.textures.set(name, texture);
+          this.notifyTextureLoaded(name);
           if (progressMsg) this.updateProgress(progressMsg);
           resolve();
         },

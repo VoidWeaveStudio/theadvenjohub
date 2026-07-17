@@ -118,7 +118,7 @@ export class Basement extends TowerFloor {
     private textureLoader = new THREE.TextureLoader();
     private baseGlowMaterial!: THREE.SpriteMaterial;
     private readonly TARGET_SCALE = new THREE.Vector3(1, 1, 1);
-    
+
     private orbitTime = 0;
 
     private columnTokens: (string | null)[] = [
@@ -152,9 +152,8 @@ export class Basement extends TowerFloor {
         const cosmosData = rm.getModel("cosmos");
         const nebulaTexture = rm.getTexture("nebula-sky");
 
-        if (cosmosData && nebulaTexture) {
-            this.skySphere = cosmosData.scene;
-
+        const setupSky = (data: any, tex: THREE.Texture) => {
+            this.skySphere = data.scene;
             this.skySphere.scale.set(100, 100, 100);
             this.skySphere.position.set(0, 0, 0);
             this.skySphere.renderOrder = -1000;
@@ -163,7 +162,7 @@ export class Basement extends TowerFloor {
                 if ((child as THREE.Mesh).isMesh) {
                     const mesh = child as THREE.Mesh;
                     const mat = new THREE.MeshBasicMaterial({
-                        map: nebulaTexture,
+                        map: tex,
                         color: 0xffffff,
                         side: THREE.BackSide,
                         depthTest: false,
@@ -179,13 +178,40 @@ export class Basement extends TowerFloor {
 
             this.scene.add(this.skySphere);
 
-            nebulaTexture.mapping = EquirectangularReflectionMapping;
-            this.scene.environment = nebulaTexture;
-            
+            tex.mapping = EquirectangularReflectionMapping;
+            this.scene.environment = tex;
             (this.scene as any).environmentIntensity = 2.0;
-            
+        };
+
+        if (cosmosData && nebulaTexture) {
+            setupSky(cosmosData, nebulaTexture);
         } else {
-            console.error("[Basement] Failed to get cosmos model or nebula texture. Check file paths!");
+            console.warn("[Basement] Cosmos or nebula not loaded yet, waiting for lazy load...");
+
+            let cData = cosmosData;
+            let nTex = nebulaTexture;
+
+            const trySetup = () => {
+                if (!cData) cData = rm.getModel("cosmos");
+                if (!nTex) nTex = rm.getTexture("nebula-sky");
+
+                if (cData && nTex) {
+                    setupSky(cData, nTex);
+                }
+            };
+
+            if (!cosmosData) {
+                rm.onModelLoaded("cosmos", () => {
+                    cData = rm.getModel("cosmos");
+                    trySetup();
+                });
+            }
+            if (!nebulaTexture) {
+                rm.onTextureLoaded("nebula-sky", () => {
+                    nTex = rm.getTexture("nebula-sky");
+                    trySetup();
+                });
+            }
         }
 
         const floorColor = rm.getTexture("floor-color");
@@ -203,6 +229,7 @@ export class Basement extends TowerFloor {
             roughness: 0.82,
             metalness: 0.08,
         });
+
 
         const radius = 40;
         const holeRadius = 2.6;
@@ -458,7 +485,7 @@ export class Basement extends TowerFloor {
         const segments = radius > 1 ? 96 : 64;
 
         const geo = new THREE.CylinderGeometry(radius, radius, thickness, segments);
-        
+
         let mat: THREE.Material;
         if (isColumn) {
             mat = new THREE.MeshBasicMaterial({
@@ -484,11 +511,11 @@ export class Basement extends TowerFloor {
         mainMesh.rotation.x = Math.PI / 2;
         mainMesh.castShadow = false;
         mainMesh.receiveShadow = false;
-        
+
         if (isColumn) {
             (mat as THREE.MeshBasicMaterial).toneMapped = false;
         }
-        
+
         group.add(mainMesh);
 
         if (isOrbit) {
@@ -537,7 +564,7 @@ export class Basement extends TowerFloor {
         }
 
         const logoGeo = new THREE.CircleGeometry(radius * 0.8, 64);
-        
+
         const logoMat = new THREE.MeshBasicMaterial({
             map: texture,
             transparent: true,
@@ -683,7 +710,7 @@ export class Basement extends TowerFloor {
                     coinData.fallbackColor
                 );
             }
-            
+
             this.applyTextureFilters(tex);
 
             const coinGroup = this.createCoinMesh(tex, 8.5, false, true);
@@ -798,7 +825,7 @@ export class Basement extends TowerFloor {
             texture.colorSpace = THREE.SRGBColorSpace;
             this.textureCache.set(token.image, texture);
         }
-        
+
         const finalTexture = (texture && token.image !== 'fallback') ? texture : fallbackTexture;
         this.applyTextureFilters(finalTexture);
 
@@ -913,7 +940,7 @@ export class Basement extends TowerFloor {
                 c.trail.positions[0] = p.x;
                 c.trail.positions[1] = p.y;
                 c.trail.positions[2] = p.z;
-                
+
                 c.trail.line.geometry.attributes.position.needsUpdate = true;
             }
         });
@@ -1053,7 +1080,7 @@ export class Basement extends TowerFloor {
 
             this.scene.add(group);
             this.columns.push({ group, coin, ca, baseCoinY });
-            
+
             const radiusCol = 1.2;
             const heightCol = pedestalHeight;
             const collider = new THREE.Box3(
