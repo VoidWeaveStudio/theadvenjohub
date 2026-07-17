@@ -123,7 +123,7 @@ export class Basement extends TowerFloor {
 
     private columnTokens: (string | null)[] = [
         "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", "J8PSdNP3QewKq2Z1JJJFDMaqF7KcaiJhR7gbr5KZpump", "CFPkPq1eYPR8GLzEo59wUbbMioX4bshaTQiSGzTSpump",
-        "B4ptaVsUe6YbtBwAS38WFeweSrVNfQLCcj9JRrtjU8vn", null, null, null, null, null, null
+        "B4ptaVsUe6YbtBwAS38WFeweSrVNfQLCcj9JRrtjU8vn", "Ge87EtsjwRQbHaqQmKRno69RFTwh9bfSsm99XNxTpump", null, null, null, null, null
     ];
     private columns: TokenColumn[] = [];
     private columnUpdateInterval: NodeJS.Timeout | null = null;
