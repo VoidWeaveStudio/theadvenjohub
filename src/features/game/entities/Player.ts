@@ -31,6 +31,9 @@ export class Player extends Entity {
     private terrain: TerrainChunkManager | null = null;
     private collisionGrid: CollisionGrid | null = null;
 
+    private maxRadius: number | null = null;
+    private bounds: { min: THREE.Vector3; max: THREE.Vector3 } | null = null;
+
     private mixer: THREE.AnimationMixer | null = null;
     private animations: Map<string, THREE.AnimationAction> = new Map();
     private currentAnimation: string = 'idle';
@@ -56,6 +59,18 @@ export class Player extends Entity {
     constructor() {
         super("local-player");
         this.weapon = new Weapon();
+    }
+
+    public setMaxRadius(radius: number | null) {
+        this.maxRadius = radius;
+    }
+
+    public setMovementBounds(min: THREE.Vector3 | null, max: THREE.Vector3 | null) {
+        if (min && max) {
+            this.bounds = { min, max };
+        } else {
+            this.bounds = null;
+        }
     }
 
     create(scene: THREE.Scene, resourceManager: ResourceManager) {
@@ -185,6 +200,7 @@ export class Player extends Entity {
     public takeDamage(damage: number) {
         this.health = Math.max(0, this.health - damage);
     }
+
     public teleportTo(position: THREE.Vector3) {
         this.mesh.position.copy(position);
         this.velocityY = 0;
@@ -277,6 +293,22 @@ export class Player extends Entity {
                 const centerY = this.baseY + Player.HALF_HEIGHT;
                 const checkPos = new THREE.Vector3(nextPos.x, centerY, nextPos.z);
                 blocked = this.collisionGrid.checkCollisionHorizontal(checkPos, Player._playerSize);
+            }
+
+            if (!blocked) {
+                if (this.maxRadius !== null) {
+                    const distSq = nextPos.x * nextPos.x + nextPos.z * nextPos.z;
+                    if (distSq > this.maxRadius * this.maxRadius) {
+                        blocked = true;
+                    }
+                }
+                
+                if (!blocked && this.bounds) {
+                    if (nextPos.x < this.bounds.min.x || nextPos.x > this.bounds.max.x ||
+                        nextPos.z < this.bounds.min.z || nextPos.z > this.bounds.max.z) {
+                        blocked = true;
+                    }
+                }
             }
 
             if (!blocked) {

@@ -178,12 +178,11 @@ export class Game {
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
-
 
         canvas.style.width = '100%';
         canvas.style.height = '100%';
@@ -192,7 +191,7 @@ export class Game {
         this.timer = new THREE.Timer();
         this.inputManager = new InputManager(canvas);
         this.cameraController = new CameraController();
-        this.resourceManager = new ResourceManager();
+        this.resourceManager = ResourceManager.getInstance();
         this.networkManager = new NetworkManager();
         this.locationManager = new LocationManager(this.renderer, this.cameraController.camera);
         this.player = new Player();
@@ -204,104 +203,122 @@ export class Game {
     }
 
     async init() {
-        this.onLoadStateChange?.(true, "Initializing game...");
+        this.onLoadStateChange?.(true, "Initializing core assets...");
 
-        await this.resourceManager.loadAll();
-        this.locationManager.registerLocations(this.resourceManager);
+        this.resourceManager.onProgress = (progress, message) => {
+            this.onLoadStateChange?.(true, `${message} ${Math.round(progress)}%`);
+        };
 
-        const currentLocation = await this.locationManager.loadLocation("main-world");
+        await this.resourceManager.loadCritical();
 
-        if (!currentLocation) {
-            throw new Error("Failed to load main-world location");
-        }
+        requestAnimationFrame(async () => {
+            try {
+                this.onLoadStateChange?.(true, "Setting up world...");
+                
+                this.locationManager.registerLocations(this.resourceManager);
+                const currentLocation = await this.locationManager.loadLocation("main-world");
 
-        this.locationManager.onLocationChange = (id: string) => {
-            this.onNotification?.(`📍 Entered: ${id}`, 2000);
-            this.onLocationChange?.(id);
+                if (!currentLocation) {
+                    throw new Error("Failed to load main-world location");
+                }
 
-            const loc = this.locationManager.getCurrentLocation();
-            if (loc) {
-                loc.onOpenFloorSelector = () => {
+                this.locationManager.onLocationChange = (id: string) => {
+                    this.onNotification?.(`📍 Entered: ${id}`, 2000);
+                    this.onLocationChange?.(id);
+                    const loc = this.locationManager.getCurrentLocation();
+                    if (loc) {
+                        loc.onOpenFloorSelector = () => {
+                            this.openFloorSelector();
+                        };
+                    }
+                };
+
+                this.onLocationChange?.(currentLocation.id);
+
+                this.player.create(currentLocation.scene, this.resourceManager);
+                this.player.setDependencies(this.inputManager, this.cameraController);
+
+                const spawnPoint = currentLocation.getSpawnPoint();
+                this.player.mesh.position.copy(spawnPoint);
+
+                const getCollisionGrid = (loc: any): CollisionGrid | undefined => loc.collisionGrid;
+
+                if (currentLocation instanceof MainWorld) {
+                    this.player.setTerrain(currentLocation.terrain);
+                    this.player.setCollisionGrid(currentLocation.collisionGrid);
+                    this.cameraController.setCollisionGrid(currentLocation.terrainCollisionGrid);
+                    this.player.setMaxRadius(235);
+                } else if (currentLocation instanceof Cave) {
+                    this.player.setTerrain(currentLocation as any);
+                    this.player.setCollisionGrid(currentLocation.collisionGrid);
+                    this.cameraController.setCollisionGrid(currentLocation.collisionGrid);
+                    this.player.setMaxRadius(50);
+                } else if (currentLocation instanceof TowerFloor) {
+                    this.player.setTerrain(null);
+                    this.player.setCollisionGrid(currentLocation.collisionGrid);
+                    this.cameraController.setCollisionGrid(currentLocation.collisionGrid);
+                    this.player.setMaxRadius(40);
+                }
+
+                currentLocation.scene.add(this.cameraController.yawObject);
+                this.cameraController.setTarget(this.player.mesh);
+
+                if (currentLocation instanceof MainWorld) {
+                    this.safeZone.create(currentLocation.scene, this.resourceManager, currentLocation.terrain as any);
+                    const crystalCollider = this.safeZone.getCrystalCollider();
+                    if (crystalCollider && currentLocation.collisionGrid) {
+                        currentLocation.collisionGrid.insert(crystalCollider);
+                    }
+                    this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
+                }
+
+                const collisionGrid = getCollisionGrid(currentLocation);
+
+                this.shootingSystem.init(
+                    currentLocation.scene,
+                    this.player,
+                    this.inputManager,
+                    this.cameraController,
+                    this.resourceManager,
+                    this.networkManager,
+                    this.otherPlayers,
+                    currentLocation,
+                    collisionGrid
+                );
+                this.shootingSystem.onHitPlayer = () => {
+                    this.hitMarkTrigger = Date.now();
+                    this.onHitMark?.();
+                };
+
+                this.safeZoneSystem.init(this.safeZone);
+                this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
+                this.networkSystem.init();
+
+                this.interactionSystem.onNotification = (msg, duration) => {
+                    this.onNotification?.(msg, duration);
+                };
+                this.interactionSystem.onPrompt = (text) => {
+                    this.hudState.prompt = text;
+                    this.emitState(true);
+                };
+
+                this.interactionSystem.onCrystalInteract = () => {
                     this.openFloorSelector();
                 };
+
+                this.setupNetwork();
+
+                this.isLoaded = true;
+                this.onLoadStateChange?.(false);
+                this.emitState(true);
+
+                this.resourceManager.loadLazy();
+            } catch (error) {
+                console.error("Failed to initialize game world:", error);
+                this.onLoadStateChange?.(false);
+                this.onNotification?.("❌ Failed to load world", 3000);
             }
-        };
-
-        this.onLocationChange?.(currentLocation.id);
-
-        this.player.create(currentLocation.scene, this.resourceManager);
-        this.player.setDependencies(this.inputManager, this.cameraController);
-
-        const spawnPoint = currentLocation.getSpawnPoint();
-        this.player.mesh.position.copy(spawnPoint);
-
-        const getCollisionGrid = (loc: any): CollisionGrid | undefined => loc.collisionGrid;
-
-        if (currentLocation instanceof MainWorld) {
-            this.player.setTerrain(currentLocation.terrain);
-            this.player.setCollisionGrid(currentLocation.collisionGrid);
-            this.cameraController.setCollisionGrid(currentLocation.terrainCollisionGrid);
-        } else if (currentLocation instanceof Cave) {
-            this.player.setTerrain(currentLocation as any);
-            this.player.setCollisionGrid(currentLocation.collisionGrid);
-            this.cameraController.setCollisionGrid(currentLocation.collisionGrid);
-        } else if (currentLocation instanceof TowerFloor) {
-            this.player.setTerrain(null);
-            this.player.setCollisionGrid(currentLocation.collisionGrid);
-            this.cameraController.setCollisionGrid(currentLocation.collisionGrid);
-        }
-
-        currentLocation.scene.add(this.cameraController.yawObject);
-        this.cameraController.setTarget(this.player.mesh);
-
-        if (currentLocation instanceof MainWorld) {
-            this.safeZone.create(currentLocation.scene, this.resourceManager, currentLocation.terrain as any);
-            const crystalCollider = this.safeZone.getCrystalCollider();
-            if (crystalCollider && currentLocation.collisionGrid) {
-                currentLocation.collisionGrid.insert(crystalCollider);
-            }
-            this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
-        }
-
-        const collisionGrid = getCollisionGrid(currentLocation);
-
-        this.shootingSystem.init(
-            currentLocation.scene,
-            this.player,
-            this.inputManager,
-            this.cameraController,
-            this.resourceManager,
-            this.networkManager,
-            this.otherPlayers,
-            currentLocation,
-            collisionGrid
-        );
-        this.shootingSystem.onHitPlayer = () => {
-            this.hitMarkTrigger = Date.now();
-            this.onHitMark?.();
-        };
-
-        this.safeZoneSystem.init(this.safeZone);
-        this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
-        this.networkSystem.init();
-
-        this.interactionSystem.onNotification = (msg, duration) => {
-            this.onNotification?.(msg, duration);
-        };
-        this.interactionSystem.onPrompt = (text) => {
-            this.hudState.prompt = text;
-            this.emitState(true);
-        };
-
-        this.interactionSystem.onCrystalInteract = () => {
-            this.openFloorSelector();
-        };
-
-        this.setupNetwork();
-
-        this.isLoaded = true;
-        this.onLoadStateChange?.(false);
-        this.emitState(true);
+        });
 
         this.animate();
 
@@ -357,14 +374,17 @@ export class Game {
             this.player.setTerrain(newLocation.terrain);
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.terrainCollisionGrid);
+            this.player.setMaxRadius(235);
         } else if (newLocation instanceof Cave) {
             this.player.setTerrain(newLocation as any);
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.collisionGrid);
+            this.player.setMaxRadius(50);
         } else if (newLocation instanceof TowerFloor) {
             this.player.setTerrain(null);
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.collisionGrid);
+            this.player.setMaxRadius(40);
         }
 
         const spawnPoint = newLocation.getSpawnPoint();
@@ -602,7 +622,6 @@ export class Game {
         this.frameCount++;
 
         const portal = this.locationManager.checkPortals(this.player.mesh.position);
-
         const isEJustPressed = this.inputManager.isKeyJustPressed("KeyE");
 
         if (portal) {

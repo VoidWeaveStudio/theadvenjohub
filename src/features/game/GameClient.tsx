@@ -374,7 +374,6 @@ export function GameClient({ slug }: GameClientProps) {
         onTeleportToSafeZone={() => gameRef.current?.teleportToSafeZone()}
       />
 
-
       <FloorSelector
         isOpen={showFloorSelector}
         onClose={() => {

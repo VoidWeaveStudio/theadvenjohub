@@ -30,23 +30,15 @@ export class MainWorld extends Location {
   constructor() {
     super("main-world", "TANJO World");
 
-    const towerX = 300;
-    const towerZ = 0;
-    const towerClearRadius = 180;
-
-    const portalX = 50;
-    const portalZ = 0;
-    const portalRadius = 8;
-
     const heightFunction = (x: number, z: number): number => {
       const distFromCenter = Math.sqrt(x * x + z * z);
       if (distFromCenter < 40) return 0;
 
-      const distFromPortal = Math.sqrt(Math.pow(x - portalX, 2) + Math.pow(z - portalZ, 2));
-      if (distFromPortal < portalRadius) return 0;
+      const distFromPortal = Math.sqrt(Math.pow(x - 50, 2) + Math.pow(z - 0, 2));
+      if (distFromPortal < 8) return 0;
 
-      const distFromTower = Math.sqrt(Math.pow(x - towerX, 2) + Math.pow(z - towerZ, 2));
-      if (distFromTower < towerClearRadius) return 0;
+      const distFromTower = Math.sqrt(Math.pow(x - 300, 2) + Math.pow(z - 0, 2));
+      if (distFromTower < 180) return 0;
 
       return (
         Math.sin(x * 0.05) * Math.cos(z * 0.05) * 2 +
@@ -77,18 +69,31 @@ export class MainWorld extends Location {
     }
 
     this.gridSystem.createVisualization(this.scene);
-    this.vegetation.prepareAssets(rm);
-    this.vegetation.createVegetationByChunks(rm);
-    this.vegetation.createRocksByChunks(rm);
-    this.vegetation.createDecorationsByChunks(rm);
-
-    this.buildCollisionGrid();
-    this.buildTerrainCollisionGrid();
-
-    this.portal.createCaveEntrance(rm);
+    
     this.features.createOcean();
     this.features.createBoundaryColliders();
     this.features.createGloomyTower();
+
+    this.vegetation.prepareAssets(rm);
+    this.vegetation.createDecorationsByChunks(rm);
+
+    rm.onModelLoaded("tree", () => {
+      this.vegetation.prepareAssets(rm);
+      this.vegetation.createVegetationByChunks(rm);
+      this.buildCollisionGrid();
+      this.buildTerrainCollisionGrid();
+    });
+
+    rm.onModelLoaded("rock", () => {
+      this.vegetation.prepareAssets(rm);
+      this.vegetation.createRocksByChunks(rm);
+      this.buildCollisionGrid();
+      this.buildTerrainCollisionGrid();
+    });
+
+    rm.onModelLoaded("portal", () => {
+      this.portal.createCaveEntrance(rm);
+    });
   }
 
   private buildTerrainCollisionGrid() {

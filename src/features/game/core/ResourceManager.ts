@@ -2,14 +2,28 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-// @ts-ignore
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export class ResourceManager {
+  private static instance: ResourceManager | null = null;
+
   private gltfLoader: GLTFLoader;
   private dracoLoader: DRACOLoader;
   private models: Map<string, { scene: THREE.Group; animations: THREE.AnimationClip[] }> = new Map();
   private textures: Map<string, THREE.Texture> = new Map();
+  private modelLoadListeners: Map<string, (() => void)[]> = new Map();
+
+  private loadedCount = 0;
+  private totalCount = 0;
+  
+  public onProgress?: (progress: number, message: string) => void;
+
+  public static getInstance(): ResourceManager {
+    if (!ResourceManager.instance) {
+      ResourceManager.instance = new ResourceManager();
+    }
+    return ResourceManager.instance;
+  }
 
   constructor() {
     this.gltfLoader = new GLTFLoader();
@@ -18,57 +32,115 @@ export class ResourceManager {
     this.gltfLoader.setDRACOLoader(this.dracoLoader);
   }
 
-  async loadAll() {
-    await Promise.all([
-      this.loadModel("player", "/models/player/character.glb"),
-      this.loadModel("rifle", "/models/rifle.glb"),
-      this.loadModel("bullet", "/models/bullet.glb"),
-      this.loadModel("crystal", "/models/crystal.glb"),
-      this.loadModel("tree", "/models/tree.glb"),
-      this.loadModel("rock", "/models/rock.glb"),
-      this.loadModel("portal", "/models/portal.glb"),
-      this.loadModel("portalVFX", "/models/portal-vfx.glb"),
-      this.loadModel("cosmos", "/models/cosmos.glb"),
-
-      this.loadModel("column", "/models/column.glb"),
-
-      this.loadTexture("nebula-sky", "/models/nebula_7_0.png", true),
-
-      this.loadTexture("floor-color", "/models/textures/basement_floor/cobblestone_01_diff_1k.jpg", true),
-      this.loadTexture("floor-normal", "/models/textures/basement_floor/cobblestone_01_nor_gl_1k.jpg", false),
-      this.loadTexture("floor-roughness", "/models/textures/basement_floor/cobblestone_01_rough_1k.jpg", false),
-
-      this.loadTexture("ground-color", "/models/textures/ground/Ground037_1K-JPG_Color.jpg", true),
-      this.loadTexture("ground-normal", "/models/textures/ground/Ground037_1K-JPG_NormalGL.jpg", false),
-      this.loadTexture("ground-roughness", "/models/textures/ground/Ground037_1K-JPG_Roughness.jpg", false),
-      this.loadTexture("ground-ao", "/models/textures/ground/Ground037_1K-JPG_AmbientOcclusion.jpg", false),
-    ]);
+  private updateProgress(message: string) {
+    this.loadedCount++;
+    const progress = this.totalCount > 0 ? (this.loadedCount / this.totalCount) * 100 : 100;
+    this.onProgress?.(progress, message);
   }
 
-  private async loadTexture(name: string, url: string, isSRGB: boolean): Promise<void> {
-    console.log(`[ResourceManager] Start loading texture: ${name}`);
-    return new Promise((resolve) => {
+  async loadCritical() {
+    if (this.models.has("player") && this.textures.has("ground-color") && this.models.has("crystal")) {
+      this.onProgress?.(100, "Ready (Cached)");
+      return;
+    }
+
+    this.loadedCount = 0;
+    this.totalCount = 6;
+
+    await Promise.all([
+      this.loadModel("player", "/models/player/character.glb", "Loading Player"),
+      this.loadModel("rifle", "/models/rifle.glb", "Loading Weapon"),
+      this.loadModel("crystal", "/models/crystal.glb", "Loading Safe Zone"),
+      this.loadTexture("ground-color", "/models/textures/ground/Ground037_1K-JPG_Color.jpg", true, "Loading Ground"),
+      this.loadTexture("ground-normal", "/models/textures/ground/Ground037_1K-JPG_NormalGL.jpg", false, "Loading Ground Details"),
+      this.loadTexture("ground-roughness", "/models/textures/ground/Ground037_1K-JPG_Roughness.jpg", false, "Loading Ground Physics"),
+    ]);
+    
+    this.onProgress?.(100, "Ready");
+  }
+
+  async loadLazy() {
+    if (this.models.has("tree") && this.models.has("cosmos")) {
+      return;
+    }
+
+    const lazyModels = [
+      { name: "bullet", url: "/models/bullet.glb" },
+      { name: "tree", url: "/models/tree.glb" },
+      { name: "rock", url: "/models/rock.glb" },
+      { name: "portal", url: "/models/portal.glb" },
+      { name: "portalVFX", url: "/models/portal-vfx.glb" },
+      { name: "cosmos", url: "/models/cosmos.glb" },
+      { name: "column", url: "/models/column.glb" },
+    ];
+
+    lazyModels.forEach(({ name, url }) => {
+      this.loadModel(name, url).catch(err => console.warn(`Lazy load failed for ${name}:`, err));
+    });
+
+    const lazyTextures = [
+      { name: "nebula-sky", url: "/models/nebula_7_0.png", isSRGB: true },
+      { name: "floor-color", url: "/models/textures/basement_floor/cobblestone_01_diff_1k.jpg", isSRGB: true },
+      { name: "floor-normal", url: "/models/textures/basement_floor/cobblestone_01_nor_gl_1k.jpg", isSRGB: false },
+      { name: "floor-roughness", url: "/models/textures/basement_floor/cobblestone_01_rough_1k.jpg", isSRGB: false },
+      { name: "ground-ao", url: "/models/textures/ground/Ground037_1K-JPG_AmbientOcclusion.jpg", isSRGB: false },
+    ];
+
+    lazyTextures.forEach(({ name, url, isSRGB }) => {
+      this.loadTexture(name, url, isSRGB).catch(err => console.warn(`Lazy load failed for texture ${name}:`, err));
+    });
+  }
+
+  async loadAll() {
+    await this.loadCritical();
+    await this.loadLazy();
+  }
+
+  onModelLoaded(name: string, callback: () => void) {
+    if (this.models.has(name)) {
+      callback();
+      return;
+    }
+    if (!this.modelLoadListeners.has(name)) {
+      this.modelLoadListeners.set(name, []);
+    }
+    this.modelLoadListeners.get(name)!.push(callback);
+  }
+
+  private notifyModelLoaded(name: string) {
+    const listeners = this.modelLoadListeners.get(name);
+    if (listeners) {
+      listeners.forEach(cb => cb());
+      this.modelLoadListeners.delete(name);
+    }
+  }
+
+  private async loadTexture(name: string, url: string, isSRGB: boolean, progressMsg?: string): Promise<void> {
+    return new Promise((resolve, reject) => {
       const loader = new THREE.TextureLoader();
       loader.load(
         url,
         (texture) => {
-          console.log(`[ResourceManager] ✅ Loaded texture: ${name}`);
           texture.wrapS = THREE.RepeatWrapping;
           texture.wrapT = THREE.RepeatWrapping;
           texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
-          texture.anisotropy = 8;
+          texture.anisotropy = 4;
           texture.generateMipmaps = true;
+          
           if (isSRGB) {
             texture.colorSpace = THREE.SRGBColorSpace;
           }
+          
           this.textures.set(name, texture);
+          if (progressMsg) this.updateProgress(progressMsg);
           resolve();
         },
         undefined,
         (error) => {
-          console.error(`[ResourceManager] ❌ Failed texture: ${name}`, error);
-          resolve();
+          console.error(`[ResourceManager] Failed texture: ${name}`, error);
+          if (progressMsg) this.updateProgress(progressMsg);
+          reject(error);
         }
       );
     });
@@ -78,14 +150,11 @@ export class ResourceManager {
     return this.textures.get(name) || null;
   }
 
-  private async loadModel(name: string, url: string): Promise<void> {
-    console.log(`[ResourceManager] Start loading model: ${name} (${url})`);
+  private async loadModel(name: string, url: string, progressMsg?: string): Promise<void> {
     return new Promise((resolve) => {
       this.gltfLoader.load(
         url,
         (gltf) => {
-          console.log(`[ResourceManager] ✅ Loaded model: ${name}`);
-          
           gltf.scene.traverse((child) => {
             if ((child as THREE.Mesh).isMesh) {
               const mesh = child as THREE.Mesh;
@@ -98,101 +167,47 @@ export class ResourceManager {
             scene: gltf.scene, 
             animations: gltf.animations || [] 
           });
+          this.notifyModelLoaded(name);
+          if (progressMsg) this.updateProgress(progressMsg);
           resolve();
         },
-        (progress) => {
-          if (progress.total > 0) {
-            console.log(`[ResourceManager] ⏳ ${name}: ${((progress.loaded / progress.total) * 100).toFixed(1)}%`);
-          }
-        },
+        undefined,
         (error) => {
-          console.error(`[ResourceManager] ❌ Failed to load model: ${name}`, error);
-          const placeholder = this.createPlaceholder(name);
-          this.models.set(name, { scene: placeholder, animations: [] });
+          console.error(`[ResourceManager] Failed to load model: ${name}`, error);
           resolve();
         }
       );
     });
   }
 
-  private createPlaceholder(name: string): THREE.Group {
+  private createProceduralGrass(): THREE.Group {
     const group = new THREE.Group();
-
-    switch (name) {
-      case "player": {
-        const mat = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 1.2, 4, 8), mat);
-        body.position.y = 1;
-        body.castShadow = true;
-        body.receiveShadow = true;
-        group.add(body);
-        break;
-      }
-      case "rifle": {
-        const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.2), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-        const stock = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.4), new THREE.MeshStandardMaterial({ color: 0x5a3a22 }));
-        stock.position.set(0, -0.05, 0.5);
-        barrel.castShadow = true;
-        stock.castShadow = true;
-        group.add(barrel, stock);
-        break;
-      }
-      case "bullet": {
-        const b = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffee00 }));
-        group.add(b);
-        break;
-      }
-      case "crystal": {
-        const c = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 0), new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.5 }));
-        c.castShadow = true;
-        group.add(c);
-        break;
-      }
-      case "tree": {
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.45, 4, 6), new THREE.MeshStandardMaterial({ color: 0x4a2511 }));
-        trunk.position.y = 2;
-        const leaves = new THREE.Mesh(new THREE.ConeGeometry(2, 5, 8), new THREE.MeshStandardMaterial({ color: 0x2d5016 }));
-        leaves.position.y = 6;
-        trunk.castShadow = true; leaves.castShadow = true;
-        group.add(trunk, leaves);
-        break;
-      }
-      case "rock": {
-        const r = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: 0x888888 }));
-        r.position.y = 0.5;
-        r.castShadow = true;
-        group.add(r);
-        break;
-      }
-      case "portalVFX": {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 8, 16), new THREE.MeshStandardMaterial({ color: 0xffaa33, emissive: 0xffaa33, emissiveIntensity: 2 }));
-        group.add(ring);
-        break;
-      }
-      case "cosmos": {
-        const sphere = new THREE.Mesh(
-          new THREE.SphereGeometry(200, 32, 32),
-          new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.BackSide, depthTest: false, depthWrite: false })
-        );
-        sphere.renderOrder = -1000;
-        group.add(sphere);
-        break;
-      }
-      default: {
-        const box = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xff00ff }));
-        group.add(box);
-        break;
-      }
-    }
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const material = new THREE.MeshStandardMaterial({ 
+      color: 0x2d5016, 
+      side: THREE.DoubleSide 
+    });
+    const plane = new THREE.Mesh(geometry, material);
+    plane.rotation.x = -Math.PI / 2;
+    group.add(plane);
     return group;
   }
 
   getModel(name: string): { scene: THREE.Group; animations: THREE.AnimationClip[] } | null {
+    if (name === "grass") {
+      if (!this.models.has("grass")) {
+        const proceduralGrass = this.createProceduralGrass();
+        this.models.set("grass", { scene: proceduralGrass, animations: [] });
+      }
+      const m = this.models.get("grass")!;
+      return { scene: m.scene.clone(), animations: m.animations };
+    }
+
     const m = this.models.get(name);
     if (!m) {
-      console.warn(`[ResourceManager] ⚠️ Model not found: ${name}`);
       return null;
     }
+    
     try {
       return {
         scene: SkeletonUtils.clone(m.scene) as THREE.Group,
