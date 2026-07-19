@@ -1,0 +1,316 @@
+/*src\features\game\ui\TokenPanel.css*/
+.token-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.token-panel {
+    position: relative;
+    width: 900px;
+    max-width: 95vw;
+    height: 85vh;
+    max-height: 95vh;
+
+    display: flex;
+    flex-direction: column;
+
+    background: linear-gradient(145deg, #0a0f19 0%, #111a2e 100%);
+    border-radius: 20px;
+    padding: 24px;
+    color: white;
+
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    box-shadow: 0 0 80px rgba(0, 255, 255, 0.05), 0 25px 100px rgba(0, 0, 0, 0.9);
+    animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.tab-content::-webkit-scrollbar {
+    width: 6px;
+}
+.tab-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 3px;
+}
+.tab-content::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.2);
+    border-radius: 3px;
+}
+.tab-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 255, 0.4);
+}
+
+.close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    z-index: 10;
+}
+
+.close-btn:hover {
+    background: rgba(255, 77, 77, 0.2);
+    border-color: rgba(255, 77, 77, 0.5);
+    color: #ff4d4d;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 16px;
+}
+
+.header img {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 255, 255, 0.3);
+    object-fit: cover;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.15);
+}
+
+.header h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.header .symbol {
+    font-size: 14px;
+    color: #88aaff;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.labels {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.labels span {
+    background: rgba(0, 255, 255, 0.08);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #00ffff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.top-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.top-metrics > div {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 14px;
+    border-radius: 12px;
+    text-align: center;
+    transition: background 0.2s;
+}
+
+.top-metrics > div:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.top-metrics span {
+    display: block;
+    font-size: 11px;
+    color: #8899aa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.top-metrics b {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.price-change {
+    text-align: center;
+    margin-bottom: 20px;
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.price-change > span:first-child {
+    display: block;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.price-change > span:last-child {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 4px;
+    opacity: 0.9;
+}
+
+.price-change.positive { color: #00ff88; text-shadow: 0 0 15px rgba(0, 255, 136, 0.2); }
+.price-change.negative { color: #ff4d4d; text-shadow: 0 0 15px rgba(255, 77, 77, 0.2); }
+
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tabs button {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: none;
+    color: #8899aa;
+    cursor: pointer;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.tabs button:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tabs button.active {
+    background: rgba(0, 255, 255, 0.1);
+    color: #00ffff;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.05);
+}
+
+.tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.stat-box {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: border-color 0.2s;
+}
+
+.stat-box:hover {
+    border-color: rgba(0, 255, 255, 0.2);
+}
+
+.stat-box span {
+    font-size: 11px;
+    color: #8899aa;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-box b {
+    font-size: 15px;
+    color: #fff;
+    font-weight: 600;
+}
+
+.links-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.link-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    color: #ccc;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.link-item:hover {
+    background: rgba(0, 255, 255, 0.08);
+    border-color: rgba(0, 255, 255, 0.3);
+    color: #fff;
+    transform: translateX(4px);
+}
+
+.buy-btn {
+    display: block;
+    margin-top: 20px;
+    padding: 16px;
+    text-align: center;
+    background: linear-gradient(90deg, #00ffcc, #00ffaa);
+    color: #000;
+    font-weight: 800;
+    font-size: 16px;
+    border-radius: 12px;
+    text-decoration: none;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(0, 255, 200, 0.25);
+    letter-spacing: 0.5px;
+}
+
+.buy-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 255, 200, 0.4);
+    filter: brightness(1.1);
+}

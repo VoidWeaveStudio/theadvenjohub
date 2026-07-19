@@ -17,6 +17,7 @@ export class InteractionSystem extends System {
     public onNotification?: (msg: string, duration?: number) => void;
     public onPrompt?: (text: string | null) => void;
     public onCrystalInteract?: () => void;
+    public onOpenTokenUI?: (token: any) => void;
 
     public setScene(scene: THREE.Scene) {
         this.scene = scene;
@@ -62,15 +63,16 @@ export class InteractionSystem extends System {
                 this.onPrompt?.("[E] View Token Info");
                 if (isEJustPressed === true) {
                     const info = nearest.obj.userData.tokenInfo;
+
                     if (!info || info.name === "Loading...") {
                         this.onNotification?.("⏳ Loading token data...", 2000);
                     } else if (info.name === "Empty Pedestal") {
                         this.onNotification?.("🪨 Empty pedestal", 2000);
                     } else {
-                        this.onNotification?.(
-                            `🪙 ${info.name} (${info.symbol})\n💰 MC: $${this.formatMC(info.mc)}`, 
-                            4000
-                        );
+                        this.onOpenTokenUI?.({
+                            ...info,
+                            ca: nearest.obj.userData.ca  
+                        });
                     }
                 }
             } else if (id === "tower-crystal") {

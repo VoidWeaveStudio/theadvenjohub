@@ -13,6 +13,7 @@ import { Spinner } from "@/core/ui/Spinner";
 import { apiPost } from "@/core/api/client";
 import { DeathScreen } from "./ui/DeathScreen";
 import { FloorSelector } from "./ui/FloorSelector";
+import { TokenPanel } from "./ui/TokenPanel";
 
 interface GameClientProps {
   slug: string;
@@ -65,6 +66,8 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
   const [currentLocationId, setCurrentLocationId] = useState("main-world");
+  
+  const [activeTokenData, setActiveTokenData] = useState<any>(null);
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
@@ -194,6 +197,11 @@ export function GameClient({ slug }: GameClientProps) {
           }
         };
 
+        game.onOpenTokenUI = (tokenData) => {
+          setActiveTokenData(tokenData);
+          document.exitPointerLock(); 
+        };
+
         game.onDamageEvent = (event) => {
           setDamageEvents((prev) => [...prev, event]);
           setTimeout(() => {
@@ -248,6 +256,8 @@ export function GameClient({ slug }: GameClientProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTokenData) return;
+
       if (e.code === "Escape") {
         if (showFloorSelector) {
           setShowFloorSelector(false);
@@ -255,7 +265,9 @@ export function GameClient({ slug }: GameClientProps) {
           return;
         }
         setIsMenuOpen((prev) => !prev);
+        return;
       }
+      
       if (e.code === "Enter" && isPointerLocked) {
         setIsChatVisible((prev) => !prev);
       }
@@ -270,7 +282,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, isMenuOpen, showFloorSelector]);
+  }, [isPointerLocked, isMenuOpen, showFloorSelector, activeTokenData]);
 
   const handleNicknameChange = (nick: string) => {
     setNickname(nick);
@@ -383,6 +395,13 @@ export function GameClient({ slug }: GameClientProps) {
         onSelectFloor={handleSelectFloor}
         currentLocationId={currentLocationId}
       />
+
+      {activeTokenData && (
+        <TokenPanel
+          ca={activeTokenData.ca}
+          onClose={() => setActiveTokenData(null)}
+        />
+      )}
     </div>
   );
 }

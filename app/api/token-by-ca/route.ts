@@ -8,9 +8,10 @@ export async function GET(req: Request) {
     if (!ca) return NextResponse.json(null);
 
     try {
-        const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${ca}`, {
-            cache: "no-store"
-        });
+        const res = await fetch(
+            `https://api.dexscreener.com/latest/dex/tokens/${ca}`,
+            { cache: "no-store" }
+        );
 
         const data = await res.json();
         const pair = data.pairs?.[0];
@@ -19,11 +20,33 @@ export async function GET(req: Request) {
 
         return NextResponse.json({
             image: pair.info?.imageUrl,
-            mc: pair.fdv || pair.marketCap || 0,
             name: pair.baseToken?.name,
-            symbol: pair.baseToken?.symbol
+            symbol: pair.baseToken?.symbol,
+
+            price: pair.priceUsd,
+            priceNative: pair.priceNative,
+
+            mc: pair.fdv || pair.marketCap || 0,
+
+            liquidity: pair.liquidity?.usd,
+            liquidityBase: pair.liquidity?.base,
+            liquidityQuote: pair.liquidity?.quote,
+
+            volume: pair.volume,    
+            txns: pair.txns,         
+            priceChange: pair.priceChange, 
+
+            dex: pair.dexId,
+            pairAddress: pair.pairAddress,
+            url: pair.url,
+
+            websites: pair.info?.websites || [],
+            socials: pair.info?.socials || [],
+            labels: pair.labels || []
         });
-    } catch {
+
+    } catch (e) {
+        console.error("Dexscreener API error:", e);
         return NextResponse.json(null);
     }
 }

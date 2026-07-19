@@ -1073,6 +1073,7 @@ export class Basement extends TowerFloor {
 
             group.position.set(x, 0, z);
             group.userData.interactionId = `column-${i}`;
+            group.userData.ca = ca;
 
             group.userData.tokenInfo = ca
                 ? { name: "Loading...", symbol: "...", mc: 0 }
@@ -1105,7 +1106,7 @@ export class Basement extends TowerFloor {
         });
     }
 
-    private startColumnUpdater() {
+     private startColumnUpdater() {
         this.columnUpdateInterval = setInterval(async () => {
             for (const col of this.columns) {
                 if (!col.ca) continue;
@@ -1152,7 +1153,7 @@ export class Basement extends TowerFloor {
                     console.warn(`[Basement] Failed to update column ${col.ca}`, e);
                 }
             }
-        }, 60000);
+        }, 30000); 
     }
 
     private createTextSprite(text: string): THREE.Sprite {

@@ -142,6 +142,8 @@ export class Game {
     public onFloorSelectorToggle?: (isOpen: boolean) => void;
     public onLocationChange?: (id: string) => void;
 
+    public onOpenTokenUI?: (tokenData: any) => void;
+
     public openFloorSelector() {
         this.showFloorSelector = true;
         this.onFloorSelectorToggle?.(true);
@@ -304,6 +306,10 @@ export class Game {
 
                 this.interactionSystem.onCrystalInteract = () => {
                     this.openFloorSelector();
+                };
+
+                this.interactionSystem.onOpenTokenUI = (tokenData) => {
+                    this.onOpenTokenUI?.(tokenData);
                 };
 
                 this.setupNetwork();
