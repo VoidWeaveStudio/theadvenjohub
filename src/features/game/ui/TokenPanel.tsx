@@ -89,16 +89,6 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
             <div className="token-panel" onClick={(e) => e.stopPropagation()}>
                 <button className="close-btn" onClick={onClose}>✖</button>
 
-                {/* HEADER */}
-                <div className="header">
-                    <img src={data.image || "/fallback-token.png"} alt={data.symbol} />
-                    <div>
-                        <h2>{data.name}</h2>
-                        <span className="symbol">{data.symbol}</span>
-                    </div>
-                </div>
-
-                {/* LABELS */}
                 {data.labels && data.labels.length > 0 && (
                     <div className="labels">
                         {data.labels.map((l, i) => (
@@ -107,7 +97,6 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                     </div>
                 )}
 
-                {/* BIG METRICS */}
                 <div className="top-metrics">
                     <div>
                         <span>Market Cap</span>
@@ -123,7 +112,6 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                     </div>
                 </div>
 
-                {/* PRICE CHANGE */}
                 <div className={`price-change ${positive ? "positive" : "negative"}`}>
                     <span>${price.toFixed(6)}</span>
                     <span>
@@ -131,14 +119,12 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                     </span>
                 </div>
 
-                {/* TABS */}
                 <div className="tabs">
                     <button onClick={() => setTab("overview")} className={tab === "overview" ? "active" : ""}>Overview</button>
                     <button onClick={() => setTab("trading")} className={tab === "trading" ? "active" : ""}>Trading</button>
                     <button onClick={() => setTab("links")} className={tab === "links" ? "active" : ""}>Links</button>
                 </div>
 
-                {/* SCROLLABLE CONTENT */}
                 <div className="tab-content">
                     {tab === "overview" && (
                         <div className="stats-grid">
@@ -188,7 +174,14 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                     )}
                 </div>
 
-                {/* 🔥 УМНАЯ КНОПКА BUY */}
+                <div className="token-bottom">
+                    <img src={data.image || "/fallback-token.png"} alt={data.symbol} />
+                    <div className="token-meta">
+                        <h2>{data.name}</h2>
+                        <span className="symbol">{data.symbol}</span>
+                    </div>
+                </div>
+
                 {data.url && (
                     <a
                         href={data.url}
