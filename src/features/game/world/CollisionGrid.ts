@@ -1,5 +1,11 @@
-// src/features/game/world/CollisionGrid.ts
+//src\features\game\world\CollisionGrid.ts
 import * as THREE from "three";
+
+type Cylinder = {
+    center: THREE.Vector3;
+    radius: number;
+    halfHeight: number;
+};
 
 export class CollisionGrid {
     private cellSize: number;
@@ -8,6 +14,8 @@ export class CollisionGrid {
 
     private seenPool: Set<THREE.Box3>[] = [];
     private seenPoolIndex: number = 0;
+
+    private cylinders: Cylinder[] = [];
 
     public static readonly STEP_UP_HEIGHT = 0.6;
 
@@ -25,6 +33,7 @@ export class CollisionGrid {
 
     clear() {
         this.cells.clear();
+        this.cylinders = [];
     }
 
     insert(box: THREE.Box3) {
@@ -47,6 +56,41 @@ export class CollisionGrid {
                 cell.push(box);
             }
         }
+    }
+
+    insertCylinder(center: THREE.Vector3, radius: number, height: number) {
+        this.cylinders.push({
+            center: center.clone(),
+            radius,
+            halfHeight: height / 2
+        });
+    }
+
+    checkCylinderCollision(position: THREE.Vector3, size: THREE.Vector3): boolean {
+        const halfHeight = size.y / 2;
+        const playerBottom = position.y - halfHeight;
+        const playerTop = position.y + halfHeight;
+
+        const playerRadius = Math.max(size.x, size.z) / 2;
+
+        for (const cyl of this.cylinders) {
+            const cylBottom = cyl.center.y - cyl.halfHeight;
+            const cylTop = cyl.center.y + cyl.halfHeight;
+
+            if (playerTop < cylBottom || playerBottom > cylTop) continue;
+
+            const dx = position.x - cyl.center.x;
+            const dz = position.z - cyl.center.z;
+
+            const distSq = dx * dx + dz * dz;
+            const r = cyl.radius + playerRadius;
+
+            if (distSq < r * r) {
+                return true; 
+            }
+        }
+
+        return false;
     }
 
     query(position: THREE.Vector3, size: THREE.Vector3): THREE.Box3[] {
@@ -118,6 +162,11 @@ export class CollisionGrid {
 
     checkCollisionHorizontal(position: THREE.Vector3, size: THREE.Vector3): boolean {
         this.tempBox.setFromCenterAndSize(position, size);
+        
+        if (this.checkCylinderCollision(position, size)) {
+            return true;
+        }
+
         const candidates = this.query(position, size);
 
         const feetY = position.y - size.y / 2;
@@ -146,6 +195,11 @@ export class CollisionGrid {
 
     checkCollision(position: THREE.Vector3, size: THREE.Vector3): boolean {
         this.tempBox.setFromCenterAndSize(position, size);
+
+        if (this.checkCylinderCollision(position, size)) {
+            return true;
+        }
+
         const candidates = this.query(position, size);
 
         for (const box of candidates) {

@@ -1,4 +1,4 @@
-//src\features\game\world\locations\tower\floors\Basement.ts
+// src/features/game/world/locations/tower/floors/Basement.ts
 import * as THREE from "three";
 import { EquirectangularReflectionMapping } from "three";
 import { TowerFloor } from "../TowerFloor";
@@ -102,9 +102,9 @@ export class Basement extends TowerFloor {
     private readonly MAX_COINS = 50;
     private readonly MAX_QUEUE_SIZE = 200;
     private readonly HOLE_Y = 18.5;
+    private readonly SINK_Y = -5;
 
     private wellCenter = new THREE.Vector3(0, 0, 0);
-    private sinkPosition = new THREE.Vector3(0, -5, 0);
     private basementCrystal!: THREE.Group;
 
     private portalLight!: THREE.PointLight;
@@ -112,6 +112,10 @@ export class Basement extends TowerFloor {
 
     private portalVFX!: THREE.Group;
     private portalMixer?: THREE.AnimationMixer;
+
+    private sinkPortal?: THREE.Group;
+    private sinkPortalMixer?: THREE.AnimationMixer;
+
     private skySphere!: THREE.Group;
     private _skyLogged = false;
 
@@ -165,7 +169,7 @@ export class Basement extends TowerFloor {
                         map: tex,
                         color: 0xffffff,
                         side: THREE.BackSide,
-                        depthTest: false,
+                        depthTest: true,
                         depthWrite: false,
                         toneMapped: false
                     });
@@ -231,19 +235,44 @@ export class Basement extends TowerFloor {
         });
 
         const radius = 40;
-        const holeRadius = 2.6;
+        const holeRadius = 3.6;
 
-        const floor = new THREE.Mesh(new THREE.RingGeometry(holeRadius, radius, 64), floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        this.scene.add(floor);
+        const outerFloor = new THREE.Mesh(
+            new THREE.RingGeometry(holeRadius, radius, 64),
+            floorMat
+        );
+        outerFloor.rotation.x = -Math.PI / 2;
+        outerFloor.position.y = 0;
+        outerFloor.receiveShadow = true;
+        this.scene.add(outerFloor);
 
-        const holeCollisionRadius = 3.5;
-        this.collisionGrid.insert(
-            new THREE.Box3(
-                new THREE.Vector3(-holeCollisionRadius, -1, -holeCollisionRadius),
-                new THREE.Vector3(holeCollisionRadius, 4, holeCollisionRadius)
-            )
+        const wellDepth = Math.abs(this.SINK_Y) + 1;
+        const wellGeo = new THREE.CylinderGeometry(
+            holeRadius,
+            holeRadius,
+            wellDepth,
+            64,
+            1,
+            true
+        );
+
+        const wellMat = new THREE.MeshStandardMaterial({
+            color: 0x000000,
+            roughness: 1,
+            metalness: 0,
+            side: THREE.BackSide
+        });
+
+        const well = new THREE.Mesh(wellGeo, wellMat);
+        well.position.y = -wellDepth / 2;
+        well.receiveShadow = false;
+        well.castShadow = false;
+        this.scene.add(well);
+
+        this.collisionGrid.insertCylinder(
+            new THREE.Vector3(0, 0, 0),
+            3.8,
+            4
         );
 
         const portalData = rm.getModel("portalVFX");
@@ -276,82 +305,41 @@ export class Basement extends TowerFloor {
             if (portalData.animations.length > 0) {
                 this.portalMixer = new THREE.AnimationMixer(this.portalVFX);
                 portalData.animations.forEach((clip) => {
-                    const action = this.portalMixer!.clipAction(clip);
-                    action.play();
+                    this.portalMixer!.clipAction(clip).play();
+                });
+            }
+
+            this.sinkPortal = portalData.scene.clone(true) as THREE.Group;
+            this.sinkPortal.scale.set(7.5, 7.5, 7.5);
+            this.sinkPortal.position.set(0, this.SINK_Y, 0);
+            this.sinkPortal.rotation.x = Math.PI / 2;
+            this.scene.add(this.sinkPortal);
+
+            this.sinkPortal.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                    const mesh = child as THREE.Mesh;
+                    const oldMat = mesh.material as THREE.MeshStandardMaterial;
+                    mesh.material = new THREE.MeshBasicMaterial({
+                        map: oldMat.map || null,
+                        color: oldMat.color.clone(),
+                        transparent: true,
+                        opacity: oldMat.opacity,
+                        blending: THREE.AdditiveBlending,
+                        depthWrite: false,
+                        side: THREE.DoubleSide
+                    });
+                    mesh.castShadow = false;
+                    mesh.receiveShadow = false;
+                }
+            });
+
+            if (portalData.animations.length > 0) {
+                this.sinkPortalMixer = new THREE.AnimationMixer(this.sinkPortal);
+                portalData.animations.forEach((clip) => {
+                    this.sinkPortalMixer!.clipAction(clip).play();
                 });
             }
         }
-
-        const shadowPlane = new THREE.Mesh(
-            new THREE.CircleGeometry(5, 32),
-            new THREE.MeshBasicMaterial({
-                color: 0x000000,
-                transparent: true,
-                opacity: 0.25,
-                depthWrite: false
-            })
-        );
-        shadowPlane.rotation.x = -Math.PI / 2;
-        shadowPlane.position.y = 0.01;
-        this.scene.add(shadowPlane);
-
-        const wellDepth = 20;
-        const sinkMat = new THREE.ShaderMaterial({
-            side: THREE.BackSide,
-            uniforms: {
-                colorTop: { value: new THREE.Color(0x000000) },
-                colorBottom: { value: new THREE.Color(0x000000) },
-                glowColor: { value: new THREE.Color(0x2aa8ff) },
-                glowHeight: { value: -18.0 }
-            },
-            vertexShader: `
-                varying float vY;
-                void main() {
-                    vY = position.y;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-                }
-            `,
-            fragmentShader: `
-                varying float vY;
-                uniform vec3 glowColor;
-                uniform float glowHeight;
-                void main() {
-                    vec3 col = vec3(0.0);
-                    float glow = smoothstep(glowHeight - 4.0, glowHeight + 1.0, vY);
-                    glow = 1.0 - glow;
-                    glow = pow(glow, 4.0);
-                    col += glowColor * glow * 3.5;
-                    gl_FragColor = vec4(col, 1.0);
-                }
-            `
-        });
-
-        const sinkWell = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, wellDepth, 32, 1, true), sinkMat);
-        sinkWell.position.set(this.wellCenter.x, -wellDepth / 2, this.wellCenter.z);
-        this.scene.add(sinkWell);
-
-        const bottomGlow = new THREE.Mesh(
-            new THREE.CircleGeometry(2.8, 64),
-            new THREE.MeshBasicMaterial({
-                color: 0x33bbff,
-                transparent: true,
-                opacity: 0.6,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            })
-        );
-        bottomGlow.rotation.x = -Math.PI / 2;
-        bottomGlow.position.set(0, -19.8, 0);
-        this.scene.add(bottomGlow);
-
-        const SINK_Y = -5;
-        const sinkHole = new THREE.Mesh(
-            new THREE.CircleGeometry(2.6, 32),
-            new THREE.MeshBasicMaterial({ color: 0x000000 })
-        );
-        sinkHole.position.set(0, SINK_Y, 0);
-        sinkHole.rotation.x = -Math.PI / 2;
-        this.scene.add(sinkHole);
 
         const floorSegments = 32;
         for (let i = 0; i < floorSegments; i++) {
@@ -386,20 +374,6 @@ export class Basement extends TowerFloor {
         portalGlow.castShadow = false;
         this.scene.add(portalGlow);
 
-        const portalBloom = new THREE.Mesh(
-            new THREE.CircleGeometry(5, 64),
-            new THREE.MeshBasicMaterial({
-                color: 0x6fc8ff,
-                transparent: true,
-                opacity: 0.18,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false
-            })
-        );
-        portalBloom.rotation.x = -Math.PI / 2;
-        portalBloom.position.set(0, 0.02, 0);
-        this.scene.add(portalBloom);
-
         const sun = new THREE.DirectionalLight(0xffffff, 1.2);
         sun.position.set(15, 30, 15);
         sun.target.position.set(0, 0, 0);
@@ -427,7 +401,6 @@ export class Basement extends TowerFloor {
         this.sinkGlow.castShadow = false;
         this.scene.add(this.sinkGlow);
 
-        this.createWellFog(wellDepth);
         this.createDustParticles();
 
         const glowMap = createGlowTexture();
@@ -461,6 +434,46 @@ export class Basement extends TowerFloor {
                 this.startQueueClearer();
             }, 100);
         }
+    }
+
+    private createGlowSphere(radius: number, color: number, opacity: number, sizeMultiplier: number = 1.4): THREE.Mesh {
+        const geo = new THREE.SphereGeometry(radius * sizeMultiplier, 24, 16);
+        const mat = new THREE.ShaderMaterial({
+            uniforms: {
+                glowColor: { value: new THREE.Color(color) },
+                uOpacity: { value: opacity }
+            },
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vViewDir;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vViewDir = normalize(-mvPosition.xyz);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 glowColor;
+                uniform float uOpacity;
+                varying vec3 vNormal;
+                varying vec3 vViewDir;
+                void main() {
+                    float facing = max(dot(vNormal, vViewDir), 0.0);
+                    float intensity = pow(facing, 2.0);
+                    gl_FragColor = vec4(glowColor, intensity * uOpacity);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            depthTest: true,
+            side: THREE.FrontSide
+        });
+
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.userData.isGlow = true;
+        return mesh;
     }
 
     private createCoinMesh(
@@ -561,39 +574,8 @@ export class Basement extends TowerFloor {
         }
 
         if (glowOpacity > 0.0) {
-            const glowSphere = new THREE.Mesh(
-                new THREE.SphereGeometry(radius * 2.0, 48, 48),
-                new THREE.ShaderMaterial({
-                    transparent: true,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                    uniforms: {
-                        color: { value: new THREE.Color(glowColor) },
-                        opacity: { value: glowOpacity }
-                    },
-                    vertexShader: `
-                        varying vec3 vNormal;
-                        void main() {
-                            vNormal = normalize(normalMatrix * normal);
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                        }
-                    `,
-                    fragmentShader: `
-                        varying vec3 vNormal;
-                        uniform vec3 color;
-                        uniform float opacity;
-                        void main() {
-                            float facing = abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
-                            float rim = 1.0 - facing;
-                            float intensity = pow(clamp(rim, 0.0, 1.0), 2.0);
-                            intensity = mix(0.12, 1.0, intensity);
-                            gl_FragColor = vec4(color, intensity * opacity);
-                        }
-                    `
-                })
-            );
-            glowSphere.userData.isGlow = true;
-            group.add(glowSphere);
+            const glowMesh = this.createGlowSphere(radius, glowColor, glowOpacity, 1.3);
+            group.add(glowMesh);
         }
 
         if (isOrbit) {
@@ -618,21 +600,6 @@ export class Basement extends TowerFloor {
         }
 
         return group;
-    }
-
-    private createWellFog(depth: number) {
-        const count = 150;
-        const geo = new THREE.BufferGeometry();
-        const pos = new Float32Array(count * 3);
-        for (let i = 0; i < count; i++) {
-            pos[i * 3] = (Math.random() - 0.5) * 3;
-            pos[i * 3 + 1] = -Math.random() * depth;
-            pos[i * 3 + 2] = (Math.random() - 0.5) * 3;
-        }
-        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        const mat = new THREE.PointsMaterial({ color: 0x00aaff, size: 0.1, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false });
-        const fog = new THREE.Points(geo, mat);
-        this.scene.add(fog);
     }
 
     private createBasementCrystal(radius: number) {
@@ -662,16 +629,7 @@ export class Basement extends TowerFloor {
             })
         );
 
-        const glowMap = this.textureCache.get('glow')!;
-        const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-            map: glowMap,
-            color: 0x66ccff,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            opacity: 0.6
-        }));
-        glow.scale.set(4, 4, 4);
+        const glow = this.createGlowSphere(1.5, 0x66ccff, 0.6, 1.6);
 
         const light = new THREE.PointLight(0x66ccff, 7, 20);
         light.position.set(0, 1.5, 0);
@@ -725,12 +683,12 @@ export class Basement extends TowerFloor {
         this.applyTextureFilters(customLogo);
 
         const coins = [
-            { key: "btc", fallbackColor: 0xf7931a },
-            { key: "eth", fallbackColor: 0x627eea },
-            { key: "sol", fallbackColor: 0x14f195 },
-            { key: "usdt", fallbackColor: 0x26a17b },
-            { key: "bnb", fallbackColor: 0xf3ba2f },
-            { key: "xmr", fallbackColor: 0xff6600 },
+            { key: "btc", url: "/crypto_logo/bitcoin.png" },
+            { key: "eth", url: "/crypto_logo/ethereum.png" },
+            { key: "sol", url: "/crypto_logo/solana.png" },
+            { key: "bnb", url: "/crypto_logo/bnb.png" },
+            { key: "xmr", url: "/crypto_logo/monero.png" },
+            { key: "usdt", url: "/crypto_logo/usdt.png" },
             { texture: customLogo }
         ];
 
@@ -740,13 +698,13 @@ export class Basement extends TowerFloor {
             if (coinData.texture) {
                 tex = coinData.texture;
             } else {
-                tex = this.createCoinLogoFallback(
-                    coinData.key,
-                    coinData.fallbackColor
-                );
+                tex = this.textureLoader.load(coinData.url);
             }
 
+            tex.colorSpace = THREE.SRGBColorSpace;
             this.applyTextureFilters(tex);
+            tex.center.set(0.5, 0.5);
+            tex.rotation = Math.PI / 2;
 
             const coinGroup = this.createCoinMesh(tex, 8.5, false, true, "gold");
 
@@ -901,10 +859,8 @@ export class Basement extends TowerFloor {
 
             const glow = col.coin.children.find((c: any) => c.userData.isGlow) as THREE.Mesh;
             if (glow) {
-                const mat = glow.material as any;
-                if (mat.uniforms && mat.uniforms.opacity) {
-                    mat.uniforms.opacity.value = 0.2 + Math.sin(time * 3) * 0.05;
-                }
+                const mat = glow.material as THREE.ShaderMaterial;
+                mat.uniforms.uOpacity.value = 0.2 + Math.sin(time * 3) * 0.05;
             }
         }
 
@@ -924,15 +880,19 @@ export class Basement extends TowerFloor {
             this.basementCrystal.rotation.y += delta * 0.6;
             this.basementCrystal.position.y = 1.5 + Math.sin(t) * 0.2;
 
-            const glow = this.basementCrystal.children.find(c => c instanceof THREE.Sprite) as THREE.Sprite;
+            const glow = this.basementCrystal.children.find((c: any) => c.userData.isGlow) as THREE.Mesh;
             if (glow) {
-                const mat = glow.material as THREE.SpriteMaterial;
-                mat.opacity = 0.5 + Math.sin(t * 2) * 0.2;
+                const mat = glow.material as THREE.ShaderMaterial;
+                mat.uniforms.uOpacity.value = 0.5 + Math.sin(t * 2) * 0.2;
             }
         }
 
         if (this.portalMixer) {
             this.portalMixer.update(delta);
+        }
+
+        if (this.sinkPortalMixer) {
+            this.sinkPortalMixer.update(delta);
         }
 
         if (this.portalLight) {
@@ -982,8 +942,6 @@ export class Basement extends TowerFloor {
             }
         });
 
-        const SINK_Y = -5;
-
         for (let i = this.activeCoins.length - 1; i >= 0; i--) {
             const coin = this.activeCoins[i];
 
@@ -995,23 +953,9 @@ export class Basement extends TowerFloor {
 
             coin.mesh.scale.lerp(this.TARGET_SCALE, 3 * delta);
 
-            const isSinking = (coin.mesh as THREE.Object3D).position.y < SINK_Y + 2;
-
-            if (isSinking) {
-                (coin.mesh as THREE.Object3D).traverse((child) => {
-                    if (child instanceof THREE.Mesh) {
-                        const mat = child.material as THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
-                        if (mat.opacity !== undefined) {
-                            mat.opacity = Math.max(0, mat.opacity - delta * 1.5);
-                            mat.transparent = true;
-                        }
-                    }
-                });
-            }
-
-            if (coin.mesh.position.y <= SINK_Y) {
+            if (coin.mesh.position.y <= this.SINK_Y) {
                 this.scene.remove(coin.mesh);
-                (coin.mesh as THREE.Object3D).traverse((child) => {
+                coin.mesh.traverse((child) => {
                     if (child instanceof THREE.Mesh) {
                         child.geometry.dispose();
                         if (Array.isArray(child.material)) {
@@ -1209,7 +1153,7 @@ export class Basement extends TowerFloor {
         const mat = new THREE.SpriteMaterial({
             map: tex,
             transparent: true,
-            depthTest: false
+            depthTest: true
         });
 
         const sprite = new THREE.Sprite(mat);
@@ -1289,8 +1233,21 @@ export class Basement extends TowerFloor {
         this.activeCoins = [];
         this.tokenQueue = [];
 
-        this.baseGlowMaterial.dispose();
+        if (this.sinkPortal) {
+            this.scene.remove(this.sinkPortal);
+            this.sinkPortal.traverse((child) => {
+                if (child instanceof THREE.Mesh) {
+                    child.geometry.dispose();
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        (child.material as THREE.Material).dispose();
+                    }
+                }
+            });
+        }
 
+        this.baseGlowMaterial.dispose();
         this.textureCache.forEach(texture => texture.dispose());
         this.textureCache.clear();
         super.dispose();
