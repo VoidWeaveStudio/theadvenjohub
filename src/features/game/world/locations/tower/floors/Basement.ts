@@ -583,9 +583,10 @@ export class Basement extends TowerFloor {
                         uniform vec3 color;
                         uniform float opacity;
                         void main() {
-                            float fresnel = dot(vNormal, vec3(0.0, 0.0, 1.0));
-                            float intensity = pow(clamp(fresnel, 0.0, 1.0), 2.5);
-                            intensity *= smoothstep(0.0, 1.0, intensity);
+                            float facing = abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+                            float rim = 1.0 - facing;
+                            float intensity = pow(clamp(rim, 0.0, 1.0), 2.0);
+                            intensity = mix(0.12, 1.0, intensity);
                             gl_FragColor = vec4(color, intensity * opacity);
                         }
                     `
@@ -840,7 +841,7 @@ export class Basement extends TowerFloor {
 
         if (token.image && token.image !== 'fallback' && !this.textureCache.has(token.image)) {
             const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(token.image)}`;
-            
+
             this.textureLoader.load(
                 proxyUrl,
                 (tex) => {
@@ -1077,7 +1078,7 @@ export class Basement extends TowerFloor {
 
             const ca = this.columnTokens[i];
             const texture = this.textureCache.get("fallback")!;
-            
+
             const coin = this.createCoinMesh(texture, 1.2, true, false, "silver");
 
             const baseCoinY = pedestalHeight + 1.6;
@@ -1144,8 +1145,8 @@ export class Basement extends TowerFloor {
 
                             col.coin.traverse((child) => {
                                 if (child instanceof THREE.Mesh) {
-                                    const materials = Array.isArray(child.material) 
-                                        ? child.material 
+                                    const materials = Array.isArray(child.material)
+                                        ? child.material
                                         : [child.material];
 
                                     materials.forEach((mat: any) => {
@@ -1183,7 +1184,7 @@ export class Basement extends TowerFloor {
                     console.warn(`[Basement] Failed to update column ${col.ca}`, e);
                 }
             }
-        }, 30000); 
+        }, 30000);
     }
 
     private createTextSprite(text: string): THREE.Sprite {
