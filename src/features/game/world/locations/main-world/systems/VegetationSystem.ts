@@ -25,9 +25,9 @@ export class VegetationSystem {
     private readonly streamingRadius: number = 2;
 
     private safeZones = [
-        { x: 0, z: 0, r: 45 },      
-        { x: 50, z: 0, r: 20 },     
-        { x: 300, z: 0, r: 180 },   
+        { x: 0, z: 0, r: 45 },
+        { x: 50, z: 0, r: 20 },
+        { x: 300, z: 0, r: 180 },
     ];
 
     constructor(private world: MainWorld) { }

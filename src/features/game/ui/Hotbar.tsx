@@ -20,7 +20,7 @@ const iconMap: Record<string, React.ReactNode> = {
     'axe': <Axe className="w-8 h-8" />,
     'sword': <Sword className="w-8 h-8" />,
     'pickaxe': <Pickaxe className="w-8 h-8" />,
-    'torch': <Flame className="w-8 h-8" />, 
+    'torch': <Flame className="w-8 h-8" />,
     'apple': <Apple className="w-8 h-8" />,
     'box': <Box className="w-8 h-8" />,
     'backpack': <Backpack className="w-8 h-8" />,
@@ -31,7 +31,7 @@ export function Hotbar({ slots, onSlotClick }: HotbarProps) {
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 pointer-events-auto font-oxanium">
             {slots.map((slot, i) => {
                 const IconComponent = iconMap[slot.icon.toLowerCase()] || null;
-                
+
                 return (
                     <div
                         key={slot.id}

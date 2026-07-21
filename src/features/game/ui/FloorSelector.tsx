@@ -32,14 +32,14 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                         select flor
                     </h2>
                     <p className="text-[#8B8F98] text-sm font-medium">The crystal elevator is ready for transportation.
-</p>
+                    </p>
                 </div>
 
                 <div className="space-y-4">
                     {TOWER_FLOORS.map((floor) => {
                         const isCurrent = currentLocationId === floor.id;
                         const Icon = iconMap[floor.icon] || Building;
-                        
+
                         return (
                             <button
                                 key={floor.id}
@@ -47,8 +47,8 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                                 disabled={isCurrent}
                                 className={`
                                     w-full p-4 rounded-[10px] border flex items-center gap-4 transition-all duration-200 group
-                                    ${isCurrent 
-                                        ? 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.1)] cursor-not-allowed opacity-50' 
+                                    ${isCurrent
+                                        ? 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.1)] cursor-not-allowed opacity-50'
                                         : 'bg-[rgba(79,209,255,0.05)] border-[rgba(79,209,255,0.3)] hover:bg-[rgba(79,209,255,0.15)] hover:border-[#4FD1FF] hover:shadow-lg hover:shadow-[#4FD1FF]/10'
                                     }
                                 `}

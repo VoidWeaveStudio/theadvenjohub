@@ -14,7 +14,7 @@ export class SafeZoneSystem extends System {
         const dx = position.x - this.safeZone.getPosition().x;
         const dz = position.z - this.safeZone.getPosition().z;
         const dist = Math.sqrt(dx * dx + dz * dz);
-        return dist <= this.safeZone.getRadius(); 
+        return dist <= this.safeZone.getRadius();
     }
 
     distanceToCenter(position: THREE.Vector3): number {

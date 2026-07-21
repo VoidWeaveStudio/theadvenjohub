@@ -66,7 +66,7 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
   const [currentLocationId, setCurrentLocationId] = useState("main-world");
-  
+
   const [activeTokenData, setActiveTokenData] = useState<any>(null);
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
@@ -161,14 +161,14 @@ export function GameClient({ slug }: GameClientProps) {
         gameRef.current = game;
 
         game.onStateChange = (state) => setHudState(state);
-        
+
         game.onLoadStateChange = (loading, message) => {
           setLoading(loading);
           if (message) {
             setLoadingMessage(message);
           }
         };
-        
+
         game.onNotification = (msg, duration = 3000) => {
           const id = ++notifIdRef.current;
           setNotifications((prev) => {
@@ -199,7 +199,7 @@ export function GameClient({ slug }: GameClientProps) {
 
         game.onOpenTokenUI = (tokenData) => {
           setActiveTokenData(tokenData);
-          document.exitPointerLock(); 
+          document.exitPointerLock();
         };
 
         game.onDamageEvent = (event) => {
@@ -225,7 +225,9 @@ export function GameClient({ slug }: GameClientProps) {
 
         await game.init();
       } catch (error: any) {
-        if (error.message?.includes("no_license")) {
+        if (error.message === "assets_load_failed") {
+          setAuthError("Failed to load game assets. Please check your connection and try again.");
+        } else if (error.message?.includes("no_license")) {
           setAuthError("You don't own this game. Please purchase it first.");
         } else if (error.message?.includes("license_expired")) {
           setAuthError("Your license has expired.");
@@ -267,7 +269,7 @@ export function GameClient({ slug }: GameClientProps) {
         setIsMenuOpen((prev) => !prev);
         return;
       }
-      
+
       if (e.code === "Enter" && isPointerLocked) {
         setIsChatVisible((prev) => !prev);
       }
@@ -306,18 +308,31 @@ export function GameClient({ slug }: GameClientProps) {
   };
 
   if (authError) {
+    const isAssetError = authError.includes("Failed to load game assets");
     return (
       <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
         <div className="bg-zinc-900 border border-red-500/50 rounded-xl p-8 max-w-md text-center">
-          <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
+          <div className="text-6xl mb-4">{isAssetError ? "🌐" : "🔒"}</div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {isAssetError ? "Connection Error" : "Access Denied"}
+          </h2>
           <p className="text-zinc-400 mb-6">{authError}</p>
-          <button
-            onClick={() => window.location.href = "/"}
-            className="btn-primary px-6 py-2"
-          >
-            Back to Store
-          </button>
+          <div className="flex gap-4 justify-center">
+            {isAssetError && (
+              <button
+                onClick={() => window.location.reload()}
+                className="btn-primary px-6 py-2"
+              >
+                Try Again
+              </button>
+            )}
+            <button
+              onClick={() => (window.location.href = "/")}
+              className="btn-secondary px-6 py-2"
+            >
+              Back to Store
+            </button>
+          </div>
         </div>
       </div>
     );

@@ -56,7 +56,7 @@ export class InputManager {
 
     this.onCanvasClick = () => {
       if (!this.isPointerLocked && this.isEnabled) {
-        canvas.requestPointerLock().catch(() => {});
+        canvas.requestPointerLock().catch(() => { });
       }
     };
 

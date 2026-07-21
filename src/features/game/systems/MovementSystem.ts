@@ -9,7 +9,7 @@ export class MovementSystem extends System {
 
     private tempBox: THREE.Box3 = new THREE.Box3();
     private tempSize: THREE.Vector3 = new THREE.Vector3(0.8, 2, 0.8);
- 
+
     init() { }
 
     registerEntity(entity: Entity) {

@@ -47,9 +47,8 @@ function NotificationItem({
 
     return (
         <div
-            className={`px-4 py-2 bg-black/80 backdrop-blur border border-cyan-400/50 rounded-lg text-cyan-300 font-medium text-sm shadow-lg shadow-cyan-500/20 transition-all duration-300 ${
-                visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4"
-            }`}
+            className={`px-4 py-2 bg-black/80 backdrop-blur border border-cyan-400/50 rounded-lg text-cyan-300 font-medium text-sm shadow-lg shadow-cyan-500/20 transition-all duration-300 ${visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4"
+                }`}
         >
             {notification.message}
         </div>

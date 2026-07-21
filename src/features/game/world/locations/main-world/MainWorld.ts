@@ -69,7 +69,7 @@ export class MainWorld extends Location {
     }
 
     this.gridSystem.createVisualization(this.scene);
-    
+
     this.features.createOcean();
     this.features.createBoundaryColliders();
     this.features.createGloomyTower();
@@ -126,7 +126,7 @@ export class MainWorld extends Location {
     this.atmosphere.update(delta, playerPosition);
     this.portal.updateFogParticles(delta);
     this.vegetation.updateStreamingAndVisibility(playerPosition.x, playerPosition.z);
-    
+
     this.features.update(delta, playerPosition, isEPressed ?? false);
   }
 

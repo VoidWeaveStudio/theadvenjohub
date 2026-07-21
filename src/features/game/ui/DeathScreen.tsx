@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 interface DeathScreenProps {
   isVisible: boolean;
   killerName: string | null;
-  respawnTime: number; 
+  respawnTime: number;
 }
 
 export function DeathScreen({ isVisible, killerName, respawnTime }: DeathScreenProps) {
@@ -37,7 +37,7 @@ export function DeathScreen({ isVisible, killerName, respawnTime }: DeathScreenP
   return (
     <div className="absolute inset-0 z-[60] pointer-events-none flex items-center justify-center bg-gradient-to-b from-red-950/40 via-black/60 to-black/80 backdrop-blur-sm">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
-      
+
       <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-70" />
       <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-70" />
 

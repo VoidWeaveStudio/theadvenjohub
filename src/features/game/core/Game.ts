@@ -204,6 +204,7 @@ export class Game {
         this.networkSystem = new NetworkSystem(this.networkManager);
     }
 
+
     async init() {
         this.onLoadStateChange?.(true, "Initializing core assets...");
 
@@ -211,12 +212,21 @@ export class Game {
             this.onLoadStateChange?.(true, `${message} ${Math.round(progress)}%`);
         };
 
-        await this.resourceManager.loadCritical();
+        const criticalResult = await this.resourceManager.loadCritical();
+
+        if (!criticalResult.success) {
+            this.onLoadStateChange?.(false);
+            throw new Error("assets_load_failed");
+        }
+
+        if (criticalResult.failed.length > 0) {
+            this.onNotification?.("⚠️ Some assets failed to load, retrying in background...", 3000);
+        }
 
         requestAnimationFrame(async () => {
             try {
                 this.onLoadStateChange?.(true, "Setting up world...");
-                
+
                 this.locationManager.registerLocations(this.resourceManager);
                 const currentLocation = await this.locationManager.loadLocation("main-world");
 

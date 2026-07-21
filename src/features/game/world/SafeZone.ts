@@ -86,7 +86,7 @@ export class SafeZone {
 
   update(delta: number) {
     if (!this.crystal) return;
-    
+
     this.time += delta;
 
     this.crystal.rotation.y = this.time * 0.5;

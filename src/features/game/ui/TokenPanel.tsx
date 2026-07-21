@@ -15,7 +15,7 @@ interface TokenData {
     liquidityBase?: number;
     liquidityQuote?: number;
     volume?: { m5?: number; h1?: number; h6?: number; h24?: number };
-    txns?: { 
+    txns?: {
         m5?: { buys?: number; sells?: number };
         h1?: { buys?: number; sells?: number };
         h6?: { buys?: number; sells?: number };
@@ -133,7 +133,7 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                             <Stat label="Liquidity (Quote)" value={format(data.liquidityQuote)} />
                             <Stat label="Pair Address" value={`${data.pairAddress?.slice(0, 6)}...${data.pairAddress?.slice(-4)}` || "N/A"} />
                             <Stat label="DEX" value={data.dex?.toUpperCase() || "Unknown"} />
-                            <Stat label="Chain" value="Solana" /> 
+                            <Stat label="Chain" value="Solana" />
                         </div>
                     )}
 
@@ -142,11 +142,11 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                             <Stat label="5m Volume" value={`$${format(data.volume?.m5)}`} />
                             <Stat label="1h Volume" value={`$${format(data.volume?.h1)}`} />
                             <Stat label="6h Volume" value={`$${format(data.volume?.h6)}`} />
-                            
+
                             <Stat label="5m TX" value={`${data.txns?.m5?.buys || 0} / ${data.txns?.m5?.sells || 0}`} />
                             <Stat label="1h TX" value={`${data.txns?.h1?.buys || 0} / ${data.txns?.h1?.sells || 0}`} />
                             <Stat label="24h TX" value={`${data.txns?.h24?.buys || 0} / ${data.txns?.h24?.sells || 0}`} />
-                            
+
                             <Stat label="5m Change" value={`${(data.priceChange?.m5 || 0).toFixed(2)}%`} />
                             <Stat label="1h Change" value={`${(data.priceChange?.h1 || 0).toFixed(2)}%`} />
                             <Stat label="6h Change" value={`${(data.priceChange?.h6 || 0).toFixed(2)}%`} />

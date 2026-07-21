@@ -18,7 +18,7 @@ export abstract class Location {
     public portals: Portal[] = [];
     public colliders: THREE.Box3[] = [];
     public pendingTeleport: string | null = null;
-    
+
     public onOpenFloorSelector?: () => void;
 
     constructor(id: string, name: string) {

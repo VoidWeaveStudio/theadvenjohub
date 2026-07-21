@@ -7,7 +7,7 @@ export class Weapon {
     public muzzle: THREE.Object3D = new THREE.Object3D();
     public foregrip: THREE.Object3D = new THREE.Object3D();
     public gripPoint: THREE.Object3D = new THREE.Object3D();
-    
+
     private cooldown: number = 0;
     public fireRate: number = 0.12;
     public ammo: number = 30;
@@ -41,13 +41,13 @@ export class Weapon {
         rifle.rotation.set(0, 0, 0);
 
         this.mesh.add(rifle);
-        
+
         this.muzzle.position.set(0, 0.05, -0.6);
         this.mesh.add(this.muzzle);
-        
+
         this.foregrip.position.set(0, 0, -0.3);
         this.mesh.add(this.foregrip);
-        
+
         this.gripPoint.position.set(0, -0.05, 0.1);
         this.mesh.add(this.gripPoint);
 
@@ -93,11 +93,11 @@ export class Weapon {
     getWorldMuzzle(): THREE.Vector3 {
         return this.muzzle.getWorldPosition(new THREE.Vector3());
     }
-    
+
     getForegripWorldPosition(): THREE.Vector3 {
         return this.foregrip.getWorldPosition(new THREE.Vector3());
     }
-    
+
     getGripWorldPosition(): THREE.Vector3 {
         return this.gripPoint.getWorldPosition(new THREE.Vector3());
     }

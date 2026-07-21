@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 
 interface DamageIndicatorProps {
     attackerId: string | null;
-    direction: number; 
-    }
+    direction: number;
+}
 
 
 export function DamageIndicator({ attackerId, direction }: DamageIndicatorProps) {

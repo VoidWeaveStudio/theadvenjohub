@@ -302,7 +302,7 @@ export class Player extends Entity {
                         blocked = true;
                     }
                 }
-                
+
                 if (!blocked && this.bounds) {
                     if (nextPos.x < this.bounds.min.x || nextPos.x > this.bounds.max.x ||
                         nextPos.z < this.bounds.min.z || nextPos.z > this.bounds.max.z) {

@@ -2,65 +2,65 @@
 import * as THREE from "three";
 
 export function createGrassBladeGeometry(): THREE.BufferGeometry {
-    const blades = 6;
-    const geo = new THREE.BufferGeometry();
-    const positions: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-    let indexOffset = 0;
+  const blades = 6;
+  const geo = new THREE.BufferGeometry();
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  let indexOffset = 0;
 
-    for (let i = 0; i < blades; i++) {
-        const angle = (i / blades) * Math.PI * 2;
-        const offsetX = (Math.random() - 0.5) * 0.15;
-        const offsetZ = (Math.random() - 0.5) * 0.15;
-        const w = 0.05 + Math.random() * 0.05;
-        const h = 0.3 + Math.random() * 0.4;
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
+  for (let i = 0; i < blades; i++) {
+    const angle = (i / blades) * Math.PI * 2;
+    const offsetX = (Math.random() - 0.5) * 0.15;
+    const offsetZ = (Math.random() - 0.5) * 0.15;
+    const w = 0.05 + Math.random() * 0.05;
+    const h = 0.3 + Math.random() * 0.4;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
 
-        const v0 = [-w * cos + offsetX, 0, -w * sin + offsetZ];
-        const v1 = [w * cos + offsetX, 0, w * sin + offsetZ];
-        const v2 = [w * cos + offsetX, h, w * sin + offsetZ];
-        const v3 = [-w * cos + offsetX, h, -w * sin + offsetZ];
+    const v0 = [-w * cos + offsetX, 0, -w * sin + offsetZ];
+    const v1 = [w * cos + offsetX, 0, w * sin + offsetZ];
+    const v2 = [w * cos + offsetX, h, w * sin + offsetZ];
+    const v3 = [-w * cos + offsetX, h, -w * sin + offsetZ];
 
-        positions.push(...v0, ...v1, ...v2, ...v3);
-        uvs.push(0, 0, 1, 0, 1, 1, 0, 1);
-        indices.push(indexOffset, indexOffset + 1, indexOffset + 2, indexOffset, indexOffset + 2, indexOffset + 3);
-        indexOffset += 4;
-    }
+    positions.push(...v0, ...v1, ...v2, ...v3);
+    uvs.push(0, 0, 1, 0, 1, 1, 0, 1);
+    indices.push(indexOffset, indexOffset + 1, indexOffset + 2, indexOffset, indexOffset + 2, indexOffset + 3);
+    indexOffset += 4;
+  }
 
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-    return geo;
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 function smoothstep(edge0: number, edge1: number, x: number): number {
-    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-    return t * t * (3 - 2 * t);
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
 }
 
 export function createGrassMaterial(baseMaterial: THREE.MeshStandardMaterial): THREE.Material {
-    const mat = baseMaterial.clone();
-    mat.side = THREE.FrontSide;
+  const mat = baseMaterial.clone();
+  mat.side = THREE.FrontSide;
 
-    mat.onBeforeCompile = (shader) => {
-        shader.uniforms.uTime = { value: 0 };
-        shader.uniforms.uPlayerPos = { value: new THREE.Vector3() };
-        shader.uniforms.uWindStrength = { value: 1.0 };
-        shader.uniforms.uColorBottom = { value: new THREE.Color(0x2a5d1b) };
-        shader.uniforms.uColorTop = { value: new THREE.Color(0x8bc34a) };
-        shader.uniforms.uDrawDistance = { value: 100.0 };
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = { value: 0 };
+    shader.uniforms.uPlayerPos = { value: new THREE.Vector3() };
+    shader.uniforms.uWindStrength = { value: 1.0 };
+    shader.uniforms.uColorBottom = { value: new THREE.Color(0x2a5d1b) };
+    shader.uniforms.uColorTop = { value: new THREE.Color(0x8bc34a) };
+    shader.uniforms.uDrawDistance = { value: 100.0 };
 
-        shader.vertexShader = `
+    shader.vertexShader = `
       uniform float uTime; uniform vec3 uPlayerPos; uniform float uWindStrength;
       uniform vec3 uColorBottom; uniform vec3 uColorTop; uniform float uDrawDistance;
       varying vec2 vGrassUv; varying float vGrassHeight; varying float vGrassDist;
       varying vec3 vWorldPos; varying float vColorVar; varying vec3 vGrassNormal;
     ` + shader.vertexShader;
 
-        shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
       #include <begin_vertex>
       vGrassUv = uv; vGrassHeight = uv.y;
       #ifdef USE_INSTANCING
@@ -94,13 +94,13 @@ export function createGrassMaterial(baseMaterial: THREE.MeshStandardMaterial): T
       #endif
     `);
 
-        shader.fragmentShader = `
+    shader.fragmentShader = `
       uniform vec3 uColorBottom; uniform vec3 uColorTop; uniform float uDrawDistance;
       varying vec2 vGrassUv; varying float vGrassHeight; varying float vGrassDist;
       varying vec3 vWorldPos; varying float vColorVar; varying vec3 vGrassNormal;
     ` + shader.fragmentShader;
 
-        shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
+    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
       #include <color_fragment>
       vec3 grassColor = mix(uColorBottom, uColorTop, vGrassHeight);
       grassColor *= 0.8 + vColorVar * 0.4;
@@ -109,7 +109,7 @@ export function createGrassMaterial(baseMaterial: THREE.MeshStandardMaterial): T
       diffuseColor.rgb = grassColor;
     `);
 
-        shader.fragmentShader = shader.fragmentShader.replace('#include <output_fragment>', `
+    shader.fragmentShader = shader.fragmentShader.replace('#include <output_fragment>', `
       #include <output_fragment>
       vec2 screenPos = gl_FragCoord.xy;
       float dither = fract(sin(dot(screenPos, vec2(12.9898, 78.233))) * 43758.5453);
@@ -120,7 +120,7 @@ export function createGrassMaterial(baseMaterial: THREE.MeshStandardMaterial): T
       if (alphaFade < dither) discard;
     `);
 
-        mat.userData.shader = shader;
-    };
-    return mat;
+    mat.userData.shader = shader;
+  };
+  return mat;
 }

@@ -86,7 +86,7 @@ export class CollisionGrid {
             const r = cyl.radius + playerRadius;
 
             if (distSq < r * r) {
-                return true; 
+                return true;
             }
         }
 
@@ -162,7 +162,7 @@ export class CollisionGrid {
 
     checkCollisionHorizontal(position: THREE.Vector3, size: THREE.Vector3): boolean {
         this.tempBox.setFromCenterAndSize(position, size);
-        
+
         if (this.checkCylinderCollision(position, size)) {
             return true;
         }

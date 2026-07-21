@@ -42,7 +42,7 @@ export class MainHall extends TowerFloor {
         this.createSecondLevel(radius, wallMat, corniceMat, pillarMat, metalMat);
         this.createDome(radius, wallMat, corniceMat);
         this.createChandelier(metalMat);
-        
+
         this.createCentralCrystal();
     }
 
@@ -82,7 +82,7 @@ export class MainHall extends TowerFloor {
 
         for (let belt = 0; belt < 3; belt++) {
             const height = beltHeights[belt];
-            
+
             const wall = new THREE.Mesh(
                 new THREE.CylinderGeometry(radius, radius, height, 32, 1, true),
                 wallMat
@@ -111,8 +111,8 @@ export class MainHall extends TowerFloor {
             const midAngle = ((i + 0.5) / wallSegments) * Math.PI * 2;
             const x = Math.cos(midAngle) * radius;
             const z = Math.sin(midAngle) * radius;
-            
-            const segmentSize = 10; 
+
+            const segmentSize = 10;
             const wallBox = new THREE.Box3(
                 new THREE.Vector3(x - segmentSize / 2, 0, z - segmentSize / 2),
                 new THREE.Vector3(x + segmentSize / 2, 40, z + segmentSize / 2)
@@ -246,9 +246,9 @@ export class MainHall extends TowerFloor {
     private createDome(radius: number, wallMat: THREE.Material, corniceMat: THREE.Material) {
         const domeGroup = new THREE.Group();
         const domeHeight = 50;
-        
+
         const dome = new THREE.Mesh(
-            new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), 
+            new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
             new THREE.MeshStandardMaterial({ color: 0xCAC7C2, roughness: 0.85, side: THREE.BackSide })
         );
         dome.position.y = 0;
@@ -281,7 +281,7 @@ export class MainHall extends TowerFloor {
         for (let ring = 0; ring < 3; ring++) {
             const ringHeight = 10 + ring * 12;
             const ringRadius = radius * Math.cos(Math.asin(ringHeight / domeHeight)) * 0.95;
-            
+
             const domeRing = new THREE.Mesh(new THREE.TorusGeometry(ringRadius, 0.3, 8, 32), corniceMat);
             domeRing.position.y = ringHeight;
             domeRing.rotation.x = Math.PI / 2;
@@ -305,7 +305,7 @@ export class MainHall extends TowerFloor {
         innerRing.position.y = -3;
         chandelierGroup.add(innerRing);
 
-      
+
         for (let i = 0; i < 2; i++) {
             const angle = (i / 2) * Math.PI * 2;
             this.addCrystal(chandelierGroup, Math.cos(angle) * 12, -8, Math.sin(angle) * 12, 'large', metalMat);
@@ -333,7 +333,7 @@ export class MainHall extends TowerFloor {
 
     private addCrystal(group: THREE.Group, x: number, y: number, z: number, size: 'large' | 'medium' | 'small', metalMat: THREE.Material) {
         const sizeMap = {
-            large: { radius: 1.5, height: 6, intensity: 0 }, 
+            large: { radius: 1.5, height: 6, intensity: 0 },
             medium: { radius: 1.0, height: 4, intensity: 0 },
             small: { radius: 0.6, height: 2.5, intensity: 0 }
         };
@@ -355,7 +355,7 @@ export class MainHall extends TowerFloor {
         crystal.rotation.y = Math.random() * Math.PI;
         group.add(crystal);
 
-      
+
         this.crystals.push({ mesh: crystal, light: null as any, baseIntensity: 0, offset: this.crystals.length, size });
     }
 

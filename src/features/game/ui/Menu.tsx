@@ -50,8 +50,8 @@ export function Menu({ isOpen, onClose, nickname, onNicknameChange, onTeleportTo
                                 flex-1 py-2.5 px-4 rounded-[8px] text-sm font-bold capitalize 
                                 flex items-center justify-center gap-2
                                 transition-all duration-200
-                                ${tab === id 
-                                    ? "bg-[rgba(79,209,255,0.15)] text-[#4FD1FF] border border-[rgba(79,209,255,0.3)]" 
+                                ${tab === id
+                                    ? "bg-[rgba(79,209,255,0.15)] text-[#4FD1FF] border border-[rgba(79,209,255,0.3)]"
                                     : "text-[#8B8F98] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.05)]"
                                 }
                             `}
@@ -148,8 +148,8 @@ export function Menu({ isOpen, onClose, nickname, onNicknameChange, onTeleportTo
                                 ["E", "Interact"],
                                 ["Esc", "Open Menu"],
                             ].map(([key, action], index) => (
-                                <div 
-                                    key={key} 
+                                <div
+                                    key={key}
                                     className={`
                                         flex justify-between items-center py-3 px-3 rounded-[8px]
                                         ${index % 2 === 0 ? 'bg-[rgba(255,255,255,0.02)]' : ''}

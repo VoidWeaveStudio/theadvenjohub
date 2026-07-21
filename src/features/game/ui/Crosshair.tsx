@@ -28,7 +28,7 @@ export function Crosshair({ visible, isHitMark = false }: CrosshairProps) {
                 <div className="absolute top-1/2 right-0 w-2 h-0.5 bg-[#E5E7EB]/80 -translate-y-1/2" />
                 <div className="absolute left-1/2 top-0 h-2 w-0.5 bg-[#E5E7EB]/80 -translate-x-1/2" />
                 <div className="absolute left-1/2 bottom-0 h-2 w-0.5 bg-[#E5E7EB]/80 -translate-x-1/2" />
-                
+
                 <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-[#FF5757] rounded-full -translate-x-1/2 -translate-y-1/2" />
 
                 {showHitMark && (

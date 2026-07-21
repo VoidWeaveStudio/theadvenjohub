@@ -16,7 +16,7 @@ export abstract class TowerFloor extends Location {
 
     protected createCentralCrystal() {
         this.centralCrystal = new THREE.Group();
-        
+
         const crystalGeo = new THREE.OctahedronGeometry(1.2, 0);
         const crystalMat = new THREE.MeshStandardMaterial({
             color: 0x00ffff,

@@ -5,13 +5,13 @@ import { MainWorld } from "../MainWorld";
 export class FeatureSystem {
     private leftDoorGroup: THREE.Group | null = null;
     private rightDoorGroup: THREE.Group | null = null;
-    private towerPortalMesh: THREE.Mesh | null = null; 
-    
+    private towerPortalMesh: THREE.Mesh | null = null;
+
     private isDoorOpening = false;
     private doorOpenProgress = 0;
     private readonly towerEntrancePos = new THREE.Vector3(300, 0, 0);
     public readonly towerClearZone = 180;
-    
+
     private towerLights: THREE.Light[] = [];
     private smokeParticleSystem: THREE.Points | null = null;
     private sparkParticleSystem: THREE.Points | null = null;
@@ -47,19 +47,19 @@ export class FeatureSystem {
     private createNoisyCylinder(topRad: number, botRad: number, height: number, segments: number, noiseAmp: number): THREE.BufferGeometry {
         const geo = new THREE.CylinderGeometry(topRad, botRad, height, segments, 8, true);
         const pos = geo.attributes.position;
-        
+
         for (let i = 0; i < pos.count; i++) {
             const x = pos.getX(i);
             const z = pos.getZ(i);
             const y = pos.getY(i);
-            
-            const noise = Math.sin(x * 0.3) * Math.cos(z * 0.3) * Math.sin(y * 0.15) * noiseAmp + 
-                          (Math.random() - 0.5) * noiseAmp * 0.8;
-            
+
+            const noise = Math.sin(x * 0.3) * Math.cos(z * 0.3) * Math.sin(y * 0.15) * noiseAmp +
+                (Math.random() - 0.5) * noiseAmp * 0.8;
+
             const angle = Math.atan2(z, x);
             const currentRad = Math.sqrt(x * x + z * z);
             const newRad = Math.max(0.1, currentRad + noise);
-            
+
             pos.setX(i, Math.cos(angle) * newRad);
             pos.setZ(i, Math.sin(angle) * newRad);
         }
@@ -70,7 +70,7 @@ export class FeatureSystem {
     createGloomyTower() {
         const towerX = 300, towerZ = 0;
         const groundY = this.world.terrain.getHeightAt(towerX, towerZ);
-        
+
         const towerGroup = new THREE.Group();
         towerGroup.position.set(towerX, groundY, towerZ);
 
@@ -78,7 +78,7 @@ export class FeatureSystem {
         towerGroup.rotation.y = Math.atan2(dir.x, dir.z);
 
         const noiseTex = this.createProceduralTexture('noise');
-        
+
         const createStoneMat = (color: number, rough: number, metal: number) => {
             const mat = new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
             if (!mat.map) {
@@ -93,15 +93,15 @@ export class FeatureSystem {
         const matDirt = createStoneMat(0x303236, 1.0, 0.0);
         const matMoss = createStoneMat(0x394132, 0.95, 0.0);
         const matIron = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6, metalness: 0.8 });
-        
-        const matWood = new THREE.MeshStandardMaterial({ 
-            color: 0x3d2817, 
-            roughness: 0.9, 
+
+        const matWood = new THREE.MeshStandardMaterial({
+            color: 0x3d2817,
+            roughness: 0.9,
             metalness: 0.0,
             emissive: 0x331a00,
             emissiveIntensity: 0.15
         });
-        
+
         const matRoof = new THREE.MeshStandardMaterial({ color: 0x1a1c20, roughness: 0.4, metalness: 0.6 });
 
         const sections = [
@@ -137,7 +137,7 @@ export class FeatureSystem {
             buttress.rotation.y = -angle;
             buttress.castShadow = true;
             towerGroup.add(buttress);
-            
+
             if (i % 2 === 0) {
                 const debris = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 10), matDark);
                 debris.position.set(Math.cos(angle) * 78, 2.5, Math.sin(angle) * 78);
@@ -152,14 +152,14 @@ export class FeatureSystem {
 
             const yLevel = 140;
             const emissiveInt = 0.3 + Math.random() * 0.5;
-            
+
             const recess = new THREE.Mesh(new THREE.BoxGeometry(9, 18, 6), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 1 }));
             recess.position.set(Math.cos(angle) * 65, yLevel, Math.sin(angle) * 65);
             recess.rotation.y = -angle;
             towerGroup.add(recess);
 
-            const grille = new THREE.Mesh(new THREE.BoxGeometry(7, 16, 1), new THREE.MeshStandardMaterial({ 
-                color: 0x5a4a6a, emissive: 0xffaa44, emissiveIntensity: emissiveInt 
+            const grille = new THREE.Mesh(new THREE.BoxGeometry(7, 16, 1), new THREE.MeshStandardMaterial({
+                color: 0x5a4a6a, emissive: 0xffaa44, emissiveIntensity: emissiveInt
             }));
             grille.position.set(Math.cos(angle) * 65.5, yLevel, Math.sin(angle) * 65.5);
             grille.rotation.y = -angle;
@@ -219,7 +219,7 @@ export class FeatureSystem {
         towerGroup.add(wallPatch);
 
         const frame1 = new THREE.Mesh(
-            new THREE.CylinderGeometry(28, 28, 56, 16, 1, true, 0, Math.PI), 
+            new THREE.CylinderGeometry(28, 28, 56, 16, 1, true, 0, Math.PI),
             matDark
         );
         frame1.rotation.y = Math.PI / 2;
@@ -228,7 +228,7 @@ export class FeatureSystem {
         towerGroup.add(frame1);
 
         const frame2 = new THREE.Mesh(
-            new THREE.CylinderGeometry(26, 26, 54, 16, 1, true, 0, Math.PI), 
+            new THREE.CylinderGeometry(26, 26, 54, 16, 1, true, 0, Math.PI),
             matDark
         );
         frame2.rotation.y = Math.PI / 2;
@@ -237,7 +237,7 @@ export class FeatureSystem {
         towerGroup.add(frame2);
 
         const frame3 = new THREE.Mesh(
-            new THREE.CylinderGeometry(24, 24, 52, 16, 1, true, 0, Math.PI), 
+            new THREE.CylinderGeometry(24, 24, 52, 16, 1, true, 0, Math.PI),
             matDark
         );
         frame3.rotation.y = Math.PI / 2;
@@ -247,7 +247,7 @@ export class FeatureSystem {
 
         const pillarGeo = new THREE.BoxGeometry(6, 56, 12);
         const leftPillar = new THREE.Mesh(pillarGeo, matDark);
-        leftPillar.position.set(-16, 28, 92); 
+        leftPillar.position.set(-16, 28, 92);
         leftPillar.castShadow = true;
         leftPillar.receiveShadow = true;
         towerGroup.add(leftPillar);
@@ -260,30 +260,30 @@ export class FeatureSystem {
 
         this.leftDoorGroup = new THREE.Group();
         this.leftDoorGroup.position.set(-doorWidth / 2, doorHeight / 2, doorZ);
-        
+
         const leftDoorMesh = new THREE.Mesh(new THREE.BoxGeometry(doorWidth, doorHeight, doorDepth), matWood);
-        leftDoorMesh.position.set(doorWidth / 2, 0, 0); 
+        leftDoorMesh.position.set(doorWidth / 2, 0, 0);
         leftDoorMesh.castShadow = true;
-        
+
         const leftHinge = new THREE.Mesh(new THREE.BoxGeometry(3, 12, 6), matIron);
         leftHinge.position.set(0, 12, 0);
         const leftRing = new THREE.Mesh(new THREE.TorusGeometry(2, 0.4, 8, 16), matIron);
-        leftRing.position.set(doorWidth - 4, 0, 2.5); 
-        
+        leftRing.position.set(doorWidth - 4, 0, 2.5);
+
         this.leftDoorGroup.add(leftDoorMesh, leftHinge, leftRing);
         towerGroup.add(this.leftDoorGroup);
 
         this.rightDoorGroup = new THREE.Group();
         this.rightDoorGroup.position.set(doorWidth / 2, doorHeight / 2, doorZ);
-        
+
         const rightDoorMesh = new THREE.Mesh(new THREE.BoxGeometry(doorWidth, doorHeight, doorDepth), matWood);
-        rightDoorMesh.position.set(-doorWidth / 2, 0, 0); 
+        rightDoorMesh.position.set(-doorWidth / 2, 0, 0);
         rightDoorMesh.castShadow = true;
 
         const rightHinge = new THREE.Mesh(new THREE.BoxGeometry(3, 12, 6), matIron);
         rightHinge.position.set(0, 12, 0);
         const rightRing = new THREE.Mesh(new THREE.TorusGeometry(2, 0.4, 8, 16), matIron);
-        rightRing.position.set(-(doorWidth - 4), 0, 2.5); 
+        rightRing.position.set(-(doorWidth - 4), 0, 2.5);
 
         this.rightDoorGroup.add(rightDoorMesh, rightHinge, rightRing);
         towerGroup.add(this.rightDoorGroup);
@@ -297,7 +297,7 @@ export class FeatureSystem {
         });
         this.towerPortalMesh = new THREE.Mesh(portalGeo, portalMat);
         this.towerPortalMesh.position.set(0, doorHeight / 2, doorZ);
-        this.towerPortalMesh.visible = false; 
+        this.towerPortalMesh.visible = false;
         towerGroup.add(this.towerPortalMesh);
 
         const leftFire = new THREE.PointLight(0xff8844, 6, 40);
@@ -318,7 +318,7 @@ export class FeatureSystem {
         this.towerLights.push(doorSpotLight);
 
         const spotLight = new THREE.SpotLight(0x88bbff, 5, 100, 0.6, 0.5, 1);
-        spotLight.position.set(0, 20, 110); 
+        spotLight.position.set(0, 20, 110);
         spotLight.target.position.set(0, 35, 90);
         towerGroup.add(spotLight);
         towerGroup.add(spotLight.target);
@@ -350,12 +350,12 @@ export class FeatureSystem {
             const radius = 40 + Math.random() * 60;
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
-            
+
             const isColumn = Math.random() > 0.5;
-            const geo = isColumn 
+            const geo = isColumn
                 ? new THREE.CylinderGeometry(2, 3, 10 + Math.random() * 15, 8)
                 : new THREE.DodecahedronGeometry(4 + Math.random() * 6, 0);
-            
+
             const mesh = new THREE.Mesh(geo, Math.random() > 0.5 ? mat1 : mat2);
             mesh.position.set(x, 3, z);
             mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
@@ -440,10 +440,10 @@ export class FeatureSystem {
         const sparkCount = 80;
         const sparkGeo = new THREE.BufferGeometry();
         const spPos = new Float32Array(sparkCount * 3);
-        for(let i = 0; i < sparkCount; i++) {
-            spPos[i*3] = (Math.random() - 0.5) * 40;
-            spPos[i*3+1] = Math.random() * 20;
-            spPos[i*3+2] = doorZ + (Math.random() - 0.5) * 15;
+        for (let i = 0; i < sparkCount; i++) {
+            spPos[i * 3] = (Math.random() - 0.5) * 40;
+            spPos[i * 3 + 1] = Math.random() * 20;
+            spPos[i * 3 + 2] = doorZ + (Math.random() - 0.5) * 15;
         }
         sparkGeo.setAttribute('position', new THREE.BufferAttribute(spPos, 3));
         const sparkMat = new THREE.PointsMaterial({
@@ -507,14 +507,14 @@ export class FeatureSystem {
             this.smokeUniforms.uTime.value += delta;
             const positions = this.smokeParticleSystem.geometry.attributes.position.array as Float32Array;
             const opacities = this.smokeParticleSystem.geometry.attributes.opacity.array as Float32Array;
-            
+
             for (let i = 0; i < positions.length / 3; i++) {
                 if (positions[i * 3 + 1] > 30) {
                     positions[i * 3 + 1] = 0;
                     const angle = Math.random() * Math.PI * 2;
                     const r = 15 + Math.random() * 20;
                     positions[i * 3] = Math.cos(angle) * r;
-                    const originalZ = positions[i * 3 + 2] - Math.sin(angle) * r; 
+                    const originalZ = positions[i * 3 + 2] - Math.sin(angle) * r;
                     positions[i * 3 + 2] = Math.sin(angle) * r + originalZ;
                     opacities[i] = 0.1 + Math.random() * 0.3;
                 }
@@ -528,7 +528,7 @@ export class FeatureSystem {
             for (let i = 0; i < positions.length / 3; i++) {
                 positions[i * 3 + 1] += delta * (5 + Math.random() * 5);
                 positions[i * 3] += (Math.random() - 0.5) * delta * 2;
-                
+
                 if (positions[i * 3 + 1] > 25) {
                     positions[i * 3 + 1] = 20 + Math.random() * 5;
                     positions[i * 3] = (Math.random() - 0.5) * 40;
@@ -543,7 +543,7 @@ export class FeatureSystem {
         const dx = playerPosition.x - this.towerEntrancePos.x;
         const dz = playerPosition.z - this.towerEntrancePos.z;
         const dist2D = Math.sqrt(dx * dx + dz * dz);
-        
+
         if (dist2D < 15 && this.doorOpenProgress > 0.3) {
             return "Walk into the portal";
         }

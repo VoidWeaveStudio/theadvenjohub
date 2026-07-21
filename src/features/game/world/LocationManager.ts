@@ -26,7 +26,7 @@ export class LocationManager {
         this.resourceManager = rm;
         this.locationFactories.set("main-world", () => new MainWorld());
         this.locationFactories.set("cave", () => new Cave());
-        
+
         TOWER_FLOORS.forEach(floor => {
             this.locationFactories.set(floor.id, () => new floor.locationClass());
         });

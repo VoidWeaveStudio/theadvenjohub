@@ -58,7 +58,7 @@ export class InteractionSystem extends System {
 
         if (nearest) {
             const id = nearest.obj.userData.interactionId;
-            
+
             if (id?.startsWith("column-")) {
                 this.onPrompt?.("[E] View Token Info");
                 if (isEJustPressed === true) {
@@ -71,7 +71,7 @@ export class InteractionSystem extends System {
                     } else {
                         this.onOpenTokenUI?.({
                             ...info,
-                            ca: nearest.obj.userData.ca  
+                            ca: nearest.obj.userData.ca
                         });
                     }
                 }
