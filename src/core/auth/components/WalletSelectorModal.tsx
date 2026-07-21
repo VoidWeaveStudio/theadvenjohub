@@ -33,6 +33,7 @@ export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelecto
   const { wallets } = useWallet();
   const { t } = useLanguage();
   const [walletsList, setWalletsList] = useState<any[]>([]);
+  const [isSelecting, setIsSelecting] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !wallets) return;
@@ -66,10 +67,21 @@ export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelecto
     setWalletsList(list);
   }, [isOpen, wallets]);
 
+  const handleSelect = (walletName: string) => {
+    if (isSelecting) return;
+    setIsSelecting(true);
+    onSelect(walletName);
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t("auth.selectWallet") || "Select Wallet"} size="md">
       <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
-        {walletsList.length === 0 ? (
+        {(!wallets || wallets.length === 0) ? (
+          <div className="text-center py-8 text-text-secondary">
+            <p className="animate-spin text-4xl mb-3 inline-block">⟳</p>
+            <p className="text-sm">{t("auth.loadingWallets") || "Loading wallets..."}</p>
+          </div>
+        ) : walletsList.length === 0 ? (
           <div className="text-center py-8 text-text-secondary">
             <p className="text-4xl mb-3">👛</p>
             <p className="text-sm">{t("auth.noWalletsFound") || "No wallets found. Please install Phantom or Solflare."}</p>
@@ -86,8 +98,8 @@ export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelecto
             return (
               <button
                 key={walletName}
-                onClick={() => isAvailable && onSelect(walletName)}
-                disabled={!isAvailable}
+                onClick={() => isAvailable && handleSelect(walletName)}
+                disabled={!isAvailable || isSelecting}
                 className="w-full flex items-center gap-4 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-surface/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
               >
                 <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface flex items-center justify-center flex-shrink-0 border border-border/50">
@@ -112,15 +124,15 @@ export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelecto
                   </div>
                 </div>
                 
-                {isAvailable && (
+                {isAvailable && !isSelecting && (
                   <div className="text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     →
                   </div>
                 )}
                 
-                {!isAvailable && (
+                {(isSelecting || !isAvailable) && (
                   <div className="text-xs text-text-muted flex-shrink-0">
-                    {t("auth.install") || "Install"}
+                    {isSelecting ? (t("auth.connecting") || "Connecting...") : (t("auth.install") || "Install")}
                   </div>
                 )}
               </button>

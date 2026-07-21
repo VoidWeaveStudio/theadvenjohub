@@ -11,7 +11,7 @@ type LoadingState = boolean | "connecting" | "signing";
 
 export function LoginButton({ className = "" }: { className?: string }) {
   const { t } = useLanguage();
-  const { connect, publicKey, wallet, connected, select, connecting } = useWallet();
+  const { connect, publicKey, wallet, connected, select, connecting, disconnect } = useWallet();
   const { login, isAuthorized } = useAuth();
 
   const [loading, setLoading] = useState<LoadingState>(false);
@@ -165,10 +165,24 @@ export function LoginButton({ className = "" }: { className?: string }) {
   const handleWalletSelect = useCallback(async (walletName: string) => {
     if (loading) return;
 
-    pendingWalletName.current = walletName;
     setError(null);
-    setLoading("connecting");
     setShowWalletSelector(false);
+
+    if (connected && wallet?.adapter.name === walletName && publicKey) {
+      pendingWalletName.current = walletName;
+      setLoading("signing");
+      setSignTrigger(prev => prev + 1);
+      return;
+    }
+
+    if (connected && wallet?.adapter.name !== walletName) {
+      try {
+        await disconnect();
+      } catch {}
+    }
+
+    pendingWalletName.current = walletName;
+    setLoading("connecting");
     pendingConnectRef.current = true;
 
     try {
@@ -186,7 +200,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
       setLoading(false);
       pendingWalletName.current = null;
     }
-  }, [loading, select, t]);
+  }, [loading, select, t, wallet, connected, publicKey, disconnect]);
 
   const handleConnect = useCallback(() => {
     if (loading || isAuthorized) return;
@@ -238,7 +252,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
 
       <WalletSelectorModal
         isOpen={showWalletSelector}
-        onClose={() => setShowWalletSelector(false)}
+        onClose={() => !loading && setShowWalletSelector(false)}
         onSelect={handleWalletSelect}
       />
     </>
