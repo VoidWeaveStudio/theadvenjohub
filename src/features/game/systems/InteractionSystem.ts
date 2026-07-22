@@ -4,6 +4,7 @@ import { System } from "./System";
 import { Player } from "../entities/Player";
 import { InputManager } from "../core/InputManager";
 import { SafeZone } from "../world/SafeZone";
+import { getGateConfig } from "../world/locations/token-gates/GateRegistry";
 
 export class InteractionSystem extends System {
     private scene!: THREE.Scene;
@@ -18,6 +19,7 @@ export class InteractionSystem extends System {
     public onPrompt?: (text: string | null) => void;
     public onCrystalInteract?: () => void;
     public onOpenTokenUI?: (token: any) => void;
+    public onEnterLocation?: (locationId: string) => void;
 
     public setScene(scene: THREE.Scene) {
         this.scene = scene;
@@ -59,7 +61,27 @@ export class InteractionSystem extends System {
         if (nearest) {
             const id = nearest.obj.userData.interactionId;
 
-            if (id?.startsWith("column-")) {
+            if (id?.startsWith("token-gate-") || id === "gate-open-world") {
+                const config = getGateConfig(id);
+                if (config) {
+                    if (config.ca) {
+                        this.onPrompt?.(`[E] View ${config.name} Token & Enter`);
+                        if (isEJustPressed === true) {
+                            this.onOpenTokenUI?.({ ca: config.ca, name: config.name, symbol: "TKN" });
+                            setTimeout(() => {
+                                if (this.onEnterLocation) {
+                                    this.onEnterLocation(config.targetLocationId);
+                                }
+                            }, 500);
+                        }
+                    } else {
+                        this.onPrompt?.(`[E] Enter ${config.name}`);
+                        if (isEJustPressed === true && this.onEnterLocation) {
+                            this.onEnterLocation(config.targetLocationId);
+                        }
+                    }
+                }
+            } else if (id?.startsWith("column-")) {
                 this.onPrompt?.("[E] View Token Info");
                 if (isEJustPressed === true) {
                     const info = nearest.obj.userData.tokenInfo;

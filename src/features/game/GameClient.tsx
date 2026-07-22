@@ -135,21 +135,18 @@ export function GameClient({ slug }: GameClientProps) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    let localGame: Game | null = null;
+
     const initGame = async () => {
       try {
         setLoadingMessage("Authenticating with game server...");
+        const session = await apiPost<GameSession>("/api/game/session", { gameSlug: slug });
+        if (cancelled) return;
 
-        const session = await apiPost<GameSession>("/api/game/session", {
-          gameSlug: slug,
-        });
-
-        if (!canvasRef.current) {
-          throw new Error("Canvas element not found");
-        }
-
+        if (!canvasRef.current) throw new Error("Canvas element not found");
         canvasRef.current.tabIndex = 0;
         canvasRef.current.style.outline = "none";
-
         setLoadingMessage("Creating game world...");
 
         const game = new Game(canvasRef.current, slug, {
@@ -158,73 +155,57 @@ export function GameClient({ slug }: GameClientProps) {
           userId: session.userId,
           wallet: session.wallet,
         });
+        localGame = game;
         gameRef.current = game;
 
-        game.onStateChange = (state) => setHudState(state);
-
+        game.onStateChange = (state) => { if (!cancelled) setHudState(state); };
         game.onLoadStateChange = (loading, message) => {
+          if (cancelled) return;
           setLoading(loading);
-          if (message) {
-            setLoadingMessage(message);
-          }
+          if (message) setLoadingMessage(message);
         };
-
         game.onNotification = (msg, duration = 3000) => {
+          if (cancelled) return;
           const id = ++notifIdRef.current;
           setNotifications((prev) => {
             const newNotifications = [...prev, { id, message: msg, duration }];
-            if (newNotifications.length > 5) {
-              return newNotifications.slice(-5);
-            }
+            if (newNotifications.length > 5) return newNotifications.slice(-5);
             return newNotifications;
           });
         };
-        game.onChatMessage = (message) => {
-          setChatMessages((prev) => [...prev.slice(-99), message]);
-        };
-        game.onNicknameLoaded = (nick: string) => {
-          if (nick) setNickname(nick);
-        };
-
-        game.onLocationChange = (id: string) => {
-          setCurrentLocationId(id);
-        };
-
+        game.onChatMessage = (message) => { if (!cancelled) setChatMessages((prev) => [...prev.slice(-99), message]); };
+        game.onNicknameLoaded = (nick: string) => { if (!cancelled && nick) setNickname(nick); };
+        game.onLocationChange = (id: string) => { if (!cancelled) setCurrentLocationId(id); };
         game.onFloorSelectorToggle = (isOpen: boolean) => {
+          if (cancelled) return;
           setShowFloorSelector(isOpen);
-          if (isOpen) {
-            document.exitPointerLock();
-          }
+          if (isOpen) document.exitPointerLock();
         };
-
         game.onOpenTokenUI = (tokenData) => {
+          if (cancelled) return;
           setActiveTokenData(tokenData);
           document.exitPointerLock();
         };
-
         game.onDamageEvent = (event) => {
+          if (cancelled) return;
           setDamageEvents((prev) => [...prev, event]);
-          setTimeout(() => {
-            setDamageEvents((prev) => prev.filter((e) => e.id !== event.id));
-          }, 2000);
+          setTimeout(() => setDamageEvents((prev) => prev.filter((e) => e.id !== event.id)), 2000);
         };
-
-        game.onDeathStateChange = (dead, killer) => {
-          setIsDead(dead);
-          setKillerName(killer);
-        };
-
-        game.onDamageIndicatorUpdate = (attackerId, direction) => {
-          setDamageIndicator({ attackerId, direction });
-        };
-
+        game.onDeathStateChange = (dead, killer) => { if (!cancelled) { setIsDead(dead); setKillerName(killer); } };
+        game.onDamageIndicatorUpdate = (attackerId, direction) => { if (!cancelled) setDamageIndicator({ attackerId, direction }); };
         game.onHitMark = () => {
+          if (cancelled) return;
           setIsHitMark(true);
           setTimeout(() => setIsHitMark(false), 200);
         };
 
         await game.init();
+
+        if (cancelled) {
+          game.dispose();
+        }
       } catch (error: any) {
+        if (cancelled) return;
         if (error.message === "assets_load_failed") {
           setAuthError("Failed to load game assets. Please check your connection and try again.");
         } else if (error.message?.includes("no_license")) {
@@ -243,7 +224,11 @@ export function GameClient({ slug }: GameClientProps) {
     initGame();
 
     return () => {
-      gameRef.current?.dispose();
+      cancelled = true;
+      localGame?.dispose();
+      if (gameRef.current === localGame) {
+        gameRef.current = null;
+      }
     };
   }, [slug]);
 

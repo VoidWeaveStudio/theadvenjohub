@@ -1,4 +1,3 @@
-//src\features\game\core\ResourceManager.ts
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
@@ -14,6 +13,9 @@ export class ResourceManager {
 
   private modelLoadListeners: Map<string, (() => void)[]> = new Map();
   private textureLoadListeners: Map<string, (() => void)[]> = new Map();
+
+  private bulletGeometry: THREE.BoxGeometry | null = null;
+  private bulletMaterial: THREE.MeshBasicMaterial | null = null;
 
   private loadedCount = 0;
   private totalCount = 0;
@@ -32,6 +34,16 @@ export class ResourceManager {
     this.dracoLoader = new DRACOLoader();
     this.dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
     this.gltfLoader.setDRACOLoader(this.dracoLoader);
+  }
+
+  private getProceduralBullet(): THREE.Mesh {
+    if (!this.bulletGeometry) {
+      this.bulletGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.2);
+    }
+    if (!this.bulletMaterial) {
+      this.bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    }
+    return new THREE.Mesh(this.bulletGeometry, this.bulletMaterial);
   }
 
   private updateProgress(message: string) {
@@ -79,7 +91,6 @@ export class ResourceManager {
     }
 
     const lazyModels = [
-      { name: "bullet", url: "/models/bullet.glb" },
       { name: "tree", url: "/models/tree.glb" },
       { name: "rock", url: "/models/rock.glb" },
       { name: "portal", url: "/models/portal.glb" },
@@ -242,28 +253,35 @@ export class ResourceManager {
   }
 
   getModel(name: string): { scene: THREE.Group; animations: THREE.AnimationClip[] } | null {
+    if (name === "bullet") {
+        const mesh = this.getProceduralBullet();
+        const group = new THREE.Group();
+        group.add(mesh);
+        return { scene: group, animations: [] };
+    }
+
     if (name === "grass") {
-      if (!this.models.has("grass")) {
-        const proceduralGrass = this.createProceduralGrass();
-        this.models.set("grass", { scene: proceduralGrass, animations: [] });
-      }
-      const m = this.models.get("grass")!;
-      return { scene: m.scene.clone(), animations: m.animations };
+        if (!this.models.has("grass")) {
+            const proceduralGrass = this.createProceduralGrass();
+            this.models.set("grass", { scene: proceduralGrass, animations: [] });
+        }
+        const m = this.models.get("grass")!;
+        return { scene: m.scene.clone(), animations: m.animations };
     }
 
     const m = this.models.get(name);
     if (!m) {
-      return null;
+        return null;
     }
 
     try {
-      return {
-        scene: SkeletonUtils.clone(m.scene) as THREE.Group,
-        animations: m.animations,
-      };
+        return {
+            scene: SkeletonUtils.clone(m.scene) as THREE.Group,
+            animations: m.animations,
+        };
     } catch (error) {
-      console.warn(`[ResourceManager] Clone failed for ${name}, fallback to .clone()`);
-      return { scene: m.scene.clone(), animations: m.animations };
+        console.warn(`[ResourceManager] Clone failed for ${name}, fallback to .clone()`);
+        return { scene: m.scene.clone(), animations: m.animations };
     }
-  }
+}
 }

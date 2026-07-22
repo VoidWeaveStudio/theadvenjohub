@@ -1,4 +1,3 @@
-// src/features/game/systems/ShootingSystem.ts
 import * as THREE from "three";
 import { System } from "./System";
 import { Player } from "../entities/Player";
@@ -308,12 +307,14 @@ export class ShootingSystem extends System {
     private spawnBullet(origin: THREE.Vector3, direction: THREE.Vector3, hitPoint: THREE.Vector3) {
         const data = this.resourceManager.getModel("bullet");
         if (!data) {
-            throw new Error("Bullet model not found. Cannot spawn bullet.");
+            console.warn("Bullet model not found.");
+            return;
         }
 
-        const bulletMesh = data.scene as unknown as THREE.Mesh;
-        bulletMesh.position.copy(origin);
-        this.scene.add(bulletMesh);
+        const bulletGroup = data.scene;
+        const bulletMesh = bulletGroup.children[0] as THREE.Mesh;
+        bulletGroup.position.copy(origin);
+        this.scene.add(bulletGroup);
 
         const trailGeo = new THREE.BufferGeometry().setFromPoints([
             origin.clone(),

@@ -1,10 +1,10 @@
-//src\features\game\world\LocationManager.ts
+// src/features/game/world/LocationManager.ts
 import * as THREE from "three";
 import { Location, Portal } from "./Location";
 import { ResourceManager } from "../core/ResourceManager";
 import { MainWorld } from "./locations/main-world/MainWorld";
 import { Cave } from "./locations/Cave";
-import { TOWER_FLOORS } from "./locations/tower/TowerRegistry";
+import { ALL_LOCATIONS } from "./locations/tower/TowerRegistry";
 
 export class LocationManager {
     private locations: Map<string, Location> = new Map();
@@ -27,7 +27,7 @@ export class LocationManager {
         this.locationFactories.set("main-world", () => new MainWorld());
         this.locationFactories.set("cave", () => new Cave());
 
-        TOWER_FLOORS.forEach(floor => {
+        ALL_LOCATIONS.forEach(floor => {
             this.locationFactories.set(floor.id, () => new floor.locationClass());
         });
     }

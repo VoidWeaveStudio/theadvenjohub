@@ -1,4 +1,3 @@
-// src/features/game/core/Game.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
@@ -78,6 +77,7 @@ export class Game {
     private isLoaded: boolean = false;
     private animationFrameId: number | null = null;
     private frameCount: number = 0;
+    private disposed: boolean = false;
 
     private showFloorSelector: boolean = false;
     private localPlayerNetId: string | null = null;
@@ -224,11 +224,13 @@ export class Game {
         }
 
         requestAnimationFrame(async () => {
+            if (this.disposed) return;
             try {
                 this.onLoadStateChange?.(true, "Setting up world...");
 
                 this.locationManager.registerLocations(this.resourceManager);
                 const currentLocation = await this.locationManager.loadLocation("main-world");
+                if (this.disposed) return;
 
                 if (!currentLocation) {
                     throw new Error("Failed to load main-world location");
@@ -269,7 +271,11 @@ export class Game {
                     this.player.setTerrain(null);
                     this.player.setCollisionGrid(currentLocation.collisionGrid);
                     this.cameraController.setCollisionGrid(currentLocation.collisionGrid);
-                    this.player.setMaxRadius(40);
+                    if (currentLocation.id === 'tower-basement') {
+                        this.player.setMaxRadius(40);
+                    } else {
+                        this.player.setMaxRadius(9999);
+                    }
                 }
 
                 currentLocation.scene.add(this.cameraController.yawObject);
@@ -322,6 +328,14 @@ export class Game {
                     this.onOpenTokenUI?.(tokenData);
                 };
 
+                this.interactionSystem.onEnterLocation = async (locationId: string) => {
+                    this.closeFloorSelector();
+                    await this.changeLocation(locationId).catch(() => {
+                        this.onNotification?.("⚠️ Failed to travel", 2000);
+                    });
+                };
+
+                if (this.disposed) return;
                 this.setupNetwork();
 
                 this.isLoaded = true;
@@ -400,7 +414,11 @@ export class Game {
             this.player.setTerrain(null);
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.collisionGrid);
-            this.player.setMaxRadius(40);
+            if (newLocation.id === 'tower-basement') {
+                this.player.setMaxRadius(40);
+            } else {
+                this.player.setMaxRadius(9999);
+            }
         }
 
         const spawnPoint = newLocation.getSpawnPoint();
@@ -521,6 +539,7 @@ export class Game {
         };
 
         this.networkManager.onShoot = (data) => {
+            if (data.id === this.localPlayerNetId) return;
             this.shootingSystem.handleNetworkShoot({ origin: data.origin, direction: data.direction });
         };
 
@@ -628,6 +647,7 @@ export class Game {
     }
 
     private animate = async () => {
+        if (this.disposed) return;
         this.animationFrameId = requestAnimationFrame(this.animate);
 
         if (!this.isLoaded) {
@@ -796,6 +816,8 @@ export class Game {
     }
 
     dispose() {
+        if (this.disposed) return;
+        this.disposed = true;
         if (this.animationFrameId !== null) {
             cancelAnimationFrame(this.animationFrameId);
             this.animationFrameId = null;
