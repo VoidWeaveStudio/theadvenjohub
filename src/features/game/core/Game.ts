@@ -1,8 +1,9 @@
+// src/features/game/core/Game.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager } from "../network/NetworkManager";
+import { NetworkManager, PlayerNetData } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -16,6 +17,7 @@ import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { Cave } from "../world/locations/Cave";
 import { TowerFloor } from "../world/locations/tower/TowerFloor";
 import { CollisionGrid } from "../world/CollisionGrid";
+import { MainHall } from "../world/locations/tower/floors/MainHall";
 
 export interface GameSession {
     gameToken: string;
@@ -42,6 +44,86 @@ export interface DamageEvent {
     direction: number;
     damage: number;
     timestamp: number;
+}
+
+interface PlayerLeaveLocationData {
+    playerId: string;
+    fromLocation: string;
+    toLocation: string;
+}
+
+interface AuthData {
+    playerId: string;
+    nickname: string;
+}
+
+interface PlayerJoinData {
+    id: string;
+    nickname: string;
+    locationId?: string;
+    position?: number[];
+    rotation?: number;
+}
+
+interface PlayerUpdateData {
+    id: string;
+    position: number[];
+    rotation: number;
+    pitch: number;
+    state: string;
+}
+
+interface ShootData {
+    id: string;
+    origin: number[];
+    direction: number[];
+}
+
+interface ChatData {
+    id: string;
+    sender: string;
+    message: string;
+    timestamp: number;
+}
+
+interface ProgressData {
+    progress?: {
+        position: number[];
+    };
+    nickname?: string;
+}
+
+interface DamageData {
+    targetId: string;
+    damage: number;
+    attackerId: string;
+}
+
+interface DeathData {
+    playerId: string;
+    killerId: string;
+}
+
+interface PlayerRespawnData {
+    id: string;
+    health: number;
+    position: number[];
+}
+
+interface LocalRespawnData {
+    position: number[];
+    health: number;
+}
+
+interface PlayerUpdatePayload {
+    position: number[];
+    rotation: number;
+    pitch: number;
+    state: string;
+    jumping: boolean;
+    velocityY: number;
+    weaponEquipped: boolean;
+    isShooting: boolean;
 }
 
 export class Game {
@@ -229,15 +311,15 @@ export class Game {
                 this.onLoadStateChange?.(true, "Setting up world...");
 
                 this.locationManager.registerLocations(this.resourceManager);
-                const currentLocation = await this.locationManager.loadLocation("main-world");
+                const currentLocation = await this.locationManager.loadLocation("tower-main-hall");
                 if (this.disposed) return;
 
                 if (!currentLocation) {
-                    throw new Error("Failed to load main-world location");
+                    throw new Error("Failed to load tower-main-hall location");
                 }
 
                 this.locationManager.onLocationChange = (id: string) => {
-                    this.onNotification?.(`📍 Entered: ${id}`, 2000);
+                    this.onNotification?.(` Entered: ${id}`, 2000);
                     this.onLocationChange?.(id);
                     const loc = this.locationManager.getCurrentLocation();
                     if (loc) {
@@ -281,13 +363,13 @@ export class Game {
                 currentLocation.scene.add(this.cameraController.yawObject);
                 this.cameraController.setTarget(this.player.mesh);
 
-                if (currentLocation instanceof MainWorld) {
-                    this.safeZone.create(currentLocation.scene, this.resourceManager, currentLocation.terrain as any);
-                    const crystalCollider = this.safeZone.getCrystalCollider();
-                    if (crystalCollider && currentLocation.collisionGrid) {
-                        currentLocation.collisionGrid.insert(crystalCollider);
-                    }
-                    this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
+                if (currentLocation instanceof MainHall) {
+                    this.safeZone.create(
+                        currentLocation.scene,
+                        undefined,
+                        new THREE.Vector3(0, 0, 0),
+                        12
+                    );
                 }
 
                 const collisionGrid = getCollisionGrid(currentLocation);
@@ -311,6 +393,10 @@ export class Game {
                 this.safeZoneSystem.init(this.safeZone);
                 this.interactionSystem.init(currentLocation.scene, this.player, this.inputManager, this.safeZone);
                 this.networkSystem.init();
+
+                currentLocation.getInteractables().forEach(obj => {
+                    this.interactionSystem.registerInteractable(obj);
+                });
 
                 this.interactionSystem.onNotification = (msg, duration) => {
                     this.onNotification?.(msg, duration);
@@ -389,10 +475,7 @@ export class Game {
         this.interactionSystem.setScene(newLocation.scene);
         this.interactionSystem.clearInteractables();
 
-        if (newLocation instanceof MainWorld) {
-            this.interactionSystem.registerInteractable(this.safeZone.getInteractableObject());
-        }
-
+        
         const newLocationInteractables = newLocation.getInteractables();
         newLocationInteractables.forEach(obj => {
             this.interactionSystem.registerInteractable(obj);
@@ -432,7 +515,7 @@ export class Game {
     }
 
     private setupNetwork() {
-        this.networkManager.onPlayerLeaveLocation = (data) => {
+        this.networkManager.onPlayerLeaveLocation = (data: PlayerLeaveLocationData) => {
             const op = this.otherPlayers.get(data.playerId);
             if (!op) return;
             const currentLocation = this.locationManager.getCurrentLocation();
@@ -450,10 +533,11 @@ export class Game {
             }
         };
 
-        this.networkManager.onPlayerJoinLocation = (data) => {
+        this.networkManager.onPlayerJoinLocation = (data: PlayerNetData) => {
             const currentLocation = this.locationManager.getCurrentLocation();
             if (!currentLocation) return;
-            if (currentLocation.id === data.locationId) {
+            const locationId = data.locationId || 'main-world';
+            if (currentLocation.id === locationId) {
                 let op = this.otherPlayers.get(data.id);
                 if (!op) {
                     op = new OtherPlayer(data.id, data.nickname);
@@ -477,12 +561,12 @@ export class Game {
 
         this.networkManager.connect(this.session);
 
-        this.networkManager.onAuthenticated = (data) => {
+        this.networkManager.onAuthenticated = (data: AuthData) => {
             this.localPlayerNetId = data.playerId;
             this.onNicknameLoaded?.(data.nickname);
         };
 
-        this.networkManager.onPlayerJoin = (data) => {
+        this.networkManager.onPlayerJoin = (data: PlayerJoinData) => {
             if (data.id === this.localPlayerNetId) return;
             const currentLocation = this.locationManager.getCurrentLocation();
             if (!currentLocation) return;
@@ -516,7 +600,7 @@ export class Game {
             });
         };
 
-        this.networkManager.onPlayerLeave = (playerId) => {
+        this.networkManager.onPlayerLeave = (playerId: string) => {
             const op = this.otherPlayers.get(playerId);
             if (op) {
                 this.onChatMessage?.({
@@ -532,35 +616,35 @@ export class Game {
             }
         };
 
-        this.networkManager.onPlayerUpdate = (data) => {
+        this.networkManager.onPlayerUpdate = (data: PlayerUpdateData) => {
             const op = this.otherPlayers.get(data.id);
             if (!op || op.isHidden()) return;
             op.updateFromNetwork(data);
         };
 
-        this.networkManager.onShoot = (data) => {
+        this.networkManager.onShoot = (data: ShootData) => {
             if (data.id === this.localPlayerNetId) return;
             this.shootingSystem.handleNetworkShoot({ origin: data.origin, direction: data.direction });
         };
 
-        this.networkManager.onCount = (count) => {
+        this.networkManager.onCount = (count: number) => {
             this.hudState.online = count;
             this.emitState(true);
         };
 
-        this.networkManager.onChatMessage = (data) => {
+        this.networkManager.onChatMessage = (data: ChatData) => {
             this.onChatMessage?.({
                 id: data.id, sender: data.sender,
                 message: data.message, timestamp: data.timestamp, type: "player",
             });
         };
 
-        this.networkManager.onProgressLoaded = (data) => {
+        this.networkManager.onProgressLoaded = (data: ProgressData) => {
             if (data?.progress?.position) this.player.mesh.position.fromArray(data.progress.position);
             if (data?.nickname) this.onNicknameLoaded?.(data.nickname);
         };
 
-        this.networkManager.onPlayerDamaged = (data) => {
+        this.networkManager.onPlayerDamaged = (data: DamageData) => {
             if (data.targetId === this.localPlayerNetId) {
                 this.player.takeDamage(data.damage);
                 this.hudState.health = this.player.health;
@@ -583,7 +667,7 @@ export class Game {
             }
         };
 
-        this.networkManager.onPlayerDeath = (data) => {
+        this.networkManager.onPlayerDeath = (data: DeathData) => {
             if (data.playerId === this.localPlayerNetId) {
                 this.isDead = true;
                 const killer = this.otherPlayers.get(data.killerId);
@@ -602,7 +686,7 @@ export class Game {
             }
         };
 
-        this.networkManager.onPlayerRespawn = (data) => {
+        this.networkManager.onPlayerRespawn = (data: PlayerRespawnData) => {
             const op = this.otherPlayers.get(data.id);
             if (op && !op.isHidden()) {
                 op.setDead(false);
@@ -614,7 +698,7 @@ export class Game {
             }
         };
 
-        this.networkManager.onRespawn = (data) => {
+        this.networkManager.onRespawn = (data: LocalRespawnData) => {
             this.player.mesh.position.fromArray(data.position);
             this.player.setHealth(data.health);
             this.hudState.health = this.player.health;
@@ -676,7 +760,7 @@ export class Game {
             this.player.update(delta);
             this.cameraController.update(delta, this.inputManager);
 
-            const inSafe = (currentLocation instanceof MainWorld) && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
+            const inSafe = (currentLocation instanceof MainHall) && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
 
             if (this.hudState.inSafeZone !== inSafe) {
                 this.hudState.inSafeZone = inSafe;
@@ -706,10 +790,6 @@ export class Game {
                 const targetId = currentLocation.pendingTeleport;
                 currentLocation.pendingTeleport = null;
                 await this.changeLocation(targetId);
-            }
-
-            if (currentLocation instanceof MainWorld) {
-                this.safeZone.update(delta);
             }
 
             this.networkSystem.update(delta);
@@ -774,11 +854,11 @@ export class Game {
         const currentLocation = this.locationManager.getCurrentLocation();
         if (!currentLocation) return;
 
-        if (currentLocation.id !== 'main-world') {
-            this.changeLocation('main-world').then(() => {
-                const mainWorld = this.locationManager.getCurrentLocation();
-                if (mainWorld) {
-                    const safePoint = mainWorld.getSpawnPoint();
+        if (currentLocation.id !== 'tower-main-hall') {
+            this.changeLocation('tower-main-hall').then(() => {
+                const hall = this.locationManager.getCurrentLocation();
+                if (hall) {
+                    const safePoint = hall.getSpawnPoint();
                     this.player.teleportTo(safePoint);
                     this.cameraController.yawObject.position.copy(safePoint);
                     this.networkManager.sendPlayerUpdate({

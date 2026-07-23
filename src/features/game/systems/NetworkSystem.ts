@@ -1,4 +1,4 @@
-//src\features\game\systems\NetworkSystem.ts
+// src/features/game/systems/NetworkSystem.ts
 import { System } from "./System";
 import { NetworkManager } from "../network/NetworkManager";
 
@@ -13,10 +13,10 @@ export class NetworkSystem extends System {
         this.networkManager = networkManager;
     }
 
-    init() {
+    init(): void {
     }
 
-    update(delta: number) {
+    update(delta: number): void {
         const now = performance.now();
 
         if (now - this.lastUpdate >= this.updateInterval) {
@@ -25,22 +25,22 @@ export class NetworkSystem extends System {
         }
     }
 
-    queueMessage(message: any) {
+    queueMessage(message: any): void {
         this.messageQueue.push(message);
     }
 
-    private processMessageQueue() {
+    private processMessageQueue(): void {
         while (this.messageQueue.length > 0) {
             const message = this.messageQueue.shift();
             this.networkManager.send(message);
         }
     }
 
-    sendImmediate(message: any) {
+    sendImmediate(message: any): void {
         this.networkManager.send(message);
     }
 
-    dispose() {
+    dispose(): void {
         this.messageQueue = [];
     }
 }

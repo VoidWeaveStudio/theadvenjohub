@@ -23,14 +23,13 @@ export class LocationManager {
     }
 
     registerLocations(rm: ResourceManager) {
-        this.resourceManager = rm;
-        this.locationFactories.set("main-world", () => new MainWorld());
-        this.locationFactories.set("cave", () => new Cave());
+    this.resourceManager = rm;
+    this.locationFactories.set("cave", () => new Cave());
 
-        ALL_LOCATIONS.forEach(floor => {
-            this.locationFactories.set(floor.id, () => new floor.locationClass());
-        });
-    }
+    ALL_LOCATIONS.forEach(floor => {
+        this.locationFactories.set(floor.id, () => new floor.locationClass());
+    });
+}
 
     async loadLocation(locationId: string): Promise<Location | null> {
         let location = this.locations.get(locationId);

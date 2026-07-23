@@ -6,6 +6,18 @@ import { InputManager } from "../core/InputManager";
 import { SafeZone } from "../world/SafeZone";
 import { getGateConfig } from "../world/locations/token-gates/GateRegistry";
 
+interface TokenInfo {
+    name: string;
+    symbol?: string;
+    balance?: number;
+}
+
+interface TokenData {
+    ca: string;
+    name: string;
+    symbol: string;
+}
+
 export class InteractionSystem extends System {
     private scene!: THREE.Scene;
     private player!: Player;
@@ -84,7 +96,7 @@ export class InteractionSystem extends System {
             } else if (id?.startsWith("column-")) {
                 this.onPrompt?.("[E] View Token Info");
                 if (isEJustPressed === true) {
-                    const info = nearest.obj.userData.tokenInfo;
+                    const info = nearest.obj.userData.tokenInfo as TokenInfo | undefined;
 
                     if (!info || info.name === "Loading...") {
                         this.onNotification?.("⏳ Loading token data...", 2000);

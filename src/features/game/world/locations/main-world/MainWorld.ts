@@ -23,6 +23,8 @@ export class MainWorld extends Location {
   public features: FeatureSystem;
   public portal: PortalSystem;
 
+  private liftCrystal: THREE.Group | null = null;
+
   private readonly isLowEnd = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency != null)
     ? navigator.hardwareConcurrency <= 4
     : false;
@@ -58,6 +60,47 @@ export class MainWorld extends Location {
     this.portal = new PortalSystem(this);
   }
 
+  createLiftCrystal() {
+    const group = new THREE.Group();
+
+    const core = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.8, 1),
+      new THREE.MeshStandardMaterial({ color: 0x66ccff, emissive: 0x3399ff, emissiveIntensity: 2 })
+    );
+    core.position.y = 1.5;
+    core.castShadow = true;
+
+    const shell = new THREE.Mesh(
+      new THREE.OctahedronGeometry(1.5, 1),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x99ddff, transmission: 1, opacity: 0.6,
+        transparent: true, roughness: 0, thickness: 0.5
+      })
+    );
+    shell.position.y = 1.5;
+
+    const light = new THREE.PointLight(0x66ccff, 9, 45);
+    light.position.y = 1.5;
+
+    group.add(core, shell, light);
+
+    const groundY = this.terrain.getHeightAt(0, 0);
+    group.position.set(0, groundY, 0);
+    group.userData.interactionId = "tower-crystal";
+
+    this.scene.add(group);
+    this.liftCrystal = group;
+
+    this.collisionGrid.insert(new THREE.Box3(
+      new THREE.Vector3(-1, groundY, -1),
+      new THREE.Vector3(1, groundY + 3, 1)
+    ));
+  }
+
+  getLiftCrystal(): THREE.Object3D | null {
+    return this.liftCrystal;
+  }
+
   create(rm: ResourceManager) {
     this.atmosphere.init();
     this.atmosphere.createLighting(this.isLowEnd);
@@ -73,6 +116,7 @@ export class MainWorld extends Location {
     this.features.createOcean();
     this.features.createBoundaryColliders();
     this.features.createGloomyTower();
+    this.createLiftCrystal();
 
     this.vegetation.prepareAssets(rm);
     this.vegetation.createDecorationsByChunks(rm);
@@ -128,6 +172,14 @@ export class MainWorld extends Location {
     this.vegetation.updateStreamingAndVisibility(playerPosition.x, playerPosition.z);
 
     this.features.update(delta, playerPosition, isEPressed ?? false);
+    if (this.liftCrystal) {
+      this.liftCrystal.rotation.y += delta * 0.6;
+    }
+  }
+
+  public getInteractables(): THREE.Object3D[] {
+    return this.liftCrystal ? [this.liftCrystal] : [];
+    
   }
 
   public getInteractionPrompt(playerPosition: THREE.Vector3): string | null {

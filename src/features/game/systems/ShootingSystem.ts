@@ -1,3 +1,4 @@
+// src/features/game/systems/ShootingSystem.ts
 import * as THREE from "three";
 import { System } from "./System";
 import { Player } from "../entities/Player";
@@ -26,6 +27,22 @@ interface Particle {
     velocity: THREE.Vector3;
     life: number;
     active: boolean;
+}
+
+interface ShootData {
+    origin: number[];
+    direction: number[];
+}
+
+interface HitData {
+    target: string | null;
+    point: number[];
+}
+
+interface NetworkShootData {
+    id: string;
+    origin: number[];
+    direction: number[];
 }
 
 export class ShootingSystem extends System {

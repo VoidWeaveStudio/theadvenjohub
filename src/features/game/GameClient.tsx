@@ -65,7 +65,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [isHitMark, setIsHitMark] = useState(false);
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
-  const [currentLocationId, setCurrentLocationId] = useState("main-world");
+  const [currentLocationId, setCurrentLocationId] = useState("tower-main-hall");
 
   const [activeTokenData, setActiveTokenData] = useState<any>(null);
 

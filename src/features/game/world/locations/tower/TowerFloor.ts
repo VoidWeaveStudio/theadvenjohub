@@ -17,36 +17,37 @@ export abstract class TowerFloor extends Location {
     protected createCentralCrystal() {
         this.centralCrystal = new THREE.Group();
 
-        const crystalGeo = new THREE.OctahedronGeometry(1.2, 0);
-        const crystalMat = new THREE.MeshStandardMaterial({
-            color: 0x00ffff,
-            emissive: 0x00ffff,
-            emissiveIntensity: 0.8,
-            metalness: 0.1,
-            roughness: 0.1,
-            transparent: true,
-            opacity: 0.9
-        });
-        const mesh = new THREE.Mesh(crystalGeo, crystalMat);
-        mesh.position.y = 1.5;
-        mesh.castShadow = true;
-        this.centralCrystal.add(mesh);
+        const core = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.8, 1),
+            new THREE.MeshStandardMaterial({ color: 0x66ccff, emissive: 0x3399ff, emissiveIntensity: 2 })
+        );
+        core.position.y = 1.5;
+        core.castShadow = true;
 
-        const light = new THREE.PointLight(0x00ffff, 4, 20, 2);
+        const shell = new THREE.Mesh(
+            new THREE.OctahedronGeometry(1.5, 1),
+            new THREE.MeshPhysicalMaterial({
+                color: 0x99ddff, transmission: 1, opacity: 0.6,
+                transparent: true, roughness: 0, thickness: 0.5
+            })
+        );
+        shell.position.y = 1.5;
+
+        const light = new THREE.PointLight(0x66ccff, 9, 45);
         light.position.y = 1.5;
         light.castShadow = true;
         light.shadow.mapSize.width = 512;
         light.shadow.mapSize.height = 512;
-        this.centralCrystal.add(light);
 
+        this.centralCrystal.add(core, shell, light);
         this.centralCrystal.position.set(0, 0, 0);
         this.scene.add(this.centralCrystal);
 
         this.centralCrystal.userData.interactionId = "tower-crystal";
 
         this.collisionGrid.insert(new THREE.Box3(
-            new THREE.Vector3(-0.5, 0, -0.5),
-            new THREE.Vector3(0.5, 3, 0.5)
+            new THREE.Vector3(-1, 0, -1),
+            new THREE.Vector3(1, 3, 1)
         ));
     }
 
@@ -54,10 +55,8 @@ export abstract class TowerFloor extends Location {
         this.time += delta;
 
         if (this.centralCrystal) {
-            this.centralCrystal.rotation.y = this.time * 0.5;
-            const floatY = 1.5 + Math.sin(this.time * 1.5) * 0.2;
-            this.centralCrystal.children[0].position.y = floatY;
-            this.centralCrystal.children[1].position.y = floatY;
+            this.centralCrystal.rotation.y += delta * 0.6;
+            this.centralCrystal.position.y = Math.sin(this.time * 1.5) * 0.2;
         }
     }
 
