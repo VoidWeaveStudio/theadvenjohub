@@ -1,4 +1,4 @@
-//src\core\lib\index.ts
+// src/core/lib/index.ts
 export { sanitizeInput, sanitizeNickname, escapeHtml } from "./sanitize";
 export { shortId, isShortId } from "./shortId";
 export { checkRateLimit, resetRateLimit } from "./rateLimit";

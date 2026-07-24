@@ -1,4 +1,4 @@
-//src\features\game\systems\MovementSystem.ts
+// src/features/game/systems/MovementSystem.ts
 import * as THREE from "three";
 import { System } from "./System";
 import { Entity } from "../entities/Entity";

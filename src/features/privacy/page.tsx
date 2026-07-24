@@ -1,4 +1,4 @@
-//src\features\privacy\page.tsx
+// src/features/privacy/page.tsx
 "use client";
 
 import Link from "next/link";

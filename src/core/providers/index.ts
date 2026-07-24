@@ -1,2 +1,2 @@
-//src\core\providers\index.ts
+// src/core/providers/index.ts
 export { SolanaProviders } from "./SolanaProviders";

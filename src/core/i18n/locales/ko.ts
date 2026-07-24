@@ -1,3 +1,4 @@
+// src/core/i18n/locales/ko.ts
 import type { Translations } from "../types";
 
 export const ko: Translations = {

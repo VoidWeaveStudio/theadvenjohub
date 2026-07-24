@@ -1,4 +1,4 @@
-//src\features\profile\components\InventoryItemCard.tsx
+// src/features/profile/components/InventoryItemCard.tsx
 "use client";
 
 import { useLanguage } from "@/core/i18n/LanguageContext";

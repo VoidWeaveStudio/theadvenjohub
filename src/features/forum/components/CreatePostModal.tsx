@@ -1,4 +1,4 @@
-//src\features\forum\components\CreatePostModal.tsx
+// src/features/forum/components/CreatePostModal.tsx
 "use client";
 
 import { useState } from "react";

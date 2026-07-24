@@ -1,4 +1,4 @@
-//app\api\image-proxy\route.ts
+// app/api/image-proxy/route.ts
 import { NextResponse } from "next/server";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";

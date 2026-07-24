@@ -1,4 +1,4 @@
-//src\core\ui\Head.tsx
+// src/core/ui/Head.tsx
 export default function Head() {
   return (
     <>

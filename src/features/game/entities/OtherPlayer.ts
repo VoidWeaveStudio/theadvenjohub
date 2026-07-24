@@ -1,4 +1,4 @@
-//src\features\game\entities\OtherPlayer.ts
+// src/features/game/entities/OtherPlayer.ts
 import * as THREE from "three";
 import { Entity } from "./Entity";
 import { ResourceManager } from "../core/ResourceManager";

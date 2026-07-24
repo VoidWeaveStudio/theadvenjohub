@@ -1,4 +1,4 @@
-//app\api\client\sync\route.ts
+// app/api/client/sync/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/core/auth/lib/auth";
 import { db } from "@/core/database";

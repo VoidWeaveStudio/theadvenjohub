@@ -1,4 +1,4 @@
-//src\core\types\game.ts
+// src/core/types/game.ts
 export interface GameModuleContract {
   id: string;
   title: string;

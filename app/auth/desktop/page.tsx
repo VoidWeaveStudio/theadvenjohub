@@ -1,4 +1,4 @@
-// src/app/auth/desktop/page.tsx
+// app/auth/desktop/page.tsx
 import { Suspense } from "react";
 import DesktopAuthPage from "@/features/auth/desktop/page";
 

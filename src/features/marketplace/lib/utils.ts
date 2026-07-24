@@ -1,5 +1,4 @@
-//src\features\marketplace\lib\utils.ts
-
+// src/features/marketplace/lib/utils.ts
 export function formatPrice(price: number): string {
   return (price / 1_000_000).toLocaleString("en-US", {
     minimumFractionDigits: 0,

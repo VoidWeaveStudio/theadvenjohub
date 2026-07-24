@@ -1,3 +1,4 @@
+// src/core/i18n/locales/zh.ts
 import type { Translations } from "../types";
 
 export const zh: Translations = {

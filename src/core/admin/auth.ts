@@ -1,4 +1,4 @@
-//src\core\admin\auth.ts
+// src/core/admin/auth.ts
 import jwt from "jsonwebtoken";
 
 export interface AdminPayload {

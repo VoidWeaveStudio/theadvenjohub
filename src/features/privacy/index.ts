@@ -1,2 +1,2 @@
-//src\features\privacy\index.ts
+// src/features/privacy/index.ts
 export { default as PrivacyContent } from "./page";

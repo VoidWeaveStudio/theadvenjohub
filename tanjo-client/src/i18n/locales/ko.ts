@@ -1,3 +1,4 @@
+// src/i18n/locales/ko.ts
 export default {
   common: {
     loading: '로딩 중...',

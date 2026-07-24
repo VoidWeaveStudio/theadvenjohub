@@ -1,3 +1,4 @@
+// src/i18n/locales/ru.ts
 export default {
   common: {
     loading: 'Загрузка...',

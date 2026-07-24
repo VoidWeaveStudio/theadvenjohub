@@ -1,5 +1,4 @@
-/* tanjo-client/src/styles/components/game-sidebar.css */
-
+/* src/styles/components/game-sidebar.css */
 .game-sidebar {
   width: 280px !important;
   background-color: var(--bg-secondary) !important;

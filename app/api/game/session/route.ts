@@ -1,14 +1,14 @@
-//app\api\game\session\route.ts
+// app/api/game/session/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { requireAuth } from "@/core/auth/lib/auth";
 import { db } from "@/core/database";
 import { games, gameLicenses } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    const ip = getClientIp(req);
 
     const rl = await checkRateLimit(`game:session:${ip}`, {
         maxAttempts: 10,

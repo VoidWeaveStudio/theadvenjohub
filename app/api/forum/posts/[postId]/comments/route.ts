@@ -1,4 +1,4 @@
-//app\api\forum\posts\[postId]\comments\route.ts
+// app/api/forum/posts/[postId]/comments/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
@@ -6,7 +6,7 @@ import { forumComments, forumPosts, users } from "@/core/database/schema";
 import { eq, and, sql, isNull, desc } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { sanitizeInput } from "@/core/lib/sanitize";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 
 const paramsSchema = z.object({
   postId: z.string().uuid("Invalid post ID format")
@@ -21,7 +21,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+  const ip = getClientIp(req);
   const rl = await checkRateLimit(`forum:comments:get:${ip}`, {
     maxAttempts: 30,
     windowMs: 60_000,
@@ -82,7 +82,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ postId: string }> }
 ) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+  const ip = getClientIp(req);
 
   const rl = await checkRateLimit(`forum:comments:create:${ip}`, {
     maxAttempts: 10,

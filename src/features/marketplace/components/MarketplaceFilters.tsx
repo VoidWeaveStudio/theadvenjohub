@@ -1,4 +1,4 @@
-//src\features\marketplace\components\MarketplaceFilters.tsx
+// src/features/marketplace/components/MarketplaceFilters.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";

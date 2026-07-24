@@ -918,6 +918,10 @@ export class Game {
             this.onDeathStateChange?.(false, null);
         };
 
+        this.networkManager.onPositionCorrection = (data: { position: number[] }) => {
+            this.player.teleportTo(new THREE.Vector3().fromArray(data.position));
+        };
+
         this.networkManager.onDayNightSync = (data) => {
             this.dayNightConfig = data;
         };

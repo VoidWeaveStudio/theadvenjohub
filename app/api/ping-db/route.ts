@@ -1,4 +1,4 @@
-//app\api\ping-db\route.ts
+// app/api/ping-db/route.ts
 import { NextResponse } from "next/server";
 import { db } from "@/core/database";
 import { sql } from "drizzle-orm";

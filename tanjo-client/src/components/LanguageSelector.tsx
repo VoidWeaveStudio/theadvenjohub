@@ -1,4 +1,4 @@
-//tanjo-client\src\components\LanguageSelector.tsx
+// src/components/LanguageSelector.tsx
 import { useI18n, type Language } from '../i18n';
 
 export function LanguageSelector() {

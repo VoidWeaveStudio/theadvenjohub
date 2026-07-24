@@ -1,4 +1,4 @@
-//src\core\ui\Pagination.tsx
+// src/core/ui/Pagination.tsx
 "use client";
 
 interface PaginationProps {

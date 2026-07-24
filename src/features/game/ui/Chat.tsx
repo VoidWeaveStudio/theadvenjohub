@@ -1,4 +1,4 @@
-//src\features\game\ui\Chat.tsx
+// src/features/game/ui/Chat.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";

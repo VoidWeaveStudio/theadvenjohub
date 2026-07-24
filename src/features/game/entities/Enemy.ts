@@ -1,4 +1,4 @@
-//src\features\game\entities\Enemy.ts
+// src/features/game/entities/Enemy.ts
 import * as THREE from "three";
 
 export class Enemy {

@@ -1,4 +1,4 @@
-//tanjo-client\src\lib\library.ts
+// src/lib/library.ts
 import { api } from './api';
 import { store, type GameLocalData } from './store';
 import { invoke } from '@tauri-apps/api/core';

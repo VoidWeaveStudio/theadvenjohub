@@ -1,4 +1,4 @@
-//src\core\types\api.ts
+// src/core/types/api.ts
 export interface ApiError {
   error: string;
   details?: Record<string, string[]>;

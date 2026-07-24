@@ -1,4 +1,4 @@
-//src\core\auth\components\LoginWithPhantom.tsx
+// src/core/auth/components/LoginWithPhantom.tsx
 "use client";
 
 import { useState, useCallback, useEffect } from "react";

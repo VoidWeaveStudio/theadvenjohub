@@ -1,4 +1,4 @@
-//src\core\i18n\locales\index.ts
+// src/core/i18n/locales/index.ts
 export { en } from "./en";
 export { ru } from "./ru";
 export { zh } from "./zh";

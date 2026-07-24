@@ -1,4 +1,4 @@
-//src\features\game\entities\Entity.ts
+// src/features/game/entities/Entity.ts
 import * as THREE from "three";
 
 export abstract class Entity {

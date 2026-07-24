@@ -1,9 +1,9 @@
-//app\api\auth\logout\route.ts
+// app/api/auth/logout/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+  const ip = getClientIp(req);
   const rl = await checkRateLimit(`auth:logout:${ip}`, {
     maxAttempts: 20,
     windowMs: 60_000,

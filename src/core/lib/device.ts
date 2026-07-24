@@ -1,4 +1,4 @@
-//src\core\lib\device.ts
+// src/core/lib/device.ts
 export function isMobile(): boolean {
   if (typeof window === "undefined") return false;
   

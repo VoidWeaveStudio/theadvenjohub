@@ -1,4 +1,4 @@
-//src\features\profile\page.tsx
+// src/features/profile/page.tsx
 import { Suspense } from "react";
 import ProfileContent from "./components/ProfileContent";
 

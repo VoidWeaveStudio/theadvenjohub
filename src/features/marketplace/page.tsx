@@ -1,4 +1,4 @@
-//src\features\marketplace\page.tsx
+// src/features/marketplace/page.tsx
 import { Suspense } from "react";
 import MarketplaceContent from "@/features/marketplace/components/MarketplaceContent";
 

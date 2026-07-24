@@ -1,6 +1,6 @@
 {
     "productName": "TANJO Game Store",
-    "version": "0.1.4",
+    "version": "0.1.7",
     "identifier": "online.theadvenjo.tanjo",
     "build": {
         "frontendDist": "../dist",
@@ -49,6 +49,7 @@
     },
     "bundle": {
         "active": true,
+        "createUpdaterArtifacts": true,
         "targets": [
             "nsis"
         ],

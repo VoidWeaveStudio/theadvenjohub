@@ -1,4 +1,4 @@
-//app\api\token-by-ca\route.ts
+// app/api/token-by-ca/route.ts
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {

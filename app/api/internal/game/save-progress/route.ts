@@ -1,4 +1,4 @@
-//app\api\internal\game\save-progress\route.ts
+// app/api/internal/game/save-progress/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";

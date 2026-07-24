@@ -4014,7 +4014,7 @@ dependencies = [
 
 [[package]]
 name = "tanjo-client"
-version = "0.1.4"
+version = "0.1.7"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -4038,6 +4038,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "uuid",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-//src\features\game\systems\EnemySystem.ts
+// src/features/game/systems/EnemySystem.ts
 import * as THREE from "three";
 import { System } from "./System";
 import { Enemy } from "../entities/Enemy";

@@ -1,4 +1,4 @@
-//src\features\game\world\locations\main-world\MainWorld.ts
+// src/features/game/world/locations/main-world/MainWorld.ts
 import * as THREE from "three";
 import { Location } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";

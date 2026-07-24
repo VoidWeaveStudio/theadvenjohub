@@ -1,3 +1,4 @@
+// src/features/game/world/locations/token-gates/GateRegistry.ts
 export interface GateConfig {
     id: string;
     ca: string | null;

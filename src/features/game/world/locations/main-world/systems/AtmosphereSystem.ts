@@ -1,4 +1,4 @@
-//src\features\game\world\locations\main-world\systems\AtmosphereSystem.ts
+// src/features/game/world/locations/main-world/systems/AtmosphereSystem.ts
 import * as THREE from "three";
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { MainWorld } from "../MainWorld";

@@ -1,4 +1,4 @@
-//app\api\internal\game\verify-token\route.ts
+// app/api/internal/game/verify-token/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";

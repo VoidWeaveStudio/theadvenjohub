@@ -1,11 +1,11 @@
-//app\api\forum\posts\route.ts
+// app/api/forum/posts/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
 import { forumPosts, users } from "@/core/database/schema";
 import { eq, desc, and, lt } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { sanitizeInput } from "@/core/lib/sanitize";
 
 const querySchema = z.object({
@@ -16,7 +16,7 @@ const querySchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    const ip = getClientIp(req);
 
     const rl = await checkRateLimit(`forum:posts:get:${ip}`, {
       maxAttempts: 30,
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    const ip = getClientIp(req);
 
     const rl = await checkRateLimit(`forum:posts:create:${ip}`, {
       maxAttempts: 3,

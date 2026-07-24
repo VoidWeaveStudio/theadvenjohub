@@ -1,4 +1,4 @@
-//src\features\game\ui\TokenPanel.tsx
+// src/features/game/ui/TokenPanel.tsx
 "use client";
 
 import { useEffect, useState } from "react";

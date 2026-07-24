@@ -1,4 +1,4 @@
-//src\features\game\network\NetworkManager.ts
+// src/features/game/network/NetworkManager.ts
 export type PlayerNetData = {
   id: string;
   nickname: string;
@@ -160,6 +160,7 @@ export class NetworkManager {
     marketCap: number;
   }) => void;
   public onServerError?: (message: string) => void;
+  public onPositionCorrection?: (data: { position: number[] }) => void;
 
   setSessionRefresher(fn: () => Promise<GameSession | null>) {
     this.refreshSession = fn;
@@ -388,6 +389,9 @@ export class NetworkManager {
       case "nicknameChange":
         break;
       case "positionCorrection":
+        if (Array.isArray(data.position) && data.position.length === 3) {
+          this.onPositionCorrection?.({ position: data.position });
+        }
         break;
       case "serverShutdown":
         break;

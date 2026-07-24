@@ -1,4 +1,4 @@
-//src\core\lib\shortId.ts
+// src/core/lib/shortId.ts
 export function shortId(uuid: string): string {
   if (!uuid || typeof uuid !== "string") return "???";
   return uuid.split("-")[0];

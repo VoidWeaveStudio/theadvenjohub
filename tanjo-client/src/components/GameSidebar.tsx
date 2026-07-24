@@ -1,4 +1,4 @@
-//tanjo-client\src\components\GameSidebar.tsx
+// src/components/GameSidebar.tsx
 import type { SyncedGame } from '../lib/library';
 import { useI18n } from '../i18n';
 import '../styles/components/game-sidebar.css';

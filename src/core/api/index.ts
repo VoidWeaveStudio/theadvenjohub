@@ -1,2 +1,2 @@
-//src\core\api\index.ts
+// src/core/api/index.ts
 export { apiGet, apiPost, type FetchOptions } from "./client";

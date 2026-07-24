@@ -1,4 +1,4 @@
-//src\core\wallets\OKXWalletAdapter.ts
+// src/core/wallets/OKXWalletAdapter.ts
 import {
   BaseWalletAdapter,
   WalletConnectionError,

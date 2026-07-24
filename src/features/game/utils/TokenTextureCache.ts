@@ -1,4 +1,4 @@
-//src\features\game\utils\TokenTextureCache.ts
+// src/features/game/utils/TokenTextureCache.ts
 import * as THREE from "three";
 
 class TokenTextureCache {

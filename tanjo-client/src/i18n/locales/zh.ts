@@ -1,3 +1,4 @@
+// src/i18n/locales/zh.ts
 export default {
   common: {
     loading: '加载中...',

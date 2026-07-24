@@ -1,12 +1,12 @@
-//app\api\auth\refresh\route.ts
+// app/api/auth/refresh/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    const ip = getClientIp(req);
 
     const rl = await checkRateLimit(`auth:refresh:${ip}`, {
       maxAttempts: 10,
@@ -34,10 +34,17 @@ export async function POST(req: NextRequest) {
     const decoded = jwt.verify(refreshToken, jwtSecret, {
       issuer: "tanjo-store",
       audience: "tanjo-users",
-    }) as { userId: string; wallet: string; iat: number };
+    }) as { userId: string; wallet: string; iat: number; type?: string };
+
+    if (decoded.type !== "refresh") {
+      return NextResponse.json(
+        { error: "invalid_token_type" },
+        { status: 401, headers: formatRateLimitHeaders(rl) }
+      );
+    }
 
     const newAccessToken = jwt.sign(
-      { userId: decoded.userId, wallet: decoded.wallet },
+      { userId: decoded.userId, wallet: decoded.wallet, type: "access" },
       jwtSecret,
       {
         expiresIn: "15m",
@@ -47,7 +54,7 @@ export async function POST(req: NextRequest) {
     );
 
     const newRefreshToken = jwt.sign(
-      { userId: decoded.userId, wallet: decoded.wallet },
+      { userId: decoded.userId, wallet: decoded.wallet, type: "refresh" },
       jwtSecret,
       {
         expiresIn: "7d",

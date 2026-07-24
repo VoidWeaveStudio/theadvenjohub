@@ -1,4 +1,4 @@
-//src\core\lib\sanitize.ts
+// src/core/lib/sanitize.ts
 import sanitizeHtml, { IOptions } from 'sanitize-html';
 
 const STRICT_OPTIONS: IOptions = {

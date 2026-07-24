@@ -116,7 +116,6 @@ export default function ProfileContent() {
 
   const handleLaunchGame = (slug: string) => {
     if (typeof window !== "undefined" && "__TAURI__" in window) {
-      // @ts-ignore
       window.__TAURI__?.shell?.open(`tanjo://launch/${slug}`);
     } else {
       window.location.href = `tanjo://launch/${slug}`;

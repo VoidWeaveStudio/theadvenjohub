@@ -1,3 +1,4 @@
+// next.config.mjs
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -24,7 +25,6 @@ const scriptSrc = isDev
 
 const cspDirectives = [...baseCsp, scriptSrc].join("; ");
 
-/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
   compress: true, 

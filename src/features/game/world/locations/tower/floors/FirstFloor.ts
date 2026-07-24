@@ -1,3 +1,4 @@
+// src/features/game/world/locations/tower/floors/FirstFloor.ts
 import * as THREE from "three";
 import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";

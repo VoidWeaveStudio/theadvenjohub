@@ -1,4 +1,4 @@
-//src\features\game\entities\LootDrop.ts
+// src/features/game/entities/LootDrop.ts
 import * as THREE from "three";
 import { LootTokenData } from "../network/NetworkManager";
 import { tokenTextureCache } from "../utils/TokenTextureCache";

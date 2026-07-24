@@ -1,4 +1,4 @@
-//src\core\types\events.ts
+// src/core/types/events.ts
 export type PlatformEvent =
   | { type: "game:progress:updated"; payload: { gameId: string; userId: string; newBalance: number } }
   | { type: "game:purchase:request"; payload: { gameId: string; userId: string; itemId: string; amount: number } }

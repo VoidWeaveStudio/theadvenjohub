@@ -1,3 +1,4 @@
+// src/i18n/locales/ja.ts
 export default {
   common: {
     loading: '読み込み中...',

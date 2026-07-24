@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-
+// src/vite-env.d.ts
 interface Window {
   __TAURI__?: {
     event?: {

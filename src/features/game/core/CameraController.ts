@@ -1,4 +1,4 @@
-//src\features\game\core\CameraController.ts
+// src/features/game/core/CameraController.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CollisionGrid } from "../world/CollisionGrid";

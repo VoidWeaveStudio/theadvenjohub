@@ -1,10 +1,10 @@
-//app\api\auth\me\route.ts
+// app/api/auth/me/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 
 export async function GET(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+  const ip = getClientIp(req);
   const rl = await checkRateLimit(`auth:me:${ip}`, {
     maxAttempts: 30,
     windowMs: 60_000,
@@ -25,7 +25,17 @@ export async function GET(req: NextRequest) {
     const decoded = jwt.verify(token, jwtSecret, {
       issuer: "tanjo-store",
       audience: "tanjo-users",
-    }) as { userId: string; wallet: string };
+    }) as { userId: string; wallet: string; type?: string };
+
+    if (decoded.type !== "access") {
+      const response = NextResponse.json(
+        { authenticated: false },
+        { status: 401, headers: formatRateLimitHeaders(rl) }
+      );
+      response.cookies.delete("token");
+      response.cookies.delete("refresh_token");
+      return response;
+    }
 
     return NextResponse.json(
       {

@@ -1,4 +1,4 @@
-//src\core\init.ts
+// src/core/init.ts
 import { testConnection } from "@/core/blockchain/solana";
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {

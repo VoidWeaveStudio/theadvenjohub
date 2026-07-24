@@ -1,4 +1,4 @@
-//app\api\marketplace\lots\route.ts
+// app/api/marketplace/lots/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/database";
 import { marketplaceLots, games } from "@/core/database/schema";

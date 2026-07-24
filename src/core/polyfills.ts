@@ -1,4 +1,4 @@
-//src\core\polyfills.ts
+// src/core/polyfills.ts
 import { Buffer as BufferPolyfill } from 'buffer';
 
 if (typeof window !== 'undefined' && !(window as any).Buffer) {

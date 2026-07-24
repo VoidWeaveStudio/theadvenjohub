@@ -1,4 +1,4 @@
-//src\features\game\types\index.ts
+// src/features/game/types/index.ts
 export interface Vector3 {
     x: number;
     y: number;

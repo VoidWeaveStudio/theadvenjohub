@@ -1,4 +1,4 @@
-//src\core\lib\useCachedQuery.ts
+// src/core/lib/useCachedQuery.ts
 import useSWR, { SWRConfiguration } from 'swr';
 
 const fetcher = async (url: string) => {

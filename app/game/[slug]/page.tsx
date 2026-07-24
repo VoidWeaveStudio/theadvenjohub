@@ -1,4 +1,4 @@
-//app\game\[slug]\page.tsx
+// app/game/[slug]/page.tsx
 import { GameClient } from "@/features/game/GameClient";
 
 

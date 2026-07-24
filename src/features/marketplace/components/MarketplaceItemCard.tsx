@@ -1,4 +1,4 @@
-//src\features\marketplace\components\MarketplaceItemCard.tsx
+// src/features/marketplace/components/MarketplaceItemCard.tsx
 "use client";
 
 import { useState } from "react";

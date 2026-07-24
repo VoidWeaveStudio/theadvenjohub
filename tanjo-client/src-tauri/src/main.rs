@@ -43,6 +43,8 @@ fn main() {
             commands::updater::install_app_update,
         ])
         .setup(|app| {
+            commands::crypto::cleanup_legacy_key_file();
+
             #[cfg(desktop)]
             {
                 app.deep_link().register("tanjo")?;

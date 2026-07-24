@@ -1,4 +1,4 @@
-// src\core\i18n\LanguageContext.tsx
+// src/core/i18n/LanguageContext.tsx
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from "react";

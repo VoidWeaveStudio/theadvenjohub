@@ -1,4 +1,4 @@
-//tanjo-client\src\components\LibraryView.tsx
+// src/components/LibraryView.tsx
 import { useState, useEffect, useRef } from 'react';
 import { syncLibrary, type SyncedGame } from '../lib/library';
 import { GameSidebar } from './GameSidebar';

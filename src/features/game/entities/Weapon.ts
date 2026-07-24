@@ -1,4 +1,4 @@
-//src\features\game\entities\Weapon.ts
+// src/features/game/entities/Weapon.ts
 import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
 

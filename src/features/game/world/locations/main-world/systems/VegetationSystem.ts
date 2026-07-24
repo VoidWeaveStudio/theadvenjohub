@@ -1,4 +1,4 @@
-//src\features\game\world\locations\main-world\systems\VegetationSystem.ts
+// src/features/game/world/locations/main-world/systems/VegetationSystem.ts
 import * as THREE from "three";
 import { MainWorld } from "../MainWorld";
 import { ResourceManager } from "../../../../core/ResourceManager";

@@ -1,5 +1,4 @@
-//src\features\game\utils\dayNightCycle.ts
-
+// src/features/game/utils/dayNightCycle.ts
 export interface DayNightConfig {
     epoch: number;
     dayDurationMs: number;

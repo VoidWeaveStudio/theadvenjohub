@@ -1,4 +1,4 @@
-//src\features\game\world\locations\main-world\utils\noise.ts
+// src/features/game/world/locations/main-world/utils/noise.ts
 export function hash2D(x: number, z: number): number {
     let n = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
     return n - Math.floor(n);

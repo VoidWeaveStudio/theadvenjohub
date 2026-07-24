@@ -1,4 +1,4 @@
-//src\features\game\world\locations\main-world\utils\grass.ts
+// src/features/game/world/locations/main-world/utils/grass.ts
 import * as THREE from "three";
 
 export function createGrassBladeGeometry(): THREE.BufferGeometry {

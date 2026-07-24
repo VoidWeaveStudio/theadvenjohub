@@ -1,3 +1,4 @@
+// src/core/i18n/locales/ja.ts
 import type { Translations } from "../types";
 
 export const ja: Translations = {

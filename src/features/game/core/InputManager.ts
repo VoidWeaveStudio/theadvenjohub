@@ -1,4 +1,4 @@
-//src\features\game\core\InputManager.ts
+// src/features/game/core/InputManager.ts
 import * as THREE from "three";
 
 export class InputManager {

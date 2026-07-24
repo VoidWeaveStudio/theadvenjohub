@@ -1,4 +1,4 @@
-//src\core\blockchain\solana.ts
+// src/core/blockchain/solana.ts
 import { Connection, PublicKey, TransactionError } from "@solana/web3.js";
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 

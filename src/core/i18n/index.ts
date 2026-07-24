@@ -1,4 +1,4 @@
-//src\core\i18n\index.ts
+// src/core/i18n/index.ts
 import type { Language, AllTranslations } from "./types";
 import { en } from "./locales/en";
 import { ru } from "./locales/ru";

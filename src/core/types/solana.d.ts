@@ -1,4 +1,4 @@
-//src\core\types\solana.d.ts
+// src/core/types/solana.d.ts
 declare module "@solana/spl-token" {
   import { PublicKey, TransactionInstruction, AccountMeta } from "@solana/web3.js";
 

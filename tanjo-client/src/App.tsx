@@ -1,4 +1,4 @@
-// tanjo-client/src/App.tsx
+// src/App.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { LibraryView } from './components/LibraryView';
 import { UpdateChecker } from './components/UpdateChecker';

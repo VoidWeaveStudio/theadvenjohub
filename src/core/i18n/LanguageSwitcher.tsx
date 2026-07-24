@@ -1,4 +1,4 @@
-//src\core\i18n\LanguageSwitcher.tsx
+// src/core/i18n/LanguageSwitcher.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";

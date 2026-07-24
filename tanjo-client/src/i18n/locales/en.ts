@@ -1,3 +1,4 @@
+// src/i18n/locales/en.ts
 export default {
   common: {
     loading: 'Loading...',

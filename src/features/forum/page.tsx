@@ -1,4 +1,4 @@
-//src\features\forum\page.tsx
+// src/features/forum/page.tsx
 import { Suspense } from "react";
 import ForumContent from "./components/ForumContent";
 

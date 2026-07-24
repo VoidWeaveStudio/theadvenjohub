@@ -1,4 +1,4 @@
-//src\core\i18n\types.ts
+// src/core/i18n/types.ts
 export type Language = "en" | "ru" | "zh" | "ko" | "ja";
 
 export type TranslationKey = string;

@@ -1,4 +1,4 @@
-//tanjo-client\src\components\GameDetails.tsx
+// src/components/GameDetails.tsx
 import { useState } from 'react';
 import type { SyncedGame } from '../lib/library';
 import { launchGame, checkForUpdates } from '../lib/library';

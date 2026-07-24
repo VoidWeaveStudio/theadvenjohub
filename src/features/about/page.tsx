@@ -1,4 +1,4 @@
-//src\features\about\page.tsx
+// src/features/about/page.tsx
 "use client";
 
 import Link from "next/link";

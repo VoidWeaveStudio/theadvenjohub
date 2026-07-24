@@ -1,4 +1,4 @@
-//tanjo-client\src\lib\logger.ts
+// src/lib/logger.ts
 const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
 
 interface Logger {

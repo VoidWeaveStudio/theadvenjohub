@@ -1,3 +1,4 @@
+// src/core/i18n/locales/ru.ts
 import type { Translations } from "../types";
 
 export const ru: Translations = {

@@ -1,7 +1,7 @@
 # src-tauri/Cargo.toml
 [package]
 name = "tanjo-client"
-version = "0.1.4"
+version = "0.1.7"
 description = "TANJO Game Store Client"
 authors = ["you"]
 edition = "2021"
@@ -36,6 +36,12 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 sha2 = "0.10"
 hex = "0.4"
 ring = "0.17"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+] }
 
 [features]
 default = ["custom-protocol"]

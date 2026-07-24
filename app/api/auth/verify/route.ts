@@ -4,8 +4,8 @@ import jwt from "jsonwebtoken";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import { Redis } from "@upstash/redis";
-import { generateCSRFToken } from "@/core/auth/lib/csrf";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { generateCSRFToken, verifyCSRF } from "@/core/auth/lib/csrf";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { db } from "@/core/database";
 import { users } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
@@ -14,6 +14,13 @@ const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
+
+function buildExpectedMessages(wallet: string, nonce: string): string[] {
+  return [
+    `Sign in to TANJO Game Store\nWallet: ${wallet}\nNonce: ${nonce}`,
+    `Sign in to TANJO Desktop\nWallet: ${wallet}\nNonce: ${nonce}`,
+  ];
+}
 
 function verifySolanaSignature(
   signatureBase64: string,
@@ -47,7 +54,7 @@ function verifySolanaSignature(
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    const ip = getClientIp(req);
 
     const rl = await checkRateLimit(`auth:verify:${ip}`, {
       maxAttempts: 10,
@@ -62,8 +69,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!verifyCSRF(req)) {
+      return NextResponse.json(
+        { error: "invalid_csrf_token" },
+        { status: 403, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
     const body = await req.json();
-    const { signature, wallet, message, nonce } = body;
+    const { signature, wallet, message, nonce, platform } = body;
 
     console.log("[verify] Request received:", {
       hasSignature: !!signature,
@@ -107,7 +121,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Проверяем nonce
     const storedNonce = await redis.get(`auth:nonce:${wallet}`);
     console.log("[verify] Nonce check:", {
       received: nonce,
@@ -123,7 +136,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Проверяем подпись
+    const expectedMessages = buildExpectedMessages(wallet, nonce);
+    if (!expectedMessages.includes(message)) {
+      console.error("[verify] Message does not match expected template for wallet+nonce");
+      return NextResponse.json(
+        { error: "invalid_message" },
+        { status: 401, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
     if (!verifySolanaSignature(signature, message, wallet)) {
       console.error("[verify] Invalid signature");
       return NextResponse.json(
@@ -169,6 +190,7 @@ export async function POST(req: NextRequest) {
       {
         userId: finalUser.id,
         wallet: finalUser.wallet,
+        type: "access",
         iat: Math.floor(Date.now() / 1000),
       },
       jwtSecret,
@@ -184,6 +206,7 @@ export async function POST(req: NextRequest) {
       {
         userId: finalUser.id,
         wallet: finalUser.wallet,
+        type: "refresh",
         iat: Math.floor(Date.now() / 1000),
       },
       jwtSecret,
@@ -204,7 +227,7 @@ export async function POST(req: NextRequest) {
         user: { wallet: finalUser.wallet },
         csrfToken: newCsrfToken,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        accessToken: accessToken,
+        ...(platform === "desktop" ? { accessToken } : {}),
       },
       { headers: formatRateLimitHeaders(rl) }
     );

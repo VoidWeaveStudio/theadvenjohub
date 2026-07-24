@@ -1,4 +1,4 @@
-//src\core\ui\ThemeSwitcher.tsx
+// src/core/ui/ThemeSwitcher.tsx
 "use client";
 
 import { useEffect, useState } from "react";

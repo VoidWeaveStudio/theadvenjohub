@@ -1,4 +1,4 @@
-//app\api\games\[slug]\route.ts
+// app/api/games/[slug]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/database";
 import { games, gameLicenses, gameScreenshots } from "@/core/database/schema";

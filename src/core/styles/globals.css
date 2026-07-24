@@ -1,3 +1,4 @@
+/* src/core/styles/globals.css */
 @import "tailwindcss";
 
 :root {
@@ -673,7 +674,7 @@ button:focus-visible,
   box-shadow: var(--input-focus-shadow);
 }
 
-/* Игровой UI класс */
+
 .game-ui {
   font-family: var(--font-oxanium), monospace;
 }

@@ -1,4 +1,4 @@
-//src\core\types\phantom.d.ts
+// src/core/types/phantom.d.ts
 export interface PhantomProvider {
   publicKey?: {
     toBase58(): string;

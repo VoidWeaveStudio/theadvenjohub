@@ -1,4 +1,4 @@
-//src\features\marketplace\types.ts
+// src/features/marketplace/types.ts
 export interface LotWithGame {
   id: string;
   name: string;

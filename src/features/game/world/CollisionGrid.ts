@@ -1,4 +1,4 @@
-//src\features\game\world\CollisionGrid.ts
+// src/features/game/world/CollisionGrid.ts
 import * as THREE from "three";
 
 type Cylinder = {

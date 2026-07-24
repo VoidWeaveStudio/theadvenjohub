@@ -1,4 +1,4 @@
-//src\features\game\world\locations\main-world\systems\PortalSystem.ts
+// src/features/game/world/locations/main-world/systems/PortalSystem.ts
 import * as THREE from "three";
 import { MainWorld } from "../MainWorld";
 import { ResourceManager } from "../../../../core/ResourceManager";

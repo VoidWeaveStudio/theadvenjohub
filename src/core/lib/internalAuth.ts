@@ -1,4 +1,4 @@
-//src\core\lib\internalAuth.ts
+// src/core/lib/internalAuth.ts
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 

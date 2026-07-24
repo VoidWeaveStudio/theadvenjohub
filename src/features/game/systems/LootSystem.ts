@@ -1,4 +1,4 @@
-//src\features\game\systems\LootSystem.ts
+// src/features/game/systems/LootSystem.ts
 import * as THREE from "three";
 import { System } from "./System";
 import { Player } from "../entities/Player";

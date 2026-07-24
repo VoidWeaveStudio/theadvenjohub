@@ -1,4 +1,4 @@
-//tanjo-client\src\lib\api.ts
+// src/lib/api.ts
 import { store } from './store';
 import { logger } from './logger';
 

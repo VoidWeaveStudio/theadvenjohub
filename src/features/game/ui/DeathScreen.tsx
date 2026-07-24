@@ -1,4 +1,4 @@
-//src\features\game\ui\DeathScreen.tsx
+// src/features/game/ui/DeathScreen.tsx
 "use client";
 
 import { useEffect, useState } from "react";

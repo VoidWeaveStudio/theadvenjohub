@@ -1,4 +1,4 @@
-//src\features\game\world\locations\Cave.ts
+// src/features/game/world/locations/Cave.ts
 import * as THREE from "three";
 import { Location } from "../Location";
 import { ResourceManager } from "../../core/ResourceManager";

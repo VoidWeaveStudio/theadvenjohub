@@ -1,4 +1,4 @@
-/* tanjo-client/src/styles/components/library.css */
+/* src/styles/components/library.css */
 .library-container {
   display: flex;
   height: calc(100vh - 64px);

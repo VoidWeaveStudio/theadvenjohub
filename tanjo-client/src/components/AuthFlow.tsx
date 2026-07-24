@@ -1,4 +1,4 @@
-//tanjo-client\src\components\AuthFlow.tsx
+// src/components/AuthFlow.tsx
 import { useState, useCallback } from 'react';
 import { logout } from '../lib/auth';
 import { useI18n } from '../i18n';

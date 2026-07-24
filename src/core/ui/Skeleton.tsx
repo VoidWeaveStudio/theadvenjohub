@@ -1,4 +1,4 @@
-//src\core\ui\Skeleton.tsx
+// src/core/ui/Skeleton.tsx
 export function CardSkeleton() {
   return (
     <div className="group relative bg-gradient-to-br from-surface to-surface/80 border border-border rounded-xl overflow-hidden">

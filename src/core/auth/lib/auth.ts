@@ -35,7 +35,12 @@ export async function requireAuth(
     const decoded = jwt.verify(token, jwtSecret, {
       issuer: "tanjo-store",
       audience: "tanjo-users"
-    }) as { userId: string; wallet: string };
+    }) as { userId: string; wallet: string; type?: string };
+
+    if (decoded.type !== "access") {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
     return { user: decoded };
   } catch {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });

@@ -1,4 +1,4 @@
-//tanjo-client\src\ui\Spinner.tsx
+// src/ui/Spinner.tsx
 interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;

@@ -1,4 +1,4 @@
-//src\core\lib\cache.ts
+// src/core/lib/cache.ts
 import { Redis } from '@upstash/redis';
 
 let redis: Redis | null = null;

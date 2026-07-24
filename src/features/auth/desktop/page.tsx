@@ -1,4 +1,4 @@
-//src\features\auth\desktop\page.tsx
+// src/features/auth/desktop/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -105,7 +105,8 @@ export default function DesktopAuthPage() {
           wallet: walletAddress,
           message,
           signature: signatureBase64,
-          nonce
+          nonce,
+          platform: "desktop"
         })
       });
 

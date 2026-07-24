@@ -1,4 +1,4 @@
-//tanjo-client\src\i18n\I18nContext.tsx
+// src/i18n/I18nContext.tsx
 import { createContext, useContext, useState, ReactNode } from 'react';
 import en from './locales/en';
 import ru from './locales/ru';

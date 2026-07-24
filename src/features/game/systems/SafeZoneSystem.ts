@@ -1,4 +1,4 @@
-//src\features\game\systems\SafeZoneSystem.ts
+// src/features/game/systems/SafeZoneSystem.ts
 import * as THREE from "three";
 import { System } from "./System";
 import { SafeZone } from "../world/SafeZone";

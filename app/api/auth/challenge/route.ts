@@ -1,9 +1,9 @@
-//app\api\auth\challenge\route.ts
+// app/api/auth/challenge/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { Redis } from "@upstash/redis";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -12,7 +12,7 @@ const redis = new Redis({
 
 export async function GET(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
+    const ip = getClientIp(req);
     
     const rl = await checkRateLimit(`auth:challenge:${ip}`, {
       maxAttempts: 20,

@@ -1,15 +1,16 @@
-//app\api\purchase\verify\route.ts
+// app/api/purchase/verify/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
-import { 
-  gameLicenses, 
-  marketplacePurchases, 
+import {
+  gameLicenses,
+  marketplacePurchases,
   marketplaceLots,
+  games,
 } from "@/core/database/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
-import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { Connection, PublicKey, ParsedTransactionWithMeta } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 
@@ -19,7 +20,6 @@ const verifySchema = z.object({
   signature: z.string().min(80).max(100, "Invalid signature length"),
   gameId: z.string().uuid("Invalid gameId format").optional(),
   lotId: z.string().uuid("Invalid lotId format").optional(),
-  price: z.number().int().positive("Price must be positive"),
 }).refine(data => data.gameId || data.lotId, {
   message: "Either gameId or lotId must be provided",
   path: ["gameId", "lotId"],
@@ -27,8 +27,8 @@ const verifySchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "unknown";
-    
+    const ip = getClientIp(req);
+
     if (process.env.NODE_ENV === "development") {
       console.log("[purchase/verify] Request headers:", {
         hasCookie: !!req.cookies.get("token"),
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
         contentType: req.headers.get("content-type"),
       });
     }
-    
+
     const rl = await checkRateLimit(`purchase:verify:${ip}`, {
       maxAttempts: 5,
       windowMs: 60_000,
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const validation = verifySchema.safeParse(body);
-    
+
     if (!validation.success) {
       return NextResponse.json(
         { error: "validation_failed", details: validation.error.flatten() },
@@ -91,11 +91,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { signature, gameId, lotId, price } = validation.data;
+    const { signature, gameId, lotId } = validation.data;
 
     const treasuryWallet = process.env.TREASURY_WALLET_ADDRESS?.trim();
     const tokenMint = process.env.TNJ_TOKEN_MINT_ADDRESS?.trim();
     const rpcUrl = process.env.SOLANA_RPC_PRIVATE?.trim() || "https://mainnet.helius-rpc.com";
+    const decimals = Number.parseInt(process.env.TNJ_DECIMALS || "6", 10);
 
     if (!treasuryWallet || !tokenMint) {
       console.error("[purchase/verify] Missing env config:", { treasuryWallet, tokenMint });
@@ -105,11 +106,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let serverPrice: number;
+    if (gameId) {
+      const game = await db.query.games.findFirst({ where: eq(games.id, gameId) });
+      if (!game || !game.isActive) {
+        return NextResponse.json(
+          { error: "game_not_found" },
+          { status: 404, headers: formatRateLimitHeaders(rl) }
+        );
+      }
+      serverPrice = game.price;
+    } else {
+      const lot = await db.query.marketplaceLots.findFirst({ where: eq(marketplaceLots.id, lotId!) });
+      if (!lot) {
+        return NextResponse.json(
+          { error: "lot_not_found" },
+          { status: 404, headers: formatRateLimitHeaders(rl) }
+        );
+      }
+      if (lot.status !== "available") {
+        return NextResponse.json(
+          { error: "lot_unavailable" },
+          { status: 409, headers: formatRateLimitHeaders(rl) }
+        );
+      }
+      serverPrice = lot.price;
+    }
+
     const connection = new Connection(rpcUrl, "confirmed");
-    
+
     let tx: ParsedTransactionWithMeta | null = null;
     let lastError: Error | null = null;
-    
+
     for (let attempt = 0; attempt < 8; attempt++) {
       try {
         tx = await connection.getParsedTransaction(signature, {
@@ -137,22 +165,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const expectedAmount = BigInt(price);
+    const expectedAmount = BigInt(serverPrice) * (10n ** BigInt(decimals));
     let transferFound = false;
 
     if (tx.meta?.postTokenBalances) {
       for (const tb of tx.meta.postTokenBalances) {
         const isCorrectMint = tb.mint === tokenMint;
         const isTreasuryOwner = tb.owner === treasuryWallet;
-        
+
         if (isCorrectMint && isTreasuryOwner) {
           const postAmount = BigInt(tb.uiTokenAmount?.amount || "0");
-          const preTB = tx.meta?.preTokenBalances?.find((p: any) => 
+          const preTB = tx.meta?.preTokenBalances?.find((p: any) =>
             p.mint === tokenMint && p.owner === treasuryWallet
           );
           const preAmount = preTB ? BigInt(preTB.uiTokenAmount?.amount || "0") : 0n;
           const received = postAmount - preAmount;
-          
+
           if (received >= expectedAmount) {
             transferFound = true;
             break;
@@ -165,15 +193,15 @@ export async function POST(req: NextRequest) {
       for (const ix of tx.meta.innerInstructions) {
         for (const inner of ix.instructions) {
           const programId = inner.programId?.toString();
-          
+
           if (programId === TOKEN_PROGRAM_ID.toString() || programId === TOKEN_2022_PROGRAM_ID.toString()) {
             const parsed = (inner as any).parsed;
-            
+
             if (parsed?.type === "transfer" && parsed?.info?.amount) {
               const transferAmount = BigInt(parsed.info.amount);
               const transferMint = parsed.info.mint;
               const destination = parsed.info.destination;
-              
+
               if (transferMint === tokenMint && transferAmount >= expectedAmount) {
                 const expectedTreasuryATA = await getAssociatedTokenAddress(
                   new PublicKey(tokenMint),
@@ -181,7 +209,7 @@ export async function POST(req: NextRequest) {
                   undefined,
                   programId === TOKEN_2022_PROGRAM_ID.toString() ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID
                 );
-                
+
                 if (destination === expectedTreasuryATA.toString()) {
                   transferFound = true;
                   break;
@@ -196,7 +224,7 @@ export async function POST(req: NextRequest) {
 
     if (!transferFound) {
       return NextResponse.json(
-        { 
+        {
           error: "transfer_verification_failed",
           expected: expectedAmount.toString(),
           hint: "Send tokens to treasury ATA (not wallet directly). Check mint matches."
@@ -206,10 +234,10 @@ export async function POST(req: NextRequest) {
     }
 
     const signer = tx.transaction.message.accountKeys[0]?.pubkey?.toString();
-    if (!signer || signer.toLowerCase() !== user.wallet.toLowerCase()) {
-      console.warn("[purchase/verify] Wallet mismatch:", { 
-        expected: user.wallet, 
-        got: signer 
+    if (!signer || signer !== user.wallet) {
+      console.warn("[purchase/verify] Wallet mismatch:", {
+        expected: user.wallet,
+        got: signer
       });
       return NextResponse.json(
         { error: "wrong_signer", expected: user.wallet, got: signer },
@@ -235,7 +263,7 @@ export async function POST(req: NextRequest) {
     }
 
     let result: { id: string; type: "game" | "item" };
-    
+
     if (gameId) {
       const raceCheck = await db.query.gameLicenses.findFirst({
         where: eq(gameLicenses.txSignature, signature),
@@ -243,19 +271,19 @@ export async function POST(req: NextRequest) {
       if (raceCheck) {
         return NextResponse.json({ success: true, type: "game", id: raceCheck.id, alreadyProcessed: true });
       }
-      
+
       const [license] = await db.insert(gameLicenses).values({
-        userId: user.userId, 
-        gameId, 
+        userId: user.userId,
+        gameId,
         wallet: user.wallet,
-        txSignature: signature, 
-        price, 
-        purchasedAt: new Date(), 
+        txSignature: signature,
+        price: serverPrice,
+        purchasedAt: new Date(),
         isActive: true,
       }).returning();
-      
+
       result = { id: license.id, type: "game" };
-      
+
     } else if (lotId) {
       const raceCheck = await db.query.marketplacePurchases.findFirst({
         where: eq(marketplacePurchases.txSignature, signature),
@@ -263,28 +291,42 @@ export async function POST(req: NextRequest) {
       if (raceCheck) {
         return NextResponse.json({ success: true, type: "item", id: raceCheck.id, alreadyProcessed: true });
       }
-      
+
+      const [claimedLot] = await db.update(marketplaceLots)
+        .set({ status: "sold", updatedAt: new Date() })
+        .where(and(eq(marketplaceLots.id, lotId), eq(marketplaceLots.status, "available")))
+        .returning();
+
+      if (!claimedLot) {
+        console.error("[purchase/verify] Paid transaction could not claim lot (already sold):", {
+          lotId, signature, userId: user.userId,
+        });
+        return NextResponse.json(
+          {
+            error: "lot_already_sold",
+            hint: "This item was already sold to someone else. Contact support with your transaction signature for a refund.",
+          },
+          { status: 409, headers: formatRateLimitHeaders(rl) }
+        );
+      }
+
       const [purchase] = await db.insert(marketplacePurchases).values({
-        userId: user.userId, 
-        wallet: user.wallet, 
+        userId: user.userId,
+        wallet: user.wallet,
         lotId,
-        txSignature: signature, 
-        amount: price, 
+        txSignature: signature,
+        amount: serverPrice,
         status: "confirmed",
       }).returning();
-      
-      await db.update(marketplaceLots)
-        .set({ status: "sold", updatedAt: new Date() })
-        .where(eq(marketplaceLots.id, lotId));
-      
+
       result = { id: purchase.id, type: "item" };
     } else {
       throw new Error("Invalid purchase type");
     }
 
     return NextResponse.json({
-      success: true, 
-      type: result.type, 
+      success: true,
+      type: result.type,
       id: result.id,
       message: result.type === "game" ? "Game added" : "Item added",
     }, { headers: formatRateLimitHeaders(rl) });
@@ -293,11 +335,11 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "validation_failed", details: error.flatten() }, { status: 400 });
     }
-    
+
     if (process.env.NODE_ENV === "development") {
       console.error("[purchase/verify] Unexpected error:", error);
     }
-    
+
     const isProd = process.env.NODE_ENV === "production";
     return NextResponse.json(
       { error: isProd ? "purchase_verification_failed" : (error as Error).message },
