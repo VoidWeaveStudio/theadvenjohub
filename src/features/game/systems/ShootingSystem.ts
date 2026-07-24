@@ -47,7 +47,6 @@ interface NetworkShootData {
 
 export class ShootingSystem extends System {
     public onHitPlayer?: () => void;
-    public onHitEnemy?: (enemyId: string, damage: number) => void;
 
     private scene!: THREE.Scene;
     private player!: Player;
@@ -77,6 +76,9 @@ export class ShootingSystem extends System {
     private muzzleLight: THREE.PointLight | null = null;
     private muzzleLightTimeout: ReturnType<typeof setTimeout> | null = null;
 
+    private warmupBullet: THREE.Group | null = null;
+    private warmupTrail: THREE.Line | null = null;
+
     public setScene(scene: THREE.Scene) {
         this.clearAllEffects();
 
@@ -88,11 +90,13 @@ export class ShootingSystem extends System {
         }
         if (this.muzzleLight && this.scene) {
             this.scene.remove(this.muzzleLight);
-            this.muzzleLight = null;
         }
 
         this.scene = scene;
 
+        if (this.muzzleLight) {
+            this.scene.add(this.muzzleLight);
+        }
         for (const p of this.particlePool) {
             this.scene.add(p.mesh);
         }
@@ -124,6 +128,42 @@ export class ShootingSystem extends System {
 
         this.initParticlePool();
         this.initImpactPool();
+
+        this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 8);
+        this.scene.add(this.muzzleLight);
+    }
+
+    public prewarm() {
+        const data = this.resourceManager.getModel("bullet");
+        if (data) {
+            this.warmupBullet = data.scene;
+            this.warmupBullet.position.set(0, -500, 0);
+            this.scene.add(this.warmupBullet);
+        }
+
+        const trailGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+        const trailMat = new THREE.LineBasicMaterial({
+            color: 0xffff88,
+            transparent: true,
+            opacity: 0.8,
+            linewidth: 2,
+        });
+        this.warmupTrail = new THREE.Line(trailGeo, trailMat);
+        this.warmupTrail.position.set(0, -500, 0);
+        this.scene.add(this.warmupTrail);
+    }
+
+    public endPrewarm() {
+        if (this.warmupBullet) {
+            this.scene.remove(this.warmupBullet);
+            this.warmupBullet = null;
+        }
+        if (this.warmupTrail) {
+            this.scene.remove(this.warmupTrail);
+            this.warmupTrail.geometry.dispose();
+            (this.warmupTrail.material as THREE.Material).dispose();
+            this.warmupTrail = null;
+        }
     }
 
     private initParticlePool() {
@@ -348,9 +388,10 @@ export class ShootingSystem extends System {
                 });
             } else if (targetType === 'enemy') {
                 this.spawnBloodEffect(hitPoint);
-                if (this.onHitEnemy) {
-                    this.onHitEnemy(targetId!, 25);
-                }
+                this.network.sendEnemyHit({
+                    target: targetId!,
+                    point: hitPoint.toArray(),
+                });
             } else {
                 this.spawnImpactEffect(hitPoint);
                 this.network.sendHit({
@@ -403,10 +444,7 @@ export class ShootingSystem extends System {
     }
 
     private muzzleFlash(origin: THREE.Vector3) {
-        if (!this.muzzleLight) {
-            this.muzzleLight = new THREE.PointLight(0xffaa00, 0, 8);
-            this.scene.add(this.muzzleLight);
-        }
+        if (!this.muzzleLight) return;
 
         this.muzzleLight.position.copy(origin);
         this.muzzleLight.intensity = 3;

@@ -150,9 +150,13 @@ export class AtmosphereSystem {
         }
     }
 
-    update(delta: number, playerPosition: THREE.Vector3) {
-        this.dayTime += delta * 0.01;
-        if (this.dayTime > 1) this.dayTime -= 1;
+    update(delta: number, playerPosition: THREE.Vector3, dayTime?: number) {
+        if (dayTime !== undefined) {
+            this.dayTime = dayTime;
+        } else {
+            this.dayTime += delta * 0.01;
+            if (this.dayTime > 1) this.dayTime -= 1;
+        }
         this.updateSunPosition(this.dayTime);
         if (this.clouds) this.clouds.rotation.z += delta * 0.01;
 

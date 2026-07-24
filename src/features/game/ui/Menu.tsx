@@ -146,6 +146,7 @@ export function Menu({ isOpen, onClose, nickname, onNicknameChange, onTeleportTo
                                 ["Left Click", "Shoot"],
                                 ["R", "Reload"],
                                 ["E", "Interact"],
+                                ["I", "Inventory"],
                                 ["Esc", "Open Menu"],
                             ].map(([key, action], index) => (
                                 <div

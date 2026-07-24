@@ -1,7 +1,7 @@
 // src/features/game/GameClient.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Game, HUDState, DamageEvent } from "./core/Game";
 import { HUD } from "./ui/HUD";
 import { Menu } from "./ui/Menu";
@@ -14,6 +14,8 @@ import { apiPost } from "@/core/api/client";
 import { DeathScreen } from "./ui/DeathScreen";
 import { FloorSelector } from "./ui/FloorSelector";
 import { TokenPanel } from "./ui/TokenPanel";
+import { Inventory, InventoryEntry } from "./ui/Inventory";
+import { VendorPanel } from "./ui/VendorPanel";
 
 interface GameClientProps {
   slug: string;
@@ -68,6 +70,10 @@ export function GameClient({ slug }: GameClientProps) {
   const [currentLocationId, setCurrentLocationId] = useState("tower-main-hall");
 
   const [activeTokenData, setActiveTokenData] = useState<any>(null);
+  const [inventory, setInventory] = useState<InventoryEntry[]>([]);
+  const [ash, setAsh] = useState(0);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isVendorOpen, setIsVendorOpen] = useState(false);
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
@@ -181,9 +187,19 @@ export function GameClient({ slug }: GameClientProps) {
           setShowFloorSelector(isOpen);
           if (isOpen) document.exitPointerLock();
         };
+        game.onInventoryChange = (inv, ashValue) => {
+          if (cancelled) return;
+          setInventory(inv);
+          setAsh(ashValue);
+        };
         game.onOpenTokenUI = (tokenData) => {
           if (cancelled) return;
           setActiveTokenData(tokenData);
+          document.exitPointerLock();
+        };
+        game.onOpenVendorUI = () => {
+          if (cancelled) return;
+          setIsVendorOpen(true);
           document.exitPointerLock();
         };
         game.onDamageEvent = (event) => {
@@ -251,12 +267,33 @@ export function GameClient({ slug }: GameClientProps) {
           gameRef.current?.closeFloorSelector();
           return;
         }
+        if (isVendorOpen) {
+          setIsVendorOpen(false);
+          return;
+        }
+        if (isInventoryOpen) {
+          setIsInventoryOpen(false);
+          return;
+        }
         setIsMenuOpen((prev) => !prev);
         return;
       }
 
+      if (isVendorOpen) return;
+
       if (e.code === "Enter" && isPointerLocked) {
         setIsChatVisible((prev) => !prev);
+      }
+
+      if (e.code === "KeyI" && !isMenuOpen && !showFloorSelector) {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+        setIsInventoryOpen((prev) => {
+          const next = !prev;
+          if (next) document.exitPointerLock();
+          return next;
+        });
+        return;
       }
 
       if (isPointerLocked && !isMenuOpen && !showFloorSelector) {
@@ -269,7 +306,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, isMenuOpen, showFloorSelector, activeTokenData]);
+  }, [isPointerLocked, isMenuOpen, showFloorSelector, activeTokenData, isVendorOpen, isInventoryOpen]);
 
   const handleNicknameChange = (nick: string) => {
     setNickname(nick);
@@ -280,9 +317,9 @@ export function GameClient({ slug }: GameClientProps) {
     gameRef.current?.sendChatMessage(message);
   };
 
-  const removeNotification = (id: number) => {
+  const removeNotification = useCallback((id: number) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
+  }, []);
 
   const handleCloseMenu = () => {
     setIsMenuOpen(false);
@@ -358,6 +395,12 @@ export function GameClient({ slug }: GameClientProps) {
         onSlotClick={handleSlotClick}
       />
       <Notifications notifications={notifications} onRemove={removeNotification} />
+      <Inventory
+        items={inventory}
+        ash={ash}
+        isOpen={isInventoryOpen}
+        onClose={() => setIsInventoryOpen(false)}
+      />
 
       <DamageIndicator
         attackerId={damageIndicator.attackerId}
@@ -402,6 +445,13 @@ export function GameClient({ slug }: GameClientProps) {
           onClose={() => setActiveTokenData(null)}
         />
       )}
+
+      <VendorPanel
+        isOpen={isVendorOpen}
+        inventory={inventory}
+        onClose={() => setIsVendorOpen(false)}
+        onSell={(address, quantity) => gameRef.current?.sellToken(address, quantity)}
+      />
     </div>
   );
 }

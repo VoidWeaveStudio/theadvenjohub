@@ -13,6 +13,8 @@ interface CrystalData {
 
 export class MainHall extends TowerFloor {
     private crystals: CrystalData[] = [];
+    private vendorNpc!: THREE.Group;
+    private vendorTime: number = 0;
 
     constructor() {
         super("tower-main-hall", "Gloomy Tower Main Hall");
@@ -44,6 +46,72 @@ export class MainHall extends TowerFloor {
         this.createChandelier(metalMat);
 
         this.createCentralCrystal();
+        this.createVendorNPC();
+    }
+
+    private createVendorNPC() {
+        const STALL_Z = -18;
+
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.85, metalness: 0.05 });
+        const clothMat = new THREE.MeshStandardMaterial({ color: 0x7a2f3a, roughness: 0.7, metalness: 0.05 });
+
+        const stallGroup = new THREE.Group();
+        stallGroup.position.set(0, 0, STALL_Z);
+
+        const counter = new THREE.Mesh(new THREE.BoxGeometry(4, 1.1, 1.2), woodMat);
+        counter.position.set(0, 0.55, 0.6);
+        counter.castShadow = true;
+        counter.receiveShadow = true;
+        stallGroup.add(counter);
+
+        const postGeo = new THREE.CylinderGeometry(0.12, 0.12, 3, 8);
+        const postPositions: [number, number][] = [[-1.9, -1.5], [1.9, -1.5], [-1.9, 1.5], [1.9, 1.5]];
+        for (const [x, z] of postPositions) {
+            const post = new THREE.Mesh(postGeo, woodMat);
+            post.position.set(x, 1.5, z);
+            post.castShadow = true;
+            stallGroup.add(post);
+        }
+
+        const canopy = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.15, 3.4), clothMat);
+        canopy.position.set(0, 3, 0);
+        canopy.castShadow = true;
+        stallGroup.add(canopy);
+
+        this.scene.add(stallGroup);
+
+        const npcGroup = new THREE.Group();
+        npcGroup.position.set(0, 0, STALL_Z - 0.6);
+
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 1.0, 4, 8), clothMat);
+        body.position.y = 1.15;
+        body.castShadow = true;
+        npcGroup.add(body);
+
+        const head = new THREE.Mesh(
+            new THREE.SphereGeometry(0.28, 16, 16),
+            new THREE.MeshStandardMaterial({ color: 0xd8ac8a, roughness: 0.8 })
+        );
+        head.position.y = 1.95;
+        head.castShadow = true;
+        npcGroup.add(head);
+
+        const hat = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.4, 12), woodMat);
+        hat.position.y = 2.25;
+        npcGroup.add(hat);
+
+        const glow = new THREE.PointLight(0xffcc66, 1.5, 6);
+        glow.position.set(0, 2, 0.5);
+        npcGroup.add(glow);
+
+        npcGroup.userData.interactionId = "token-vendor";
+        this.scene.add(npcGroup);
+        this.vendorNpc = npcGroup;
+
+        this.collisionGrid.insert(new THREE.Box3(
+            new THREE.Vector3(-2.2, 0, STALL_Z - 1.8),
+            new THREE.Vector3(2.2, 3.2, STALL_Z + 1.8)
+        ));
     }
 
     private createFloor(radius: number) {
@@ -369,6 +437,14 @@ export class MainHall extends TowerFloor {
             });
         }
 
+        if (this.vendorNpc) {
+            this.vendorTime += delta;
+            this.vendorNpc.rotation.y = Math.sin(this.vendorTime * 0.4) * 0.3;
+        }
+    }
+
+    public override getInteractables(): THREE.Object3D[] {
+        return [...super.getInteractables(), this.vendorNpc];
     }
 
     dispose() {

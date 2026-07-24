@@ -6,22 +6,30 @@ export class Enemy {
     public id: string;
     public health: number = 100;
     public maxHealth: number = 100;
-    public aggroRadius: number = 20;
-    public damage: number = 10;
-    public attackCooldown: number = 1.0;
-    private currentCooldown: number = 0;
-    
-    public velocity: THREE.Vector3 = new THREE.Vector3();
-    private isJumping: boolean = false;
-    private jumpCooldown: number = 0;
-    private moveSpeed: number = 5;
+
+    private targetPosition: THREE.Vector3 = new THREE.Vector3();
+    private initialized: boolean = false;
+    private flashTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    private aggro: boolean = false;
+    private recentlyHitUntil: number = 0;
+    private moveTime: number = 0;
+    private currentScale: number = 1;
+    private attackFlashUntil: number = 0;
+    private readonly CALM_SCALE = 1.0;
+    private readonly AGGRO_SCALE = 1.35;
+
+    private healthBarBg: THREE.Sprite;
+    private healthBarFg: THREE.Sprite;
+    private readonly HEALTH_BAR_WIDTH = 1.0;
+    private readonly HEALTH_BAR_Y = 1.6;
 
     constructor(id: string) {
         this.id = id;
         this.mesh = new THREE.Group();
-        
+
         const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshStandardMaterial({ 
+        const material = new THREE.MeshStandardMaterial({
             color: 0xff3333,
             roughness: 0.7,
             metalness: 0.1
@@ -30,91 +38,107 @@ export class Enemy {
         cube.position.y = 0.5;
         cube.castShadow = true;
         cube.receiveShadow = true;
-        
+
         this.mesh.add(cube);
+
+        this.healthBarBg = new THREE.Sprite(new THREE.SpriteMaterial({
+            color: 0x330000, transparent: true, opacity: 0.85, depthTest: false,
+        }));
+        this.healthBarBg.scale.set(this.HEALTH_BAR_WIDTH, 0.12, 1);
+        this.healthBarBg.position.set(0, this.HEALTH_BAR_Y, 0);
+        this.healthBarBg.renderOrder = 999;
+        this.healthBarBg.visible = false;
+        this.mesh.add(this.healthBarBg);
+
+        this.healthBarFg = new THREE.Sprite(new THREE.SpriteMaterial({
+            color: 0x33ff33, transparent: true, depthTest: false,
+        }));
+        this.healthBarFg.scale.set(this.HEALTH_BAR_WIDTH, 0.09, 1);
+        this.healthBarFg.position.set(0, this.HEALTH_BAR_Y, 0);
+        this.healthBarFg.renderOrder = 1000;
+        this.healthBarFg.visible = false;
+        this.mesh.add(this.healthBarFg);
     }
 
     public getHitbox(): THREE.Mesh {
         return this.mesh.children[0] as THREE.Mesh;
     }
 
-    public takeDamage(amount: number) {
-        this.health = Math.max(0, this.health - amount);
-        
-        const cube = this.mesh.children[0] as THREE.Mesh;
-        if (cube && cube.material instanceof THREE.MeshStandardMaterial) {
-            const originalColor = cube.material.color.getHex();
+    public flashHit() {
+        const cube = this.getHitbox();
+        if (cube.material instanceof THREE.MeshStandardMaterial) {
             cube.material.color.setHex(0xffffff);
-            setTimeout(() => {
+            if (this.flashTimeout) clearTimeout(this.flashTimeout);
+            this.flashTimeout = setTimeout(() => {
                 if (cube.material instanceof THREE.MeshStandardMaterial) {
-                    cube.material.color.setHex(originalColor);
+                    cube.material.color.setHex(0xff3333);
                 }
             }, 100);
         }
+        this.recentlyHitUntil = performance.now() + 2500;
     }
 
-    public isDead(): boolean {
-        return this.health <= 0;
+    public triggerAttack() {
+        this.attackFlashUntil = performance.now() + 200;
     }
 
-    public update(
-        delta: number, 
-        playerPosition: THREE.Vector3, 
-        getGroundHeight: (x: number, z: number) => number,
-        onDamagePlayer?: (damage: number) => void
-    ) {
-        if (this.isDead()) return;
+    public updateFromNetwork(data: { position: number[]; health: number; maxHealth?: number; targetId?: string | null }) {
+        this.targetPosition.set(data.position[0], data.position[1], data.position[2]);
+        this.health = data.health;
+        if (data.maxHealth !== undefined) this.maxHealth = data.maxHealth;
+        if (data.targetId !== undefined) this.aggro = data.targetId !== null;
 
-        if (this.currentCooldown > 0) this.currentCooldown -= delta;
-        if (this.jumpCooldown > 0) this.jumpCooldown -= delta;
+        if (!this.initialized) {
+            this.mesh.position.copy(this.targetPosition);
+            this.initialized = true;
+        }
+    }
 
-        const distanceToPlayer = this.mesh.position.distanceTo(playerPosition);
+    public update(delta: number, getGroundHeight: (x: number, z: number) => number) {
+        const lerpFactor = Math.min(1, delta * 14);
+        this.mesh.position.x = THREE.MathUtils.lerp(this.mesh.position.x, this.targetPosition.x, lerpFactor);
+        this.mesh.position.z = THREE.MathUtils.lerp(this.mesh.position.z, this.targetPosition.z, lerpFactor);
 
-        if (distanceToPlayer <= this.aggroRadius) {
-            const direction = new THREE.Vector3().subVectors(playerPosition, this.mesh.position).normalize();
-            direction.y = 0;
+        const dx = this.targetPosition.x - this.mesh.position.x;
+        const dz = this.targetPosition.z - this.mesh.position.z;
+        const isMoving = dx * dx + dz * dz > 0.01;
+        if (isMoving) {
+            this.mesh.rotation.y = Math.atan2(dx, dz);
+            this.moveTime += delta * 9;
+        }
 
-            if (!this.isJumping && this.jumpCooldown <= 0) {
-                this.velocity.y = 7;
-                this.isJumping = true;
-                this.jumpCooldown = 1.0 + Math.random() * 1.0;
-            }
+        const cube = this.getHitbox();
 
-            this.velocity.y -= 25 * delta;
-            
-            this.mesh.position.x += direction.x * this.moveSpeed * delta;
-            this.mesh.position.z += direction.z * this.moveSpeed * delta;
-            this.mesh.position.y += this.velocity.y * delta;
+        const bob = isMoving ? Math.abs(Math.sin(this.moveTime)) * 0.06 : 0;
+        this.mesh.position.y = getGroundHeight(this.mesh.position.x, this.mesh.position.z) + bob;
 
-            const groundHeight = getGroundHeight(this.mesh.position.x, this.mesh.position.z);
-            if (this.mesh.position.y <= groundHeight) {
-                this.mesh.position.y = groundHeight;
-                this.velocity.y = 0;
-                this.isJumping = false;
-            }
+        const targetScale = this.aggro ? this.AGGRO_SCALE : this.CALM_SCALE;
+        this.currentScale = THREE.MathUtils.lerp(this.currentScale, targetScale, Math.min(1, delta * 5));
+        cube.scale.setScalar(this.currentScale);
+        cube.position.y = 0.5 * this.currentScale;
 
-            this.mesh.lookAt(playerPosition.x, this.mesh.position.y, playerPosition.z);
+        if (cube.material instanceof THREE.MeshStandardMaterial) {
+            const attacking = performance.now() < this.attackFlashUntil;
+            cube.material.emissive.setHex(attacking ? 0xff6600 : 0x000000);
+            cube.material.emissiveIntensity = attacking ? 1.5 : 0;
+        }
 
-            if (distanceToPlayer <= 1.5 && this.currentCooldown <= 0) {
-                if (onDamagePlayer) {
-                    onDamagePlayer(this.damage);
-                }
-                this.currentCooldown = this.attackCooldown;
-            }
-        } else {
-            if (this.mesh.position.y > 0) {
-                this.velocity.y -= 25 * delta;
-                this.mesh.position.y += this.velocity.y * delta;
-                const groundHeight = getGroundHeight(this.mesh.position.x, this.mesh.position.z);
-                if (this.mesh.position.y <= groundHeight) {
-                    this.mesh.position.y = groundHeight;
-                    this.velocity.y = 0;
-                }
-            }
+        const showBar = this.aggro || performance.now() < this.recentlyHitUntil;
+        this.healthBarBg.visible = showBar;
+        this.healthBarFg.visible = showBar;
+        if (showBar) {
+            const fraction = Math.max(0, Math.min(1, this.health / this.maxHealth));
+            this.healthBarFg.scale.x = this.HEALTH_BAR_WIDTH * fraction;
+            this.healthBarFg.position.x = -(this.HEALTH_BAR_WIDTH / 2) * (1 - fraction);
+            const color = fraction > 0.5 ? 0x33ff33 : fraction > 0.25 ? 0xffcc33 : 0xff3333;
+            (this.healthBarFg.material as THREE.SpriteMaterial).color.setHex(color);
         }
     }
 
     dispose(scene: THREE.Scene) {
+        if (this.flashTimeout) clearTimeout(this.flashTimeout);
+        (this.healthBarBg.material as THREE.Material).dispose();
+        (this.healthBarFg.material as THREE.Material).dispose();
         scene.remove(this.mesh);
     }
 }

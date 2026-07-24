@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, PlayerNetData } from "../network/NetworkManager";
+import { NetworkManager, PlayerNetData, InventoryEntry } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -12,6 +12,7 @@ import { SafeZoneSystem } from "../systems/SafeZoneSystem";
 import { InteractionSystem } from "../systems/InteractionSystem";
 import { NetworkSystem } from "../systems/NetworkSystem";
 import { EnemySystem } from "../systems/EnemySystem";
+import { LootSystem } from "../systems/LootSystem";
 import { ChatMessage } from "../ui/Chat";
 import { LocationManager } from "../world/LocationManager";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
@@ -21,6 +22,7 @@ import { CollisionGrid } from "../world/CollisionGrid";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
 import { TokenCanyon } from "../world/locations/token-gates/TokenCanyon";
 import { apiPost } from "@/core/api/client";
+import { computeDayTime, DayNightConfig } from "../utils/dayNightCycle";
 
 export interface GameSession {
     gameToken: string;
@@ -91,7 +93,9 @@ interface ChatData {
 
 interface ProgressData {
     progress?: {
+        locationId?: string;
         position: number[];
+        rotation?: number;
     };
     nickname?: string;
 }
@@ -151,7 +155,10 @@ export class Game {
     private interactionSystem: InteractionSystem;
     private networkSystem: NetworkSystem;
     private enemySystem: EnemySystem;
+    private lootSystem: LootSystem;
     private locationManager: LocationManager;
+    private inventory: InventoryEntry[] = [];
+    private ash: number = 0;
 
     private isDead: boolean = false;
     private killerName: string | null = null;
@@ -167,6 +174,9 @@ export class Game {
 
     private showFloorSelector: boolean = false;
     private localPlayerNetId: string | null = null;
+    private dayNightConfig: DayNightConfig | null = null;
+    private hasRestoredLocation: boolean = false;
+    private restoreResolver: (() => void) | null = null;
 
     private hudState: HUDState = {
         health: 100,
@@ -201,7 +211,7 @@ export class Game {
             attackerPos = playerAttacker.mesh.position;
         } else {
             const enemy = this.enemySystem.getEnemy(this.damageAttackerId);
-            if (enemy && !enemy.isDead()) {
+            if (enemy) {
                 attackerPos = enemy.mesh.position;
             }
         }
@@ -239,6 +249,9 @@ export class Game {
     public onLocationChange?: (id: string) => void;
 
     public onOpenTokenUI?: (tokenData: any) => void;
+    public onOpenVendorUI?: () => void;
+    public onInventoryChange?: (inventory: InventoryEntry[], ash: number) => void;
+    public onSellResult?: (data: { address: string; quantitySold: number; ashEarned: number; marketCap: number }) => void;
 
     public openFloorSelector() {
         this.showFloorSelector = true;
@@ -299,6 +312,7 @@ export class Game {
         this.interactionSystem = new InteractionSystem();
         this.networkSystem = new NetworkSystem(this.networkManager);
         this.enemySystem = new EnemySystem();
+        this.lootSystem = new LootSystem();
     }
 
 
@@ -359,7 +373,6 @@ export class Game {
                     this.player.setCollisionGrid(currentLocation.collisionGrid);
                     this.cameraController.setCollisionGrid(currentLocation.terrainCollisionGrid);
                     this.player.setMaxRadius(235);
-                    currentLocation.setupEnemies(this.enemySystem);
                 } else if (currentLocation instanceof Cave) {
                     this.player.setTerrain(currentLocation as any);
                     this.player.setCollisionGrid(currentLocation.collisionGrid);
@@ -414,22 +427,15 @@ export class Game {
                     return 0;
                 };
 
-                this.enemySystem.init(currentLocation.scene, this.player, this.networkManager, getGroundHeight);
-                
-                this.enemySystem.onPlayerDamaged = (damage, attackerId) => {
-                    this.player.takeDamage(damage);
-                    this.hudState.health = this.player.health;
-                    this.emitState(true);
-                    this.damageAttackerId = attackerId;
-                    this.lastDamageTime = Date.now();
-                    
-                    this.onDamageEvent?.({
-                        id: Date.now() + Math.random(),
-                        direction: this.cameraController.getYaw() + Math.PI,
-                        damage: damage,
-                        timestamp: Date.now(),
-                    });
-                };
+                this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
+                this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight);
+
+                this.shootingSystem.prewarm();
+                await this.lootSystem.prewarm();
+                if (this.disposed) return;
+                this.renderer.compile(currentLocation.scene, this.cameraController.camera);
+                this.shootingSystem.endPrewarm();
+                this.lootSystem.endPrewarm();
 
                 this.enemySystem.onEnemySpawn = (id, hitbox) => {
                     this.shootingSystem.registerEnemyHitbox(id, hitbox);
@@ -439,14 +445,9 @@ export class Game {
                     this.shootingSystem.unregisterEnemyHitbox(id);
                 };
 
-                this.shootingSystem.onHitEnemy = (enemyId, damage) => {
-                    const enemy = this.enemySystem.getEnemy(enemyId);
-                    if (enemy) {
-                        enemy.takeDamage(damage);
-                        if (enemy.isDead()) {
-                            this.enemySystem.removeEnemy(enemyId);
-                            this.onNotification?.("🎯 Enemy eliminated!", 2000);
-                        }
+                this.enemySystem.onEnemyEliminated = (killerId) => {
+                    if (killerId === this.localPlayerNetId) {
+                        this.onNotification?.("🎯 Enemy eliminated!", 2000);
                     }
                 };
 
@@ -467,11 +468,22 @@ export class Game {
                 };
 
                 this.interactionSystem.onCrystalInteract = () => {
-                    this.openFloorSelector();
+                    const currentLoc = this.locationManager.getCurrentLocation();
+                    if (currentLoc?.id === 'tower-main-hall') {
+                        this.openFloorSelector();
+                    } else {
+                        this.changeLocation('tower-main-hall').catch(() => {
+                            this.onNotification?.("⚠️ Failed to travel", 2000);
+                        });
+                    }
                 };
 
                 this.interactionSystem.onOpenTokenUI = (tokenData) => {
                     this.onOpenTokenUI?.(tokenData);
+                };
+
+                this.interactionSystem.onOpenVendor = () => {
+                    this.onOpenVendorUI?.();
                 };
 
                 this.interactionSystem.onEnterLocation = async (locationId: string) => {
@@ -483,6 +495,10 @@ export class Game {
 
                 if (this.disposed) return;
                 this.setupNetwork();
+
+                this.onLoadStateChange?.(true, "Restoring your last position...");
+                await this.waitForProgressRestore();
+                if (this.disposed) return;
 
                 this.isLoaded = true;
                 this.onLoadStateChange?.(false);
@@ -502,12 +518,19 @@ export class Game {
         window.addEventListener("orientationchange", this.handleResize);
     }
 
-    private async changeLocation(targetLocationId: string) {
+    private async changeLocation(
+        targetLocationId: string,
+        options?: { position?: number[]; rotation?: number; silent?: boolean }
+    ) {
         this.onLoadStateChange?.(true, "Traveling to new location...");
+
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        if (this.disposed) return;
 
         const previousLocation = this.locationManager.getCurrentLocation();
 
         this.enemySystem.clear();
+        this.lootSystem.clear();
 
         const newLocation = await this.locationManager.loadLocation(targetLocationId);
         if (this.disposed) return;
@@ -539,8 +562,16 @@ export class Game {
         this.shootingSystem.setScene(newLocation.scene);
         this.interactionSystem.setScene(newLocation.scene);
         this.interactionSystem.clearInteractables();
+        this.enemySystem.setScene(newLocation.scene);
+        this.lootSystem.setScene(newLocation.scene);
 
-        
+        this.shootingSystem.prewarm();
+        await this.lootSystem.prewarm();
+        if (this.disposed) return;
+        this.renderer.compile(newLocation.scene, this.cameraController.camera);
+        this.shootingSystem.endPrewarm();
+        this.lootSystem.endPrewarm();
+
         const newLocationInteractables = newLocation.getInteractables();
         newLocationInteractables.forEach(obj => {
             this.interactionSystem.registerInteractable(obj);
@@ -554,7 +585,6 @@ export class Game {
             this.cameraController.setCollisionGrid(newLocation.terrainCollisionGrid);
             this.player.setMaxRadius(235);
             this.shootingSystem.setLocation(newLocation, newLocation.collisionGrid);
-            newLocation.setupEnemies(this.enemySystem);
         } else if (newLocation instanceof Cave) {
             this.player.setTerrain(newLocation as any);
             this.player.setCollisionGrid(newLocation.collisionGrid);
@@ -581,14 +611,66 @@ export class Game {
             this.shootingSystem.setLocation(newLocation, getCollisionGrid(newLocation) || null);
         }
 
-        const spawnPoint = newLocation.getSpawnPoint();
+        const spawnPoint = options?.position
+            ? new THREE.Vector3(options.position[0], options.position[1], options.position[2])
+            : newLocation.getSpawnPoint();
         this.player.teleportTo(spawnPoint);
         this.cameraController.yawObject.position.copy(spawnPoint);
+        if (options?.rotation !== undefined) {
+            this.player.mesh.rotation.y = options.rotation;
+        }
 
-        this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
+        if (!options?.silent) {
+            this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
+        }
         this.onLocationChange?.(newLocation.id);
 
+        if (newLocation instanceof MainWorld) {
+            this.onLoadStateChange?.(true, "Syncing with server...");
+            this.lootSystem.preloadTokenTextures();
+            await this.enemySystem.waitForInitialSync();
+            if (this.disposed) return;
+        }
+
         this.onLoadStateChange?.(false);
+    }
+
+    private async restoreToSavedProgress(progress?: { locationId?: string; position: number[]; rotation?: number }) {
+        try {
+            const currentId = this.locationManager.getCurrentLocation()?.id;
+            if (progress?.locationId && progress.locationId !== currentId) {
+                await this.changeLocation(progress.locationId, {
+                    position: progress.position,
+                    rotation: progress.rotation,
+                    silent: true,
+                });
+            } else if (progress?.position) {
+                const pos = new THREE.Vector3(progress.position[0], progress.position[1], progress.position[2]);
+                this.player.teleportTo(pos);
+                this.cameraController.yawObject.position.copy(pos);
+                if (progress.rotation !== undefined) {
+                    this.player.mesh.rotation.y = progress.rotation;
+                }
+            }
+        } catch (error) {
+            console.error("Failed to restore saved location:", error);
+        } finally {
+            this.restoreResolver?.();
+            this.restoreResolver = null;
+        }
+    }
+
+    private waitForProgressRestore(timeoutMs = 6000): Promise<void> {
+        return new Promise((resolve) => {
+            let done = false;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                resolve();
+            };
+            this.restoreResolver = finish;
+            setTimeout(finish, timeoutMs);
+        });
     }
 
     private setupNetwork() {
@@ -659,6 +741,25 @@ export class Game {
         this.networkManager.onAuthenticated = (data: AuthData) => {
             this.localPlayerNetId = data.playerId;
             this.onNicknameLoaded?.(data.nickname);
+
+            setTimeout(() => {
+                if (this.hasRestoredLocation) return;
+                this.hasRestoredLocation = true;
+                this.restoreResolver?.();
+                this.restoreResolver = null;
+            }, 800);
+        };
+
+        this.networkManager.onInit = (playerIds) => {
+            const known = new Set(playerIds);
+            const currentLocation = this.locationManager.getCurrentLocation();
+            for (const [id, op] of Array.from(this.otherPlayers.entries())) {
+                if (known.has(id)) continue;
+                if (currentLocation && !op.isHidden()) op.dispose(currentLocation.scene);
+                this.otherPlayers.delete(id);
+                this.shootingSystem.unregisterOtherPlayer(id);
+            }
+            this.updateOnlineCount();
         };
 
         this.networkManager.onPlayerJoin = (data: PlayerJoinData) => {
@@ -735,11 +836,19 @@ export class Game {
         };
 
         this.networkManager.onProgressLoaded = (data: ProgressData) => {
-            if (data?.progress?.position) this.player.mesh.position.fromArray(data.progress.position);
             if (data?.nickname) this.onNicknameLoaded?.(data.nickname);
+
+            if (!this.hasRestoredLocation) {
+                this.hasRestoredLocation = true;
+                this.restoreToSavedProgress(data?.progress);
+            }
         };
 
         this.networkManager.onPlayerDamaged = (data: DamageData) => {
+            if (data.attackerId?.startsWith('enemy-')) {
+                this.enemySystem.handleEnemyAttack(data.attackerId);
+            }
+
             if (data.targetId === this.localPlayerNetId) {
                 this.player.takeDamage(data.damage);
                 this.hudState.health = this.player.health;
@@ -747,10 +856,15 @@ export class Game {
                 this.damageAttackerId = data.attackerId;
                 this.lastDamageTime = Date.now();
                 const attacker = this.otherPlayers.get(data.attackerId);
+                const enemyAttacker = this.enemySystem.getEnemy(data.attackerId);
                 let direction = 0;
                 if (attacker && !attacker.isHidden()) {
                     const playerPos = this.player.mesh.position;
                     const attackerPos = attacker.mesh.position;
+                    direction = Math.atan2(attackerPos.x - playerPos.x, attackerPos.z - playerPos.z);
+                } else if (enemyAttacker) {
+                    const playerPos = this.player.mesh.position;
+                    const attackerPos = enemyAttacker.mesh.position;
                     direction = Math.atan2(attackerPos.x - playerPos.x, attackerPos.z - playerPos.z);
                 } else {
                     direction = this.cameraController.getYaw() + Math.PI;
@@ -766,7 +880,7 @@ export class Game {
             if (data.playerId === this.localPlayerNetId) {
                 this.isDead = true;
                 const killer = this.otherPlayers.get(data.killerId);
-                this.killerName = killer?.nickname || 'Unknown';
+                this.killerName = killer?.nickname || (data.killerId.startsWith('enemy-') ? 'Enemy' : 'Unknown');
                 this.onDeathStateChange?.(true, this.killerName);
             } else {
                 const op = this.otherPlayers.get(data.playerId);
@@ -802,6 +916,53 @@ export class Game {
             this.isDead = false;
             this.killerName = null;
             this.onDeathStateChange?.(false, null);
+        };
+
+        this.networkManager.onDayNightSync = (data) => {
+            this.dayNightConfig = data;
+        };
+
+        this.networkManager.onEnemyState = (list) => {
+            this.enemySystem.handleEnemyState(list);
+        };
+
+        this.networkManager.onEnemyDamaged = (data) => {
+            this.enemySystem.handleEnemyDamaged(data);
+        };
+
+        this.networkManager.onEnemyDeath = (data) => {
+            this.enemySystem.handleEnemyDeath(data);
+        };
+
+        this.networkManager.onEnemyRespawn = (data) => {
+            this.enemySystem.handleEnemyRespawn(data);
+        };
+
+        this.networkManager.onLootState = (list) => {
+            this.lootSystem.handleLootState(list);
+        };
+
+        this.networkManager.onLootSpawn = (data) => {
+            this.lootSystem.handleLootSpawn(data);
+        };
+
+        this.networkManager.onLootDespawn = (id) => {
+            this.lootSystem.handleLootDespawn(id);
+        };
+
+        this.networkManager.onInventoryUpdate = ({ inventory, ash }) => {
+            this.inventory = inventory;
+            this.ash = ash;
+            this.onInventoryChange?.(inventory, ash);
+        };
+
+        this.networkManager.onSellResult = (data) => {
+            this.onSellResult?.(data);
+            this.onNotification?.(`💨 Sold ${data.quantitySold}x for ${data.ashEarned} ash`, 2500);
+        };
+
+        this.networkManager.onServerError = (message) => {
+            this.onNotification?.(`⚠️ ${message}`, 2500);
         };
     }
 
@@ -868,9 +1029,13 @@ export class Game {
             } else {
                 this.player.getWeapon().update(delta);
             }
+            this.lootSystem.update(delta);
 
             if (currentLocation.update) {
-                currentLocation.update(this.player.mesh.position, delta, isEJustPressed);
+                const dayTime = this.dayNightConfig
+                    ? computeDayTime(Date.now(), this.dayNightConfig)
+                    : undefined;
+                currentLocation.update(this.player.mesh.position, delta, isEJustPressed, dayTime);
             }
 
             this.interactionSystem.update(delta, isEJustPressed);
@@ -930,6 +1095,14 @@ export class Game {
 
     sendChatMessage(message: string) {
         this.networkManager.sendChatMessage(message);
+    }
+
+    sellToken(address: string, quantity?: number) {
+        this.networkManager.sendSellToken(address, quantity);
+    }
+
+    getInventory(): InventoryEntry[] {
+        return this.inventory;
     }
 
     public teleportToTower() {
@@ -1006,6 +1179,7 @@ export class Game {
         this.shootingSystem.dispose();
         this.networkSystem.dispose();
         this.enemySystem.dispose();
+        this.lootSystem.dispose();
 
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {

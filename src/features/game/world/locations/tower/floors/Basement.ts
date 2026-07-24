@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { EquirectangularReflectionMapping } from "three";
 import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";
+import { tokenTextureCache } from "../../../../utils/TokenTextureCache";
 
 function createFallbackCoinTexture(): THREE.Texture {
     const canvas = document.createElement('canvas');
@@ -117,7 +118,6 @@ export class Basement extends TowerFloor {
     private sinkPortalMixer?: THREE.AnimationMixer;
 
     private skySphere!: THREE.Group;
-    private _skyLogged = false;
 
     private textureLoader = new THREE.TextureLoader();
     private baseGlowMaterial!: THREE.SpriteMaterial;
@@ -749,18 +749,21 @@ export class Basement extends TowerFloor {
         this.scene.add(particles);
     }
 
+    private async pollMemeCoinsOnce() {
+        try {
+            const res = await fetch("/api/new-tokens");
+            if (!res.ok) throw new Error("API request failed");
+            const tokens: MemeToken[] = await res.json();
+            for (const token of tokens) {
+                if (this.tokenQueue.length >= this.MAX_QUEUE_SIZE) break;
+                this.tokenQueue.push(token);
+            }
+        } catch (e) { }
+    }
+
     private startMemeCoinPoller() {
-        this.pollInterval = setInterval(async () => {
-            try {
-                const res = await fetch("/api/new-tokens");
-                if (!res.ok) throw new Error("API request failed");
-                const tokens: MemeToken[] = await res.json();
-                for (const token of tokens) {
-                    if (this.tokenQueue.length >= this.MAX_QUEUE_SIZE) break;
-                    this.tokenQueue.push(token);
-                }
-            } catch (e) { }
-        }, 10000);
+        this.pollMemeCoinsOnce();
+        this.pollInterval = setInterval(() => this.pollMemeCoinsOnce(), 10000);
     }
 
     private startCoinSpawner() {
@@ -800,18 +803,26 @@ export class Basement extends TowerFloor {
         if (token.image && token.image !== 'fallback' && !this.textureCache.has(token.image)) {
             const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(token.image)}`;
 
-            this.textureLoader.load(
-                proxyUrl,
-                (tex) => {
-                    tex.colorSpace = THREE.SRGBColorSpace;
-                    this.applyTextureFilters(tex);
-                    this.textureCache.set(token.image, tex);
-                },
-                undefined,
-                () => {
-                    this.textureCache.set(token.image, fallbackTexture);
-                }
-            );
+            const alreadyCached = tokenTextureCache.get(proxyUrl);
+            if (alreadyCached) {
+                this.applyTextureFilters(alreadyCached);
+                this.textureCache.set(token.image, alreadyCached);
+                finalTexture = alreadyCached;
+            } else {
+                this.textureLoader.load(
+                    proxyUrl,
+                    (tex) => {
+                        tex.colorSpace = THREE.SRGBColorSpace;
+                        this.applyTextureFilters(tex);
+                        this.textureCache.set(token.image, tex);
+                        tokenTextureCache.set(proxyUrl, tex);
+                    },
+                    undefined,
+                    () => {
+                        this.textureCache.set(token.image, fallbackTexture);
+                    }
+                );
+            }
         }
 
         this.applyTextureFilters(finalTexture);
@@ -862,13 +873,6 @@ export class Basement extends TowerFloor {
                 const mat = glow.material as THREE.ShaderMaterial;
                 mat.uniforms.uOpacity.value = 0.2 + Math.sin(time * 3) * 0.05;
             }
-        }
-
-        if (this.skySphere && !this._skyLogged) {
-            this._skyLogged = true;
-            const sphereRadius = 100 * 100;
-            const distToCenter = playerPosition.distanceTo(new THREE.Vector3(0, 0, 0));
-            console.log(`[Basement] Camera check: Player dist to center = ${distToCenter.toFixed(1)}. Sphere radius = ${sphereRadius}. Inside? ${distToCenter < sphereRadius ? 'YES' : 'NO'}`);
         }
 
         if (this.skySphere) {
@@ -1070,65 +1074,68 @@ export class Basement extends TowerFloor {
         });
     }
 
-    private startColumnUpdater() {
-        this.columnUpdateInterval = setInterval(async () => {
-            for (const col of this.columns) {
-                if (!col.ca) continue;
+    private async updateColumnsOnce() {
+        for (const col of this.columns) {
+            if (!col.ca) continue;
 
-                try {
-                    const res = await fetch(`/api/token-by-ca?ca=${col.ca}`);
-                    const data = await res.json();
+            try {
+                const res = await fetch(`/api/token-by-ca?ca=${col.ca}`);
+                const data = await res.json();
 
-                    if (!data || !data.image) continue;
+                if (!data || !data.image) continue;
 
-                    this.textureLoader.load(
-                        `/api/image-proxy?url=${encodeURIComponent(data.image)}`,
-                        (tex) => {
-                            tex.colorSpace = THREE.SRGBColorSpace;
-                            this.applyTextureFilters(tex);
+                this.textureLoader.load(
+                    `/api/image-proxy?url=${encodeURIComponent(data.image)}`,
+                    (tex) => {
+                        tex.colorSpace = THREE.SRGBColorSpace;
+                        this.applyTextureFilters(tex);
 
-                            col.coin.traverse((child) => {
-                                if (child instanceof THREE.Mesh) {
-                                    const materials = Array.isArray(child.material)
-                                        ? child.material
-                                        : [child.material];
+                        col.coin.traverse((child) => {
+                            if (child instanceof THREE.Mesh) {
+                                const materials = Array.isArray(child.material)
+                                    ? child.material
+                                    : [child.material];
 
-                                    materials.forEach((mat: any) => {
-                                        if (mat.map !== undefined && mat.emissiveMap !== undefined) {
-                                            mat.map = tex;
-                                            mat.emissiveMap = tex;
-                                            mat.needsUpdate = true;
-                                        }
-                                    });
-                                }
-                            });
+                                materials.forEach((mat: any) => {
+                                    if (mat.map !== undefined && mat.emissiveMap !== undefined) {
+                                        mat.map = tex;
+                                        mat.emissiveMap = tex;
+                                        mat.needsUpdate = true;
+                                    }
+                                });
+                            }
+                        });
 
-                            col.texture = tex;
-                        },
-                        undefined,
-                        () => {
-                            console.warn(`[Basement] Column texture load failed: ${data.image}`);
-                        }
-                    );
-
-                    if (col.mcText) {
-                        col.group.remove(col.mcText);
-                        (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
-                        (col.mcText.material as THREE.Material).dispose();
+                        col.texture = tex;
+                    },
+                    undefined,
+                    () => {
+                        console.warn(`[Basement] Column texture load failed: ${data.image}`);
                     }
+                );
 
-                    const sprite = this.createTextSprite(`MC: ${this.formatMC(data.mc || 0)}`);
-                    sprite.position.y = col.baseCoinY + 3.4;
-                    col.group.add(sprite);
-                    col.mcText = sprite;
-
-                    col.group.userData.tokenInfo = data;
-
-                } catch (e) {
-                    console.warn(`[Basement] Failed to update column ${col.ca}`, e);
+                if (col.mcText) {
+                    col.group.remove(col.mcText);
+                    (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
+                    (col.mcText.material as THREE.Material).dispose();
                 }
+
+                const sprite = this.createTextSprite(`MC: ${this.formatMC(data.mc || 0)}`);
+                sprite.position.y = col.baseCoinY + 3.4;
+                col.group.add(sprite);
+                col.mcText = sprite;
+
+                col.group.userData.tokenInfo = data;
+
+            } catch (e) {
+                console.warn(`[Basement] Failed to update column ${col.ca}`, e);
             }
-        }, 30000);
+        }
+    }
+
+    private startColumnUpdater() {
+        this.updateColumnsOnce();
+        this.columnUpdateInterval = setInterval(() => this.updateColumnsOnce(), 30000);
     }
 
     private createTextSprite(text: string): THREE.Sprite {

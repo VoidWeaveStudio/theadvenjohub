@@ -30,6 +30,7 @@ export class InteractionSystem extends System {
     public onNotification?: (msg: string, duration?: number) => void;
     public onPrompt?: (text: string | null) => void;
     public onCrystalInteract?: () => void;
+    public onOpenVendor?: () => void;
     public onOpenTokenUI?: (token: any) => void;
     public onEnterLocation?: (locationId: string) => void;
 
@@ -122,6 +123,11 @@ export class InteractionSystem extends System {
                 this.onPrompt?.("[E] Interact with Crystal");
                 if (isEJustPressed === true) {
                     this.onNotification?.("⚡ Events coming soon!", 3000);
+                }
+            } else if (id === "token-vendor") {
+                this.onPrompt?.("[E] Trade tokens for Ash");
+                if (isEJustPressed === true) {
+                    this.onOpenVendor?.();
                 }
             }
         } else {

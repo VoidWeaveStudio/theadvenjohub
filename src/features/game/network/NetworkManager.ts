@@ -15,6 +15,43 @@ export type PlayerNetData = {
   locationId?: string;
 };
 
+export type DayNightSyncData = {
+  epoch: number;
+  dayDurationMs: number;
+  nightDurationMs: number;
+};
+
+export type EnemyNetData = {
+  id: string;
+  position: number[];
+  health: number;
+  maxHealth: number;
+  alive: boolean;
+  targetId: string | null;
+};
+
+export type LootTokenData = {
+  address: string;
+  name: string;
+  symbol: string;
+  image: string;
+  pickedUpAt?: number;
+};
+
+export type LootDropData = {
+  id: string;
+  position: number[];
+  tokens: LootTokenData[];
+};
+
+export type InventoryEntry = {
+  address: string;
+  name: string;
+  symbol: string;
+  image: string;
+  quantity: number;
+};
+
 export interface GameSession {
   gameToken: string;
   serverUrl: string;
@@ -54,6 +91,7 @@ export class NetworkManager {
     toLocation: string;
   }) => void;
 
+  public onInit?: (playerIds: string[]) => void;
   public onPlayerJoin?: (data: PlayerNetData) => void;
   public onPlayerLeave?: (playerId: string) => void;
   public onPlayerUpdate?: (data: PlayerNetData) => void;
@@ -94,6 +132,35 @@ export class NetworkManager {
     health: number;
   }) => void;
 
+  public onDayNightSync?: (data: DayNightSyncData) => void;
+
+  public onEnemyState?: (enemies: EnemyNetData[]) => void;
+  public onEnemyDamaged?: (data: {
+    id: string;
+    health: number;
+    attackerId: string;
+    point: number[];
+  }) => void;
+  public onEnemyDeath?: (data: { id: string; killerId: string }) => void;
+  public onEnemyRespawn?: (data: {
+    id: string;
+    position: number[];
+    health: number;
+    maxHealth: number;
+  }) => void;
+
+  public onLootState?: (loot: LootDropData[]) => void;
+  public onLootSpawn?: (loot: LootDropData) => void;
+  public onLootDespawn?: (id: string) => void;
+  public onInventoryUpdate?: (data: { inventory: InventoryEntry[]; ash: number }) => void;
+  public onSellResult?: (data: {
+    address: string;
+    quantitySold: number;
+    ashEarned: number;
+    marketCap: number;
+  }) => void;
+  public onServerError?: (message: string) => void;
+
   setSessionRefresher(fn: () => Promise<GameSession | null>) {
     this.refreshSession = fn;
   }
@@ -128,15 +195,10 @@ export class NetworkManager {
         if (event.code === 1000) return;
 
         if (event.code === 4009) {
-          // Kicked because the same account authenticated elsewhere.
-          // Reconnecting here would just fight that newer session.
           this.onSessionRevoked?.();
           return;
         }
 
-        // 4001/4003 mean the token was missing/invalid/expired - a plain
-        // retry with the same token would just loop forever, so a fresh
-        // token is required before reconnecting.
         const needsFreshToken = event.code === 4001 || event.code === 4003;
         this.scheduleReconnect(needsFreshToken);
       };
@@ -195,17 +257,22 @@ export class NetworkManager {
           playerId: data.playerId,
           nickname: data.nickname,
         });
+        if (typeof data.daySyncEpoch === "number") {
+          this.onDayNightSync?.({
+            epoch: data.daySyncEpoch,
+            dayDurationMs: data.dayDurationMs,
+            nightDurationMs: data.nightDurationMs,
+          });
+        }
         break;
       case "auth_error":
-        // The server always closes the connection itself right after this
-        // message (with a code identifying the reason) - closing it again
-        // here would race with that and mask the real close code.
         this.onAuthError?.(data.error || "Authentication failed");
         break;
       case "progress_loaded":
         this.onProgressLoaded?.(data.progress);
         break;
       case "init":
+        this.onInit?.(Array.isArray(data.players) ? data.players.map((p: any) => p.id) : []);
         if (data.players && Array.isArray(data.players)) {
           for (const p of data.players) {
             this.onPlayerJoin?.({
@@ -275,6 +342,42 @@ export class NetworkManager {
         break;
       case "shoot":
         this.onShoot?.(data);
+        break;
+      case "enemyState":
+        if (Array.isArray(data.enemies)) {
+          this.onEnemyState?.(data.enemies);
+        }
+        break;
+      case "enemyDamaged":
+        this.onEnemyDamaged?.(data);
+        break;
+      case "enemyDeath":
+        this.onEnemyDeath?.(data);
+        break;
+      case "enemyRespawn":
+        this.onEnemyRespawn?.(data);
+        break;
+      case "lootState":
+        if (Array.isArray(data.loot)) {
+          this.onLootState?.(data.loot);
+        }
+        break;
+      case "lootSpawn":
+        this.onLootSpawn?.({ id: data.id, position: data.position, tokens: data.tokens });
+        break;
+      case "lootDespawn":
+        this.onLootDespawn?.(data.id);
+        break;
+      case "inventoryUpdate":
+        if (Array.isArray(data.inventory)) {
+          this.onInventoryUpdate?.({ inventory: data.inventory, ash: data.ash ?? 0 });
+        }
+        break;
+      case "sellResult":
+        this.onSellResult?.(data);
+        break;
+      case "error":
+        this.onServerError?.(data.message || "Server error");
         break;
       case "count":
         this.onCount?.(data.count);
@@ -347,6 +450,21 @@ export class NetworkManager {
   sendHit(data: { target: string | null; point: number[] }) {
     if (!this.authenticated) return;
     this.send({ type: "hit", ...data });
+  }
+
+  sendEnemyHit(data: { target: string; point: number[] }) {
+    if (!this.authenticated) return;
+    this.send({ type: "enemyHit", ...data });
+  }
+
+  sendLootPickup(id: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "lootPickup", id });
+  }
+
+  sendSellToken(address: string, quantity?: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "sellToken", address, quantity });
   }
 
   sendChatMessage(message: string) {

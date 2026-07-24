@@ -60,22 +60,6 @@ export class MainWorld extends Location {
     this.portal = new PortalSystem(this);
   }
 
-  public setupEnemies(enemySystem: any) {
-    const spawnPoints = [
-      new THREE.Vector3(60, 0, 60),
-      new THREE.Vector3(-70, 0, 50),
-      new THREE.Vector3(90, 0, -40),
-      new THREE.Vector3(-50, 0, -80),
-      new THREE.Vector3(120, 0, 20),
-    ];
-
-    for (const point of spawnPoints) {
-      const y = this.terrain.getHeightAt(point.x, point.z);
-      point.y = y;
-      enemySystem.spawnEnemy(point);
-    }
-  }
-
   createLiftCrystal() {
     const group = new THREE.Group();
 
@@ -178,12 +162,12 @@ export class MainWorld extends Location {
     });
   }
 
-  public update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean) {
+  public update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean, dayTime?: number) {
     const LIMIT = 235;
     playerPosition.x = THREE.MathUtils.clamp(playerPosition.x, -LIMIT, LIMIT);
     playerPosition.z = THREE.MathUtils.clamp(playerPosition.z, -LIMIT, LIMIT);
 
-    this.atmosphere.update(delta, playerPosition);
+    this.atmosphere.update(delta, playerPosition, dayTime);
     this.portal.updateFogParticles(delta);
     this.vegetation.updateStreamingAndVisibility(playerPosition.x, playerPosition.z);
 

@@ -31,7 +31,7 @@ export abstract class Location {
     abstract getSpawnPoint(): THREE.Vector3;
     abstract dispose(): void;
 
-    update?(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean): void;
+    update?(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean, dayTime?: number): void;
     getInteractionPrompt?(playerPosition: THREE.Vector3): string | null;
 
     public getInteractables(): THREE.Object3D[] {

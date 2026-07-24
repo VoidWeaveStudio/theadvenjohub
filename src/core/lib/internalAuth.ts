@@ -1,5 +1,6 @@
 //src\core\lib\internalAuth.ts
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 
 export function verifyInternalRequest(req: NextRequest): boolean {
     const secret = req.headers.get("x-internal-secret");
@@ -10,11 +11,17 @@ export function verifyInternalRequest(req: NextRequest): boolean {
         return false;
     }
 
-    if (!secret || secret !== expectedSecret) {
+    if (!secret) {
         return false;
     }
 
-    return true;
+    const a = Buffer.from(secret);
+    const b = Buffer.from(expectedSecret);
+    if (a.length !== b.length) {
+        return false;
+    }
+
+    return timingSafeEqual(a, b);
 }
 
 export function unauthorizedResponse(): NextResponse {
