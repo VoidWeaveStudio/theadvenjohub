@@ -371,8 +371,6 @@ export class Player extends Entity {
         if (this.mixer) {
             this.mixer.update(delta);
         }
-
-        this.weapon.update(delta);
     }
 
     private getCameraLookAngle(): number {

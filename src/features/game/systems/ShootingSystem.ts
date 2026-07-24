@@ -11,6 +11,7 @@ import { Location } from "../world/Location";
 import { CollisionGrid } from "../world/CollisionGrid";
 
 interface Bullet {
+    group: THREE.Group;
     mesh: THREE.Mesh;
     trail: THREE.Line;
     velocity: THREE.Vector3;
@@ -19,7 +20,6 @@ interface Bullet {
     maxLife: number;
     origin: THREE.Vector3;
     hitPoint: THREE.Vector3;
-    hasHit: boolean;
 }
 
 interface Particle {
@@ -47,6 +47,7 @@ interface NetworkShootData {
 
 export class ShootingSystem extends System {
     public onHitPlayer?: () => void;
+    public onHitEnemy?: (enemyId: string, damage: number) => void;
 
     private scene!: THREE.Scene;
     private player!: Player;
@@ -57,6 +58,7 @@ export class ShootingSystem extends System {
     private raycaster: THREE.Raycaster = new THREE.Raycaster();
     private bullets: Bullet[] = [];
     private otherPlayerHitboxes: Map<string, THREE.Mesh> = new Map();
+    private enemyHitboxes: Map<string, THREE.Mesh> = new Map();
     private otherPlayersRef: Map<string, OtherPlayer> | null = null;
     private location: Location | null = null;
     private collisionGrid: CollisionGrid | null = null;
@@ -158,7 +160,7 @@ export class ShootingSystem extends System {
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const b = this.bullets[i];
             if (this.scene) {
-                this.scene.remove(b.mesh);
+                this.scene.remove(b.group);
                 this.scene.remove(b.trail);
             }
             b.trail.geometry.dispose();
@@ -185,12 +187,25 @@ export class ShootingSystem extends System {
         }
     }
 
+    setLocation(location: Location | null, collisionGrid: CollisionGrid | null) {
+        this.location = location;
+        this.collisionGrid = collisionGrid;
+    }
+
     registerOtherPlayer(id: string, hitbox: THREE.Mesh) {
         this.otherPlayerHitboxes.set(id, hitbox);
     }
 
     unregisterOtherPlayer(id: string) {
         this.otherPlayerHitboxes.delete(id);
+    }
+
+    registerEnemyHitbox(id: string, hitbox: THREE.Mesh) {
+        this.enemyHitboxes.set(id, hitbox);
+    }
+
+    unregisterEnemyHitbox(id: string) {
+        this.enemyHitboxes.delete(id);
     }
 
     update(delta: number) {
@@ -239,6 +254,7 @@ export class ShootingSystem extends System {
 
         let hitPoint: THREE.Vector3 | null = null;
         let targetId: string | null = null;
+        let targetType: 'player' | 'enemy' | null = null;
         let minDistance = Infinity;
 
         this.otherPlayerHitboxes.forEach((hitbox, id) => {
@@ -252,7 +268,22 @@ export class ShootingSystem extends System {
                         minDistance = dist;
                         hitPoint = intersectPoint.clone();
                         targetId = id;
+                        targetType = 'player';
                     }
+                }
+            }
+        });
+
+        this.enemyHitboxes.forEach((hitbox, id) => {
+            const box = new THREE.Box3().setFromObject(hitbox);
+            const intersectPoint = new THREE.Vector3();
+            if (this.raycaster.ray.intersectBox(box, intersectPoint)) {
+                const dist = cameraPos.distanceTo(intersectPoint);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    hitPoint = intersectPoint.clone();
+                    targetId = id;
+                    targetType = 'enemy';
                 }
             }
         });
@@ -271,6 +302,7 @@ export class ShootingSystem extends System {
                         minDistance = dist;
                         hitPoint = intersectPoint.clone();
                         targetId = null;
+                        targetType = null;
                     }
                 }
             }
@@ -283,6 +315,7 @@ export class ShootingSystem extends System {
                         minDistance = dist;
                         hitPoint = intersectPoint.clone();
                         targetId = null;
+                        targetType = null;
                     }
                 }
             }
@@ -306,18 +339,25 @@ export class ShootingSystem extends System {
         this.muzzleFlash(muzzlePos);
 
         if (hitPoint) {
-            const isPlayerHit = targetId !== null;
-            if (isPlayerHit) {
+            if (targetType === 'player') {
                 this.spawnBloodEffect(hitPoint);
                 this.onHitPlayer?.();
+                this.network.sendHit({
+                    target: targetId,
+                    point: hitPoint.toArray(),
+                });
+            } else if (targetType === 'enemy') {
+                this.spawnBloodEffect(hitPoint);
+                if (this.onHitEnemy) {
+                    this.onHitEnemy(targetId!, 25);
+                }
             } else {
                 this.spawnImpactEffect(hitPoint);
+                this.network.sendHit({
+                    target: null,
+                    point: hitPoint.toArray(),
+                });
             }
-
-            this.network.sendHit({
-                target: targetId,
-                point: hitPoint.toArray(),
-            });
         }
     }
 
@@ -350,6 +390,7 @@ export class ShootingSystem extends System {
         const timeToHit = distanceToHit / this.BULLET_SPEED;
 
         this.bullets.push({
+            group: bulletGroup,
             mesh: bulletMesh,
             trail,
             velocity: direction.clone().multiplyScalar(this.BULLET_SPEED),
@@ -358,7 +399,6 @@ export class ShootingSystem extends System {
             maxLife: timeToHit,
             origin: origin.clone(),
             hitPoint: hitPoint.clone(),
-            hasHit: false,
         });
     }
 
@@ -421,10 +461,10 @@ export class ShootingSystem extends System {
             const b = this.bullets[i];
 
             const step = b.velocity.clone().multiplyScalar(delta);
-            b.mesh.position.add(step);
+            b.group.position.add(step);
             b.life -= delta;
 
-            const head = b.mesh.position.clone();
+            const head = b.group.position.clone();
             const tail = head.clone().sub(b.direction.clone().multiplyScalar(this.TRAIL_LENGTH));
 
             const positions = b.trail.geometry.attributes.position as THREE.BufferAttribute;
@@ -441,7 +481,7 @@ export class ShootingSystem extends System {
             }
 
             if (b.life <= 0) {
-                this.scene.remove(b.mesh);
+                this.scene.remove(b.group);
                 this.scene.remove(b.trail);
                 b.trail.geometry.dispose();
                 trailMat.dispose();

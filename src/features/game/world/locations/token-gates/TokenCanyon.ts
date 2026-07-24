@@ -34,9 +34,9 @@ export class TokenCanyon extends Location {
     private gateId: string;
     public collisionGrid: CollisionGrid;
 
-    constructor(gateId: string) {
+    constructor(locationId: string, gateId: string) {
         const config = getGateConfig(gateId);
-        super(gateId === 'open-world-canyon' ? 'open-world-canyon' : gateId.replace('canyon-', 'loc-'), config?.name || 'Open World Canyon');
+        super(locationId, config?.name || 'Open World Canyon');
         this.gateId = gateId;
         this.collisionGrid = new CollisionGrid(250);
     }

@@ -267,5 +267,12 @@ export class OtherPlayer extends Entity {
         super.dispose(scene);
         scene.remove(this.hitbox);
         this.hitbox.geometry.dispose();
+        (this.hitbox.material as THREE.Material).dispose();
+
+        if (this.nameSprite) {
+            const mat = this.nameSprite.material as THREE.SpriteMaterial;
+            mat.map?.dispose();
+            mat.dispose();
+        }
     }
 }

@@ -11,6 +11,7 @@ import { ShootingSystem } from "../systems/ShootingSystem";
 import { SafeZoneSystem } from "../systems/SafeZoneSystem";
 import { InteractionSystem } from "../systems/InteractionSystem";
 import { NetworkSystem } from "../systems/NetworkSystem";
+import { EnemySystem } from "../systems/EnemySystem";
 import { ChatMessage } from "../ui/Chat";
 import { LocationManager } from "../world/LocationManager";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
@@ -18,6 +19,8 @@ import { Cave } from "../world/locations/Cave";
 import { TowerFloor } from "../world/locations/tower/TowerFloor";
 import { CollisionGrid } from "../world/CollisionGrid";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
+import { TokenCanyon } from "../world/locations/token-gates/TokenCanyon";
+import { apiPost } from "@/core/api/client";
 
 export interface GameSession {
     gameToken: string;
@@ -147,6 +150,7 @@ export class Game {
     private safeZoneSystem: SafeZoneSystem;
     private interactionSystem: InteractionSystem;
     private networkSystem: NetworkSystem;
+    private enemySystem: EnemySystem;
     private locationManager: LocationManager;
 
     private isDead: boolean = false;
@@ -190,15 +194,25 @@ export class Game {
             return;
         }
 
-        const attacker = this.otherPlayers.get(this.damageAttackerId);
-        if (!attacker || attacker.isDead() || attacker.isHidden()) {
+        let attackerPos: THREE.Vector3 | null = null;
+        
+        const playerAttacker = this.otherPlayers.get(this.damageAttackerId);
+        if (playerAttacker && !playerAttacker.isDead() && !playerAttacker.isHidden()) {
+            attackerPos = playerAttacker.mesh.position;
+        } else {
+            const enemy = this.enemySystem.getEnemy(this.damageAttackerId);
+            if (enemy && !enemy.isDead()) {
+                attackerPos = enemy.mesh.position;
+            }
+        }
+
+        if (!attackerPos) {
             this.damageAttackerId = null;
             this.onDamageIndicatorUpdate?.(null, 0);
             return;
         }
 
         const playerPos = this.player.mesh.position;
-        const attackerPos = attacker.mesh.position;
         const dx = attackerPos.x - playerPos.x;
         const dz = attackerPos.z - playerPos.z;
         const worldAngle = Math.atan2(dx, dz);
@@ -284,6 +298,7 @@ export class Game {
         this.safeZoneSystem = new SafeZoneSystem();
         this.interactionSystem = new InteractionSystem();
         this.networkSystem = new NetworkSystem(this.networkManager);
+        this.enemySystem = new EnemySystem();
     }
 
 
@@ -344,6 +359,7 @@ export class Game {
                     this.player.setCollisionGrid(currentLocation.collisionGrid);
                     this.cameraController.setCollisionGrid(currentLocation.terrainCollisionGrid);
                     this.player.setMaxRadius(235);
+                    currentLocation.setupEnemies(this.enemySystem);
                 } else if (currentLocation instanceof Cave) {
                     this.player.setTerrain(currentLocation as any);
                     this.player.setCollisionGrid(currentLocation.collisionGrid);
@@ -388,6 +404,50 @@ export class Game {
                 this.shootingSystem.onHitPlayer = () => {
                     this.hitMarkTrigger = Date.now();
                     this.onHitMark?.();
+                };
+
+                const getGroundHeight = (x: number, z: number) => {
+                    const currentLoc = this.locationManager.getCurrentLocation();
+                    if (currentLoc instanceof MainWorld) {
+                        return currentLoc.terrain.getHeightAt(x, z);
+                    }
+                    return 0;
+                };
+
+                this.enemySystem.init(currentLocation.scene, this.player, this.networkManager, getGroundHeight);
+                
+                this.enemySystem.onPlayerDamaged = (damage, attackerId) => {
+                    this.player.takeDamage(damage);
+                    this.hudState.health = this.player.health;
+                    this.emitState(true);
+                    this.damageAttackerId = attackerId;
+                    this.lastDamageTime = Date.now();
+                    
+                    this.onDamageEvent?.({
+                        id: Date.now() + Math.random(),
+                        direction: this.cameraController.getYaw() + Math.PI,
+                        damage: damage,
+                        timestamp: Date.now(),
+                    });
+                };
+
+                this.enemySystem.onEnemySpawn = (id, hitbox) => {
+                    this.shootingSystem.registerEnemyHitbox(id, hitbox);
+                };
+
+                this.enemySystem.onEnemyDespawn = (id) => {
+                    this.shootingSystem.unregisterEnemyHitbox(id);
+                };
+
+                this.shootingSystem.onHitEnemy = (enemyId, damage) => {
+                    const enemy = this.enemySystem.getEnemy(enemyId);
+                    if (enemy) {
+                        enemy.takeDamage(damage);
+                        if (enemy.isDead()) {
+                            this.enemySystem.removeEnemy(enemyId);
+                            this.onNotification?.("🎯 Enemy eliminated!", 2000);
+                        }
+                    }
                 };
 
                 this.safeZoneSystem.init(this.safeZone);
@@ -447,7 +507,10 @@ export class Game {
 
         const previousLocation = this.locationManager.getCurrentLocation();
 
+        this.enemySystem.clear();
+
         const newLocation = await this.locationManager.loadLocation(targetLocationId);
+        if (this.disposed) return;
         if (!newLocation || !previousLocation || newLocation === previousLocation) {
             this.onLoadStateChange?.(false);
             return;
@@ -471,6 +534,8 @@ export class Game {
             }
         });
 
+        this.locationManager.evictLocation(previousLocation.id);
+
         this.shootingSystem.setScene(newLocation.scene);
         this.interactionSystem.setScene(newLocation.scene);
         this.interactionSystem.clearInteractables();
@@ -488,11 +553,14 @@ export class Game {
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.terrainCollisionGrid);
             this.player.setMaxRadius(235);
+            this.shootingSystem.setLocation(newLocation, newLocation.collisionGrid);
+            newLocation.setupEnemies(this.enemySystem);
         } else if (newLocation instanceof Cave) {
             this.player.setTerrain(newLocation as any);
             this.player.setCollisionGrid(newLocation.collisionGrid);
             this.cameraController.setCollisionGrid(newLocation.collisionGrid);
             this.player.setMaxRadius(50);
+            this.shootingSystem.setLocation(newLocation, newLocation.collisionGrid);
         } else if (newLocation instanceof TowerFloor) {
             this.player.setTerrain(null);
             this.player.setCollisionGrid(newLocation.collisionGrid);
@@ -502,6 +570,15 @@ export class Game {
             } else {
                 this.player.setMaxRadius(9999);
             }
+            this.shootingSystem.setLocation(newLocation, newLocation.collisionGrid);
+        } else if (newLocation instanceof TokenCanyon) {
+            this.player.setTerrain(null);
+            this.player.setCollisionGrid(newLocation.collisionGrid);
+            this.cameraController.setCollisionGrid(newLocation.collisionGrid);
+            this.player.setMaxRadius(140);
+            this.shootingSystem.setLocation(newLocation, newLocation.collisionGrid);
+        } else {
+            this.shootingSystem.setLocation(newLocation, getCollisionGrid(newLocation) || null);
         }
 
         const spawnPoint = newLocation.getSpawnPoint();
@@ -557,6 +634,24 @@ export class Game {
                     timestamp: Date.now(), type: "system",
                 });
             }
+        };
+
+        this.networkManager.setSessionRefresher(async () => {
+            try {
+                const fresh = await apiPost<GameSession>("/api/game/session", { gameSlug: this.slug });
+                this.session = fresh;
+                return fresh;
+            } catch {
+                return null;
+            }
+        });
+
+        this.networkManager.onSessionRevoked = () => {
+            this.onNotification?.("⚠️ Connected from another tab/device", 5000);
+        };
+
+        this.networkManager.onReconnectFailed = () => {
+            this.onNotification?.("❌ Lost connection to game server", 5000);
         };
 
         this.networkManager.connect(this.session);
@@ -769,6 +864,7 @@ export class Game {
 
             if (!inSafe) {
                 this.shootingSystem.update(delta);
+                this.enemySystem.update(delta);
             } else {
                 this.player.getWeapon().update(delta);
             }
@@ -909,7 +1005,7 @@ export class Game {
         this.safeZone.dispose();
         this.shootingSystem.dispose();
         this.networkSystem.dispose();
-        this.locationManager.dispose();
+        this.enemySystem.dispose();
 
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
@@ -920,6 +1016,7 @@ export class Game {
         }
 
         this.otherPlayers.clear();
+        this.locationManager.dispose();
         this.renderer.dispose();
     }
 }

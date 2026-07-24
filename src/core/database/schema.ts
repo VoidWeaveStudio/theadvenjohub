@@ -288,7 +288,7 @@ export const gameBuildings = pgTable("game_buildings", {
   index("idx_game_buildings_user").on(table.userId),
   index("idx_game_buildings_game").on(table.gameId),
   index("idx_game_buildings_location").on(table.locationId),
-  uniqueIndex("idx_game_buildings_location_grid").on(table.locationId, table.gridX, table.gridZ),
+  uniqueIndex("idx_game_buildings_location_grid").on(table.userId, table.locationId, table.gridX, table.gridZ),
 ]);
 
 export const gameInventories = pgTable("game_inventories", {

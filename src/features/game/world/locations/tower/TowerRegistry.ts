@@ -10,35 +10,35 @@ import { GATE_REGISTRY } from "../token-gates/GateRegistry";
 export interface TowerFloorConfig {
     id: string;
     name: string;
-    locationClass: new () => Location;
+    locationClass: () => Location;
     description: string;
     icon: 'building' | 'arrow-down' | 'arrow-up';
 }
 
 export const TOWER_FLOORS: TowerFloorConfig[] = [
-    { id: 'tower-main-hall', name: 'Main Hall', locationClass: MainHall, description: 'Main Hall', icon: 'building' },
-    { id: 'tower-first-floor', name: 'First Floor', locationClass: FirstFloor, description: 'Desert Cave Hub', icon: 'building' },
-    { id: 'tower-basement', name: 'Basement', locationClass: Basement, description: 'MemeTower', icon: 'arrow-down' },
-    { id: 'main-world', name: 'Main World', locationClass: MainWorld, description: 'Open World', icon: 'arrow-up' },
+    { id: 'tower-main-hall', name: 'Main Hall', locationClass: () => new MainHall(), description: 'Main Hall', icon: 'building' },
+    { id: 'tower-first-floor', name: 'First Floor', locationClass: () => new FirstFloor(), description: 'Desert Cave Hub', icon: 'building' },
+    { id: 'tower-basement', name: 'Basement', locationClass: () => new Basement(), description: 'MemeTower', icon: 'arrow-down' },
+    { id: 'main-world', name: 'Main World', locationClass: () => new MainWorld(), description: 'Open World', icon: 'arrow-up' },
 ];
 
-export function createTokenCanyonLocation(gateId: string): Location {
-    return new TokenCanyon(gateId);
+export function createTokenCanyonLocation(locationId: string, gateId: string): Location {
+    return new TokenCanyon(locationId, gateId);
 }
 
-export const ALL_LOCATIONS = [
+export const ALL_LOCATIONS: TowerFloorConfig[] = [
     ...TOWER_FLOORS,
     ...GATE_REGISTRY.map(gate => ({
         id: gate.targetLocationId,
         name: gate.name,
-        locationClass: (() => createTokenCanyonLocation(gate.id)) as any,
+        locationClass: () => createTokenCanyonLocation(gate.targetLocationId, gate.id),
         description: gate.description,
         icon: 'arrow-up' as const
     })),
     {
         id: 'open-world-canyon',
         name: 'Open World Canyon',
-        locationClass: (() => createTokenCanyonLocation('open-world-canyon')) as any,
+        locationClass: () => createTokenCanyonLocation('open-world-canyon', 'open-world-canyon'),
         description: 'The vast desert expanse',
         icon: 'arrow-up' as const
     }

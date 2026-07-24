@@ -60,6 +60,22 @@ export class MainWorld extends Location {
     this.portal = new PortalSystem(this);
   }
 
+  public setupEnemies(enemySystem: any) {
+    const spawnPoints = [
+      new THREE.Vector3(60, 0, 60),
+      new THREE.Vector3(-70, 0, 50),
+      new THREE.Vector3(90, 0, -40),
+      new THREE.Vector3(-50, 0, -80),
+      new THREE.Vector3(120, 0, 20),
+    ];
+
+    for (const point of spawnPoints) {
+      const y = this.terrain.getHeightAt(point.x, point.z);
+      point.y = y;
+      enemySystem.spawnEnemy(point);
+    }
+  }
+
   createLiftCrystal() {
     const group = new THREE.Group();
 
@@ -179,7 +195,6 @@ export class MainWorld extends Location {
 
   public getInteractables(): THREE.Object3D[] {
     return this.liftCrystal ? [this.liftCrystal] : [];
-    
   }
 
   public getInteractionPrompt(playerPosition: THREE.Vector3): string | null {

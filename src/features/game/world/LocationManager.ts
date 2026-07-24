@@ -10,6 +10,7 @@ export class LocationManager {
     private locations: Map<string, Location> = new Map();
     private locationFactories: Map<string, () => Location> = new Map();
     private currentLocation: Location | null = null;
+    private readonly persistentLocationIds = new Set(["main-world"]);
     private renderer: THREE.WebGLRenderer;
     private activeCamera: THREE.Camera;
     private resourceManager: ResourceManager | null = null;
@@ -27,7 +28,7 @@ export class LocationManager {
     this.locationFactories.set("cave", () => new Cave());
 
     ALL_LOCATIONS.forEach(floor => {
-        this.locationFactories.set(floor.id, () => new floor.locationClass());
+        this.locationFactories.set(floor.id, () => floor.locationClass());
     });
 }
 
@@ -53,6 +54,17 @@ export class LocationManager {
         return this.currentLocation;
     }
 
+    evictLocation(locationId: string) {
+        if (this.persistentLocationIds.has(locationId)) return;
+        if (this.currentLocation?.id === locationId) return;
+
+        const location = this.locations.get(locationId);
+        if (!location) return;
+
+        location.dispose();
+        this.locations.delete(locationId);
+    }
+
     checkPortals(playerPosition: THREE.Vector3): Portal | null {
         if (!this.currentLocation) return null;
         for (const portal of this.currentLocation.portals) {
@@ -75,9 +87,8 @@ export class LocationManager {
             player.mesh.position.y = (target as any).getHeightAt(player.mesh.position.x, player.mesh.position.z);
         }
 
-        if (previousLocation && previousLocation.id !== 'main-world') {
-            previousLocation.dispose();
-            this.locations.delete(previousLocation.id);
+        if (previousLocation) {
+            this.evictLocation(previousLocation.id);
         }
 
         this.onLocationChange?.(target.id);

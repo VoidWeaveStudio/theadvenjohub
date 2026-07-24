@@ -24,8 +24,12 @@ export interface GameSession {
 
 export class NetworkManager {
   private ws: WebSocket | null = null;
-  private reconnectInterval: number = 3000;
+  private readonly baseReconnectInterval: number = 3000;
+  private readonly maxReconnectInterval: number = 30000;
+  private readonly maxReconnectAttempts: number = 8;
+  private reconnectAttempts: number = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private refreshSession: (() => Promise<GameSession | null>) | null = null;
   private nickname: string = "Player";
   private session: GameSession | null = null;
   private authenticated: boolean = false;
@@ -61,6 +65,8 @@ export class NetworkManager {
   public onAuthenticated?: (data: { playerId: string; nickname: string }) => void;
   public onProgressLoaded?: (data: any) => void;
   public onAuthError?: (error: string) => void;
+  public onSessionRevoked?: () => void;
+  public onReconnectFailed?: () => void;
 
   public onPlayerDamaged?: (data: {
     targetId: string;
@@ -87,6 +93,10 @@ export class NetworkManager {
     position: number[];
     health: number;
   }) => void;
+
+  setSessionRefresher(fn: () => Promise<GameSession | null>) {
+    this.refreshSession = fn;
+  }
 
   connect(session: GameSession) {
     this.session = session;
@@ -115,16 +125,57 @@ export class NetworkManager {
         this.authenticated = false;
         this.onDisconnected?.();
 
-        if (event.code !== 1000) {
-          this.reconnectTimer = setTimeout(() => {
-            if (this.session) this.connect(this.session);
-          }, this.reconnectInterval);
+        if (event.code === 1000) return;
+
+        if (event.code === 4009) {
+          // Kicked because the same account authenticated elsewhere.
+          // Reconnecting here would just fight that newer session.
+          this.onSessionRevoked?.();
+          return;
         }
+
+        // 4001/4003 mean the token was missing/invalid/expired - a plain
+        // retry with the same token would just loop forever, so a fresh
+        // token is required before reconnecting.
+        const needsFreshToken = event.code === 4001 || event.code === 4003;
+        this.scheduleReconnect(needsFreshToken);
       };
 
       this.ws.onerror = () => { };
     } catch (e) {
     }
+  }
+
+  private scheduleReconnect(needsFreshToken: boolean) {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.onReconnectFailed?.();
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = Math.min(
+      this.baseReconnectInterval * 2 ** (this.reconnectAttempts - 1),
+      this.maxReconnectInterval
+    );
+
+    this.reconnectTimer = setTimeout(async () => {
+      if (!this.session) return;
+
+      if (needsFreshToken) {
+        if (!this.refreshSession) {
+          this.onReconnectFailed?.();
+          return;
+        }
+        const fresh = await this.refreshSession().catch(() => null);
+        if (!fresh) {
+          this.onReconnectFailed?.();
+          return;
+        }
+        this.session = fresh;
+      }
+
+      this.connect(this.session);
+    }, delay);
   }
 
   private handleMessage(data: any) {
@@ -138,6 +189,7 @@ export class NetworkManager {
         break;
       case "auth_success":
         this.authenticated = true;
+        this.reconnectAttempts = 0;
         this.startHeartbeat();
         this.onAuthenticated?.({
           playerId: data.playerId,
@@ -145,8 +197,10 @@ export class NetworkManager {
         });
         break;
       case "auth_error":
+        // The server always closes the connection itself right after this
+        // message (with a code identifying the reason) - closing it again
+        // here would race with that and mask the real close code.
         this.onAuthError?.(data.error || "Authentication failed");
-        if (this.ws) this.ws.close(4001, data.error);
         break;
       case "progress_loaded":
         this.onProgressLoaded?.(data.progress);
@@ -331,6 +385,7 @@ export class NetworkManager {
   disconnect() {
     this.stopHeartbeat();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectAttempts = 0;
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.close(1000, "Client disconnect");

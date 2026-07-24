@@ -35,119 +35,136 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        const queries: any[] = [];
+
         if (progress) {
-            await db
-                .insert(gameProgress)
-                .values({
-                    userId,
-                    gameId,
-                    locationId: progress.locationId || "main-world",
-                    positionX: String(progress.position?.[0] ?? 0),
-                    positionY: String(progress.position?.[1] ?? 0),
-                    positionZ: String(progress.position?.[2] ?? 0),
-                    rotation: String(progress.rotation ?? 0),
-                    health: progress.health ?? 100,
-                    data: progress.data ? JSON.stringify(progress.data) : "{}",
-                    lastSavedAt: new Date(),
-                    updatedAt: new Date(),
-                })
-                .onConflictDoUpdate({
-                    target: [gameProgress.userId, gameProgress.gameId],
-                    set: {
-                        locationId: progress.locationId || "main-world",
-                        positionX: String(progress.position?.[0] ?? 0),
-                        positionY: String(progress.position?.[1] ?? 0),
-                        positionZ: String(progress.position?.[2] ?? 0),
-                        rotation: String(progress.rotation ?? 0),
-                        health: progress.health ?? 100,
+            const num = (v: unknown, fallback: number) =>
+                typeof v === "number" && Number.isFinite(v) ? v : fallback;
+
+            const locationId =
+                typeof progress.locationId === "string" && progress.locationId.length > 0
+                    ? progress.locationId.slice(0, 50)
+                    : "main-world";
+            const positionX = String(num(progress.position?.[0], 0));
+            const positionY = String(num(progress.position?.[1], 0));
+            const positionZ = String(num(progress.position?.[2], 0));
+            const rotation = String(num(progress.rotation, 0));
+            const health = Math.max(0, Math.min(100, Math.round(num(progress.health, 100))));
+
+            queries.push(
+                db
+                    .insert(gameProgress)
+                    .values({
+                        userId,
+                        gameId,
+                        locationId,
+                        positionX,
+                        positionY,
+                        positionZ,
+                        rotation,
+                        health,
                         data: progress.data ? JSON.stringify(progress.data) : "{}",
                         lastSavedAt: new Date(),
                         updatedAt: new Date(),
-                    },
-                });
+                    })
+                    .onConflictDoUpdate({
+                        target: [gameProgress.userId, gameProgress.gameId],
+                        set: {
+                            locationId,
+                            positionX,
+                            positionY,
+                            positionZ,
+                            rotation,
+                            health,
+                            data: progress.data ? JSON.stringify(progress.data) : "{}",
+                            lastSavedAt: new Date(),
+                            updatedAt: new Date(),
+                        },
+                    })
+            );
         }
 
         if (nickname && typeof nickname === "string") {
-            await db
-                .insert(gameNicknames)
-                .values({
-                    userId,
-                    gameId,
-                    nickname: nickname.slice(0, 30),
-                    updatedAt: new Date(),
-                })
-                .onConflictDoUpdate({
-                    target: [gameNicknames.userId, gameNicknames.gameId],
-                    set: {
+            queries.push(
+                db
+                    .insert(gameNicknames)
+                    .values({
+                        userId,
+                        gameId,
                         nickname: nickname.slice(0, 30),
                         updatedAt: new Date(),
-                    },
-                });
+                    })
+                    .onConflictDoUpdate({
+                        target: [gameNicknames.userId, gameNicknames.gameId],
+                        set: {
+                            nickname: nickname.slice(0, 30),
+                            updatedAt: new Date(),
+                        },
+                    })
+            );
         }
 
         if (Array.isArray(buildings)) {
-            await db
-                .delete(gameBuildings)
-                .where(and(
-                    eq(gameBuildings.userId, userId),
-                    eq(gameBuildings.gameId, gameId)
-                ));
+            queries.push(
+                db
+                    .delete(gameBuildings)
+                    .where(and(
+                        eq(gameBuildings.userId, userId),
+                        eq(gameBuildings.gameId, gameId)
+                    ))
+            );
 
             if (buildings.length > 0) {
-                await db.insert(gameBuildings).values(
-                    buildings.map((b: any) => ({
-                        userId,
-                        gameId,
-                        locationId: b.locationId || "main-world",
-                        gridX: b.gridX,
-                        gridZ: b.gridZ,
-                        type: b.type,
-                        rotation: b.rotation || 0,
-                        data: b.data ? JSON.stringify(b.data) : "{}",
-                    }))
+                queries.push(
+                    db.insert(gameBuildings).values(
+                        buildings.map((b: any) => ({
+                            userId,
+                            gameId,
+                            locationId: b.locationId || "main-world",
+                            gridX: b.gridX,
+                            gridZ: b.gridZ,
+                            type: b.type,
+                            rotation: b.rotation || 0,
+                            data: b.data ? JSON.stringify(b.data) : "{}",
+                        }))
+                    )
                 );
             }
         }
 
         if (Array.isArray(inventory)) {
-            await db
-                .delete(gameInventories)
-                .where(and(
-                    eq(gameInventories.userId, userId),
-                    eq(gameInventories.gameId, gameId)
-                ));
+            queries.push(
+                db
+                    .delete(gameInventories)
+                    .where(and(
+                        eq(gameInventories.userId, userId),
+                        eq(gameInventories.gameId, gameId)
+                    ))
+            );
 
             if (inventory.length > 0) {
-                await db.insert(gameInventories).values(
-                    inventory.map((i: any) => ({
-                        userId,
-                        gameId,
-                        slot: i.slot,
-                        itemId: i.itemId,
-                        quantity: i.quantity || 1,
-                        data: i.data ? JSON.stringify(i.data) : "{}",
-                    }))
+                queries.push(
+                    db.insert(gameInventories).values(
+                        inventory.map((i: any) => ({
+                            userId,
+                            gameId,
+                            slot: i.slot,
+                            itemId: i.itemId,
+                            quantity: i.quantity || 1,
+                            data: i.data ? JSON.stringify(i.data) : "{}",
+                        }))
+                    )
                 );
             }
         }
 
         if (statistics) {
-            await db
-                .insert(gameStatistics)
-                .values({
-                    userId,
-                    gameId,
-                    playtimeSeconds: statistics.playtimeSeconds ?? 0,
-                    kills: statistics.kills ?? 0,
-                    deaths: statistics.deaths ?? 0,
-                    shotsFired: statistics.shotsFired ?? 0,
-                    buildingsPlaced: statistics.buildingsPlaced ?? 0,
-                    lastPlayedAt: new Date(),
-                    updatedAt: new Date(),
-                })
-                .onConflictDoUpdate({
-                    target: [gameStatistics.userId, gameStatistics.gameId],
-                    set: {
+            queries.push(
+                db
+                    .insert(gameStatistics)
+                    .values({
+                        userId,
+                        gameId,
                         playtimeSeconds: statistics.playtimeSeconds ?? 0,
                         kills: statistics.kills ?? 0,
                         deaths: statistics.deaths ?? 0,
@@ -155,8 +172,24 @@ export async function POST(req: NextRequest) {
                         buildingsPlaced: statistics.buildingsPlaced ?? 0,
                         lastPlayedAt: new Date(),
                         updatedAt: new Date(),
-                    },
-                });
+                    })
+                    .onConflictDoUpdate({
+                        target: [gameStatistics.userId, gameStatistics.gameId],
+                        set: {
+                            playtimeSeconds: statistics.playtimeSeconds ?? 0,
+                            kills: statistics.kills ?? 0,
+                            deaths: statistics.deaths ?? 0,
+                            shotsFired: statistics.shotsFired ?? 0,
+                            buildingsPlaced: statistics.buildingsPlaced ?? 0,
+                            lastPlayedAt: new Date(),
+                            updatedAt: new Date(),
+                        },
+                    })
+            );
+        }
+
+        if (queries.length > 0) {
+            await db.batch(queries as [any, ...any[]]);
         }
 
         return NextResponse.json({ success: true });

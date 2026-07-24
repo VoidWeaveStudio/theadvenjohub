@@ -17,14 +17,5 @@ export abstract class Entity {
 
     dispose(scene: THREE.Scene) {
         scene.remove(this.mesh);
-        this.mesh.traverse((obj) => {
-            if ((obj as THREE.Mesh).isMesh) {
-                const mesh = obj as THREE.Mesh;
-                mesh.geometry?.dispose();
-                const mat = mesh.material;
-                if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-                else mat?.dispose();
-            }
-        });
     }
 }
