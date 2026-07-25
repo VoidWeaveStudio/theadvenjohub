@@ -7,6 +7,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletReadyState } from "@solana/wallet-adapter-base";
 import { WalletSelectorModal } from "@/core/auth/components/WalletSelectorModal";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { buildSignInMessage } from "@/core/auth/lib/signMessage";
 
 export default function DesktopAuthPage() {
   const router = useRouter();
@@ -78,9 +79,9 @@ export default function DesktopAuthPage() {
         throw new Error("Failed to get challenge from server");
       }
 
-      const { nonce, csrfToken } = await nonceRes.json();
+      const { nonce, domain, csrfToken } = await nonceRes.json();
 
-      const message = `Sign in to TANJO Desktop\nWallet: ${walletAddress}\nNonce: ${nonce}`;
+      const message = buildSignInMessage({ domain, wallet: walletAddress, nonce, platform: "desktop" });
       const messageBytes = new TextEncoder().encode(message);
 
       const signMessageFn = (wallet.adapter as any).signMessage;

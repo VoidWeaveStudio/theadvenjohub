@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { Redis } from "@upstash/redis";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
+import { getExpectedDomain } from "@/core/auth/lib/signMessage";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -38,14 +39,19 @@ export async function GET(req: NextRequest) {
     }
 
     const nonce = randomBytes(16).toString("hex");
-    
-    await redis.set(`auth:nonce:${wallet}`, nonce, { ex: 120 });
+    const domain = getExpectedDomain();
+
+    await redis.set(
+      `auth:nonce:${wallet}`,
+      { nonce, domain },
+      { ex: 120 }
+    );
 
     const csrfToken = generateCSRFToken();
     const isProd = process.env.NODE_ENV === "production";
 
     const response = NextResponse.json(
-      { nonce, csrfToken }, 
+      { nonce, domain, csrfToken },
       { headers: formatRateLimitHeaders(rl) }
     );
 

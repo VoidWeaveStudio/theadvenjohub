@@ -6,6 +6,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { WalletSelectorModal } from "./WalletSelectorModal";
 import { useAuth } from "../AuthProvider";
+import { buildSignInMessage } from "@/core/auth/lib/signMessage";
 
 type LoadingState = boolean | "connecting" | "signing";
 
@@ -85,8 +86,8 @@ export function LoginButton({ className = "" }: { className?: string }) {
           throw new Error(err.error || `Challenge failed: ${challengeRes.status}`);
         }
 
-        const { nonce, csrfToken } = await challengeRes.json();
-        const message = `Sign in to TANJO Game Store\nWallet: ${walletAddress}\nNonce: ${nonce}`;
+        const { nonce, domain, csrfToken } = await challengeRes.json();
+        const message = buildSignInMessage({ domain, wallet: walletAddress, nonce, platform: "web" });
         const messageBytes = new TextEncoder().encode(message);
 
         if (!wallet?.adapter) {

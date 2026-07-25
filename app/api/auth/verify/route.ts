@@ -9,16 +9,17 @@ import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/
 import { db } from "@/core/database";
 import { users } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
+import { buildSignInMessage } from "@/core/auth/lib/signMessage";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-function buildExpectedMessages(wallet: string, nonce: string): string[] {
+function buildExpectedMessages(wallet: string, nonce: string, domain: string): string[] {
   return [
-    `Sign in to TANJO Game Store\nWallet: ${wallet}\nNonce: ${nonce}`,
-    `Sign in to TANJO Desktop\nWallet: ${wallet}\nNonce: ${nonce}`,
+    buildSignInMessage({ domain, wallet, nonce, platform: "web" }),
+    buildSignInMessage({ domain, wallet, nonce, platform: "desktop" }),
   ];
 }
 
@@ -121,14 +122,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const storedNonce = await redis.get(`auth:nonce:${wallet}`);
+    // @upstash/redis auto-deserializes JSON values, so this is already an
+    // object (or null) — not a string requiring a manual JSON.parse.
+    const storedChallenge = await redis.get<{ nonce: string; domain: string }>(
+      `auth:nonce:${wallet}`
+    );
+    const storedNonce = storedChallenge?.nonce;
+    const storedDomain = storedChallenge?.domain;
+
     console.log("[verify] Nonce check:", {
       received: nonce,
       stored: storedNonce,
       match: storedNonce === nonce,
     });
 
-    if (!storedNonce || storedNonce !== nonce) {
+    if (!storedNonce || !storedDomain || storedNonce !== nonce) {
       console.error("[verify] Invalid or expired nonce");
       return NextResponse.json(
         { error: "invalid_or_expired_nonce" },
@@ -136,7 +144,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const expectedMessages = buildExpectedMessages(wallet, nonce);
+    const expectedMessages = buildExpectedMessages(wallet, nonce, storedDomain);
     if (!expectedMessages.includes(message)) {
       console.error("[verify] Message does not match expected template for wallet+nonce");
       return NextResponse.json(

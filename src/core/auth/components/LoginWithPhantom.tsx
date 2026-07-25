@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { isMobile } from "@/core/lib/device";
+import { buildSignInMessage } from "@/core/auth/lib/signMessage";
 
 const getCsrfFromCookie = (): string | undefined => {
   if (typeof document === "undefined") return undefined;
@@ -103,9 +104,9 @@ export function LoginWithPhantom({ onLogin, className = "" }: LoginWithPhantomPr
         throw new Error(err.error || `Challenge failed: ${challengeRes.status}`);
       }
 
-      const { nonce, csrfToken } = await challengeRes.json();
+      const { nonce, domain, csrfToken } = await challengeRes.json();
 
-      const message = `Sign in to TANJO Game Store\nWallet: ${wallet}\nNonce: ${nonce}`;
+      const message = buildSignInMessage({ domain, wallet, nonce, platform: "web" });
       const signed = await phantom.signMessage(new TextEncoder().encode(message), "utf8");
       const signatureBase64 = Buffer.from(signed.signature).toString("base64");
 

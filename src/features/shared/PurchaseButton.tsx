@@ -16,7 +16,8 @@ import {
 } from "@solana/spl-token";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
-import { LoginButton } from "@/core/auth/components/LoginButton"; 
+import { LoginButton } from "@/core/auth/components/LoginButton";
+import { buildSignInMessage } from "@/core/auth/lib/signMessage";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -140,8 +141,8 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
           throw new Error(err.error || `Challenge failed: ${challengeRes.status}`);
         }
 
-        const { nonce, csrfToken } = await challengeRes.json();
-        const authMessage = `Sign in to TANJO Game Store\nWallet: ${walletAddress}\nNonce: ${nonce}`;
+        const { nonce, domain, csrfToken } = await challengeRes.json();
+        const authMessage = buildSignInMessage({ domain, wallet: walletAddress, nonce, platform: "web" });
         const authMessageBytes = new TextEncoder().encode(authMessage);
 
         const signMessageFn = (walletAdapter as any).signMessage;
