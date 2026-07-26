@@ -5,8 +5,10 @@ import { InputManager } from "../core/InputManager";
 import { ResourceManager } from "../core/ResourceManager";
 import { CameraController } from "../core/CameraController";
 import { Weapon } from "./Weapon";
-import { TerrainChunkManager } from "../world/TerrainChunkManager";
 import { CollisionGrid } from "../world/CollisionGrid";
+import { HeightProvider } from "../world/Location";
+import { CharacterAnimator } from "./CharacterAnimator";
+import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 
 export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
@@ -28,20 +30,19 @@ export class Player extends Entity {
 
     private inputManager!: InputManager;
     private camera!: CameraController;
-    private terrain: TerrainChunkManager | null = null;
+    private terrain: HeightProvider | null = null;
     private collisionGrid: CollisionGrid | null = null;
 
     private maxRadius: number | null = null;
     private bounds: { min: THREE.Vector3; max: THREE.Vector3 } | null = null;
 
-    private mixer: THREE.AnimationMixer | null = null;
-    private animations: Map<string, THREE.AnimationAction> = new Map();
-    private currentAnimation: string = 'idle';
+    private animator = new CharacterAnimator();
 
     private head: THREE.Object3D | null = null;
     private neck: THREE.Object3D | null = null;
     private rightHand: THREE.Object3D | null = null;
     private hips: THREE.Object3D | null = null;
+    private weaponEquipped: boolean = true;
 
     private isShooting: boolean = false;
     private readonly SHOOTING_SPEED_MULTIPLIER = 0.5;
@@ -80,75 +81,29 @@ export class Player extends Entity {
             throw new Error("Player model not found. Cannot initialize game.");
         }
 
-        const box = new THREE.Box3().setFromObject(data.scene);
-        const size = box.getSize(new THREE.Vector3());
-        const targetHeight = 1.8;
-        const scale = targetHeight / size.y;
-        data.scene.scale.setScalar(scale);
-
-        const scaledBox = new THREE.Box3().setFromObject(data.scene);
-        data.scene.position.set(
-            -(scaledBox.min.x + scaledBox.max.x) / 2,
-            -scaledBox.min.y,
-            -(scaledBox.min.z + scaledBox.max.z) / 2
-        );
-
-        data.scene.rotation.y = Math.PI / 2;
+        scaleAndCenterModel(data.scene, 1.8, Math.PI / 2);
 
         this.mesh.add(data.scene);
 
-        data.scene.traverse((child: THREE.Object3D) => {
-            const name = child.name.toLowerCase();
+        this.rightHand = findBoneFirst(data.scene, (name) =>
+            name === 'handr' || name === 'hand.r' ||
+            (name.includes('right') && name.includes('hand')) ||
+            name === 'r_hand' || name === 'rhand' ||
+            name.includes('righthand') || name.includes('rightarm')
+        );
+        this.hips = findBoneFirst(data.scene, (name) =>
+            name === 'hips' || name === 'pelvis' || name.includes('hips')
+        );
+        this.head = findBoneLast(data.scene, (name) => name.includes('head') && !name.endsWith('_end'));
+        this.neck = findBoneLast(data.scene, (name) => !name.includes('head') && name.includes('neck') && !name.endsWith('_end'));
 
-            if (!this.rightHand) {
-                if (name === 'handr' ||
-                    (name.includes('right') && name.includes('hand')) ||
-                    name === 'r_hand' || name === 'rhand' ||
-                    name.includes('righthand') || name.includes('rightarm')) {
-                    this.rightHand = child;
-                }
-            }
-
-            if (!this.hips) {
-                if (name === 'hips' || name === 'pelvis' || name.includes('hips')) {
-                    this.hips = child;
-                }
-            }
-
-            if (name.includes('head')) this.head = child;
-            else if (name.includes('neck')) this.neck = child;
-        });
-
-        this.mixer = new THREE.AnimationMixer(data.scene);
-
-        if (data.animations && data.animations.length > 0) {
-            const animMapping: Record<string, string> = {
-                'idle': 'idle',
-                'walk': 'walk',
-                'run': 'run',
-                'jump': 'jump'
-            };
-
-            for (const clip of data.animations) {
-                for (const [key, value] of Object.entries(animMapping)) {
-                    if (clip.name.toLowerCase().includes(key)) {
-                        const action = this.mixer.clipAction(clip);
-                        action.setEffectiveTimeScale(1);
-                        action.setEffectiveWeight(1);
-                        this.animations.set(value, action);
-                        break;
-                    }
-                }
-            }
-        }
-
-        this.playAnimation('idle');
+        this.animator.setup(data.scene, data.animations);
+        this.animator.play('idle', this.weaponEquipped);
 
         this.weapon.create(this.mesh, resourceManager);
 
         if (this.rightHand) {
-            this.mesh.remove(this.weapon.mesh);
-            this.rightHand.add(this.weapon.mesh);
+            reparentPreservingWorldScale(this.weapon.mesh, this.rightHand);
         }
 
         this.mesh.position.set(0, 0, 0);
@@ -156,27 +111,12 @@ export class Player extends Entity {
         scene.add(this.mesh);
     }
 
-    private playAnimation(name: string) {
-        if (this.currentAnimation === name) return;
-
-        const nextAction = this.animations.get(name);
-        const currentAction = this.animations.get(this.currentAnimation);
-
-        if (nextAction) {
-            if (currentAction) {
-                currentAction.fadeOut(0.2);
-            }
-            nextAction.reset().fadeIn(0.2).play();
-            this.currentAnimation = name;
-        }
-    }
-
     setDependencies(inputManager: InputManager, camera: CameraController) {
         this.inputManager = inputManager;
         this.camera = camera;
     }
 
-    setTerrain(terrain: TerrainChunkManager | null) {
+    setTerrain(terrain: HeightProvider | null) {
         this.terrain = terrain;
         if (this.terrain) {
             this.baseY = this.terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z);
@@ -192,6 +132,7 @@ export class Player extends Entity {
 
     setWeaponVisible(visible: boolean) {
         this.weapon.mesh.visible = visible;
+        this.weaponEquipped = visible;
     }
 
     public setHealth(health: number) {
@@ -341,11 +282,11 @@ export class Player extends Entity {
         }
 
         if (!this.isGrounded) {
-            this.playAnimation('jump');
+            this.animator.play('jump', this.weaponEquipped);
         } else if (moved) {
-            this.playAnimation(isSprinting && !this.isShooting ? 'run' : 'walk');
+            this.animator.play(isSprinting && !this.isShooting ? 'run' : 'walk', this.weaponEquipped);
         } else {
-            this.playAnimation('idle');
+            this.animator.play('idle', this.weaponEquipped);
         }
 
         let bobOffset = 0;
@@ -370,9 +311,7 @@ export class Player extends Entity {
             this.hips.position.z = 0;
         }
 
-        if (this.mixer) {
-            this.mixer.update(delta);
-        }
+        this.animator.update(delta);
     }
 
     private getCameraLookAngle(): number {

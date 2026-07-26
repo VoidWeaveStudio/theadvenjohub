@@ -52,11 +52,13 @@ export function Hotbar({ slots, onSlotClick }: HotbarProps) {
                             {i + 1}
                         </span>
 
-                        {IconComponent && (
+                        {IconComponent ? (
                             <div className={`${slot.equipped ? 'text-[#4FD1FF]' : 'text-[#E5E7EB]'}`}>
                                 {IconComponent}
                             </div>
-                        )}
+                        ) : slot.icon ? (
+                            <div className="text-2xl leading-none">{slot.icon}</div>
+                        ) : null}
 
                         {slot.count !== undefined && slot.count > 1 && (
                             <span className="absolute bottom-1 right-2 text-xs font-bold text-[#E5E7EB]">

@@ -6,6 +6,7 @@ import { CollisionGrid } from "../../CollisionGrid";
 
 export abstract class TowerFloor extends Location {
     public collisionGrid: CollisionGrid;
+    public maxPlayerRadius: number | null = 9999;
     protected time: number = 0;
     protected centralCrystal!: THREE.Group;
 

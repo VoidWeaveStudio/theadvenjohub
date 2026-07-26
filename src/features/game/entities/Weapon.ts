@@ -2,6 +2,13 @@
 import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
 
+export const RIFLE_GRIP_QUATERNION = new THREE.Quaternion(
+    -0.5570306081450372,
+    0.5570306081450374,
+    0.43556503715239797,
+    -0.43556503715239797
+);
+
 export class Weapon {
     public mesh: THREE.Group = new THREE.Group();
     public muzzle: THREE.Object3D = new THREE.Object3D();
@@ -35,20 +42,18 @@ export class Weapon {
 
         const scaledBox = new THREE.Box3().setFromObject(rifle);
         const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
-        rifle.position.sub(scaledCenter);
-
-        rifle.position.set(0, 0, -0.2);
-        rifle.rotation.set(0, 0, 0);
+        rifle.position.copy(scaledCenter).multiplyScalar(-1);
+        rifle.quaternion.copy(RIFLE_GRIP_QUATERNION);
 
         this.mesh.add(rifle);
 
-        this.muzzle.position.set(0, 0.05, -0.6);
+        this.muzzle.position.set(0, -0.4, 0.03);
         this.mesh.add(this.muzzle);
 
-        this.foregrip.position.set(0, 0, -0.3);
+        this.foregrip.position.set(0, -0.15, 0);
         this.mesh.add(this.foregrip);
 
-        this.gripPoint.position.set(0, -0.05, 0.1);
+        this.gripPoint.position.set(0, 0.1, 0);
         this.mesh.add(this.gripPoint);
 
         playerMesh.add(this.mesh);

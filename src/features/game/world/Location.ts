@@ -1,6 +1,7 @@
 // src/features/game/world/Location.ts
 import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
+import { CollisionGrid } from "./CollisionGrid";
 
 export interface Portal {
     id: string;
@@ -11,6 +12,10 @@ export interface Portal {
     mesh: THREE.Object3D;
 }
 
+export interface HeightProvider {
+    getHeightAt(x: number, z: number): number;
+}
+
 export abstract class Location {
     public readonly id: string;
     public readonly name: string;
@@ -18,6 +23,11 @@ export abstract class Location {
     public portals: Portal[] = [];
     public colliders: THREE.Box3[] = [];
     public pendingTeleport: string | null = null;
+
+    public collisionGrid?: CollisionGrid;
+    public cameraCollisionGrid?: CollisionGrid;
+    public terrain?: HeightProvider;
+    public maxPlayerRadius?: number | null;
 
     public onOpenFloorSelector?: () => void;
 

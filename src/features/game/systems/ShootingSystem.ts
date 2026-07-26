@@ -13,7 +13,7 @@ import { CollisionGrid } from "../world/CollisionGrid";
 interface Bullet {
     group: THREE.Group;
     mesh: THREE.Mesh;
-    trail: THREE.Line;
+    trail: THREE.Mesh;
     velocity: THREE.Vector3;
     direction: THREE.Vector3;
     life: number;
@@ -64,7 +64,9 @@ export class ShootingSystem extends System {
     private collisionGrid: CollisionGrid | null = null;
 
     private readonly TRAIL_LENGTH = 1.5;
+    private readonly TRAIL_RADIUS = 0.015;
     private readonly BULLET_SPEED = 200;
+    private tracerGeometry: THREE.CylinderGeometry | null = null;
 
     private readonly MAX_PARTICLES = 100;
     private particlePool: Particle[] = [];
@@ -78,7 +80,7 @@ export class ShootingSystem extends System {
     private muzzleLightTimeout: ReturnType<typeof setTimeout> | null = null;
 
     private warmupBullet: THREE.Group | null = null;
-    private warmupTrail: THREE.Line | null = null;
+    private warmupTrail: THREE.Mesh | null = null;
 
     public setScene(scene: THREE.Scene) {
         this.clearAllEffects();
@@ -142,14 +144,7 @@ export class ShootingSystem extends System {
             this.scene.add(this.warmupBullet);
         }
 
-        const trailGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-        const trailMat = new THREE.LineBasicMaterial({
-            color: 0xffff88,
-            transparent: true,
-            opacity: 0.8,
-            linewidth: 2,
-        });
-        this.warmupTrail = new THREE.Line(trailGeo, trailMat);
+        this.warmupTrail = this.createTracerMesh(new THREE.Vector3(0, 0, -1));
         this.warmupTrail.position.set(0, -500, 0);
         this.scene.add(this.warmupTrail);
     }
@@ -161,7 +156,6 @@ export class ShootingSystem extends System {
         }
         if (this.warmupTrail) {
             this.scene.remove(this.warmupTrail);
-            this.warmupTrail.geometry.dispose();
             (this.warmupTrail.material as THREE.Material).dispose();
             this.warmupTrail = null;
         }
@@ -204,7 +198,6 @@ export class ShootingSystem extends System {
                 this.scene.remove(b.group);
                 this.scene.remove(b.trail);
             }
-            b.trail.geometry.dispose();
             (b.trail.material as THREE.Material).dispose();
         }
         this.bullets = [];
@@ -407,6 +400,28 @@ export class ShootingSystem extends System {
         }
     }
 
+    private getTracerGeometry(): THREE.CylinderGeometry {
+        if (!this.tracerGeometry) {
+            this.tracerGeometry = new THREE.CylinderGeometry(this.TRAIL_RADIUS, this.TRAIL_RADIUS, 1, 6, 1, true);
+        }
+        return this.tracerGeometry;
+    }
+
+    private createTracerMesh(direction: THREE.Vector3): THREE.Mesh {
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffee88,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            fog: false,
+        });
+        const mesh = new THREE.Mesh(this.getTracerGeometry(), material);
+        mesh.scale.set(1, this.TRAIL_LENGTH, 1);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+        return mesh;
+    }
+
     private spawnBullet(origin: THREE.Vector3, direction: THREE.Vector3, hitPoint: THREE.Vector3) {
         const data = this.resourceManager.getModel("bullet");
         if (!data) {
@@ -417,19 +432,11 @@ export class ShootingSystem extends System {
         const bulletGroup = data.scene;
         const bulletMesh = bulletGroup.children[0] as THREE.Mesh;
         bulletGroup.position.copy(origin);
+        bulletGroup.lookAt(origin.clone().add(direction));
         this.scene.add(bulletGroup);
 
-        const trailGeo = new THREE.BufferGeometry().setFromPoints([
-            origin.clone(),
-            origin.clone(),
-        ]);
-        const trailMat = new THREE.LineBasicMaterial({
-            color: 0xffff88,
-            transparent: true,
-            opacity: 0.8,
-            linewidth: 2
-        });
-        const trail = new THREE.Line(trailGeo, trailMat);
+        const trail = this.createTracerMesh(direction);
+        trail.position.copy(origin).addScaledVector(direction, -this.TRAIL_LENGTH / 2);
         this.scene.add(trail);
 
         const distanceToHit = origin.distanceTo(hitPoint);
@@ -507,26 +514,17 @@ export class ShootingSystem extends System {
             b.group.position.add(step);
             b.life -= delta;
 
-            const head = b.group.position.clone();
-            const tail = head.clone().sub(b.direction.clone().multiplyScalar(this.TRAIL_LENGTH));
-
-            const positions = b.trail.geometry.attributes.position as THREE.BufferAttribute;
-            if (positions) {
-                positions.setXYZ(0, head.x, head.y, head.z);
-                positions.setXYZ(1, tail.x, tail.y, tail.z);
-                positions.needsUpdate = true;
-            }
+            b.trail.position.copy(b.group.position).addScaledVector(b.direction, -this.TRAIL_LENGTH / 2);
 
             const lifeRatio = b.life / b.maxLife;
-            const trailMat = b.trail.material as THREE.LineBasicMaterial;
+            const trailMat = b.trail.material as THREE.MeshBasicMaterial;
             if (lifeRatio < 0.3) {
-                trailMat.opacity = 0.8 * (lifeRatio / 0.3);
+                trailMat.opacity = 0.85 * Math.max(0, lifeRatio / 0.3);
             }
 
             if (b.life <= 0) {
                 this.scene.remove(b.group);
                 this.scene.remove(b.trail);
-                b.trail.geometry.dispose();
                 trailMat.dispose();
                 this.bullets.splice(i, 1);
             }
@@ -571,6 +569,11 @@ export class ShootingSystem extends System {
         if (this.particleMaterial) {
             this.particleMaterial.dispose();
             this.particleMaterial = null;
+        }
+
+        if (this.tracerGeometry) {
+            this.tracerGeometry.dispose();
+            this.tracerGeometry = null;
         }
 
         if (this.muzzleLightTimeout) {

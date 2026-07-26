@@ -33,6 +33,7 @@ export class TokenCanyon extends Location {
     private sunLight!: THREE.DirectionalLight;
     private gateId: string;
     public collisionGrid: CollisionGrid;
+    public maxPlayerRadius = 140;
 
     constructor(locationId: string, gateId: string) {
         const config = getGateConfig(gateId);

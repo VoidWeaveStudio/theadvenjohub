@@ -1,0 +1,438 @@
+// src/features/game/core/GameNetworkHandlers.ts
+import * as THREE from "three";
+import type { Game, GameSession } from "./Game";
+import { PlayerNetData } from "../network/NetworkManager";
+import { OtherPlayer } from "../entities/OtherPlayer";
+import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
+import { apiPost } from "@/core/api/client";
+
+interface PlayerLeaveLocationData {
+    playerId: string;
+    fromLocation: string;
+    toLocation: string;
+}
+
+interface AuthData {
+    playerId: string;
+    nickname: string;
+}
+
+interface PlayerJoinData {
+    id: string;
+    nickname: string;
+    locationId?: string;
+    position?: number[];
+    rotation?: number;
+}
+
+interface PlayerUpdateData {
+    id: string;
+    position: number[];
+    rotation: number;
+    pitch: number;
+    state: string;
+}
+
+interface ShootData {
+    id: string;
+    origin: number[];
+    direction: number[];
+}
+
+interface ChatData {
+    id: string;
+    sender: string;
+    message: string;
+    timestamp: number;
+}
+
+interface ProgressData {
+    progress?: {
+        locationId?: string;
+        position: number[];
+        rotation?: number;
+    };
+    nickname?: string;
+}
+
+interface DamageData {
+    targetId: string;
+    damage: number;
+    attackerId: string;
+}
+
+interface DeathData {
+    playerId: string;
+    killerId: string;
+}
+
+interface PlayerRespawnData {
+    id: string;
+    health: number;
+    position: number[];
+}
+
+interface LocalRespawnData {
+    position: number[];
+    health: number;
+}
+
+export function registerNetworkHandlers(game: Game) {
+    game.networkManager.onPlayerLeaveLocation = (data: PlayerLeaveLocationData) => {
+        const op = game.otherPlayers.get(data.playerId);
+        if (!op) return;
+        const currentLocation = game.locationManager.getCurrentLocation();
+        if (!currentLocation) return;
+        if (currentLocation.id === data.fromLocation) {
+            currentLocation.scene.remove(op.mesh);
+            currentLocation.scene.remove(op.getHitbox());
+            game.shootingSystem.unregisterOtherPlayer(data.playerId);
+            op.setHidden(true);
+            game.onChatMessage?.({
+                id: `system-${Date.now()}`, sender: "System",
+                message: `${op.nickname} left the area`,
+                timestamp: Date.now(), type: "system",
+            });
+        }
+    };
+
+    game.networkManager.onPlayerJoinLocation = (data: PlayerNetData) => {
+        const currentLocation = game.locationManager.getCurrentLocation();
+        if (!currentLocation) return;
+        const locationId = data.locationId || 'main-world';
+        if (currentLocation.id === locationId) {
+            let op = game.otherPlayers.get(data.id);
+            if (!op) {
+                op = new OtherPlayer(data.id, data.nickname);
+                op.create(currentLocation.scene, game.resourceManager);
+                game.otherPlayers.set(data.id, op);
+            } else {
+                currentLocation.scene.add(op.mesh);
+                currentLocation.scene.add(op.getHitbox());
+                op.setHidden(false);
+            }
+            game.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
+            op.updateFromNetwork(data);
+            game.updateOnlineCount();
+            game.onChatMessage?.({
+                id: `system-${Date.now()}`, sender: "System",
+                message: `${data.nickname} entered the area`,
+                timestamp: Date.now(), type: "system",
+            });
+        }
+    };
+
+    game.networkManager.setSessionRefresher(async () => {
+        try {
+            const fresh = await apiPost<GameSession>("/api/game/session", { gameSlug: game.slug });
+            game.session = fresh;
+            return fresh;
+        } catch {
+            return null;
+        }
+    });
+
+    game.networkManager.onSessionRevoked = () => {
+        game.onNotification?.("⚠️ Connected from another tab/device", 5000);
+    };
+
+    game.networkManager.onReconnectFailed = () => {
+        game.onNotification?.("❌ Lost connection to game server", 5000);
+    };
+
+    game.networkManager.connect(game.session);
+
+    game.networkManager.onAuthenticated = (data: AuthData) => {
+        game.localPlayerNetId = data.playerId;
+        game.onNicknameLoaded?.(data.nickname);
+
+        setTimeout(() => {
+            if (game.hasRestoredLocation) return;
+            game.hasRestoredLocation = true;
+            game.restoreResolver?.();
+            game.restoreResolver = null;
+        }, 800);
+    };
+
+    game.networkManager.onInit = (playerIds) => {
+        const known = new Set(playerIds);
+        const currentLocation = game.locationManager.getCurrentLocation();
+        for (const [id, op] of Array.from(game.otherPlayers.entries())) {
+            if (known.has(id)) continue;
+            if (currentLocation && !op.isHidden()) op.dispose(currentLocation.scene);
+            game.otherPlayers.delete(id);
+            game.shootingSystem.unregisterOtherPlayer(id);
+        }
+        game.updateOnlineCount();
+    };
+
+    game.networkManager.onPlayerJoin = (data: PlayerJoinData) => {
+        if (data.id === game.localPlayerNetId) return;
+        const currentLocation = game.locationManager.getCurrentLocation();
+        if (!currentLocation) return;
+        const playerLocation = data.locationId || 'main-world';
+        if (playerLocation !== currentLocation.id) {
+            if (!game.otherPlayers.has(data.id)) {
+                const op = new OtherPlayer(data.id, data.nickname);
+                op.setHidden(true);
+                game.otherPlayers.set(data.id, op);
+                game.updateOnlineCount();
+            }
+            return;
+        }
+        let op = game.otherPlayers.get(data.id);
+        if (!op) {
+            op = new OtherPlayer(data.id, data.nickname);
+            op.create(currentLocation.scene, game.resourceManager);
+            game.otherPlayers.set(data.id, op);
+        } else if (op.isHidden()) {
+            currentLocation.scene.add(op.mesh);
+            currentLocation.scene.add(op.getHitbox());
+            op.setHidden(false);
+        }
+        game.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
+        op.updateFromNetwork(data);
+        game.updateOnlineCount();
+        game.onChatMessage?.({
+            id: `system-${Date.now()}`, sender: "System",
+            message: `${data.nickname} joined the game`,
+            timestamp: Date.now(), type: "system",
+        });
+    };
+
+    game.networkManager.onPlayerLeave = (playerId: string) => {
+        const op = game.otherPlayers.get(playerId);
+        if (op) {
+            game.onChatMessage?.({
+                id: `system-${Date.now()}`, sender: "System",
+                message: `${op.nickname} left the game`,
+                timestamp: Date.now(), type: "system",
+            });
+            const currentLocation = game.locationManager.getCurrentLocation();
+            if (currentLocation && !op.isHidden()) op.dispose(currentLocation.scene);
+            game.otherPlayers.delete(playerId);
+            game.shootingSystem.unregisterOtherPlayer(playerId);
+            game.updateOnlineCount();
+        }
+    };
+
+    game.networkManager.onPlayerUpdate = (data: PlayerUpdateData) => {
+        const op = game.otherPlayers.get(data.id);
+        if (!op || op.isHidden()) return;
+        op.updateFromNetwork(data);
+    };
+
+    game.networkManager.onShoot = (data: ShootData) => {
+        if (data.id === game.localPlayerNetId) return;
+        game.shootingSystem.handleNetworkShoot({ origin: data.origin, direction: data.direction });
+    };
+
+    game.networkManager.onCount = (count: number) => {
+        game.hudState.online = count;
+        game.emitState(true);
+    };
+
+    game.networkManager.onChatMessage = (data: ChatData) => {
+        game.onChatMessage?.({
+            id: data.id, sender: data.sender,
+            message: data.message, timestamp: data.timestamp, type: "player",
+        });
+    };
+
+    game.networkManager.onProgressLoaded = (data: ProgressData) => {
+        if (data?.nickname) game.onNicknameLoaded?.(data.nickname);
+
+        if (!game.hasRestoredLocation) {
+            game.hasRestoredLocation = true;
+            game.restoreToSavedProgress(data?.progress);
+        }
+    };
+
+    game.networkManager.onPlayerDamaged = (data: DamageData) => {
+        if (data.attackerId?.startsWith('enemy-')) {
+            game.enemySystem.handleEnemyAttack(data.attackerId);
+        }
+
+        if (data.targetId === game.localPlayerNetId) {
+            game.player.takeDamage(data.damage);
+            game.hudState.health = game.player.health;
+            game.emitState(true);
+            game.damageAttackerId = data.attackerId;
+            game.lastDamageTime = Date.now();
+            const attacker = game.otherPlayers.get(data.attackerId);
+            const enemyAttacker = game.enemySystem.getEnemy(data.attackerId);
+            let direction = 0;
+            if (attacker && !attacker.isHidden()) {
+                const playerPos = game.player.mesh.position;
+                const attackerPos = attacker.mesh.position;
+                direction = Math.atan2(attackerPos.x - playerPos.x, attackerPos.z - playerPos.z);
+            } else if (enemyAttacker) {
+                const playerPos = game.player.mesh.position;
+                const attackerPos = enemyAttacker.mesh.position;
+                direction = Math.atan2(attackerPos.x - playerPos.x, attackerPos.z - playerPos.z);
+            } else {
+                direction = game.cameraController.getYaw() + Math.PI;
+            }
+            game.onDamageEvent?.({
+                id: Date.now() + Math.random(),
+                direction, damage: data.damage, timestamp: Date.now(),
+            });
+        }
+    };
+
+    game.networkManager.onPlayerDeath = (data: DeathData) => {
+        if (data.playerId === game.localPlayerNetId) {
+            game.isDead = true;
+            const killer = game.otherPlayers.get(data.killerId);
+            game.killerName = killer?.nickname || (data.killerId.startsWith('enemy-') ? 'Enemy' : 'Unknown');
+            game.onDeathStateChange?.(true, game.killerName);
+        } else {
+            const op = game.otherPlayers.get(data.playerId);
+            if (op && !op.isHidden()) {
+                op.setDead(true);
+                game.onChatMessage?.({
+                    id: `system-${Date.now()}`, sender: "System",
+                    message: `${op.nickname} was eliminated`,
+                    timestamp: Date.now(), type: "system",
+                });
+            }
+        }
+    };
+
+    game.networkManager.onPlayerRespawn = (data: PlayerRespawnData) => {
+        const op = game.otherPlayers.get(data.id);
+        if (op && !op.isHidden()) {
+            op.setDead(false);
+            op.setHealth(data.health);
+            op.updateFromNetwork({
+                position: data.position, rotation: op.mesh.rotation.y,
+                pitch: 0, state: 'idle', alive: true, health: data.health,
+            });
+        }
+    };
+
+    game.networkManager.onRespawn = (data: LocalRespawnData) => {
+        game.player.mesh.position.fromArray(data.position);
+        game.player.setHealth(data.health);
+        game.hudState.health = game.player.health;
+        game.emitState(true);
+        game.onNotification?.('✨ Respawned!', 2000);
+        game.isDead = false;
+        game.killerName = null;
+        game.onDeathStateChange?.(false, null);
+    };
+
+    game.networkManager.onPositionCorrection = (data: { position: number[] }) => {
+        game.player.teleportTo(new THREE.Vector3().fromArray(data.position));
+    };
+
+    game.networkManager.onDayNightSync = (data) => {
+        game.dayNightConfig = data;
+    };
+
+    game.networkManager.onEnemyState = (list) => {
+        game.enemySystem.handleEnemyState(list);
+    };
+
+    game.networkManager.onEnemyDamaged = (data) => {
+        game.enemySystem.handleEnemyDamaged(data);
+    };
+
+    game.networkManager.onEnemyDeath = (data) => {
+        game.enemySystem.handleEnemyDeath(data);
+    };
+
+    game.networkManager.onEnemyRespawn = (data) => {
+        game.enemySystem.handleEnemyRespawn(data);
+    };
+
+    game.networkManager.onLootState = (list) => {
+        game.lootSystem.handleLootState(list);
+    };
+
+    game.networkManager.onLootSpawn = (data) => {
+        game.lootSystem.handleLootSpawn(data);
+    };
+
+    game.networkManager.onLootDespawn = (id) => {
+        game.lootSystem.handleLootDespawn(id);
+    };
+
+    game.networkManager.onInventoryUpdate = ({ inventory, ash }) => {
+        game.inventory = inventory;
+        game.ash = ash;
+        game.onInventoryChange?.(inventory, ash);
+    };
+
+    game.networkManager.onSellResult = (data) => {
+        game.onSellResult?.(data);
+        game.onNotification?.(`💨 Sold ${data.quantitySold}x for ${data.ashEarned} ash`, 2500);
+    };
+
+    game.networkManager.onServerError = (message) => {
+        game.onNotification?.(`⚠️ ${message}`, 2500);
+    };
+
+    game.networkManager.onQuestInfo = (data) => {
+        game.onQuestInfo?.(data);
+    };
+
+    game.networkManager.onQuestUpdate = (data) => {
+        game.onQuestUpdate?.(data);
+        if (data.status === "active" && data.progress === 0) {
+            game.onNotification?.(`📜 Quest accepted: kill ${data.targetCount} slimes in Slime Valley`, 3000);
+        } else if (data.status === "ready_to_turn_in") {
+            game.onNotification?.("✨ Quest complete! Return to Sola for your reward", 3000);
+        } else if (data.status === "completed") {
+            game.onNotification?.(`🎉 Quest turned in: +${data.rewardAsh ?? 0} ash`, 3000);
+        }
+    };
+
+    game.networkManager.onCanyonSegment = (data) => {
+        const currentLoc = game.locationManager.getCurrentLocation();
+        if (currentLoc instanceof FirstFloor) {
+            currentLoc.applyFreshSegment(data);
+            const spawnPoint = currentLoc.getSpawnPoint();
+            game.player.teleportTo(spawnPoint);
+            game.cameraController.yawObject.position.copy(spawnPoint);
+            game.networkManager.sendPlayerUpdate({
+                position: spawnPoint.toArray(),
+                rotation: game.player.mesh.rotation.y,
+                pitch: game.cameraController.getPitch(),
+                state: 'idle', jumping: false, velocityY: 0,
+                weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
+            });
+        }
+        game.onCanyonSegment?.(data);
+        game.onNotification?.(`🗺️ ${data.name}`, 2500);
+    };
+
+    game.networkManager.onCanyonCleared = (data) => {
+        const currentLoc = game.locationManager.getCurrentLocation();
+        if (currentLoc instanceof FirstFloor) {
+            currentLoc.applyBossDefeated(data);
+        }
+        game.onNotification?.("🎉 Boss defeated! The way forward has opened.", 3000);
+    };
+
+    game.networkManager.onCanyonMap = (data) => {
+        game.onCanyonMap?.(data);
+    };
+
+    game.networkManager.onCanyonHub = (data) => {
+        const currentLoc = game.locationManager.getCurrentLocation();
+        if (currentLoc instanceof FirstFloor) {
+            currentLoc.applyHub(data);
+            const spawnPoint = currentLoc.getSpawnPoint();
+            game.player.teleportTo(spawnPoint);
+            game.cameraController.yawObject.position.copy(spawnPoint);
+            game.networkManager.sendPlayerUpdate({
+                position: spawnPoint.toArray(),
+                rotation: game.player.mesh.rotation.y,
+                pitch: game.cameraController.getPitch(),
+                state: 'idle', jumping: false, velocityY: 0,
+                weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
+            });
+        }
+    };
+}

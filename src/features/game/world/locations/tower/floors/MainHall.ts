@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";
+import { createMarbleFloorMaterial, createWallStoneMaterial, createPillarMarbleMaterial } from "./mainHallTextures";
 
 interface CrystalData {
     mesh: THREE.Mesh;
@@ -20,6 +21,12 @@ export class MainHall extends TowerFloor {
     private solaNpc!: THREE.Group;
     private solaTime: number = 0;
 
+    private floorMaterial!: THREE.MeshStandardMaterial;
+    private wallMaterialRef!: THREE.MeshStandardMaterial;
+    private pillarMaterialRef!: THREE.MeshStandardMaterial;
+    private dustMotes: THREE.Points | null = null;
+    private medallionGlow: THREE.Mesh | null = null;
+
     constructor() {
         super("tower-main-hall", "Gloomy Tower Main Hall");
     }
@@ -29,14 +36,18 @@ export class MainHall extends TowerFloor {
         this.scene.background = new THREE.Color(bgColor);
         this.scene.fog = new THREE.FogExp2(bgColor, 0.0015);
 
-        const ambient = new THREE.AmbientLight(0x3a4048, 0.55);
+        const ambient = new THREE.AmbientLight(0x3a4048, 0.25);
         this.scene.add(ambient);
-        const hemiLight = new THREE.HemisphereLight(0xd8e8f5, 0x3a4048, 1.2);
+        const hemiLight = new THREE.HemisphereLight(0xd8e8f5, 0x3a4048, 0.55);
         this.scene.add(hemiLight);
 
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0xCAC7C2, roughness: 0.85, metalness: 0.05 });
+        this.createKeyLight();
+
+        this.wallMaterialRef = createWallStoneMaterial();
+        this.pillarMaterialRef = createPillarMarbleMaterial();
+        const wallMat = this.wallMaterialRef;
         const corniceMat = new THREE.MeshStandardMaterial({ color: 0xF0ECE5, roughness: 0.7, metalness: 0.1 });
-        const pillarMat = new THREE.MeshStandardMaterial({ color: 0xDDD9D1, roughness: 0.6, metalness: 0.15 });
+        const pillarMat = this.pillarMaterialRef;
         const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x8a8578, roughness: 0.9, metalness: 0.05 });
         const metalMat = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.4, metalness: 0.9 });
 
@@ -52,6 +63,83 @@ export class MainHall extends TowerFloor {
         this.createCentralCrystal();
         this.createVendorNPC();
         this.createSolaNPC();
+        this.createDustMotes();
+        this.createMedallionGlow();
+    }
+
+    private createKeyLight() {
+        const isLowEnd = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency != null)
+            ? navigator.hardwareConcurrency <= 4
+            : false;
+        const shadowRes = isLowEnd ? 1024 : 2048;
+
+        const keyLight = new THREE.DirectionalLight(0xfff2d8, 1.6);
+        keyLight.position.set(60, 130, 40);
+        keyLight.target.position.set(0, 20, 0);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.set(shadowRes, shadowRes);
+        keyLight.shadow.camera.left = -100;
+        keyLight.shadow.camera.right = 100;
+        keyLight.shadow.camera.top = 100;
+        keyLight.shadow.camera.bottom = -100;
+        keyLight.shadow.camera.near = 10;
+        keyLight.shadow.camera.far = 260;
+        keyLight.shadow.bias = -0.0003;
+        keyLight.shadow.normalBias = 0.03;
+        keyLight.shadow.camera.updateProjectionMatrix();
+        this.scene.add(keyLight);
+        this.scene.add(keyLight.target);
+    }
+
+    private createDustMotes() {
+        const count = 180;
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const r = Math.random() * this.hallRadius * 0.7;
+            pos[i * 3] = Math.cos(angle) * r;
+            pos[i * 3 + 1] = 2 + Math.random() * 53;
+            pos[i * 3 + 2] = Math.sin(angle) * r;
+        }
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const mat = new THREE.PointsMaterial({
+            color: 0xfff2d8,
+            size: 0.12,
+            transparent: true,
+            opacity: 0.5,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        this.dustMotes = new THREE.Points(geo, mat);
+        this.scene.add(this.dustMotes);
+    }
+
+    private createMedallionGlow() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d')!;
+        const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gradient.addColorStop(0, 'rgba(255, 240, 200, 0.9)');
+        gradient.addColorStop(0.5, 'rgba(255, 220, 150, 0.3)');
+        gradient.addColorStop(1, 'rgba(255, 220, 150, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 128, 128);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.MeshBasicMaterial({
+            map: tex,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            opacity: 0.6,
+        });
+        const glow = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), mat);
+        glow.rotation.x = -Math.PI / 2;
+        glow.position.y = 0.12;
+        this.medallionGlow = glow;
+        this.scene.add(glow);
     }
 
     private createVendorNPC() {
@@ -173,13 +261,17 @@ export class MainHall extends TowerFloor {
     private createFloor(radius: number) {
         const floorGroup = new THREE.Group();
 
+        this.floorMaterial = createMarbleFloorMaterial();
+
         const mosaicColors = [0xD4C5A9, 0xB8A88A, 0x9C8B6F, 0x7A6B52];
         for (let i = 0; i < mosaicColors.length; i++) {
             const innerR = i === 0 ? 0 : 16 + (i - 1) * 24;
             const outerR = 16 + i * 24;
+            const ringMaterial = this.floorMaterial.clone();
+            ringMaterial.color.set(mosaicColors[i]);
             const ring = new THREE.Mesh(
                 new THREE.RingGeometry(innerR, outerR, 32),
-                new THREE.MeshStandardMaterial({ color: mosaicColors[i], roughness: 0.8, metalness: 0.1 })
+                ringMaterial
             );
             ring.rotation.x = -Math.PI / 2;
             ring.position.y = 0.01;
@@ -187,9 +279,13 @@ export class MainHall extends TowerFloor {
             floorGroup.add(ring);
         }
 
+        const medallionMaterial = this.floorMaterial.clone();
+        medallionMaterial.color.set(0x8B7355);
+        medallionMaterial.roughness = 0.35;
+        medallionMaterial.metalness = 0.2;
         const medallion = new THREE.Mesh(
             new THREE.CircleGeometry(8, 32),
-            new THREE.MeshStandardMaterial({ color: 0x8B7355, roughness: 0.4, metalness: 0.2 })
+            medallionMaterial
         );
         medallion.rotation.x = -Math.PI / 2;
         medallion.position.y = 0.05;
@@ -447,9 +543,6 @@ export class MainHall extends TowerFloor {
 
         const hallLight = new THREE.PointLight(0xd8ecff, 30, 240, 2);
         hallLight.position.set(0, -10, 0);
-        hallLight.castShadow = true;
-        hallLight.shadow.mapSize.width = 1024;
-        hallLight.shadow.mapSize.height = 1024;
         chandelierGroup.add(hallLight);
 
         const fillLight = new THREE.PointLight(0xfff2d8, 12, 200, 2);
@@ -506,6 +599,17 @@ export class MainHall extends TowerFloor {
             this.solaTime += delta;
             this.solaNpc.rotation.y = Math.sin(this.solaTime * 0.4) * 0.3;
         }
+
+        if (this.dustMotes) {
+            const positions = this.dustMotes.geometry.attributes.position.array as Float32Array;
+            for (let i = 0; i < positions.length / 3; i++) {
+                positions[i * 3 + 1] -= delta * 0.6;
+                if (positions[i * 3 + 1] < 2) {
+                    positions[i * 3 + 1] = 55;
+                }
+            }
+            this.dustMotes.geometry.attributes.position.needsUpdate = true;
+        }
     }
 
     public override getInteractables(): THREE.Object3D[] {
@@ -513,6 +617,22 @@ export class MainHall extends TowerFloor {
     }
 
     dispose() {
+        this.floorMaterial?.map?.dispose();
+        this.floorMaterial?.roughnessMap?.dispose();
+        this.wallMaterialRef?.map?.dispose();
+        this.wallMaterialRef?.roughnessMap?.dispose();
+        this.pillarMaterialRef?.map?.dispose();
+        this.pillarMaterialRef?.roughnessMap?.dispose();
+
+        if (this.medallionGlow) {
+            (this.medallionGlow.material as THREE.MeshBasicMaterial).map?.dispose();
+        }
+
+        if (this.dustMotes) {
+            this.dustMotes.geometry.dispose();
+            (this.dustMotes.material as THREE.Material).dispose();
+        }
+
         super.dispose();
         this.crystals = [];
     }

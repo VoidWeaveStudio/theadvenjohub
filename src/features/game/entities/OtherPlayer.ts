@@ -2,6 +2,9 @@
 import * as THREE from "three";
 import { Entity } from "./Entity";
 import { ResourceManager } from "../core/ResourceManager";
+import { CharacterAnimator } from "./CharacterAnimator";
+import { RIFLE_GRIP_QUATERNION } from "./Weapon";
+import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 
 export class OtherPlayer extends Entity {
     public nickname: string;
@@ -12,6 +15,7 @@ export class OtherPlayer extends Entity {
     private nameSprite: THREE.Sprite | null = null;
     private headBone: THREE.Object3D | null = null;
     private hipsBone: THREE.Object3D | null = null;
+    private rightHand: THREE.Object3D | null = null;
     private initialized: boolean = false;
     private time: number = 0;
 
@@ -24,9 +28,7 @@ export class OtherPlayer extends Entity {
     private weaponMesh: THREE.Group | null = null;
     private weaponEquipped: boolean = true;
 
-    private mixer: THREE.AnimationMixer | null = null;
-    private animations: Map<string, THREE.AnimationAction> = new Map();
-    private currentAnimation: string = 'idle';
+    private animator = new CharacterAnimator();
 
     constructor(id: string, nickname: string) {
         super(id);
@@ -49,55 +51,23 @@ export class OtherPlayer extends Entity {
             throw new Error("Player model not found. Cannot initialize other player.");
         }
 
-        const box = new THREE.Box3().setFromObject(data.scene);
-        const size = box.getSize(new THREE.Vector3());
-        const targetHeight = 1.8;
-        const scale = targetHeight / size.y;
-        data.scene.scale.setScalar(scale);
-
-        const scaledBox = new THREE.Box3().setFromObject(data.scene);
-        data.scene.position.set(
-            -(scaledBox.min.x + scaledBox.max.x) / 2,
-            -scaledBox.min.y,
-            -(scaledBox.min.z + scaledBox.max.z) / 2
-        );
-
-        data.scene.rotation.y = -Math.PI / 2;
+        scaleAndCenterModel(data.scene, 1.8, -Math.PI / 2);
 
         this.mesh.add(data.scene);
 
-        data.scene.traverse((obj) => {
-            const name = obj.name.toLowerCase();
-            if (name.includes('head')) this.headBone = obj;
-            if (!this.hipsBone && (name === 'hips' || name === 'pelvis' || name.includes('hips'))) {
-                this.hipsBone = obj;
-            }
-        });
+        this.headBone = findBoneLast(data.scene, (name) => name.includes('head') && !name.endsWith('_end'));
+        this.hipsBone = findBoneFirst(data.scene, (name) =>
+            name === 'hips' || name === 'pelvis' || name.includes('hips')
+        );
+        this.rightHand = findBoneFirst(data.scene, (name) =>
+            name === 'handr' || name === 'hand.r' ||
+            (name.includes('right') && name.includes('hand')) ||
+            name === 'r_hand' || name === 'rhand' ||
+            name.includes('righthand') || name.includes('rightarm')
+        );
 
-        this.mixer = new THREE.AnimationMixer(data.scene);
-
-        if (data.animations && data.animations.length > 0) {
-            const animMapping: Record<string, string> = {
-                'idle': 'idle',
-                'walk': 'walk',
-                'run': 'run',
-                'jump': 'jump'
-            };
-
-            for (const clip of data.animations) {
-                for (const [key, value] of Object.entries(animMapping)) {
-                    if (clip.name.toLowerCase().includes(key)) {
-                        const action = this.mixer.clipAction(clip);
-                        action.setEffectiveTimeScale(1);
-                        action.setEffectiveWeight(1);
-                        this.animations.set(value, action);
-                        break;
-                    }
-                }
-            }
-        }
-
-        this.playAnimation('idle');
+        this.animator.setup(data.scene, data.animations);
+        this.animator.play('idle', this.weaponEquipped);
 
         const weaponData = resourceManager.getModel("rifle");
         if (weaponData) {
@@ -110,10 +80,14 @@ export class OtherPlayer extends Entity {
             const weaponScale = targetLength / maxDim;
             rifle.scale.setScalar(weaponScale);
 
-            rifle.position.set(0, 0, -0.2);
-            rifle.rotation.set(0, 0, 0);
+            const scaledCenter = weaponBox.getCenter(new THREE.Vector3()).multiplyScalar(weaponScale);
+            rifle.position.copy(scaledCenter).multiplyScalar(-1);
+            rifle.quaternion.copy(RIFLE_GRIP_QUATERNION);
 
             this.mesh.add(rifle);
+            if (this.rightHand) {
+                reparentPreservingWorldScale(rifle, this.rightHand);
+            }
             this.weaponMesh = rifle;
         }
 
@@ -122,21 +96,6 @@ export class OtherPlayer extends Entity {
 
         scene.add(this.hitbox);
         scene.add(this.mesh);
-    }
-
-    private playAnimation(name: string) {
-        if (this.currentAnimation === name) return;
-
-        const nextAction = this.animations.get(name);
-        const currentAction = this.animations.get(this.currentAnimation);
-
-        if (nextAction) {
-            if (currentAction) {
-                currentAction.fadeOut(0.2);
-            }
-            nextAction.reset().fadeIn(0.2).play();
-            this.currentAnimation = name;
-        }
     }
 
     private createNameTag(name: string): THREE.Sprite {
@@ -220,18 +179,16 @@ export class OtherPlayer extends Entity {
         }
 
         if (this.targetState === 'jump') {
-            this.playAnimation('jump');
+            this.animator.play('jump', this.weaponEquipped);
         } else if (this.targetState === 'sprint') {
-            this.playAnimation('run');
+            this.animator.play('run', this.weaponEquipped);
         } else if (this.targetState === 'walk') {
-            this.playAnimation('walk');
+            this.animator.play('walk', this.weaponEquipped);
         } else {
-            this.playAnimation('idle');
+            this.animator.play('idle', this.weaponEquipped);
         }
 
-        if (this.mixer) {
-            this.mixer.update(delta);
-        }
+        this.animator.update(delta);
 
         if (this.hipsBone) {
             this.hipsBone.rotation.x = 0;

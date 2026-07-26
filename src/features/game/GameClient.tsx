@@ -1,36 +1,33 @@
 // src/features/game/GameClient.tsx
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Game, HUDState, DamageEvent } from "./core/Game";
+import { useEffect, useRef, useState } from "react";
+import { Game } from "./core/Game";
 import { HUD } from "./ui/HUD";
 import { Menu } from "./ui/Menu";
 import { Hotbar } from "./ui/Hotbar";
 import { Notifications } from "./ui/Notifications";
-import { Chat, ChatMessage } from "./ui/Chat";
+import { Chat } from "./ui/Chat";
 import { DamageIndicator } from "./ui/DamageIndicator";
 import { Spinner } from "@/core/ui/Spinner";
 import { apiPost } from "@/core/api/client";
 import { DeathScreen } from "./ui/DeathScreen";
 import { FloorSelector } from "./ui/FloorSelector";
 import { TokenPanel } from "./ui/TokenPanel";
-import { Inventory, InventoryEntry } from "./ui/Inventory";
+import { Inventory } from "./ui/Inventory";
 import { VendorPanel } from "./ui/VendorPanel";
 import { SolaPanel } from "./ui/SolaPanel";
 import { QuestTracker } from "./ui/QuestTracker";
 import { CanyonMapPanel } from "./ui/CanyonMapPanel";
-import { QuestInfoData, QuestUpdateData, CanyonMapData } from "./network/NetworkManager";
-
-const SOLA_QUEST_ID = "sola_kill_10";
+import { useHudState } from "./ui/hooks/useHudState";
+import { useQuestState, SOLA_QUEST_ID } from "./ui/hooks/useQuestState";
+import { useInventoryState } from "./ui/hooks/useInventoryState";
+import { useChatState } from "./ui/hooks/useChatState";
+import { useNotifications } from "./ui/hooks/useNotifications";
+import { useCanyonMapState } from "./ui/hooks/useCanyonMapState";
 
 interface GameClientProps {
   slug: string;
-}
-
-interface Notification {
-  id: number;
-  message: string;
-  duration: number;
 }
 
 interface GameSession {
@@ -50,41 +47,25 @@ interface HotbarSlot {
 export function GameClient({ slug }: GameClientProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
-  const notifIdRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing game...");
   const [isPointerLocked, setIsPointerLocked] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [nickname, setNickname] = useState("Player");
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [isChatVisible, setIsChatVisible] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
-
-  const [damageEvents, setDamageEvents] = useState<DamageEvent[]>([]);
-  const [isDead, setIsDead] = useState(false);
-  const [killerName, setKillerName] = useState<string | null>(null);
-  const [damageIndicator, setDamageIndicator] = useState<{
-    attackerId: string | null;
-    direction: number;
-  }>({ attackerId: null, direction: 0 });
-
-  const [isHitMark, setIsHitMark] = useState(false);
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
   const [currentLocationId, setCurrentLocationId] = useState("tower-main-hall");
 
-  const [activeTokenData, setActiveTokenData] = useState<any>(null);
-  const [inventory, setInventory] = useState<InventoryEntry[]>([]);
-  const [ash, setAsh] = useState(0);
-  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isVendorOpen, setIsVendorOpen] = useState(false);
   const [isSolaOpen, setIsSolaOpen] = useState(false);
-  const [questInfo, setQuestInfo] = useState<QuestInfoData | null>(null);
-  const [questTracker, setQuestTracker] = useState<(QuestUpdateData & { title: string }) | null>(null);
-  const [isCanyonMapOpen, setIsCanyonMapOpen] = useState(false);
-  const [canyonMapData, setCanyonMapData] = useState<CanyonMapData | null>(null);
+
+  const hud = useHudState();
+  const quest = useQuestState();
+  const inventory = useInventoryState();
+  const chat = useChatState();
+  const notifications = useNotifications();
+  const canyonMap = useCanyonMapState();
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
@@ -93,19 +74,6 @@ export function GameClient({ slug }: GameClientProps) {
     { id: "slot4", icon: "", name: "", equipped: false },
     { id: "slot5", icon: "", name: "", equipped: false },
   ]);
-
-  const [hudState, setHudState] = useState<HUDState>({
-    health: 100,
-    maxHealth: 100,
-    ammo: 30,
-    maxAmmo: 30,
-    reserve: 0,
-    online: 1,
-    inSafeZone: true,
-    prompt: null,
-    isReloading: false,
-    isWeaponEquipped: true,
-  });
 
   const handleSlotClick = (index: number) => {
     setHotbarSlots((prev) => {
@@ -175,7 +143,7 @@ export function GameClient({ slug }: GameClientProps) {
         localGame = game;
         gameRef.current = game;
 
-        game.onStateChange = (state) => { if (!cancelled) setHudState(state); };
+        game.onStateChange = (state) => { if (!cancelled) hud.handleStateChange(state); };
         game.onLoadStateChange = (loading, message) => {
           if (cancelled) return;
           setLoading(loading);
@@ -183,15 +151,10 @@ export function GameClient({ slug }: GameClientProps) {
         };
         game.onNotification = (msg, duration = 3000) => {
           if (cancelled) return;
-          const id = ++notifIdRef.current;
-          setNotifications((prev) => {
-            const newNotifications = [...prev, { id, message: msg, duration }];
-            if (newNotifications.length > 5) return newNotifications.slice(-5);
-            return newNotifications;
-          });
+          notifications.addNotification(msg, duration);
         };
-        game.onChatMessage = (message) => { if (!cancelled) setChatMessages((prev) => [...prev.slice(-99), message]); };
-        game.onNicknameLoaded = (nick: string) => { if (!cancelled && nick) setNickname(nick); };
+        game.onChatMessage = (message) => { if (!cancelled) chat.handleChatMessage(message); };
+        game.onNicknameLoaded = (nick: string) => { if (!cancelled) chat.handleNicknameLoaded(nick); };
         game.onLocationChange = (id: string) => { if (!cancelled) setCurrentLocationId(id); };
         game.onFloorSelectorToggle = (isOpen: boolean) => {
           if (cancelled) return;
@@ -200,13 +163,11 @@ export function GameClient({ slug }: GameClientProps) {
         };
         game.onInventoryChange = (inv, ashValue) => {
           if (cancelled) return;
-          setInventory(inv);
-          setAsh(ashValue);
+          inventory.handleInventoryChange(inv, ashValue);
         };
         game.onOpenTokenUI = (tokenData) => {
           if (cancelled) return;
-          setActiveTokenData(tokenData);
-          document.exitPointerLock();
+          inventory.handleOpenTokenUI(tokenData);
         };
         game.onOpenVendorUI = () => {
           if (cancelled) return;
@@ -215,67 +176,24 @@ export function GameClient({ slug }: GameClientProps) {
         };
         game.onOpenSolaUI = () => {
           if (cancelled) return;
-          setQuestInfo(null);
+          quest.resetQuestInfo();
           setIsSolaOpen(true);
           gameRef.current?.talkToQuestGiver(SOLA_QUEST_ID);
           document.exitPointerLock();
         };
-        game.onQuestInfo = (data) => {
-          if (cancelled) return;
-          setQuestInfo(data);
-          if (data.status === "active" || data.status === "ready_to_turn_in") {
-            setQuestTracker({
-              questId: data.questId,
-              status: data.status,
-              progress: data.progress,
-              targetCount: data.targetCount,
-              title: data.title,
-            });
-          }
-        };
-        game.onQuestUpdate = (data) => {
-          if (cancelled) return;
-          setQuestInfo((prev) =>
-            prev && prev.questId === data.questId
-              ? { ...prev, status: data.status, progress: data.progress }
-              : prev
-          );
-          setQuestTracker((prev) => {
-            if (data.status === "active" || data.status === "ready_to_turn_in") {
-              return {
-                questId: data.questId,
-                status: data.status,
-                progress: data.progress,
-                targetCount: data.targetCount,
-                title: prev && prev.questId === data.questId ? prev.title : "Sola's Task",
-              };
-            }
-            return prev && prev.questId === data.questId ? null : prev;
-          });
-        };
+        game.onQuestInfo = (data) => { if (!cancelled) quest.handleQuestInfo(data); };
+        game.onQuestUpdate = (data) => { if (!cancelled) quest.handleQuestUpdate(data); };
         game.onOpenCanyonMapUI = () => {
           if (cancelled) return;
-          setCanyonMapData(null);
-          setIsCanyonMapOpen(true);
+          canyonMap.openWithReset();
           gameRef.current?.talkToDispatcher();
           document.exitPointerLock();
         };
-        game.onCanyonMap = (data) => {
-          if (cancelled) return;
-          setCanyonMapData(data);
-        };
-        game.onDamageEvent = (event) => {
-          if (cancelled) return;
-          setDamageEvents((prev) => [...prev, event]);
-          setTimeout(() => setDamageEvents((prev) => prev.filter((e) => e.id !== event.id)), 2000);
-        };
-        game.onDeathStateChange = (dead, killer) => { if (!cancelled) { setIsDead(dead); setKillerName(killer); } };
-        game.onDamageIndicatorUpdate = (attackerId, direction) => { if (!cancelled) setDamageIndicator({ attackerId, direction }); };
-        game.onHitMark = () => {
-          if (cancelled) return;
-          setIsHitMark(true);
-          setTimeout(() => setIsHitMark(false), 200);
-        };
+        game.onCanyonMap = (data) => { if (!cancelled) canyonMap.handleCanyonMap(data); };
+        game.onDamageEvent = (event) => { if (!cancelled) hud.handleDamageEvent(event); };
+        game.onDeathStateChange = (dead, killer) => { if (!cancelled) hud.handleDeathStateChange(dead, killer); };
+        game.onDamageIndicatorUpdate = (attackerId, direction) => { if (!cancelled) hud.handleDamageIndicatorUpdate(attackerId, direction); };
+        game.onHitMark = () => { if (!cancelled) hud.handleHitMark(); };
 
         await game.init();
 
@@ -321,7 +239,7 @@ export function GameClient({ slug }: GameClientProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeTokenData) return;
+      if (inventory.activeTokenData) return;
 
       if (e.code === "Escape") {
         if (showFloorSelector) {
@@ -337,28 +255,28 @@ export function GameClient({ slug }: GameClientProps) {
           setIsSolaOpen(false);
           return;
         }
-        if (isCanyonMapOpen) {
-          setIsCanyonMapOpen(false);
+        if (canyonMap.isCanyonMapOpen) {
+          canyonMap.setIsCanyonMapOpen(false);
           return;
         }
-        if (isInventoryOpen) {
-          setIsInventoryOpen(false);
+        if (inventory.isInventoryOpen) {
+          inventory.setIsInventoryOpen(false);
           return;
         }
         setIsMenuOpen((prev) => !prev);
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || isCanyonMapOpen) return;
+      if (isVendorOpen || isSolaOpen || canyonMap.isCanyonMapOpen) return;
 
       if (e.code === "Enter" && isPointerLocked) {
-        setIsChatVisible((prev) => !prev);
+        chat.setIsChatVisible((prev) => !prev);
       }
 
       if (e.code === "KeyI" && !isMenuOpen && !showFloorSelector) {
         const activeTag = document.activeElement?.tagName;
         if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
-        setIsInventoryOpen((prev) => {
+        inventory.setIsInventoryOpen((prev) => {
           const next = !prev;
           if (next) document.exitPointerLock();
           return next;
@@ -376,20 +294,16 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, isMenuOpen, showFloorSelector, activeTokenData, isVendorOpen, isSolaOpen, isCanyonMapOpen, isInventoryOpen]);
+  }, [isPointerLocked, isMenuOpen, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen]);
 
   const handleNicknameChange = (nick: string) => {
-    setNickname(nick);
+    chat.setNickname(nick);
     gameRef.current?.setNickname(nick);
   };
 
   const handleSendMessage = (message: string) => {
     gameRef.current?.sendChatMessage(message);
   };
-
-  const removeNotification = useCallback((id: number) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }, []);
 
   const handleCloseMenu = () => {
     setIsMenuOpen(false);
@@ -456,44 +370,44 @@ export function GameClient({ slug }: GameClientProps) {
       )}
 
       <HUD
-        state={hudState}
+        state={hud.hudState}
         isPointerLocked={isPointerLocked}
-        isHitMark={isHitMark}
+        isHitMark={hud.isHitMark}
       />
       <Hotbar
         slots={hotbarSlots}
         onSlotClick={handleSlotClick}
       />
-      <Notifications notifications={notifications} onRemove={removeNotification} />
-      <QuestTracker quest={questTracker} />
+      <Notifications notifications={notifications.notifications} onRemove={notifications.removeNotification} />
+      <QuestTracker quest={quest.questTracker} />
       <Inventory
-        items={inventory}
-        ash={ash}
-        isOpen={isInventoryOpen}
-        onClose={() => setIsInventoryOpen(false)}
+        items={inventory.inventory}
+        ash={inventory.ash}
+        isOpen={inventory.isInventoryOpen}
+        onClose={() => inventory.setIsInventoryOpen(false)}
       />
 
       <DamageIndicator
-        attackerId={damageIndicator.attackerId}
-        direction={damageIndicator.direction}
+        attackerId={hud.damageIndicator.attackerId}
+        direction={hud.damageIndicator.direction}
       />
 
       <DeathScreen
-        isVisible={isDead}
-        killerName={killerName}
+        isVisible={hud.isDead}
+        killerName={hud.killerName}
         respawnTime={3}
       />
 
       <Chat
-        messages={chatMessages}
+        messages={chat.chatMessages}
         onSendMessage={handleSendMessage}
-        isVisible={isChatVisible}
+        isVisible={chat.isChatVisible}
       />
 
       <Menu
         isOpen={isMenuOpen}
         onClose={handleCloseMenu}
-        nickname={nickname}
+        nickname={chat.nickname}
         onNicknameChange={handleNicknameChange}
         onTeleportToSafeZone={() => gameRef.current?.teleportToSafeZone()}
       />
@@ -508,35 +422,35 @@ export function GameClient({ slug }: GameClientProps) {
         currentLocationId={currentLocationId}
       />
 
-      {activeTokenData && (
+      {inventory.activeTokenData && (
         <TokenPanel
-          ca={activeTokenData.ca}
-          onClose={() => setActiveTokenData(null)}
+          ca={inventory.activeTokenData.ca}
+          onClose={() => inventory.setActiveTokenData(null)}
         />
       )}
 
       <VendorPanel
         isOpen={isVendorOpen}
-        inventory={inventory}
+        inventory={inventory.inventory}
         onClose={() => setIsVendorOpen(false)}
         onSell={(address, quantity) => gameRef.current?.sellToken(address, quantity)}
       />
 
       <SolaPanel
         isOpen={isSolaOpen}
-        quest={questInfo}
+        quest={quest.questInfo}
         onClose={() => setIsSolaOpen(false)}
         onAccept={(questId) => gameRef.current?.acceptQuest(questId)}
         onTurnIn={(questId) => gameRef.current?.turnInQuest(questId)}
       />
 
       <CanyonMapPanel
-        isOpen={isCanyonMapOpen}
-        data={canyonMapData}
-        onClose={() => setIsCanyonMapOpen(false)}
+        isOpen={canyonMap.isCanyonMapOpen}
+        data={canyonMap.canyonMapData}
+        onClose={() => canyonMap.setIsCanyonMapOpen(false)}
         onWarp={(segment) => {
           gameRef.current?.warpCanyonSegment(segment);
-          setIsCanyonMapOpen(false);
+          canyonMap.setIsCanyonMapOpen(false);
         }}
       />
     </div>

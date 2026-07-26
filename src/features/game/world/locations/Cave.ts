@@ -12,6 +12,7 @@ interface CaveChunk {
 
 export class Cave extends Location {
     public collisionGrid: CollisionGrid;
+    public maxPlayerRadius = 50;
 
     private caveMap: number[][] = [];
     private floorHeights: number[][] = [];
@@ -43,6 +44,7 @@ export class Cave extends Location {
     constructor() {
         super("cave", "Dark Cave");
         this.collisionGrid = new CollisionGrid(20);
+        this.terrain = this;
     }
 
     create(rm: ResourceManager) {

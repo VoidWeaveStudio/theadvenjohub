@@ -3,7 +3,6 @@ import * as THREE from "three";
 import { Location } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";
 import { TerrainChunkManager } from "../../TerrainChunkManager";
-import { GridSystem } from "../../GridSystem";
 import { CollisionGrid } from "../../CollisionGrid";
 
 import { AtmosphereSystem } from "./systems/AtmosphereSystem";
@@ -14,9 +13,9 @@ import { PortalSystem } from "./systems/PortalSystem";
 export class MainWorld extends Location {
   public readonly size = 500;
   public terrain: TerrainChunkManager;
-  public gridSystem: GridSystem;
   public collisionGrid: CollisionGrid;
   public terrainCollisionGrid: CollisionGrid;
+  public maxPlayerRadius = 235;
 
   public atmosphere: AtmosphereSystem;
   public vegetation: VegetationSystem;
@@ -50,9 +49,9 @@ export class MainWorld extends Location {
     };
 
     this.terrain = new TerrainChunkManager({ chunkSize: 100, segmentsPerChunk: 64, worldSize: this.size }, heightFunction);
-    this.gridSystem = new GridSystem(this.size, 5);
     this.collisionGrid = new CollisionGrid(20);
     this.terrainCollisionGrid = new CollisionGrid(100);
+    this.cameraCollisionGrid = this.terrainCollisionGrid;
 
     this.atmosphere = new AtmosphereSystem(this);
     this.vegetation = new VegetationSystem(this);
@@ -110,8 +109,6 @@ export class MainWorld extends Location {
       this.scene.add(chunk.mesh);
       chunk.mesh.visible = true;
     }
-
-    this.gridSystem.createVisualization(this.scene);
 
     this.features.createOcean();
     this.features.createBoundaryColliders();
@@ -199,7 +196,6 @@ export class MainWorld extends Location {
 
   dispose() {
     this.terrain.dispose();
-    this.gridSystem.dispose();
     this.atmosphere.dispose();
     this.vegetation.dispose();
     this.portal.dispose();

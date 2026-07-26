@@ -16,7 +16,6 @@ export class LocationManager {
     private resourceManager: ResourceManager | null = null;
 
     public onLocationChange?: (locationId: string) => void;
-    public onPortalApproach?: (portal: Portal | null) => void;
 
     constructor(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
         this.renderer = renderer;
@@ -73,34 +72,6 @@ export class LocationManager {
             }
         }
         return null;
-    }
-
-    async teleportTo(portal: Portal, player: any): Promise<boolean> {
-        const previousLocation = this.currentLocation;
-        const target = await this.loadLocation(portal.targetLocationId);
-        if (!target) return false;
-
-        this.currentLocation = target;
-        player.mesh.position.copy(portal.targetSpawnPoint);
-
-        if ('getHeightAt' in target) {
-            player.mesh.position.y = (target as any).getHeightAt(player.mesh.position.x, player.mesh.position.z);
-        }
-
-        if (previousLocation) {
-            this.evictLocation(previousLocation.id);
-        }
-
-        this.onLocationChange?.(target.id);
-        return true;
-    }
-
-    async teleportToLocation(locationId: string, player: any): Promise<boolean> {
-        const target = await this.loadLocation(locationId);
-        if (!target) return false;
-        player.teleportTo(target.getSpawnPoint());
-        this.onLocationChange?.(target.id);
-        return true;
     }
 
     render() {
