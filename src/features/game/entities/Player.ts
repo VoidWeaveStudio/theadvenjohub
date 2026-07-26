@@ -44,6 +44,7 @@ export class Player extends Entity {
     private hips: THREE.Object3D | null = null;
 
     private isShooting: boolean = false;
+    private readonly SHOOTING_SPEED_MULTIPLIER = 0.5;
 
     private static readonly _moveDir = new THREE.Vector3();
     private static readonly _step = new THREE.Vector3();
@@ -245,7 +246,12 @@ export class Player extends Entity {
         if (this.inputManager.isKeyPressed("KeyD")) moveDir.x += 1;
 
         const isSprinting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
-        const currentSpeed = this.speed * (isSprinting ? this.sprintMultiplier : 1);
+        this.isShooting = this.inputManager.isMousePressed(0);
+        const isInteracting = this.inputManager.isKeyJustPressed("KeyE");
+        const shouldFaceLookDirection = this.isShooting || isInteracting;
+        const currentSpeed = this.isShooting
+            ? this.speed * this.SHOOTING_SPEED_MULTIPLIER
+            : this.speed * (isSprinting ? this.sprintMultiplier : 1);
 
         let moved = false;
 
@@ -276,13 +282,9 @@ export class Player extends Entity {
             }
         }
 
-        this.isShooting = this.inputManager.isMousePressed(0);
-        const isInteracting = this.inputManager.isKeyJustPressed("KeyE");
-        const shouldFaceLookDirection = this.isShooting || isInteracting;
-
         if (moveDir.lengthSq() > 0) {
             moveDir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camera.getYaw());
-            const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+            const targetAngle = this.isShooting ? this.getCameraLookAngle() : Math.atan2(moveDir.x, moveDir.z);
             this.rotateToAngle(targetAngle, delta);
 
             const step = Player._step.copy(moveDir).multiplyScalar(currentSpeed * delta);
@@ -341,7 +343,7 @@ export class Player extends Entity {
         if (!this.isGrounded) {
             this.playAnimation('jump');
         } else if (moved) {
-            this.playAnimation(isSprinting ? 'run' : 'walk');
+            this.playAnimation(isSprinting && !this.isShooting ? 'run' : 'walk');
         } else {
             this.playAnimation('idle');
         }
@@ -397,7 +399,7 @@ export class Player extends Entity {
 
         if (!this.isGrounded) return 'jump';
         if (moveDir.lengthSq() > 0) {
-            return isSprinting ? 'sprint' : 'walk';
+            return isSprinting && !this.isShooting ? 'sprint' : 'walk';
         }
         return 'idle';
     }

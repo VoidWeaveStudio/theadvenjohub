@@ -43,7 +43,7 @@ export class EnemySystem extends System {
     }
 
     private spawnLocal(data: EnemyNetData) {
-        const enemy = new Enemy(data.id);
+        const enemy = new Enemy(data.id, data.type);
         enemy.mesh.position.set(data.position[0], data.position[1], data.position[2]);
         this.scene.add(enemy.mesh);
         this.enemies.set(data.id, enemy);

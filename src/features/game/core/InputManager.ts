@@ -16,6 +16,7 @@ export class InputManager {
   private onMouseMove: (e: MouseEvent) => void;
   private onPointerLockChange: () => void;
   private onCanvasClick: () => void;
+  private onContextMenu: (e: MouseEvent) => void;
 
   public onPointerLockStateChange?: (locked: boolean) => void;
 
@@ -60,6 +61,10 @@ export class InputManager {
       }
     };
 
+    this.onContextMenu = (e) => {
+      if (this.isPointerLocked) e.preventDefault();
+    };
+
     document.addEventListener("keydown", this.onKeyDown);
     document.addEventListener("keyup", this.onKeyUp);
     document.addEventListener("mousedown", this.onMouseDown);
@@ -67,6 +72,7 @@ export class InputManager {
     document.addEventListener("mousemove", this.onMouseMove);
     document.addEventListener("pointerlockchange", this.onPointerLockChange);
     canvas.addEventListener("click", this.onCanvasClick);
+    canvas.addEventListener("contextmenu", this.onContextMenu);
   }
 
   consumeMouseMovement(): THREE.Vector2 {
@@ -114,5 +120,6 @@ export class InputManager {
     document.removeEventListener("mousemove", this.onMouseMove);
     document.removeEventListener("pointerlockchange", this.onPointerLockChange);
     this.canvas.removeEventListener("click", this.onCanvasClick);
+    this.canvas.removeEventListener("contextmenu", this.onContextMenu);
   }
 }

@@ -12,22 +12,26 @@ interface CrystalData {
 }
 
 export class MainHall extends TowerFloor {
+    public readonly hallRadius = 92;
+
     private crystals: CrystalData[] = [];
     private vendorNpc!: THREE.Group;
     private vendorTime: number = 0;
+    private solaNpc!: THREE.Group;
+    private solaTime: number = 0;
 
     constructor() {
         super("tower-main-hall", "Gloomy Tower Main Hall");
     }
 
     create(rm: ResourceManager) {
-        const bgColor = 0x1a1f28;
+        const bgColor = 0x2a3038;
         this.scene.background = new THREE.Color(bgColor);
-        this.scene.fog = new THREE.FogExp2(bgColor, 0.004);
+        this.scene.fog = new THREE.FogExp2(bgColor, 0.0015);
 
-        const ambient = new THREE.AmbientLight(0x1a1f2a, 0.3);
+        const ambient = new THREE.AmbientLight(0x3a4048, 0.55);
         this.scene.add(ambient);
-        const hemiLight = new THREE.HemisphereLight(0xb8d4e8, 0x2a2f38, 0.8);
+        const hemiLight = new THREE.HemisphereLight(0xd8e8f5, 0x3a4048, 1.2);
         this.scene.add(hemiLight);
 
         const wallMat = new THREE.MeshStandardMaterial({ color: 0xCAC7C2, roughness: 0.85, metalness: 0.05 });
@@ -36,7 +40,7 @@ export class MainHall extends TowerFloor {
         const darkStoneMat = new THREE.MeshStandardMaterial({ color: 0x8a8578, roughness: 0.9, metalness: 0.05 });
         const metalMat = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.4, metalness: 0.9 });
 
-        const radius = 46;
+        const radius = this.hallRadius;
 
         this.createFloor(radius);
         this.createWalls(radius, wallMat, corniceMat, darkStoneMat);
@@ -47,10 +51,11 @@ export class MainHall extends TowerFloor {
 
         this.createCentralCrystal();
         this.createVendorNPC();
+        this.createSolaNPC();
     }
 
     private createVendorNPC() {
-        const STALL_Z = -18;
+        const STALL_Z = -36;
 
         const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.85, metalness: 0.05 });
         const clothMat = new THREE.MeshStandardMaterial({ color: 0x7a2f3a, roughness: 0.7, metalness: 0.05 });
@@ -114,13 +119,64 @@ export class MainHall extends TowerFloor {
         ));
     }
 
+    private createSolaNPC() {
+        const x = 40;
+        const z = 28;
+
+        const group = new THREE.Group();
+        group.position.set(x, 0, z);
+
+        const robe = new THREE.Mesh(
+            new THREE.CapsuleGeometry(0.38, 1.05, 4, 8),
+            new THREE.MeshStandardMaterial({ color: 0x2f6b4a, roughness: 0.75, metalness: 0.05 })
+        );
+        robe.position.y = 1.2;
+        robe.castShadow = true;
+        group.add(robe);
+
+        const head = new THREE.Mesh(
+            new THREE.SphereGeometry(0.26, 16, 16),
+            new THREE.MeshStandardMaterial({ color: 0xe0b8a0, roughness: 0.8 })
+        );
+        head.position.y = 2.0;
+        head.castShadow = true;
+        group.add(head);
+
+        const hood = new THREE.Mesh(
+            new THREE.ConeGeometry(0.34, 0.5, 12),
+            new THREE.MeshStandardMaterial({ color: 0x214a35, roughness: 0.8 })
+        );
+        hood.position.y = 2.3;
+        group.add(hood);
+
+        const marker = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.18, 0),
+            new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0xffcc33, emissiveIntensity: 5 })
+        );
+        marker.position.y = 2.9;
+        group.add(marker);
+
+        const glow = new THREE.PointLight(0x66ffb3, 1.4, 6);
+        glow.position.set(0, 2, 0.5);
+        group.add(glow);
+
+        group.userData.interactionId = "quest-giver-sola";
+        this.scene.add(group);
+        this.solaNpc = group;
+
+        this.collisionGrid.insert(new THREE.Box3(
+            new THREE.Vector3(x - 0.5, 0, z - 0.5),
+            new THREE.Vector3(x + 0.5, 2.5, z + 0.5)
+        ));
+    }
+
     private createFloor(radius: number) {
         const floorGroup = new THREE.Group();
 
         const mosaicColors = [0xD4C5A9, 0xB8A88A, 0x9C8B6F, 0x7A6B52];
         for (let i = 0; i < mosaicColors.length; i++) {
-            const innerR = i === 0 ? 0 : 8 + (i - 1) * 12;
-            const outerR = 8 + i * 12;
+            const innerR = i === 0 ? 0 : 16 + (i - 1) * 24;
+            const outerR = 16 + i * 24;
             const ring = new THREE.Mesh(
                 new THREE.RingGeometry(innerR, outerR, 32),
                 new THREE.MeshStandardMaterial({ color: mosaicColors[i], roughness: 0.8, metalness: 0.1 })
@@ -132,7 +188,7 @@ export class MainHall extends TowerFloor {
         }
 
         const medallion = new THREE.Mesh(
-            new THREE.CircleGeometry(4, 32),
+            new THREE.CircleGeometry(8, 32),
             new THREE.MeshStandardMaterial({ color: 0x8B7355, roughness: 0.4, metalness: 0.2 })
         );
         medallion.rotation.x = -Math.PI / 2;
@@ -145,7 +201,7 @@ export class MainHall extends TowerFloor {
 
     private createWalls(radius: number, wallMat: THREE.Material, corniceMat: THREE.Material, darkStoneMat: THREE.Material) {
         const wallGroup = new THREE.Group();
-        const beltHeights = [10, 12, 14];
+        const beltHeights = [20, 24, 28];
         let currentY = 0;
 
         for (let belt = 0; belt < 3; belt++) {
@@ -180,10 +236,10 @@ export class MainHall extends TowerFloor {
             const x = Math.cos(midAngle) * radius;
             const z = Math.sin(midAngle) * radius;
 
-            const segmentSize = 10;
+            const segmentSize = 20;
             const wallBox = new THREE.Box3(
                 new THREE.Vector3(x - segmentSize / 2, 0, z - segmentSize / 2),
-                new THREE.Vector3(x + segmentSize / 2, 40, z + segmentSize / 2)
+                new THREE.Vector3(x + segmentSize / 2, 80, z + segmentSize / 2)
             );
             this.collisionGrid.insert(wallBox);
         }
@@ -192,7 +248,7 @@ export class MainHall extends TowerFloor {
     private createColumns(radius: number, pillarMat: THREE.Material, corniceMat: THREE.Material) {
         const columnGroup = new THREE.Group();
         const columnCount = 16;
-        const columnRadius = 38;
+        const columnRadius = 76;
 
         for (let i = 0; i < columnCount; i++) {
             const angle = (i / columnCount) * Math.PI * 2;
@@ -205,26 +261,26 @@ export class MainHall extends TowerFloor {
             base1.receiveShadow = true;
             columnGroup.add(base1);
 
-            const columnBody = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 30, 16), pillarMat);
-            columnBody.position.set(x, 18, z);
+            const columnBody = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 60, 16), pillarMat);
+            columnBody.position.set(x, 33, z);
             columnBody.castShadow = true;
             columnBody.receiveShadow = true;
             columnGroup.add(columnBody);
 
 
             const capital1 = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 1, 12), pillarMat);
-            capital1.position.set(x, 33.5, z);
+            capital1.position.set(x, 63.5, z);
             capital1.castShadow = true;
             columnGroup.add(capital1);
 
             const capital2 = new THREE.Mesh(new THREE.BoxGeometry(5, 1, 5), corniceMat);
-            capital2.position.set(x, 34.5, z);
+            capital2.position.set(x, 64.5, z);
             capital2.castShadow = true;
             columnGroup.add(capital2);
 
             this.collisionGrid.insert(new THREE.Box3(
                 new THREE.Vector3(x - 2.5, 0, z - 2.5),
-                new THREE.Vector3(x + 2.5, 36, z + 2.5)
+                new THREE.Vector3(x + 2.5, 66, z + 2.5)
             ));
 
             const nextAngle = ((i + 1) / columnCount) * Math.PI * 2;
@@ -232,9 +288,9 @@ export class MainHall extends TowerFloor {
             const midX = Math.cos(midAngle) * columnRadius;
             const midZ = Math.sin(midAngle) * columnRadius;
 
-            const arch = new THREE.Mesh(new THREE.BoxGeometry(6, 15, 2), new THREE.MeshStandardMaterial({ color: 0xB8B0A0, roughness: 0.8 }));
-            arch.position.set(midX, 20, midZ);
-            arch.lookAt(0, 20, 0);
+            const arch = new THREE.Mesh(new THREE.BoxGeometry(12, 30, 2), new THREE.MeshStandardMaterial({ color: 0xB8B0A0, roughness: 0.8 }));
+            arch.position.set(midX, 40, midZ);
+            arch.lookAt(0, 40, 0);
             arch.receiveShadow = true;
             columnGroup.add(arch);
 
@@ -242,9 +298,9 @@ export class MainHall extends TowerFloor {
             const nicheX = Math.cos(midAngle) * (radius - nicheDepth / 2);
             const nicheZ = Math.sin(midAngle) * (radius - nicheDepth / 2);
 
-            const niche = new THREE.Mesh(new THREE.BoxGeometry(5, 18, nicheDepth), new THREE.MeshStandardMaterial({ color: 0x8A8578, roughness: 0.9 }));
-            niche.position.set(nicheX, 12, nicheZ);
-            niche.lookAt(0, 12, 0);
+            const niche = new THREE.Mesh(new THREE.BoxGeometry(10, 36, nicheDepth), new THREE.MeshStandardMaterial({ color: 0x8A8578, roughness: 0.9 }));
+            niche.position.set(nicheX, 24, nicheZ);
+            niche.lookAt(0, 24, 0);
             niche.receiveShadow = true;
             columnGroup.add(niche);
 
@@ -252,7 +308,7 @@ export class MainHall extends TowerFloor {
                 new THREE.OctahedronGeometry(0.8, 0),
                 new THREE.MeshStandardMaterial({ color: 0xaaddff, emissive: 0x66ccff, emissiveIntensity: 4, metalness: 0, roughness: 0.1, transparent: true, opacity: 0.9 })
             );
-            nicheCrystal.position.set(nicheX * 0.92, 14, nicheZ * 0.92);
+            nicheCrystal.position.set(nicheX * 0.92, 28, nicheZ * 0.92);
             columnGroup.add(nicheCrystal);
 
         }
@@ -262,7 +318,7 @@ export class MainHall extends TowerFloor {
 
     private createSecondLevel(radius: number, wallMat: THREE.Material, corniceMat: THREE.Material, pillarMat: THREE.Material, metalMat: THREE.Material) {
         const secondLevel = new THREE.Group();
-        const galleryHeight = 16;
+        const galleryHeight = 32;
         const galleryWidth = 6;
 
         const galleryFloor = new THREE.Mesh(
@@ -281,7 +337,7 @@ export class MainHall extends TowerFloor {
         secondLevel.add(railing);
 
 
-        const balconyHeight = 38;
+        const balconyHeight = 76;
         const balcony = new THREE.Mesh(
             new THREE.TorusGeometry(radius - 3, 1.5, 8, 32),
             new THREE.MeshStandardMaterial({ color: 0xDDD9D1, roughness: 0.7 })
@@ -298,11 +354,11 @@ export class MainHall extends TowerFloor {
             const z = Math.sin(angle) * (radius - 1);
 
             const window = new THREE.Mesh(
-                new THREE.BoxGeometry(3, 5, 1),
-                new THREE.MeshStandardMaterial({ color: 0x2a3a4a, emissive: 0x4a6a8a, emissiveIntensity: 2, metalness: 0.3, roughness: 0.2 })
+                new THREE.BoxGeometry(6, 10, 1),
+                new THREE.MeshStandardMaterial({ color: 0x3a5a72, emissive: 0x6a9ac2, emissiveIntensity: 2.5, metalness: 0.3, roughness: 0.2 })
             );
-            window.position.set(x, galleryHeight + 5, z);
-            window.lookAt(0, galleryHeight + 5, 0);
+            window.position.set(x, galleryHeight + 10, z);
+            window.lookAt(0, galleryHeight + 10, 0);
             window.receiveShadow = true;
             secondLevel.add(window);
 
@@ -313,7 +369,7 @@ export class MainHall extends TowerFloor {
 
     private createDome(radius: number, wallMat: THREE.Material, corniceMat: THREE.Material) {
         const domeGroup = new THREE.Group();
-        const domeHeight = 50;
+        const domeHeight = 100;
 
         const dome = new THREE.Mesh(
             new THREE.SphereGeometry(radius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
@@ -347,7 +403,7 @@ export class MainHall extends TowerFloor {
         }
 
         for (let ring = 0; ring < 3; ring++) {
-            const ringHeight = 10 + ring * 12;
+            const ringHeight = 20 + ring * 24;
             const ringRadius = radius * Math.cos(Math.asin(ringHeight / domeHeight)) * 0.95;
 
             const domeRing = new THREE.Mesh(new THREE.TorusGeometry(ringRadius, 0.3, 8, 32), corniceMat);
@@ -362,39 +418,43 @@ export class MainHall extends TowerFloor {
 
     private createChandelier(metalMat: THREE.Material) {
         const chandelierGroup = new THREE.Group();
-        chandelierGroup.position.set(0, 32, 0);
+        chandelierGroup.position.set(0, 64, 0);
 
-        const mainRing = new THREE.Mesh(new THREE.TorusGeometry(12, 0.6, 8, 32), metalMat);
+        const mainRing = new THREE.Mesh(new THREE.TorusGeometry(24, 1.0, 8, 32), metalMat);
         mainRing.rotation.x = Math.PI / 2;
         chandelierGroup.add(mainRing);
 
-        const innerRing = new THREE.Mesh(new THREE.TorusGeometry(8, 0.4, 8, 24), metalMat);
+        const innerRing = new THREE.Mesh(new THREE.TorusGeometry(16, 0.7, 8, 24), metalMat);
         innerRing.rotation.x = Math.PI / 2;
-        innerRing.position.y = -3;
+        innerRing.position.y = -6;
         chandelierGroup.add(innerRing);
 
 
         for (let i = 0; i < 2; i++) {
             const angle = (i / 2) * Math.PI * 2;
-            this.addCrystal(chandelierGroup, Math.cos(angle) * 12, -8, Math.sin(angle) * 12, 'large', metalMat);
+            this.addCrystal(chandelierGroup, Math.cos(angle) * 24, -16, Math.sin(angle) * 24, 'large', metalMat);
         }
 
         for (let i = 0; i < 4; i++) {
             const angle = (i / 4) * Math.PI * 2;
-            this.addCrystal(chandelierGroup, Math.cos(angle) * 8, -6, Math.sin(angle) * 8, 'medium', metalMat);
+            this.addCrystal(chandelierGroup, Math.cos(angle) * 16, -12, Math.sin(angle) * 16, 'medium', metalMat);
         }
 
         for (let i = 0; i < 8; i++) {
             const angle = (i / 8) * Math.PI * 2;
-            this.addCrystal(chandelierGroup, Math.cos(angle) * 4, -4, Math.sin(angle) * 4, 'small', metalMat);
+            this.addCrystal(chandelierGroup, Math.cos(angle) * 8, -8, Math.sin(angle) * 8, 'small', metalMat);
         }
 
-        const hallLight = new THREE.PointLight(0xb8e0ff, 15, 120, 2);
-        hallLight.position.set(0, -5, 0);
+        const hallLight = new THREE.PointLight(0xd8ecff, 30, 240, 2);
+        hallLight.position.set(0, -10, 0);
         hallLight.castShadow = true;
         hallLight.shadow.mapSize.width = 1024;
         hallLight.shadow.mapSize.height = 1024;
         chandelierGroup.add(hallLight);
+
+        const fillLight = new THREE.PointLight(0xfff2d8, 12, 200, 2);
+        fillLight.position.set(0, -40, 0);
+        chandelierGroup.add(fillLight);
 
         this.scene.add(chandelierGroup);
     }
@@ -441,10 +501,15 @@ export class MainHall extends TowerFloor {
             this.vendorTime += delta;
             this.vendorNpc.rotation.y = Math.sin(this.vendorTime * 0.4) * 0.3;
         }
+
+        if (this.solaNpc) {
+            this.solaTime += delta;
+            this.solaNpc.rotation.y = Math.sin(this.solaTime * 0.4) * 0.3;
+        }
     }
 
     public override getInteractables(): THREE.Object3D[] {
-        return [...super.getInteractables(), this.vendorNpc];
+        return [...super.getInteractables(), this.vendorNpc, this.solaNpc];
     }
 
     dispose() {

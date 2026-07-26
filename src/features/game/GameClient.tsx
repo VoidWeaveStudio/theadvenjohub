@@ -16,6 +16,12 @@ import { FloorSelector } from "./ui/FloorSelector";
 import { TokenPanel } from "./ui/TokenPanel";
 import { Inventory, InventoryEntry } from "./ui/Inventory";
 import { VendorPanel } from "./ui/VendorPanel";
+import { SolaPanel } from "./ui/SolaPanel";
+import { QuestTracker } from "./ui/QuestTracker";
+import { CanyonMapPanel } from "./ui/CanyonMapPanel";
+import { QuestInfoData, QuestUpdateData, CanyonMapData } from "./network/NetworkManager";
+
+const SOLA_QUEST_ID = "sola_kill_10";
 
 interface GameClientProps {
   slug: string;
@@ -74,6 +80,11 @@ export function GameClient({ slug }: GameClientProps) {
   const [ash, setAsh] = useState(0);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isVendorOpen, setIsVendorOpen] = useState(false);
+  const [isSolaOpen, setIsSolaOpen] = useState(false);
+  const [questInfo, setQuestInfo] = useState<QuestInfoData | null>(null);
+  const [questTracker, setQuestTracker] = useState<(QuestUpdateData & { title: string }) | null>(null);
+  const [isCanyonMapOpen, setIsCanyonMapOpen] = useState(false);
+  const [canyonMapData, setCanyonMapData] = useState<CanyonMapData | null>(null);
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
@@ -202,6 +213,57 @@ export function GameClient({ slug }: GameClientProps) {
           setIsVendorOpen(true);
           document.exitPointerLock();
         };
+        game.onOpenSolaUI = () => {
+          if (cancelled) return;
+          setQuestInfo(null);
+          setIsSolaOpen(true);
+          gameRef.current?.talkToQuestGiver(SOLA_QUEST_ID);
+          document.exitPointerLock();
+        };
+        game.onQuestInfo = (data) => {
+          if (cancelled) return;
+          setQuestInfo(data);
+          if (data.status === "active" || data.status === "ready_to_turn_in") {
+            setQuestTracker({
+              questId: data.questId,
+              status: data.status,
+              progress: data.progress,
+              targetCount: data.targetCount,
+              title: data.title,
+            });
+          }
+        };
+        game.onQuestUpdate = (data) => {
+          if (cancelled) return;
+          setQuestInfo((prev) =>
+            prev && prev.questId === data.questId
+              ? { ...prev, status: data.status, progress: data.progress }
+              : prev
+          );
+          setQuestTracker((prev) => {
+            if (data.status === "active" || data.status === "ready_to_turn_in") {
+              return {
+                questId: data.questId,
+                status: data.status,
+                progress: data.progress,
+                targetCount: data.targetCount,
+                title: prev && prev.questId === data.questId ? prev.title : "Sola's Task",
+              };
+            }
+            return prev && prev.questId === data.questId ? null : prev;
+          });
+        };
+        game.onOpenCanyonMapUI = () => {
+          if (cancelled) return;
+          setCanyonMapData(null);
+          setIsCanyonMapOpen(true);
+          gameRef.current?.talkToDispatcher();
+          document.exitPointerLock();
+        };
+        game.onCanyonMap = (data) => {
+          if (cancelled) return;
+          setCanyonMapData(data);
+        };
         game.onDamageEvent = (event) => {
           if (cancelled) return;
           setDamageEvents((prev) => [...prev, event]);
@@ -271,6 +333,14 @@ export function GameClient({ slug }: GameClientProps) {
           setIsVendorOpen(false);
           return;
         }
+        if (isSolaOpen) {
+          setIsSolaOpen(false);
+          return;
+        }
+        if (isCanyonMapOpen) {
+          setIsCanyonMapOpen(false);
+          return;
+        }
         if (isInventoryOpen) {
           setIsInventoryOpen(false);
           return;
@@ -279,7 +349,7 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen) return;
+      if (isVendorOpen || isSolaOpen || isCanyonMapOpen) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         setIsChatVisible((prev) => !prev);
@@ -306,7 +376,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, isMenuOpen, showFloorSelector, activeTokenData, isVendorOpen, isInventoryOpen]);
+  }, [isPointerLocked, isMenuOpen, showFloorSelector, activeTokenData, isVendorOpen, isSolaOpen, isCanyonMapOpen, isInventoryOpen]);
 
   const handleNicknameChange = (nick: string) => {
     setNickname(nick);
@@ -395,6 +465,7 @@ export function GameClient({ slug }: GameClientProps) {
         onSlotClick={handleSlotClick}
       />
       <Notifications notifications={notifications} onRemove={removeNotification} />
+      <QuestTracker quest={questTracker} />
       <Inventory
         items={inventory}
         ash={ash}
@@ -417,7 +488,6 @@ export function GameClient({ slug }: GameClientProps) {
         messages={chatMessages}
         onSendMessage={handleSendMessage}
         isVisible={isChatVisible}
-        onToggle={() => setIsChatVisible((prev) => !prev)}
       />
 
       <Menu
@@ -425,7 +495,6 @@ export function GameClient({ slug }: GameClientProps) {
         onClose={handleCloseMenu}
         nickname={nickname}
         onNicknameChange={handleNicknameChange}
-        onTeleportToTower={() => gameRef.current?.teleportToTower()}
         onTeleportToSafeZone={() => gameRef.current?.teleportToSafeZone()}
       />
 
@@ -451,6 +520,24 @@ export function GameClient({ slug }: GameClientProps) {
         inventory={inventory}
         onClose={() => setIsVendorOpen(false)}
         onSell={(address, quantity) => gameRef.current?.sellToken(address, quantity)}
+      />
+
+      <SolaPanel
+        isOpen={isSolaOpen}
+        quest={questInfo}
+        onClose={() => setIsSolaOpen(false)}
+        onAccept={(questId) => gameRef.current?.acceptQuest(questId)}
+        onTurnIn={(questId) => gameRef.current?.turnInQuest(questId)}
+      />
+
+      <CanyonMapPanel
+        isOpen={isCanyonMapOpen}
+        data={canyonMapData}
+        onClose={() => setIsCanyonMapOpen(false)}
+        onWarp={(segment) => {
+          gameRef.current?.warpCanyonSegment(segment);
+          setIsCanyonMapOpen(false);
+        }}
       />
     </div>
   );

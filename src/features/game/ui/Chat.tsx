@@ -15,12 +15,12 @@ interface ChatProps {
     messages: ChatMessage[];
     onSendMessage: (message: string) => void;
     isVisible: boolean;
-    onToggle: () => void;
 }
 
-export function Chat({ messages, onSendMessage, isVisible, onToggle }: ChatProps) {
+export function Chat({ messages, onSendMessage, isVisible }: ChatProps) {
     const [input, setInput] = useState("");
     const [isInputFocused, setIsInputFocused] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -52,13 +52,26 @@ export function Chat({ messages, onSendMessage, isVisible, onToggle }: ChatProps
 
     if (!isVisible) return null;
 
+    if (isMinimized) {
+        return (
+            <div className="absolute bottom-24 left-4 pointer-events-auto">
+                <button
+                    onClick={() => setIsMinimized(false)}
+                    className="bg-black/70 backdrop-blur border border-white/10 rounded-lg px-4 py-2 text-white font-bold text-sm hover:bg-black/90"
+                >
+                    💬 Chat
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="absolute bottom-24 left-4 w-96 max-w-[calc(100vw-2rem)] pointer-events-auto">
             <div className="bg-black/70 backdrop-blur border border-white/10 rounded-lg overflow-hidden">
                 <div className="bg-zinc-900/80 px-4 py-2 border-b border-white/10 flex items-center justify-between">
                     <span className="text-white font-bold text-sm">💬 Chat</span>
                     <button
-                        onClick={onToggle}
+                        onClick={() => setIsMinimized(true)}
                         className="text-zinc-400 hover:text-white text-sm"
                     >
                         ✕

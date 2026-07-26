@@ -23,11 +23,36 @@ export type DayNightSyncData = {
 
 export type EnemyNetData = {
   id: string;
+  type?: string;
   position: number[];
   health: number;
   maxHealth: number;
   alive: boolean;
   targetId: string | null;
+};
+
+export type CanyonSegmentData = {
+  segment: number;
+  maxSegmentReached: number;
+  cleared: boolean;
+  name: string;
+};
+
+export type CanyonClearedData = {
+  clearedSegment: number;
+  segment: number;
+  maxSegmentReached: number;
+  name: string;
+};
+
+export type CanyonMapData = {
+  segment: number;
+  maxSegmentReached: number;
+  clearedSegments: number[];
+};
+
+export type CanyonHubData = {
+  maxSegmentReached: number;
 };
 
 export type LootTokenData = {
@@ -42,6 +67,27 @@ export type LootDropData = {
   id: string;
   position: number[];
   tokens: LootTokenData[];
+};
+
+export type QuestStatus = "not_started" | "active" | "ready_to_turn_in" | "completed";
+
+export type QuestInfoData = {
+  questId: string;
+  npc: string;
+  title: string;
+  description: string;
+  targetCount: number;
+  rewardAsh: number;
+  status: QuestStatus;
+  progress: number;
+};
+
+export type QuestUpdateData = {
+  questId: string;
+  status: QuestStatus;
+  progress: number;
+  targetCount: number;
+  rewardAsh?: number;
 };
 
 export type InventoryEntry = {
@@ -159,6 +205,12 @@ export class NetworkManager {
     ashEarned: number;
     marketCap: number;
   }) => void;
+  public onQuestInfo?: (data: QuestInfoData) => void;
+  public onQuestUpdate?: (data: QuestUpdateData) => void;
+  public onCanyonSegment?: (data: CanyonSegmentData) => void;
+  public onCanyonCleared?: (data: CanyonClearedData) => void;
+  public onCanyonMap?: (data: CanyonMapData) => void;
+  public onCanyonHub?: (data: CanyonHubData) => void;
   public onServerError?: (message: string) => void;
   public onPositionCorrection?: (data: { position: number[] }) => void;
 
@@ -377,6 +429,24 @@ export class NetworkManager {
       case "sellResult":
         this.onSellResult?.(data);
         break;
+      case "questInfo":
+        this.onQuestInfo?.(data);
+        break;
+      case "questUpdate":
+        this.onQuestUpdate?.(data);
+        break;
+      case "canyonSegment":
+        this.onCanyonSegment?.(data);
+        break;
+      case "canyonCleared":
+        this.onCanyonCleared?.(data);
+        break;
+      case "canyonMap":
+        this.onCanyonMap?.(data);
+        break;
+      case "canyonHub":
+        this.onCanyonHub?.(data);
+        break;
       case "error":
         this.onServerError?.(data.message || "Server error");
         break;
@@ -469,6 +539,46 @@ export class NetworkManager {
   sendSellToken(address: string, quantity?: number) {
     if (!this.authenticated) return;
     this.send({ type: "sellToken", address, quantity });
+  }
+
+  sendQuestInteract(questId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "questInteract", questId });
+  }
+
+  sendQuestAccept(questId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "questAccept", questId });
+  }
+
+  sendQuestTurnIn(questId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "questTurnIn", questId });
+  }
+
+  sendCanyonWarp(segment: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "canyonWarp", segment });
+  }
+
+  sendCanyonMapRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "canyonMapRequest" });
+  }
+
+  sendCanyonEnterDungeon() {
+    if (!this.authenticated) return;
+    this.send({ type: "canyonEnterDungeon" });
+  }
+
+  sendCanyonReturnToHub() {
+    if (!this.authenticated) return;
+    this.send({ type: "canyonReturnToHub" });
+  }
+
+  sendCanyonCrossThreshold() {
+    if (!this.authenticated) return;
+    this.send({ type: "canyonCrossThreshold" });
   }
 
   sendChatMessage(message: string) {

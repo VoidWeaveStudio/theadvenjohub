@@ -1,9 +1,20 @@
 // src/features/game/entities/Enemy.ts
 import * as THREE from "three";
 
+const TYPE_BASE_SCALE: Record<string, number> = {
+    slime: 1,
+    slime_boss: 3,
+};
+
+const TYPE_COLOR: Record<string, number> = {
+    slime: 0x33cc55,
+    slime_boss: 0x8b2fc9,
+};
+
 export class Enemy {
     public mesh: THREE.Group;
     public id: string;
+    public type: string;
     public health: number = 100;
     public maxHealth: number = 100;
 
@@ -18,28 +29,36 @@ export class Enemy {
     private attackFlashUntil: number = 0;
     private readonly CALM_SCALE = 1.0;
     private readonly AGGRO_SCALE = 1.35;
+    private readonly baseScale: number;
+    private readonly baseColor: number;
 
     private healthBarBg: THREE.Sprite;
     private healthBarFg: THREE.Sprite;
     private readonly HEALTH_BAR_WIDTH = 1.0;
-    private readonly HEALTH_BAR_Y = 1.6;
+    private readonly HEALTH_BAR_Y: number;
 
-    constructor(id: string) {
+    constructor(id: string, type: string = "slime") {
         this.id = id;
+        this.type = type;
+        this.baseScale = TYPE_BASE_SCALE[type] ?? 1;
+        this.baseColor = TYPE_COLOR[type] ?? TYPE_COLOR.slime;
         this.mesh = new THREE.Group();
 
         const geometry = new THREE.BoxGeometry(1, 1, 1);
         const material = new THREE.MeshStandardMaterial({
-            color: 0xff3333,
+            color: this.baseColor,
             roughness: 0.7,
             metalness: 0.1
         });
         const cube = new THREE.Mesh(geometry, material);
-        cube.position.y = 0.5;
+        cube.position.y = 0.5 * this.baseScale;
+        cube.scale.setScalar(this.baseScale);
         cube.castShadow = true;
         cube.receiveShadow = true;
 
         this.mesh.add(cube);
+
+        this.HEALTH_BAR_Y = 1.6 * this.baseScale;
 
         this.healthBarBg = new THREE.Sprite(new THREE.SpriteMaterial({
             color: 0x330000, transparent: true, opacity: 0.85, depthTest: false,
@@ -71,7 +90,7 @@ export class Enemy {
             if (this.flashTimeout) clearTimeout(this.flashTimeout);
             this.flashTimeout = setTimeout(() => {
                 if (cube.material instanceof THREE.MeshStandardMaterial) {
-                    cube.material.color.setHex(0xff3333);
+                    cube.material.color.setHex(this.baseColor);
                 }
             }, 100);
         }
@@ -114,8 +133,9 @@ export class Enemy {
 
         const targetScale = this.aggro ? this.AGGRO_SCALE : this.CALM_SCALE;
         this.currentScale = THREE.MathUtils.lerp(this.currentScale, targetScale, Math.min(1, delta * 5));
-        cube.scale.setScalar(this.currentScale);
-        cube.position.y = 0.5 * this.currentScale;
+        const appliedScale = this.currentScale * this.baseScale;
+        cube.scale.setScalar(appliedScale);
+        cube.position.y = 0.5 * appliedScale;
 
         if (cube.material instanceof THREE.MeshStandardMaterial) {
             const attacking = performance.now() < this.attackFlashUntil;

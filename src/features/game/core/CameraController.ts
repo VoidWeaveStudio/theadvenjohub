@@ -19,6 +19,11 @@ export class CameraController {
     private maxPitch: number = Math.PI / 3;
     private sensitivity: number = 0.002;
 
+    private readonly baseFov: number = 75;
+    private readonly aimFov: number = 45;
+    private currentFov: number = 75;
+    private isAiming: boolean = false;
+
     private collisionGrid: CollisionGrid | null = null;
     private raycaster: THREE.Raycaster = new THREE.Raycaster();
     private cameraOffset: number = 0.3;
@@ -74,12 +79,25 @@ export class CameraController {
         return dir;
     }
 
+    isAimingState(): boolean {
+        return this.isAiming;
+    }
+
     update(delta: number, inputManager: InputManager) {
         if (!this.target) return;
 
+        this.isAiming = inputManager.isMousePressed(2);
+        const targetFov = this.isAiming ? this.aimFov : this.baseFov;
+        this.currentFov = THREE.MathUtils.lerp(this.currentFov, targetFov, Math.min(1, delta * 10));
+        if (Math.abs(this.camera.fov - this.currentFov) > 0.01) {
+            this.camera.fov = this.currentFov;
+            this.camera.updateProjectionMatrix();
+        }
+
+        const aimSensitivity = this.isAiming ? this.sensitivity * 0.5 : this.sensitivity;
         const mouseMovement = inputManager.consumeMouseMovement();
-        this.yaw -= mouseMovement.x * this.sensitivity;
-        this.pitch -= mouseMovement.y * this.sensitivity;
+        this.yaw -= mouseMovement.x * aimSensitivity;
+        this.pitch -= mouseMovement.y * aimSensitivity;
         this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
 
         this.yawObject.rotation.y = this.yaw;

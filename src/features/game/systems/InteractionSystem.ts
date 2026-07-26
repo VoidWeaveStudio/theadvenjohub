@@ -31,6 +31,9 @@ export class InteractionSystem extends System {
     public onPrompt?: (text: string | null) => void;
     public onCrystalInteract?: () => void;
     public onOpenVendor?: () => void;
+    public onOpenSola?: () => void;
+    public onOpenCanyonMap?: () => void;
+    public onCanyonReturn?: () => void;
     public onOpenTokenUI?: (token: any) => void;
     public onEnterLocation?: (locationId: string) => void;
 
@@ -51,6 +54,11 @@ export class InteractionSystem extends System {
 
     registerInteractable(obj: THREE.Object3D) {
         this.interactableObjects.push(obj);
+    }
+
+    removeInteractable(obj: THREE.Object3D) {
+        const index = this.interactableObjects.indexOf(obj);
+        if (index !== -1) this.interactableObjects.splice(index, 1);
     }
 
     private formatMC(value: number): string {
@@ -111,7 +119,7 @@ export class InteractionSystem extends System {
                     }
                 }
             } else if (id === "tower-crystal") {
-                this.onPrompt?.("[E] Use the elevator");
+                this.onPrompt?.("[E] Use the portal");
                 if (isEJustPressed === true) {
                     if (this.onCrystalInteract) {
                         this.onCrystalInteract();
@@ -128,6 +136,21 @@ export class InteractionSystem extends System {
                 this.onPrompt?.("[E] Trade tokens for Ash");
                 if (isEJustPressed === true) {
                     this.onOpenVendor?.();
+                }
+            } else if (id === "quest-giver-sola") {
+                this.onPrompt?.("[E] Talk to Sola");
+                if (isEJustPressed === true) {
+                    this.onOpenSola?.();
+                }
+            } else if (id === "canyon-dispatcher") {
+                this.onPrompt?.("[E] View Canyon Map");
+                if (isEJustPressed === true) {
+                    this.onOpenCanyonMap?.();
+                }
+            } else if (id === "canyon-return") {
+                this.onPrompt?.("[E] Return to the Outpost");
+                if (isEJustPressed === true) {
+                    this.onCanyonReturn?.();
                 }
             }
         } else {

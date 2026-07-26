@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, PlayerNetData, InventoryEntry } from "../network/NetworkManager";
+import { NetworkManager, PlayerNetData, InventoryEntry, QuestInfoData, QuestUpdateData, CanyonSegmentData, CanyonClearedData, CanyonMapData, CanyonHubData } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -20,6 +20,7 @@ import { Cave } from "../world/locations/Cave";
 import { TowerFloor } from "../world/locations/tower/TowerFloor";
 import { CollisionGrid } from "../world/CollisionGrid";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
+import { FirstFloor } from "../world/locations/tower/floors/FirstFloor";
 import { TokenCanyon } from "../world/locations/token-gates/TokenCanyon";
 import { apiPost } from "@/core/api/client";
 import { computeDayTime, DayNightConfig } from "../utils/dayNightCycle";
@@ -250,8 +251,14 @@ export class Game {
 
     public onOpenTokenUI?: (tokenData: any) => void;
     public onOpenVendorUI?: () => void;
+    public onOpenSolaUI?: () => void;
+    public onOpenCanyonMapUI?: () => void;
     public onInventoryChange?: (inventory: InventoryEntry[], ash: number) => void;
     public onSellResult?: (data: { address: string; quantitySold: number; ashEarned: number; marketCap: number }) => void;
+    public onQuestInfo?: (data: QuestInfoData) => void;
+    public onQuestUpdate?: (data: QuestUpdateData) => void;
+    public onCanyonSegment?: (data: CanyonSegmentData) => void;
+    public onCanyonMap?: (data: CanyonMapData) => void;
 
     public openFloorSelector() {
         this.showFloorSelector = true;
@@ -397,7 +404,7 @@ export class Game {
                         currentLocation.scene,
                         undefined,
                         new THREE.Vector3(0, 0, 0),
-                        12
+                        currentLocation.hallRadius - 3
                     );
                 }
 
@@ -484,6 +491,18 @@ export class Game {
 
                 this.interactionSystem.onOpenVendor = () => {
                     this.onOpenVendorUI?.();
+                };
+
+                this.interactionSystem.onOpenSola = () => {
+                    this.onOpenSolaUI?.();
+                };
+
+                this.interactionSystem.onOpenCanyonMap = () => {
+                    this.onOpenCanyonMapUI?.();
+                };
+
+                this.interactionSystem.onCanyonReturn = () => {
+                    this.networkManager.sendCanyonReturnToHub();
                 };
 
                 this.interactionSystem.onEnterLocation = async (locationId: string) => {
@@ -597,10 +616,32 @@ export class Game {
             this.cameraController.setCollisionGrid(newLocation.collisionGrid);
             if (newLocation.id === 'tower-basement') {
                 this.player.setMaxRadius(40);
+            } else if (newLocation.id === 'tower-first-floor') {
+                this.player.setMaxRadius(null);
             } else {
                 this.player.setMaxRadius(9999);
             }
             this.shootingSystem.setLocation(newLocation, newLocation.collisionGrid);
+
+            if (newLocation instanceof MainHall) {
+                this.safeZone.create(
+                    newLocation.scene,
+                    undefined,
+                    new THREE.Vector3(0, 0, 0),
+                    newLocation.hallRadius - 3
+                );
+            } else if (newLocation instanceof FirstFloor) {
+                newLocation.onInteractablesChanged = (added, removed) => {
+                    removed.forEach((obj) => this.interactionSystem.removeInteractable(obj));
+                    added.forEach((obj) => this.interactionSystem.registerInteractable(obj));
+                };
+                newLocation.onReadyToEnterDungeon = () => {
+                    this.enterCanyonDungeon();
+                };
+                newLocation.onSegmentCrossed = () => {
+                    this.networkManager.sendCanyonCrossThreshold();
+                };
+            }
         } else if (newLocation instanceof TokenCanyon) {
             this.player.setTerrain(null);
             this.player.setCollisionGrid(newLocation.collisionGrid);
@@ -968,6 +1009,69 @@ export class Game {
         this.networkManager.onServerError = (message) => {
             this.onNotification?.(`⚠️ ${message}`, 2500);
         };
+
+        this.networkManager.onQuestInfo = (data) => {
+            this.onQuestInfo?.(data);
+        };
+
+        this.networkManager.onQuestUpdate = (data) => {
+            this.onQuestUpdate?.(data);
+            if (data.status === "active" && data.progress === 0) {
+                this.onNotification?.(`📜 Quest accepted: kill ${data.targetCount} slimes in Slime Valley`, 3000);
+            } else if (data.status === "ready_to_turn_in") {
+                this.onNotification?.("✨ Quest complete! Return to Sola for your reward", 3000);
+            } else if (data.status === "completed") {
+                this.onNotification?.(`🎉 Quest turned in: +${data.rewardAsh ?? 0} ash`, 3000);
+            }
+        };
+
+        this.networkManager.onCanyonSegment = (data) => {
+            const currentLoc = this.locationManager.getCurrentLocation();
+            if (currentLoc instanceof FirstFloor) {
+                currentLoc.applyFreshSegment(data);
+                const spawnPoint = currentLoc.getSpawnPoint();
+                this.player.teleportTo(spawnPoint);
+                this.cameraController.yawObject.position.copy(spawnPoint);
+                this.networkManager.sendPlayerUpdate({
+                    position: spawnPoint.toArray(),
+                    rotation: this.player.mesh.rotation.y,
+                    pitch: this.cameraController.getPitch(),
+                    state: 'idle', jumping: false, velocityY: 0,
+                    weaponEquipped: this.hudState.isWeaponEquipped, isShooting: false,
+                });
+            }
+            this.onCanyonSegment?.(data);
+            this.onNotification?.(`🗺️ ${data.name}`, 2500);
+        };
+
+        this.networkManager.onCanyonCleared = (data) => {
+            const currentLoc = this.locationManager.getCurrentLocation();
+            if (currentLoc instanceof FirstFloor) {
+                currentLoc.applyBossDefeated(data);
+            }
+            this.onNotification?.("🎉 Boss defeated! The way forward has opened.", 3000);
+        };
+
+        this.networkManager.onCanyonMap = (data) => {
+            this.onCanyonMap?.(data);
+        };
+
+        this.networkManager.onCanyonHub = (data) => {
+            const currentLoc = this.locationManager.getCurrentLocation();
+            if (currentLoc instanceof FirstFloor) {
+                currentLoc.applyHub(data);
+                const spawnPoint = currentLoc.getSpawnPoint();
+                this.player.teleportTo(spawnPoint);
+                this.cameraController.yawObject.position.copy(spawnPoint);
+                this.networkManager.sendPlayerUpdate({
+                    position: spawnPoint.toArray(),
+                    rotation: this.player.mesh.rotation.y,
+                    pitch: this.cameraController.getPitch(),
+                    state: 'idle', jumping: false, velocityY: 0,
+                    weaponEquipped: this.hudState.isWeaponEquipped, isShooting: false,
+                });
+            }
+        };
     }
 
     private updateOnlineCount() {
@@ -1090,6 +1194,7 @@ export class Game {
     setWeaponEquipped(equipped: boolean) {
         this.hudState.isWeaponEquipped = equipped;
         this.player.setWeaponVisible(equipped);
+        this.shootingSystem.setWeaponEquipped(equipped);
         this.emitState(true);
     }
 
@@ -1105,22 +1210,32 @@ export class Game {
         this.networkManager.sendSellToken(address, quantity);
     }
 
-    getInventory(): InventoryEntry[] {
-        return this.inventory;
+    talkToQuestGiver(questId: string) {
+        this.networkManager.sendQuestInteract(questId);
     }
 
-    public teleportToTower() {
-        const currentLocation = this.locationManager.getCurrentLocation();
-        if (!currentLocation) return;
+    acceptQuest(questId: string) {
+        this.networkManager.sendQuestAccept(questId);
+    }
 
-        if (currentLocation.id !== 'tower-main-hall') {
-            this.changeLocation('tower-main-hall').then(() => {
-                this.onNotification?.("🗼 Teleported to Tower Main Hall", 2500);
-            });
-            return;
-        }
+    turnInQuest(questId: string) {
+        this.networkManager.sendQuestTurnIn(questId);
+    }
 
-        this.onNotification?.("🗼 You are already in the Tower Main Hall", 2500);
+    talkToDispatcher() {
+        this.networkManager.sendCanyonMapRequest();
+    }
+
+    warpCanyonSegment(segment: number) {
+        this.networkManager.sendCanyonWarp(segment);
+    }
+
+    enterCanyonDungeon() {
+        this.networkManager.sendCanyonEnterDungeon();
+    }
+
+    getInventory(): InventoryEntry[] {
+        return this.inventory;
     }
 
     public teleportToSafeZone() {

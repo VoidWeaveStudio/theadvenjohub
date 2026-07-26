@@ -48,6 +48,7 @@ interface NetworkShootData {
 export class ShootingSystem extends System {
     public onHitPlayer?: () => void;
 
+    private weaponEquipped: boolean = true;
     private scene!: THREE.Scene;
     private player!: Player;
     private inputManager!: InputManager;
@@ -240,6 +241,10 @@ export class ShootingSystem extends System {
         this.otherPlayerHitboxes.delete(id);
     }
 
+    setWeaponEquipped(equipped: boolean) {
+        this.weaponEquipped = equipped;
+    }
+
     registerEnemyHitbox(id: string, hitbox: THREE.Mesh) {
         this.enemyHitboxes.set(id, hitbox);
     }
@@ -249,7 +254,7 @@ export class ShootingSystem extends System {
     }
 
     update(delta: number) {
-        if (this.inputManager.isMousePressed(0)) {
+        if (this.weaponEquipped && this.inputManager.isMousePressed(0)) {
             const weapon = this.player.getWeapon();
             if (weapon.canShoot()) {
                 if (weapon.shoot()) {
@@ -258,7 +263,7 @@ export class ShootingSystem extends System {
             }
         }
 
-        if (this.inputManager.isKeyJustPressed("KeyR")) {
+        if (this.weaponEquipped && this.inputManager.isKeyJustPressed("KeyR")) {
             this.player.getWeapon().reload();
         }
 

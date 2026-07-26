@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, Sparkles, Store, Backpack, ShoppingBag, ArrowLeftRight } from "lucide-react";
+import { X, Sparkles, Store, ArrowLeftRight } from "lucide-react";
 import { InventoryGrid, InventoryGridItem } from "./InventoryGrid";
 import { useMarketCaps } from "./useMarketCaps";
 import { TokenHoverModal } from "./TokenHoverModal";
@@ -14,6 +14,12 @@ interface VendorPanelProps {
     onSell: (address: string, quantity: number) => void;
 }
 
+const MAX_CART_SLOTS = 32;
+const VENDOR_ITEMS: InventoryGridItem[] = [];
+
+type CartOrigin = "sell" | "buy";
+type CartEntry = { qty: number; origin: CartOrigin };
+
 function estimateAsh(mc: number): number {
     if (mc < 10000) return 1;
     if (mc < 50000) return 2;
@@ -23,25 +29,28 @@ function estimateAsh(mc: number): number {
 }
 
 export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelProps) {
-    const [tab, setTab] = useState<"buy" | "sell">("sell");
-    const [cart, setCart] = useState<Record<string, number>>({});
+    const [cart, setCart] = useState<Record<string, CartEntry>>({});
     const [pickItem, setPickItem] = useState<InventoryGridItem | null>(null);
+    const [pickOrigin, setPickOrigin] = useState<CartOrigin>("sell");
     const [pickQuantity, setPickQuantity] = useState(1);
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
+    const [warning, setWarning] = useState<string | null>(null);
     const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const marketCaps = useMarketCaps(inventory.map((i) => i.address), isOpen);
 
     useEffect(() => {
         setCart((prev) => {
             let changed = false;
-            const next: Record<string, number> = {};
-            for (const [address, qty] of Object.entries(prev)) {
+            const next: Record<string, CartEntry> = {};
+            for (const [address, entry] of Object.entries(prev)) {
+                if (entry.origin !== "sell") { next[address] = entry; continue; }
                 const owned = inventory.find((i) => i.address === address)?.quantity ?? 0;
                 if (owned <= 0) { changed = true; continue; }
-                const clamped = Math.min(qty, owned);
-                if (clamped !== qty) changed = true;
-                if (clamped > 0) next[address] = clamped;
+                const clampedQty = Math.min(entry.qty, owned);
+                if (clampedQty !== entry.qty) changed = true;
+                if (clampedQty > 0) next[address] = { qty: clampedQty, origin: entry.origin };
             }
             return changed ? next : prev;
         });
@@ -84,27 +93,40 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
 
     if (!isOpen) return null;
 
-    const openPicker = (item: InventoryGridItem) => {
-        setPickItem(item);
-        setPickQuantity(cart[item.address] || 1);
+    const showWarning = (msg: string) => {
+        setWarning(msg);
+        if (warningTimer.current) clearTimeout(warningTimer.current);
+        warningTimer.current = setTimeout(() => setWarning(null), 2500);
     };
 
-    const handleSlotClick = (item: InventoryGridItem) => {
-        if (tab !== "sell") return;
+    const cartEntries = Object.entries(cart).filter(([, entry]) => entry.qty > 0);
+    const cartOrigin: CartOrigin | null = cartEntries[0]?.[1].origin ?? null;
+    const cartFull = cartEntries.length >= MAX_CART_SLOTS;
+
+    const openPicker = (item: InventoryGridItem, origin: CartOrigin) => {
+        setPickItem(item);
+        setPickOrigin(origin);
+        setPickQuantity(cart[item.address]?.qty || 1);
+    };
+
+    const handleSlotClick = (item: InventoryGridItem, origin: CartOrigin) => {
+        const alreadyStaged = Boolean(cart[item.address]);
+        if (!alreadyStaged) {
+            if (cartOrigin && cartOrigin !== origin) {
+                showWarning(
+                    origin === "sell"
+                        ? "Clear the exchange before selling."
+                        : "Clear the exchange before buying."
+                );
+                return;
+            }
+            if (cartEntries.length >= MAX_CART_SLOTS) return;
+        }
         if (item.quantity <= 1) {
-            setCart((prev) => (prev[item.address] ? prev : { ...prev, [item.address]: 1 }));
+            setCart((prev) => (prev[item.address] ? prev : { ...prev, [item.address]: { qty: 1, origin } }));
             return;
         }
-        openPicker(item);
-    };
-
-    const handleSlotRightClick = (item: InventoryGridItem) => {
-        setCart((prev) => {
-            if (!prev[item.address]) return prev;
-            const next = { ...prev };
-            delete next[item.address];
-            return next;
-        });
+        openPicker(item, origin);
     };
 
     const removeFromCart = (address: string) => {
@@ -116,22 +138,44 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
         });
     };
 
+    const clearCart = () => setCart({});
+
     const confirmPick = (quantityOverride?: number) => {
         if (!pickItem) return;
         const qty = Math.max(1, Math.min(quantityOverride ?? pickQuantity, pickItem.quantity));
-        setCart((prev) => ({ ...prev, [pickItem.address]: qty }));
+        setCart((prev) => ({ ...prev, [pickItem.address]: { qty, origin: pickOrigin } }));
         setPickItem(null);
     };
 
-    const cartEntries = Object.entries(cart).filter(([, qty]) => qty > 0);
-    const totalAsh = cartEntries.reduce((sum, [address, qty]) => {
+    const sellStaged: Record<string, number> = {};
+    const buyStaged: Record<string, number> = {};
+    for (const [address, entry] of cartEntries) {
+        if (entry.origin === "sell") sellStaged[address] = entry.qty;
+        else buyStaged[address] = entry.qty;
+    }
+
+    const cartItems: InventoryGridItem[] = cartEntries.map(([address, entry]) => {
+        const sourceList = entry.origin === "sell" ? inventory : VENDOR_ITEMS;
+        const item = sourceList.find((i) => i.address === address);
+        const info = marketCaps[address];
+        return {
+            address,
+            name: info?.name || item?.name || info?.symbol || item?.symbol || address,
+            symbol: info?.symbol || item?.symbol || "",
+            image: info?.image || item?.image || "",
+            quantity: entry.qty,
+        };
+    });
+
+    const totalAsh = cartEntries.reduce((sum, [address, entry]) => {
         const mc = marketCaps[address]?.mc;
-        return sum + (mc !== undefined ? estimateAsh(mc) * qty : 0);
+        return sum + (mc !== undefined ? estimateAsh(mc) * entry.qty : 0);
     }, 0);
 
-    const handleConfirmSell = () => {
-        for (const [address, qty] of cartEntries) {
-            onSell(address, qty);
+    const handleConfirm = () => {
+        if (cartOrigin !== "sell") return;
+        for (const [address, entry] of cartEntries) {
+            onSell(address, entry.qty);
         }
         setCart({});
     };
@@ -143,108 +187,85 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
                     <Store className="w-5 h-5 text-[#FFD166]" />
                     <h2 className="text-xl font-black text-[#E5E7EB]">Token Vendor</h2>
                 </div>
-                <div className="flex items-center gap-4">
-                    <div className="flex gap-1 bg-[rgba(255,255,255,0.03)] p-1 rounded-[10px]">
-                        {[
-                            { id: "buy" as const, icon: ShoppingBag, label: "Buy" },
-                            { id: "sell" as const, icon: Backpack, label: "Sell" },
-                        ].map(({ id, icon: Icon, label }) => (
-                            <button
-                                key={id}
-                                onClick={() => setTab(id)}
-                                className={`flex items-center gap-2 py-2 px-5 rounded-[8px] text-sm font-bold transition-all duration-200 ${tab === id
-                                        ? "bg-[rgba(79,209,255,0.15)] text-[#4FD1FF] border border-[rgba(79,209,255,0.3)]"
-                                        : "text-[#8B8F98] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.05)] border border-transparent"
-                                    }`}
-                            >
-                                <Icon className="w-4 h-4" />
-                                {label}
-                            </button>
-                        ))}
-                    </div>
-                    <button onClick={onClose} className="text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
+                <button onClick={onClose} className="text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
+                    <X className="w-5 h-5" />
+                </button>
             </div>
 
             <div className="flex gap-4 w-full max-w-6xl items-stretch">
                 <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
                     <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">VENDOR</div>
                     <InventoryGrid
-                        items={[]}
+                        items={VENDOR_ITEMS}
                         columns={6}
+                        stagedQuantities={buyStaged}
+                        interactive
+                        onSlotClick={(item) => handleSlotClick(item, "buy")}
+                        onSlotRightClick={(item) => removeFromCart(item.address)}
                         onHoverChange={handleHoverChange}
                         emptyMessage="Nothing for sale yet. Check back later."
                     />
                 </div>
 
                 <div className="w-[260px] flex-shrink-0 bg-[rgba(20,16,8,0.92)] border-2 border-[#FFD166]/50 rounded-[16px] p-5 shadow-[0_0_35px_rgba(255,209,102,0.15)] flex flex-col">
-                    <div className="flex items-center gap-2 mb-3">
-                        <ArrowLeftRight className="w-4 h-4 text-[#FFD166]" />
-                        <span className="text-[#FFD166] text-xs font-bold tracking-wider">EXCHANGE</span>
+                    <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                            <ArrowLeftRight className="w-4 h-4 text-[#FFD166]" />
+                            <span className="text-[#FFD166] text-xs font-bold tracking-wider">EXCHANGE</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold ${cartFull ? "text-red-400" : "text-[#8B8F98]"}`}>
+                                {cartEntries.length}/{MAX_CART_SLOTS}
+                            </span>
+                            {cartEntries.length > 0 && (
+                                <button
+                                    onClick={clearCart}
+                                    className="text-[#8B8F98] hover:text-red-400 text-[10px] font-bold underline"
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    {warning && (
+                        <div className="text-red-400 text-[10px] font-semibold mb-2">{warning}</div>
+                    )}
+                    {!warning && cartFull && (
+                        <div className="text-red-400 text-[10px] font-semibold mb-2">
+                            Exchange full — confirm or clear before adding more.
+                        </div>
+                    )}
+
+                    <div className="flex-1 min-h-[120px] mb-2">
+                        <InventoryGrid
+                            items={cartItems}
+                            slotCount={MAX_CART_SLOTS}
+                            columns={4}
+                            interactive
+                            onSlotClick={(item) => removeFromCart(item.address)}
+                            emptyMessage="Click items to stage a sale or purchase here."
+                        />
                     </div>
 
-                    {tab !== "sell" ? (
-                        <div className="flex-1 flex items-center justify-center text-[#8B8F98] text-xs text-center py-8">
-                            Buying isn't available yet.
+                    <div className="pt-3 mt-3 border-t border-[rgba(255,209,102,0.2)]">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider">
+                                {cartOrigin === "buy" ? "COST" : "TOTAL"}
+                            </span>
+                            <div className="flex items-center gap-1.5 text-[#FFD166] font-bold">
+                                <Sparkles className="w-4 h-4" />
+                                ~{totalAsh}
+                            </div>
                         </div>
-                    ) : (
-                        <>
-                            <div className="flex-1 overflow-y-auto space-y-2 min-h-[120px]">
-                                {cartEntries.length === 0 ? (
-                                    <div className="text-[#8B8F98] text-xs text-center py-8">
-                                        Click items in your inventory to stage them here.
-                                    </div>
-                                ) : (
-                                    cartEntries.map(([address, qty]) => {
-                                        const item = inventory.find((i) => i.address === address);
-                                        if (!item) return null;
-                                        const info = marketCaps[address];
-                                        return (
-                                            <div
-                                                key={address}
-                                                onClick={() => removeFromCart(address)}
-                                                title="Click to remove"
-                                                className="flex items-center gap-2 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,80,80,0.12)] border border-[rgba(255,255,255,0.08)] hover:border-red-400/40 rounded-[8px] p-2 cursor-pointer transition-colors group"
-                                            >
-                                                <img
-                                                    src={info?.image || item.image || "/fallback-token.png"}
-                                                    alt={item.symbol}
-                                                    className="w-8 h-8 rounded-[6px] object-cover flex-shrink-0"
-                                                    onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }}
-                                                />
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="text-[#E5E7EB] text-xs font-bold truncate">
-                                                        {info?.name || item.name || info?.symbol || item.symbol}
-                                                    </div>
-                                                    <div className="text-[#8B8F98] text-[10px]">x{qty}</div>
-                                                </div>
-                                                <X className="w-3.5 h-3.5 text-[#8B8F98] group-hover:text-red-400 flex-shrink-0" />
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-
-                            <div className="pt-3 mt-3 border-t border-[rgba(255,209,102,0.2)]">
-                                <div className="flex items-center justify-between mb-3">
-                                    <span className="text-[#8B8F98] text-xs font-bold tracking-wider">TOTAL</span>
-                                    <div className="flex items-center gap-1.5 text-[#FFD166] font-bold">
-                                        <Sparkles className="w-4 h-4" />
-                                        ~{totalAsh}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleConfirmSell}
-                                    disabled={cartEntries.length === 0}
-                                    className="w-full bg-gradient-to-r from-[#FFD166] to-[#FFB347] disabled:opacity-40 disabled:cursor-not-allowed text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all"
-                                >
-                                    Sell
-                                </button>
-                            </div>
-                        </>
-                    )}
+                        <button
+                            onClick={handleConfirm}
+                            disabled={cartEntries.length === 0 || cartOrigin === "buy"}
+                            title={cartOrigin === "buy" ? "Buying isn't available yet" : undefined}
+                            className="w-full bg-gradient-to-r from-[#FFD166] to-[#FFB347] disabled:opacity-40 disabled:cursor-not-allowed text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all"
+                        >
+                            {cartOrigin === "buy" ? "Buying isn't available yet" : "Sell"}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
@@ -252,10 +273,10 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
                     <InventoryGrid
                         items={inventory}
                         columns={6}
-                        stagedQuantities={tab === "sell" ? cart : undefined}
-                        interactive={tab === "sell"}
-                        onSlotClick={handleSlotClick}
-                        onSlotRightClick={handleSlotRightClick}
+                        stagedQuantities={sellStaged}
+                        interactive
+                        onSlotClick={(item) => handleSlotClick(item, "sell")}
+                        onSlotRightClick={(item) => removeFromCart(item.address)}
                         onHoverChange={handleHoverChange}
                         emptyMessage="You have nothing to sell."
                     />
@@ -279,7 +300,9 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
                             />
                             <div className="min-w-0">
                                 <div className="text-[#E5E7EB] text-sm font-bold truncate">{pickItem.name || pickItem.symbol}</div>
-                                <div className="text-[#8B8F98] text-[10px]">You own {pickItem.quantity}</div>
+                                <div className="text-[#8B8F98] text-[10px]">
+                                    {pickOrigin === "sell" ? "You own" : "Available"} {pickItem.quantity}
+                                </div>
                             </div>
                         </div>
 
