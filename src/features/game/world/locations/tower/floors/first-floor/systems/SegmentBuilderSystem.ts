@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { CANYON_START_Z, FLOOR_HALF_WIDTH, SEGMENT_LENGTH, pathOffsetX, halfWidthAt, segmentStartZ } from "../utils/canyonMath";
 import { getArrowGeometry, getArrowMaterial, getCanyonFloorMaterial, getCanyonRockMaterial, isCachedGeometry, isCachedMaterial } from "../utils/canyonMaterials";
 import type { FirstFloor } from "../FirstFloor";
+import { createNpcModel, NpcHandle, isSharedNpcGeometry } from "../../../../../../entities/npcModel";
+import type { ResourceManager } from "../../../../../../core/ResourceManager";
 
 export interface GateWall {
     group: THREE.Group;
@@ -15,14 +17,14 @@ export interface SegmentContent {
     interactables: THREE.Object3D[];
     farGate: GateWall;
     crystal?: THREE.Group;
-    dispatcher?: THREE.Group;
+    dispatcher?: NpcHandle;
     arrow?: THREE.Mesh;
 }
 
 export class SegmentBuilderSystem {
     constructor(private floor: FirstFloor) { }
 
-    buildHub(): SegmentContent {
+    buildHub(resourceManager: ResourceManager): SegmentContent {
         const content: SegmentContent = {
             group: new THREE.Group(),
             colliders: [],
@@ -34,7 +36,7 @@ export class SegmentBuilderSystem {
         this.buildFloor(content, -20, CANYON_START_Z);
         this.buildCorridorWalls(content, -20, CANYON_START_Z);
         this.buildDeadEnd(content, -15);
-        this.buildCrystalAndDispatcher(content, 40);
+        this.buildCrystalAndDispatcher(content, 40, resourceManager);
         this.buildArrowIndicator(content, 70, true);
         content.farGate = this.buildGateWallInto(content, CANYON_START_Z);
 
@@ -172,7 +174,7 @@ export class SegmentBuilderSystem {
         ));
     }
 
-    buildCrystalAndDispatcher(content: SegmentContent, crystalZ: number) {
+    buildCrystalAndDispatcher(content: SegmentContent, crystalZ: number, resourceManager: ResourceManager) {
         const centerX = pathOffsetX(crystalZ);
 
         const crystal = new THREE.Group();
@@ -192,39 +194,27 @@ export class SegmentBuilderSystem {
             new THREE.Vector3(1, 3, 1)
         ).translate(crystal.position));
 
-        const dispatcher = new THREE.Group();
-        dispatcher.position.set(centerX + 14, 0, crystalZ - 5);
+        const dispatcher = createNpcModel(resourceManager, 0x4a5d8b, (headPos) => {
+            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.4, 12), new THREE.MeshStandardMaterial({ color: 0x33406b, roughness: 0.8 }));
+            hat.position.set(headPos.x, headPos.y + 0.35, headPos.z);
 
-        const robe = new THREE.Mesh(new THREE.CapsuleGeometry(0.36, 1.0, 4, 8), new THREE.MeshStandardMaterial({ color: 0x4a5d8b, roughness: 0.75, metalness: 0.05 }));
-        robe.position.y = 1.15;
-        robe.castShadow = true;
-        dispatcher.add(robe);
+            const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.18, 0), new THREE.MeshStandardMaterial({ color: 0x9ad6ff, emissive: 0x5cb3ff, emissiveIntensity: 5 }));
+            marker.position.set(headPos.x, headPos.y + 0.9, headPos.z);
 
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 16), new THREE.MeshStandardMaterial({ color: 0xd8ac8a, roughness: 0.8 }));
-        head.position.y = 1.95;
-        head.castShadow = true;
-        dispatcher.add(head);
+            const glow = new THREE.PointLight(0x6fa8ff, 1.4, 6);
+            glow.position.set(headPos.x, headPos.y - 0.2, headPos.z + 0.3);
 
-        const hat = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.4, 12), new THREE.MeshStandardMaterial({ color: 0x33406b, roughness: 0.8 }));
-        hat.position.y = 2.25;
-        dispatcher.add(hat);
-
-        const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.18, 0), new THREE.MeshStandardMaterial({ color: 0x9ad6ff, emissive: 0x5cb3ff, emissiveIntensity: 5 }));
-        marker.position.y = 2.8;
-        dispatcher.add(marker);
-
-        const glow = new THREE.PointLight(0x6fa8ff, 1.4, 6);
-        glow.position.set(0, 2, 0.5);
-        dispatcher.add(glow);
-
-        dispatcher.userData.interactionId = "canyon-dispatcher";
-        content.group.add(dispatcher);
-        content.interactables.push(dispatcher);
+            return [hat, marker, glow];
+        });
+        dispatcher.group.position.set(centerX + 14, 0, crystalZ - 5);
+        dispatcher.group.userData.interactionId = "canyon-dispatcher";
+        content.group.add(dispatcher.group);
+        content.interactables.push(dispatcher.group);
         content.dispatcher = dispatcher;
 
         content.colliders.push(new THREE.Box3(
-            new THREE.Vector3(dispatcher.position.x - 0.5, 0, dispatcher.position.z - 0.5),
-            new THREE.Vector3(dispatcher.position.x + 0.5, 2.5, dispatcher.position.z + 0.5)
+            new THREE.Vector3(dispatcher.group.position.x - 0.5, 0, dispatcher.group.position.z - 0.5),
+            new THREE.Vector3(dispatcher.group.position.x + 0.5, 2.5, dispatcher.group.position.z + 0.5)
         ));
     }
 
@@ -309,7 +299,7 @@ export class SegmentBuilderSystem {
         content.group.traverse((obj) => {
             const mesh = obj as THREE.Mesh;
             if ((mesh as any).isMesh) {
-                if (!isCachedGeometry(mesh.geometry)) mesh.geometry.dispose();
+                if (!isCachedGeometry(mesh.geometry) && !isSharedNpcGeometry(mesh.geometry)) mesh.geometry.dispose();
                 if (Array.isArray(mesh.material)) {
                     mesh.material.forEach((m) => { if (!isCachedMaterial(m)) m.dispose(); });
                 } else if (mesh.material && !isCachedMaterial(mesh.material as THREE.Material)) {

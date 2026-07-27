@@ -105,6 +105,74 @@ export interface GameSession {
   wallet: string;
 }
 
+export type FactionSummary = {
+  id: string;
+  number: number;
+  name: string;
+  symbol: string | null;
+  image: string | null;
+  description: string;
+  tokenCa: string | null;
+  founderWallet: string;
+  memberCount: number;
+  rank: number | null;
+  role?: string;
+};
+
+export type FactionRosterEntry = {
+  wallet: string;
+  role: string;
+  nickname: string | null;
+};
+
+export type FactionDetail = FactionSummary & {
+  roster: FactionRosterEntry[];
+};
+
+export type PlayerProfileData = {
+  wallet: string;
+  nickname: string | null;
+  kills: number;
+  deaths: number;
+  playtimeSeconds: number;
+  ash: number;
+  faction: { id: string; number: number; name: string; image: string | null } | null;
+};
+
+export type LeaderboardEntry = {
+  wallet: string;
+  nickname: string | null;
+  kills: number;
+  deaths: number;
+  ash: number;
+  playtimeSeconds: number;
+  score: number;
+};
+
+export type FriendEntry = {
+  userId: string;
+  wallet: string;
+  nickname: string | null;
+  online: boolean;
+};
+
+export type FriendRequestEntry = {
+  userId: string;
+  wallet: string;
+  nickname: string | null;
+};
+
+export type MailEntry = {
+  id: string;
+  senderUserId: string;
+  senderWallet: string;
+  senderNickname: string | null;
+  subject: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+};
+
 export class NetworkManager {
   private ws: WebSocket | null = null;
   private readonly baseReconnectInterval: number = 3000;
@@ -145,7 +213,7 @@ export class NetworkManager {
   public onConnected?: () => void;
   public onDisconnected?: () => void;
   public onCount?: (count: number) => void;
-  public onChatMessage?: (data: { id: string; sender: string; message: string; timestamp: number }) => void;
+  public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; message: string; timestamp: number }) => void;
   public onAuthenticated?: (data: { playerId: string; nickname: string }) => void;
   public onProgressLoaded?: (data: any) => void;
   public onAuthError?: (error: string) => void;
@@ -213,6 +281,27 @@ export class NetworkManager {
   public onCanyonHub?: (data: CanyonHubData) => void;
   public onServerError?: (message: string) => void;
   public onPositionCorrection?: (data: { position: number[] }) => void;
+
+  public onFactionCreated?: (faction: FactionSummary) => void;
+  public onFactionJoined?: (faction: FactionSummary) => void;
+  public onFactionLeft?: () => void;
+  public onFactionSearchResult?: (results: FactionSummary[]) => void;
+  public onFactionListResult?: (data: { results: FactionSummary[]; page: number }) => void;
+  public onFactionInfo?: (faction: FactionDetail | null) => void;
+  public onPlayerProfile?: (profile: PlayerProfileData | null) => void;
+  public onLeaderboardResult?: (leaderboard: LeaderboardEntry[]) => void;
+  public onFactionLeaderboardResult?: (leaderboard: FactionSummary[]) => void;
+
+  public onFriendRequestSent?: (friend: FriendRequestEntry, status: string) => void;
+  public onFriendRequestAccepted?: (friend: FriendEntry) => void;
+  public onFriendRequestDeclined?: (requestUserId: string) => void;
+  public onFriendRemoved?: (friendUserId: string) => void;
+  public onFriendsListResult?: (data: { friends: FriendEntry[]; incoming: FriendRequestEntry[]; outgoing: FriendRequestEntry[] }) => void;
+  public onFriendSearchResult?: (results: FriendRequestEntry[]) => void;
+
+  public onMailSent?: (mailId: string) => void;
+  public onMailInboxResult?: (data: { mail: MailEntry[]; unreadCount: number }) => void;
+  public onMailMarkedRead?: (mailId: string) => void;
 
   setSessionRefresher(fn: () => Promise<GameSession | null>) {
     this.refreshSession = fn;
@@ -465,6 +554,70 @@ export class NetworkManager {
         break;
       case "serverShutdown":
         break;
+      case "factionCreated":
+        this.onFactionCreated?.(data.faction);
+        break;
+      case "factionJoined":
+        this.onFactionJoined?.(data.faction);
+        break;
+      case "factionLeft":
+        this.onFactionLeft?.();
+        break;
+      case "factionSearchResult":
+        this.onFactionSearchResult?.(Array.isArray(data.results) ? data.results : []);
+        break;
+      case "factionListResult":
+        this.onFactionListResult?.({
+          results: Array.isArray(data.results) ? data.results : [],
+          page: data.page ?? 1,
+        });
+        break;
+      case "factionInfo":
+        this.onFactionInfo?.(data.faction ?? null);
+        break;
+      case "playerProfile":
+        this.onPlayerProfile?.(data.profile ?? null);
+        break;
+      case "leaderboardResult":
+        this.onLeaderboardResult?.(Array.isArray(data.leaderboard) ? data.leaderboard : []);
+        break;
+      case "factionLeaderboardResult":
+        this.onFactionLeaderboardResult?.(Array.isArray(data.leaderboard) ? data.leaderboard : []);
+        break;
+      case "friendRequestSent":
+        this.onFriendRequestSent?.(data.friend, data.status);
+        break;
+      case "friendRequestAccepted":
+        this.onFriendRequestAccepted?.(data.friend);
+        break;
+      case "friendRequestDeclined":
+        this.onFriendRequestDeclined?.(data.requestUserId);
+        break;
+      case "friendRemoved":
+        this.onFriendRemoved?.(data.friendUserId);
+        break;
+      case "friendsListResult":
+        this.onFriendsListResult?.({
+          friends: Array.isArray(data.friends) ? data.friends : [],
+          incoming: Array.isArray(data.incoming) ? data.incoming : [],
+          outgoing: Array.isArray(data.outgoing) ? data.outgoing : [],
+        });
+        break;
+      case "friendSearchResult":
+        this.onFriendSearchResult?.(Array.isArray(data.results) ? data.results : []);
+        break;
+      case "mailSent":
+        this.onMailSent?.(data.mailId);
+        break;
+      case "mailInboxResult":
+        this.onMailInboxResult?.({
+          mail: Array.isArray(data.mail) ? data.mail : [],
+          unreadCount: data.unreadCount ?? 0,
+        });
+        break;
+      case "mailMarkedRead":
+        this.onMailMarkedRead?.(data.mailId);
+        break;
     }
   }
 
@@ -588,6 +741,96 @@ export class NetworkManager {
       message: message.slice(0, 200),
       timestamp: Date.now(),
     });
+  }
+
+  sendFactionCreate(ca: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionCreate", ca });
+  }
+
+  sendFactionJoin(factionId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionJoin", factionId });
+  }
+
+  sendFactionLeave() {
+    if (!this.authenticated) return;
+    this.send({ type: "factionLeave" });
+  }
+
+  sendFactionSearch(ca?: string, name?: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionSearch", ca: ca || "", name: name || "" });
+  }
+
+  sendFactionList(page?: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionList", page: page || 1 });
+  }
+
+  sendFactionInfo(factionId?: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionInfo", factionId: factionId || null });
+  }
+
+  sendPlayerProfileRequest(wallet: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "playerProfileRequest", wallet });
+  }
+
+  sendLeaderboardRequest(limit?: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "leaderboardRequest", limit: limit || 20 });
+  }
+
+  sendFactionLeaderboardRequest(limit?: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionLeaderboardRequest", limit: limit || 50 });
+  }
+
+  sendFriendRequest(walletOrNickname: { wallet?: string; nickname?: string }) {
+    if (!this.authenticated) return;
+    this.send({ type: "friendRequestSend", wallet: walletOrNickname.wallet, nickname: walletOrNickname.nickname });
+  }
+
+  sendFriendRequestAccept(requestUserId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "friendRequestAccept", requestUserId });
+  }
+
+  sendFriendRequestDecline(requestUserId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "friendRequestDecline", requestUserId });
+  }
+
+  sendFriendRemove(friendUserId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "friendRemove", friendUserId });
+  }
+
+  sendFriendsListRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "friendsListRequest" });
+  }
+
+  sendFriendSearch(query: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "friendSearch", query });
+  }
+
+  sendMail(recipient: { wallet?: string; nickname?: string }, subject: string, body: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "mailSend", wallet: recipient.wallet, nickname: recipient.nickname, subject, body });
+  }
+
+  sendMailInboxRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "mailInboxRequest" });
+  }
+
+  sendMailMarkRead(mailId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "mailMarkRead", mailId });
   }
 
   sendLocationChange(locationId: string) {

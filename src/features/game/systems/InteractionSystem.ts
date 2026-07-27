@@ -33,6 +33,7 @@ export class InteractionSystem extends System {
     public onOpenVendor?: () => void;
     public onOpenSola?: () => void;
     public onOpenCanyonMap?: () => void;
+    public onOpenFactionBroker?: () => void;
     public onCanyonReturn?: () => void;
     public onOpenTokenUI?: (token: any) => void;
     public onEnterLocation?: (locationId: string) => void;
@@ -141,6 +142,11 @@ export class InteractionSystem extends System {
                 this.onPrompt?.("[E] Talk to Sola");
                 if (isEJustPressed === true) {
                     this.onOpenSola?.();
+                }
+            } else if (id === "faction-broker") {
+                this.onPrompt?.("[E] Manage Factions");
+                if (isEJustPressed === true) {
+                    this.onOpenFactionBroker?.();
                 }
             } else if (id === "canyon-dispatcher") {
                 this.onPrompt?.("[E] View Canyon Map");

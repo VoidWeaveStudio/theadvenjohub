@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { Location } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";
 import { CollisionGrid } from "../../CollisionGrid";
+import { isSharedNpcGeometry } from "../../../entities/npcModel";
 
 export abstract class TowerFloor extends Location {
     public collisionGrid: CollisionGrid;
@@ -74,7 +75,7 @@ export abstract class TowerFloor extends Location {
         this.scene.traverse((obj) => {
             const mesh = obj as THREE.Mesh;
             if (mesh.isMesh) {
-                mesh.geometry.dispose();
+                if (!isSharedNpcGeometry(mesh.geometry)) mesh.geometry.dispose();
                 if (Array.isArray(mesh.material)) {
                     mesh.material.forEach((m: THREE.Material) => m.dispose());
                 } else if (mesh.material) {

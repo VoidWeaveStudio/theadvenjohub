@@ -174,7 +174,7 @@ export class Player extends Entity {
         return Math.max(terrainHeight, platformHeight);
     }
 
-    update(delta: number) {
+    update(delta: number, isInteracting: boolean = false) {
         if (!this.inputManager || !this.camera) return;
 
         this.time += delta;
@@ -188,7 +188,6 @@ export class Player extends Entity {
 
         const isSprinting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
         this.isShooting = this.inputManager.isMousePressed(0);
-        const isInteracting = this.inputManager.isKeyJustPressed("KeyE");
         const shouldFaceLookDirection = this.isShooting || isInteracting;
         const currentSpeed = this.isShooting
             ? this.speed * this.SHOOTING_SPEED_MULTIPLIER

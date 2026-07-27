@@ -272,7 +272,6 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
         signal: abortController.signal,
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": `${walletAddress}:${signature}`,
           ...(newCsrfToken ? { "x-csrf-token": newCsrfToken } : {}),
         },
         body: JSON.stringify({ signature, gameId, lotId, price }),

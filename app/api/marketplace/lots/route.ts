@@ -11,8 +11,13 @@ const MAX_LIMIT = 100;
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get("page") || String(DEFAULT_PAGE));
-    const limit = Math.min(parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT)), MAX_LIMIT);
+
+    const rawPage = parseInt(searchParams.get("page") || String(DEFAULT_PAGE));
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : DEFAULT_PAGE;
+
+    const rawLimit = parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT));
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, MAX_LIMIT) : DEFAULT_LIMIT;
+
     const offset = (page - 1) * limit;
 
     const search = searchParams.get("search") || "";

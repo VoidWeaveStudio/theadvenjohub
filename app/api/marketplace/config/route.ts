@@ -10,6 +10,13 @@ export async function GET(req: Request) {
     prefix: "api:marketplace:config",
   });
 
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "too_many_attempts" },
+      { status: 429, headers: formatRateLimitHeaders(rl) }
+    );
+  }
+
   const config = {
     treasuryWallet: process.env.NEXT_PUBLIC_TREASURY_WALLET_ADDRESS?.trim(),
     tokenMint: process.env.NEXT_PUBLIC_TNJ_TOKEN_MINT_ADDRESS?.trim(),

@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Game } from "./core/Game";
 import { HUD } from "./ui/HUD";
-import { Menu } from "./ui/Menu";
+import { TopMenu, TopWindowId } from "./ui/TopMenu";
 import { Hotbar } from "./ui/Hotbar";
 import { Notifications } from "./ui/Notifications";
 import { Chat } from "./ui/Chat";
@@ -19,12 +19,23 @@ import { VendorPanel } from "./ui/VendorPanel";
 import { SolaPanel } from "./ui/SolaPanel";
 import { QuestTracker } from "./ui/QuestTracker";
 import { CanyonMapPanel } from "./ui/CanyonMapPanel";
+import { CreateFactionModal } from "./ui/CreateFactionModal";
+import { FactionsWindow } from "./ui/FactionsWindow";
+import { SocialWindow, SocialTab } from "./ui/SocialWindow";
+import { ShopWindow } from "./ui/ShopWindow";
+import { LeaderboardsWindow } from "./ui/LeaderboardsWindow";
+import { SettingsWindow } from "./ui/SettingsWindow";
+import { PlayerProfileCard } from "./ui/PlayerProfileCard";
 import { useHudState } from "./ui/hooks/useHudState";
 import { useQuestState, SOLA_QUEST_ID } from "./ui/hooks/useQuestState";
 import { useInventoryState } from "./ui/hooks/useInventoryState";
 import { useChatState } from "./ui/hooks/useChatState";
 import { useNotifications } from "./ui/hooks/useNotifications";
 import { useCanyonMapState } from "./ui/hooks/useCanyonMapState";
+import { useFactionState } from "./ui/hooks/useFactionState";
+import { useLeaderboardState } from "./ui/hooks/useLeaderboardState";
+import { useProfileState } from "./ui/hooks/useProfileState";
+import { useSocialState } from "./ui/hooks/useSocialState";
 
 interface GameClientProps {
   slug: string;
@@ -51,7 +62,6 @@ export function GameClient({ slug }: GameClientProps) {
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing game...");
   const [isPointerLocked, setIsPointerLocked] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
@@ -60,12 +70,20 @@ export function GameClient({ slug }: GameClientProps) {
   const [isVendorOpen, setIsVendorOpen] = useState(false);
   const [isSolaOpen, setIsSolaOpen] = useState(false);
 
+  const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
+  const [isCreateFactionModalOpen, setIsCreateFactionModalOpen] = useState(false);
+  const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>("friends");
+
   const hud = useHudState();
   const quest = useQuestState();
   const inventory = useInventoryState();
   const chat = useChatState();
   const notifications = useNotifications();
   const canyonMap = useCanyonMapState();
+  const factionState = useFactionState();
+  const profileState = useProfileState();
+  const leaderboardState = useLeaderboardState();
+  const socialState = useSocialState();
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
@@ -190,6 +208,30 @@ export function GameClient({ slug }: GameClientProps) {
           document.exitPointerLock();
         };
         game.onCanyonMap = (data) => { if (!cancelled) canyonMap.handleCanyonMap(data); };
+        game.onOpenFactionBrokerUI = () => {
+          if (cancelled) return;
+          setIsCreateFactionModalOpen(true);
+          document.exitPointerLock();
+        };
+        game.onFactionCreated = (f) => { if (!cancelled) factionState.handleFactionCreated(f); };
+        game.onFactionJoined = (f) => { if (!cancelled) factionState.handleFactionJoined(f); };
+        game.onFactionLeft = () => { if (!cancelled) factionState.handleFactionLeft(); };
+        game.onFactionSearchResult = (results) => { if (!cancelled) factionState.handleFactionSearchResult(results); };
+        game.onFactionListResult = (data) => { if (!cancelled) factionState.handleFactionListResult(data); };
+        game.onFactionInfo = (f) => { if (!cancelled) factionState.handleFactionInfo(f); };
+        game.onSelfProfile = (p) => { if (!cancelled) profileState.handleSelfProfile(p); };
+        game.onViewedProfile = (p) => { if (!cancelled) profileState.handleViewedProfile(p); };
+        game.onLeaderboardResult = (results) => { if (!cancelled) leaderboardState.handlePlayerLeaderboardResult(results); };
+        game.onFactionLeaderboardResult = (results) => { if (!cancelled) leaderboardState.handleFactionLeaderboardResult(results); };
+        game.onFriendRequestSent = (friend, status) => { if (!cancelled) socialState.handleFriendRequestSent(friend, status); };
+        game.onFriendRequestAccepted = (friend) => { if (!cancelled) socialState.handleFriendRequestAccepted(friend); };
+        game.onFriendRequestDeclined = (requestUserId) => { if (!cancelled) socialState.handleFriendRequestDeclined(requestUserId); };
+        game.onFriendRemoved = (friendUserId) => { if (!cancelled) socialState.handleFriendRemoved(friendUserId); };
+        game.onFriendsListResult = (data) => { if (!cancelled) socialState.handleFriendsListResult(data); };
+        game.onFriendSearchResult = (results) => { if (!cancelled) socialState.handleFriendSearchResult(results); };
+        game.onMailSent = (mailId) => { if (!cancelled) socialState.handleMailSent(mailId); };
+        game.onMailInboxResult = (data) => { if (!cancelled) socialState.handleMailInboxResult(data); };
+        game.onMailMarkedRead = (mailId) => { if (!cancelled) socialState.handleMailMarkedRead(mailId); };
         game.onDamageEvent = (event) => { if (!cancelled) hud.handleDamageEvent(event); };
         game.onDeathStateChange = (dead, killer) => { if (!cancelled) hud.handleDeathStateChange(dead, killer); };
         game.onDamageIndicatorUpdate = (attackerId, direction) => { if (!cancelled) hud.handleDamageIndicatorUpdate(attackerId, direction); };
@@ -259,21 +301,31 @@ export function GameClient({ slug }: GameClientProps) {
           canyonMap.setIsCanyonMapOpen(false);
           return;
         }
+        if (isCreateFactionModalOpen) {
+          setIsCreateFactionModalOpen(false);
+          return;
+        }
+        if (activeTopWindow !== null) {
+          setActiveTopWindow(null);
+          return;
+        }
         if (inventory.isInventoryOpen) {
           inventory.setIsInventoryOpen(false);
           return;
         }
-        setIsMenuOpen((prev) => !prev);
+        if (!document.pointerLockElement) {
+          canvasRef.current?.requestPointerLock().catch(() => { });
+        }
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || canyonMap.isCanyonMapOpen) return;
+      if (isVendorOpen || isSolaOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || activeTopWindow !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
       }
 
-      if (e.code === "KeyI" && !isMenuOpen && !showFloorSelector) {
+      if (e.code === "KeyI" && !showFloorSelector) {
         const activeTag = document.activeElement?.tagName;
         if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
         inventory.setIsInventoryOpen((prev) => {
@@ -284,7 +336,16 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isPointerLocked && !isMenuOpen && !showFloorSelector) {
+      if (e.code === "KeyL" && !showFloorSelector) {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+        setSocialInitialTab("account");
+        setActiveTopWindow("social");
+        document.exitPointerLock();
+        return;
+      }
+
+      if (isPointerLocked && !showFloorSelector) {
         const digitKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"];
         const index = digitKeys.indexOf(e.code);
         if (index !== -1) {
@@ -294,7 +355,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, isMenuOpen, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, activeTopWindow]);
 
   const handleNicknameChange = (nick: string) => {
     chat.setNickname(nick);
@@ -305,8 +366,17 @@ export function GameClient({ slug }: GameClientProps) {
     gameRef.current?.sendChatMessage(message);
   };
 
-  const handleCloseMenu = () => {
-    setIsMenuOpen(false);
+  const handleNicknameClick = (wallet: string) => {
+    gameRef.current?.requestPlayerProfile(wallet);
+  };
+
+  const handleTopMenuSelect = (id: TopWindowId) => {
+    if (id === "social") setSocialInitialTab("friends");
+    setActiveTopWindow((prev) => {
+      const next = prev === id ? null : id;
+      if (next !== null) document.exitPointerLock();
+      return next;
+    });
   };
 
   const handleSelectFloor = (floorId: string) => {
@@ -374,6 +444,7 @@ export function GameClient({ slug }: GameClientProps) {
         isPointerLocked={isPointerLocked}
         isHitMark={hud.isHitMark}
       />
+      <TopMenu active={activeTopWindow} onSelect={handleTopMenuSelect} />
       <Hotbar
         slots={hotbarSlots}
         onSlotClick={handleSlotClick}
@@ -402,14 +473,91 @@ export function GameClient({ slug }: GameClientProps) {
         messages={chat.chatMessages}
         onSendMessage={handleSendMessage}
         isVisible={chat.isChatVisible}
+        onNicknameClick={handleNicknameClick}
       />
 
-      <Menu
-        isOpen={isMenuOpen}
-        onClose={handleCloseMenu}
+      <CreateFactionModal
+        isOpen={isCreateFactionModalOpen}
+        onClose={() => setIsCreateFactionModalOpen(false)}
+        onCreateFaction={(ca) => gameRef.current?.createFaction(ca)}
+      />
+
+      <FactionsWindow
+        isOpen={activeTopWindow === "factions"}
+        onClose={() => setActiveTopWindow(null)}
+        myFaction={factionState.myFaction}
+        viewedFaction={factionState.viewedFaction}
+        searchResults={factionState.searchResults}
+        browseResults={factionState.browseResults}
+        factionLeaderboard={leaderboardState.factionLeaderboard}
+        onRequestOwnFaction={() => gameRef.current?.requestFactionInfo()}
+        onViewFaction={(factionId) => gameRef.current?.requestFactionInfo(factionId)}
+        onSearchFactions={(ca, name) => gameRef.current?.searchFactions(ca, name)}
+        onBrowseFactions={() => gameRef.current?.listFactions()}
+        onRequestFactionLeaderboard={() => gameRef.current?.requestFactionLeaderboard()}
+        onJoinFaction={(factionId) => gameRef.current?.joinFaction(factionId)}
+        onLeaveFaction={() => gameRef.current?.leaveFaction()}
+        onOpenCreateFaction={() => {
+          setActiveTopWindow(null);
+          setIsCreateFactionModalOpen(true);
+        }}
+      />
+
+      <SocialWindow
+        isOpen={activeTopWindow === "social"}
+        onClose={() => setActiveTopWindow(null)}
+        initialTab={socialInitialTab}
         nickname={chat.nickname}
+        wallet={gameRef.current?.session.wallet ?? ""}
+        selfProfile={profileState.selfProfile}
+        onRequestSelfProfile={() => {
+          const wallet = gameRef.current?.session.wallet;
+          if (wallet) gameRef.current?.requestPlayerProfile(wallet);
+        }}
         onNicknameChange={handleNicknameChange}
+        quest={quest.questInfo}
+        friends={socialState.friends}
+        incomingRequests={socialState.incomingRequests}
+        outgoingRequests={socialState.outgoingRequests}
+        friendSearchResults={socialState.friendSearchResults}
+        onRequestFriendsList={() => gameRef.current?.requestFriendsList()}
+        onSearchFriends={(query) => gameRef.current?.searchFriends(query)}
+        onSendFriendRequest={(target) => gameRef.current?.sendFriendRequest(target)}
+        onAcceptFriendRequest={(requestUserId) => gameRef.current?.acceptFriendRequest(requestUserId)}
+        onDeclineFriendRequest={(requestUserId) => gameRef.current?.declineFriendRequest(requestUserId)}
+        onRemoveFriend={(friendUserId) => gameRef.current?.removeFriend(friendUserId)}
+        onViewProfile={handleNicknameClick}
+        mail={socialState.mail}
+        unreadMailCount={socialState.unreadMailCount}
+        onRequestMailInbox={() => gameRef.current?.requestMailInbox()}
+        onSendMail={(recipient, subject, body) => gameRef.current?.sendMail(recipient, subject, body)}
+        onMarkMailRead={(mailId) => gameRef.current?.markMailRead(mailId)}
+      />
+
+      <ShopWindow isOpen={activeTopWindow === "shop"} onClose={() => setActiveTopWindow(null)} />
+
+      <LeaderboardsWindow
+        isOpen={activeTopWindow === "leaderboards"}
+        onClose={() => setActiveTopWindow(null)}
+        wallet={gameRef.current?.session.wallet ?? ""}
+        playerLeaderboard={leaderboardState.playerLeaderboard}
+        factionLeaderboard={leaderboardState.factionLeaderboard}
+        viewedFaction={factionState.viewedFaction}
+        onRequestPlayerLeaderboard={() => gameRef.current?.requestLeaderboard()}
+        onRequestFactionLeaderboard={() => gameRef.current?.requestFactionLeaderboard()}
+        onViewFaction={(factionId) => gameRef.current?.requestFactionInfo(factionId)}
+      />
+
+      <SettingsWindow
+        isOpen={activeTopWindow === "settings"}
+        onClose={() => setActiveTopWindow(null)}
         onTeleportToSafeZone={() => gameRef.current?.teleportToSafeZone()}
+      />
+
+      <PlayerProfileCard
+        isOpen={profileState.isProfileCardOpen}
+        profile={profileState.viewedProfile}
+        onClose={profileState.closeProfileCard}
       />
 
       <FloorSelector

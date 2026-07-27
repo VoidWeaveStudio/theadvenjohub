@@ -42,6 +42,7 @@ interface ShootData {
 interface ChatData {
     id: string;
     sender: string;
+    senderWallet?: string;
     message: string;
     timestamp: number;
 }
@@ -234,7 +235,7 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onChatMessage = (data: ChatData) => {
         game.onChatMessage?.({
-            id: data.id, sender: data.sender,
+            id: data.id, sender: data.sender, senderWallet: data.senderWallet,
             message: data.message, timestamp: data.timestamp, type: "player",
         });
     };
@@ -249,7 +250,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onPlayerDamaged = (data: DamageData) => {
-        if (data.attackerId?.startsWith('enemy-')) {
+        if (data.attackerId?.startsWith('canyon-')) {
             game.enemySystem.handleEnemyAttack(data.attackerId);
         }
 
@@ -284,7 +285,7 @@ export function registerNetworkHandlers(game: Game) {
         if (data.playerId === game.localPlayerNetId) {
             game.isDead = true;
             const killer = game.otherPlayers.get(data.killerId);
-            game.killerName = killer?.nickname || (data.killerId.startsWith('enemy-') ? 'Enemy' : 'Unknown');
+            game.killerName = killer?.nickname || (data.killerId.startsWith('canyon-') ? 'Enemy' : 'Unknown');
             game.onDeathStateChange?.(true, game.killerName);
         } else {
             const op = game.otherPlayers.get(data.playerId);
@@ -434,5 +435,84 @@ export function registerNetworkHandlers(game: Game) {
                 weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
             });
         }
+    };
+
+    game.networkManager.onFactionCreated = (faction) => {
+        game.onFactionCreated?.(faction);
+        game.onNotification?.(`🚩 Faction "${faction.name}" founded!`, 3000);
+    };
+
+    game.networkManager.onFactionJoined = (faction) => {
+        game.onFactionJoined?.(faction);
+        game.onNotification?.(`🚩 Joined faction "${faction.name}"`, 2500);
+    };
+
+    game.networkManager.onFactionLeft = () => {
+        game.onFactionLeft?.();
+        game.onNotification?.("🚩 Left faction", 2000);
+    };
+
+    game.networkManager.onFactionSearchResult = (results) => {
+        game.onFactionSearchResult?.(results);
+    };
+
+    game.networkManager.onFactionListResult = (data) => {
+        game.onFactionListResult?.(data);
+    };
+
+    game.networkManager.onFactionInfo = (faction) => {
+        game.onFactionInfo?.(faction);
+    };
+
+    game.networkManager.onPlayerProfile = (profile) => {
+        if (profile && profile.wallet === game.session.wallet) {
+            game.onSelfProfile?.(profile);
+        } else {
+            game.onViewedProfile?.(profile);
+        }
+    };
+
+    game.networkManager.onLeaderboardResult = (leaderboard) => {
+        game.onLeaderboardResult?.(leaderboard);
+    };
+
+    game.networkManager.onFactionLeaderboardResult = (leaderboard) => {
+        game.onFactionLeaderboardResult?.(leaderboard);
+    };
+
+    game.networkManager.onFriendRequestSent = (friend, status) => {
+        game.onFriendRequestSent?.(friend, status);
+    };
+
+    game.networkManager.onFriendRequestAccepted = (friend) => {
+        game.onFriendRequestAccepted?.(friend);
+    };
+
+    game.networkManager.onFriendRequestDeclined = (requestUserId) => {
+        game.onFriendRequestDeclined?.(requestUserId);
+    };
+
+    game.networkManager.onFriendRemoved = (friendUserId) => {
+        game.onFriendRemoved?.(friendUserId);
+    };
+
+    game.networkManager.onFriendsListResult = (data) => {
+        game.onFriendsListResult?.(data);
+    };
+
+    game.networkManager.onFriendSearchResult = (results) => {
+        game.onFriendSearchResult?.(results);
+    };
+
+    game.networkManager.onMailSent = (mailId) => {
+        game.onMailSent?.(mailId);
+    };
+
+    game.networkManager.onMailInboxResult = (data) => {
+        game.onMailInboxResult?.(data);
+    };
+
+    game.networkManager.onMailMarkedRead = (mailId) => {
+        game.onMailMarkedRead?.(mailId);
     };
 }

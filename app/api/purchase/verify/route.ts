@@ -68,6 +68,19 @@ export async function POST(req: NextRequest) {
     }
     const { user } = authResult;
 
+    const userRl = await checkRateLimit(`purchase:verify:${user.userId}`, {
+      maxAttempts: 5,
+      windowMs: 60_000,
+      prefix: "api:purchase:verify:user",
+    });
+
+    if (!userRl.allowed) {
+      return NextResponse.json(
+        { error: "too_many_attempts", retryAfter: Math.ceil((userRl.resetAt - Date.now()) / 1000) },
+        { status: 429, headers: formatRateLimitHeaders(userRl) }
+      );
+    }
+
     if (!verifyCSRF(req)) {
       if (process.env.NODE_ENV === "development") {
         console.warn("[purchase/verify] CSRF failed:", {
@@ -272,17 +285,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, type: "game", id: raceCheck.id, alreadyProcessed: true });
       }
 
-      const [license] = await db.insert(gameLicenses).values({
-        userId: user.userId,
-        gameId,
-        wallet: user.wallet,
-        txSignature: signature,
-        price: serverPrice,
-        purchasedAt: new Date(),
-        isActive: true,
-      }).returning();
+      try {
+        const [license] = await db.insert(gameLicenses).values({
+          userId: user.userId,
+          gameId,
+          wallet: user.wallet,
+          txSignature: signature,
+          price: serverPrice,
+          purchasedAt: new Date(),
+          isActive: true,
+        }).returning();
 
-      result = { id: license.id, type: "game" };
+        result = { id: license.id, type: "game" };
+      } catch (insertError: any) {
+        if (insertError?.code !== "23505") throw insertError;
+
+        const concurrent = await db.query.gameLicenses.findFirst({
+          where: eq(gameLicenses.txSignature, signature),
+        });
+        if (!concurrent) throw insertError;
+
+        return NextResponse.json({ success: true, type: "game", id: concurrent.id, alreadyProcessed: true });
+      }
 
     } else if (lotId) {
       const raceCheck = await db.query.marketplacePurchases.findFirst({
@@ -301,6 +325,22 @@ export async function POST(req: NextRequest) {
         console.error("[purchase/verify] Paid transaction could not claim lot (already sold):", {
           lotId, signature, userId: user.userId,
         });
+
+        try {
+          await db.insert(marketplacePurchases).values({
+            userId: user.userId,
+            wallet: user.wallet,
+            lotId,
+            txSignature: signature,
+            amount: serverPrice,
+            status: "refund_pending",
+          });
+        } catch (recordError: any) {
+          if (recordError?.code !== "23505") {
+            console.error("[purchase/verify] Failed to record refund_pending purchase:", recordError?.message);
+          }
+        }
+
         return NextResponse.json(
           {
             error: "lot_already_sold",
@@ -310,16 +350,27 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const [purchase] = await db.insert(marketplacePurchases).values({
-        userId: user.userId,
-        wallet: user.wallet,
-        lotId,
-        txSignature: signature,
-        amount: serverPrice,
-        status: "confirmed",
-      }).returning();
+      try {
+        const [purchase] = await db.insert(marketplacePurchases).values({
+          userId: user.userId,
+          wallet: user.wallet,
+          lotId,
+          txSignature: signature,
+          amount: serverPrice,
+          status: "confirmed",
+        }).returning();
 
-      result = { id: purchase.id, type: "item" };
+        result = { id: purchase.id, type: "item" };
+      } catch (insertError: any) {
+        if (insertError?.code !== "23505") throw insertError;
+
+        const concurrent = await db.query.marketplacePurchases.findFirst({
+          where: eq(marketplacePurchases.txSignature, signature),
+        });
+        if (!concurrent) throw insertError;
+
+        return NextResponse.json({ success: true, type: "item", id: concurrent.id, alreadyProcessed: true });
+      }
     } else {
       throw new Error("Invalid purchase type");
     }

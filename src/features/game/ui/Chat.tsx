@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 interface ChatMessage {
     id: string;
     sender: string;
+    senderWallet?: string;
     message: string;
     timestamp: number;
     type: "player" | "system";
@@ -15,9 +16,10 @@ interface ChatProps {
     messages: ChatMessage[];
     onSendMessage: (message: string) => void;
     isVisible: boolean;
+    onNicknameClick?: (wallet: string) => void;
 }
 
-export function Chat({ messages, onSendMessage, isVisible }: ChatProps) {
+export function Chat({ messages, onSendMessage, isVisible, onNicknameClick }: ChatProps) {
     const [input, setInput] = useState("");
     const [isInputFocused, setIsInputFocused] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
@@ -93,7 +95,17 @@ export function Chat({ messages, onSendMessage, isVisible }: ChatProps) {
                                         </div>
                                     ) : (
                                         <div>
-                                            <span className="text-cyan-300 font-semibold">{msg.sender}:</span>
+                                            {msg.senderWallet && onNicknameClick ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onNicknameClick(msg.senderWallet!)}
+                                                    className="text-cyan-300 font-semibold hover:underline"
+                                                >
+                                                    {msg.sender}:
+                                                </button>
+                                            ) : (
+                                                <span className="text-cyan-300 font-semibold">{msg.sender}:</span>
+                                            )}
                                             <span className="text-white ml-2">{msg.message}</span>
                                         </div>
                                     )}

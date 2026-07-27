@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, PlayerNetData, InventoryEntry, QuestInfoData, QuestUpdateData, CanyonSegmentData, CanyonClearedData, CanyonMapData, CanyonHubData } from "../network/NetworkManager";
+import { NetworkManager, PlayerNetData, InventoryEntry, QuestInfoData, QuestUpdateData, CanyonSegmentData, CanyonClearedData, CanyonMapData, CanyonHubData, FactionSummary, FactionDetail, PlayerProfileData, LeaderboardEntry, FriendEntry, FriendRequestEntry, MailEntry } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -86,6 +86,7 @@ export class Game {
     private animationFrameId: number | null = null;
     private frameCount: number = 0;
     private disposed: boolean = false;
+    private isChangingLocation: boolean = false;
 
     private showFloorSelector: boolean = false;
     public localPlayerNetId: string | null = null;
@@ -173,6 +174,28 @@ export class Game {
     public onQuestUpdate?: (data: QuestUpdateData) => void;
     public onCanyonSegment?: (data: CanyonSegmentData) => void;
     public onCanyonMap?: (data: CanyonMapData) => void;
+
+    public onOpenFactionBrokerUI?: () => void;
+    public onFactionCreated?: (faction: FactionSummary) => void;
+    public onFactionJoined?: (faction: FactionSummary) => void;
+    public onFactionLeft?: () => void;
+    public onFactionSearchResult?: (results: FactionSummary[]) => void;
+    public onFactionListResult?: (data: { results: FactionSummary[]; page: number }) => void;
+    public onFactionInfo?: (faction: FactionDetail | null) => void;
+    public onSelfProfile?: (profile: PlayerProfileData | null) => void;
+    public onViewedProfile?: (profile: PlayerProfileData | null) => void;
+    public onLeaderboardResult?: (leaderboard: LeaderboardEntry[]) => void;
+    public onFactionLeaderboardResult?: (leaderboard: FactionSummary[]) => void;
+
+    public onFriendRequestSent?: (friend: FriendRequestEntry, status: string) => void;
+    public onFriendRequestAccepted?: (friend: FriendEntry) => void;
+    public onFriendRequestDeclined?: (requestUserId: string) => void;
+    public onFriendRemoved?: (friendUserId: string) => void;
+    public onFriendsListResult?: (data: { friends: FriendEntry[]; incoming: FriendRequestEntry[]; outgoing: FriendRequestEntry[] }) => void;
+    public onFriendSearchResult?: (results: FriendRequestEntry[]) => void;
+    public onMailSent?: (mailId: string) => void;
+    public onMailInboxResult?: (data: { mail: MailEntry[]; unreadCount: number }) => void;
+    public onMailMarkedRead?: (mailId: string) => void;
 
     public openFloorSelector() {
         this.showFloorSelector = true;
@@ -385,6 +408,10 @@ export class Game {
                     this.onOpenCanyonMapUI?.();
                 };
 
+                this.interactionSystem.onOpenFactionBroker = () => {
+                    this.onOpenFactionBrokerUI?.();
+                };
+
                 this.interactionSystem.onCanyonReturn = () => {
                     this.networkManager.sendCanyonReturnToHub();
                 };
@@ -425,84 +452,91 @@ export class Game {
         targetLocationId: string,
         options?: { position?: number[]; rotation?: number; silent?: boolean }
     ) {
-        this.onLoadStateChange?.(true, "Traveling to new location...");
+        if (this.isChangingLocation) return;
+        this.isChangingLocation = true;
 
-        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        if (this.disposed) return;
+        try {
+            this.onLoadStateChange?.(true, "Traveling to new location...");
 
-        const previousLocation = this.locationManager.getCurrentLocation();
-
-        this.enemySystem.clear();
-        this.lootSystem.clear();
-
-        const newLocation = await this.locationManager.loadLocation(targetLocationId);
-        if (this.disposed) return;
-        if (!newLocation || !previousLocation || newLocation === previousLocation) {
-            this.onLoadStateChange?.(false);
-            return;
-        }
-
-        this.networkManager.sendLocationChange(newLocation.id);
-        this.shootingSystem.clearAllEffects();
-
-        previousLocation.scene.remove(this.player.mesh);
-        newLocation.scene.add(this.player.mesh);
-
-        previousLocation.scene.remove(this.cameraController.yawObject);
-        newLocation.scene.add(this.cameraController.yawObject);
-
-        this.otherPlayers.forEach((op) => {
-            if (!op.isHidden()) {
-                previousLocation.scene.remove(op.mesh);
-                previousLocation.scene.remove(op.getHitbox());
-                newLocation.scene.add(op.mesh);
-                newLocation.scene.add(op.getHitbox());
-            }
-        });
-
-        this.locationManager.evictLocation(previousLocation.id);
-
-        this.shootingSystem.setScene(newLocation.scene);
-        this.interactionSystem.setScene(newLocation.scene);
-        this.interactionSystem.clearInteractables();
-        this.enemySystem.setScene(newLocation.scene);
-        this.lootSystem.setScene(newLocation.scene);
-
-        this.shootingSystem.prewarm();
-        await this.lootSystem.prewarm();
-        if (this.disposed) return;
-        this.renderer.compile(newLocation.scene, this.cameraController.camera);
-        this.shootingSystem.endPrewarm();
-        this.lootSystem.endPrewarm();
-
-        const newLocationInteractables = newLocation.getInteractables();
-        newLocationInteractables.forEach(obj => {
-            this.interactionSystem.registerInteractable(obj);
-        });
-
-        applyLocationMovementConfig(this, newLocation);
-        configureLocationSpecifics(this, newLocation);
-
-        const spawnPoint = options?.position
-            ? new THREE.Vector3(options.position[0], options.position[1], options.position[2])
-            : newLocation.getSpawnPoint();
-        this.player.teleportTo(spawnPoint);
-        this.cameraController.yawObject.position.copy(spawnPoint);
-        if (options?.rotation !== undefined) {
-            this.player.mesh.rotation.y = options.rotation;
-        }
-
-        if (!options?.silent) {
-            this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
-        }
-        this.onLocationChange?.(newLocation.id);
-
-        if (newLocation instanceof MainWorld) {
-            await syncMainWorldEntry(this, newLocation);
+            await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
             if (this.disposed) return;
-        }
 
-        this.onLoadStateChange?.(false);
+            const previousLocation = this.locationManager.getCurrentLocation();
+
+            this.enemySystem.clear();
+            this.lootSystem.clear();
+
+            const newLocation = await this.locationManager.loadLocation(targetLocationId);
+            if (this.disposed) return;
+            if (!newLocation || !previousLocation || newLocation === previousLocation) {
+                this.onLoadStateChange?.(false);
+                return;
+            }
+
+            this.networkManager.sendLocationChange(newLocation.id);
+            this.shootingSystem.clearAllEffects();
+
+            previousLocation.scene.remove(this.player.mesh);
+            newLocation.scene.add(this.player.mesh);
+
+            previousLocation.scene.remove(this.cameraController.yawObject);
+            newLocation.scene.add(this.cameraController.yawObject);
+
+            this.otherPlayers.forEach((op) => {
+                if (!op.isHidden()) {
+                    previousLocation.scene.remove(op.mesh);
+                    previousLocation.scene.remove(op.getHitbox());
+                    newLocation.scene.add(op.mesh);
+                    newLocation.scene.add(op.getHitbox());
+                }
+            });
+
+            this.locationManager.evictLocation(previousLocation.id);
+
+            this.shootingSystem.setScene(newLocation.scene);
+            this.interactionSystem.setScene(newLocation.scene);
+            this.interactionSystem.clearInteractables();
+            this.enemySystem.setScene(newLocation.scene);
+            this.lootSystem.setScene(newLocation.scene);
+
+            this.shootingSystem.prewarm();
+            await this.lootSystem.prewarm();
+            if (this.disposed) return;
+            this.renderer.compile(newLocation.scene, this.cameraController.camera);
+            this.shootingSystem.endPrewarm();
+            this.lootSystem.endPrewarm();
+
+            const newLocationInteractables = newLocation.getInteractables();
+            newLocationInteractables.forEach(obj => {
+                this.interactionSystem.registerInteractable(obj);
+            });
+
+            applyLocationMovementConfig(this, newLocation);
+            configureLocationSpecifics(this, newLocation);
+
+            const spawnPoint = options?.position
+                ? new THREE.Vector3(options.position[0], options.position[1], options.position[2])
+                : newLocation.getSpawnPoint();
+            this.player.teleportTo(spawnPoint);
+            this.cameraController.yawObject.position.copy(spawnPoint);
+            if (options?.rotation !== undefined) {
+                this.player.mesh.rotation.y = options.rotation;
+            }
+
+            if (!options?.silent) {
+                this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
+            }
+            this.onLocationChange?.(newLocation.id);
+
+            if (newLocation instanceof MainWorld) {
+                await syncMainWorldEntry(this, newLocation);
+                if (this.disposed) return;
+            }
+
+            this.onLoadStateChange?.(false);
+        } finally {
+            this.isChangingLocation = false;
+        }
     }
 
     public async restoreToSavedProgress(progress?: { locationId?: string; position: number[]; rotation?: number }) {
@@ -594,7 +628,7 @@ export class Game {
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
             this.updateDamageIndicator();
-            this.player.update(delta);
+            this.player.update(delta, isEJustPressed);
             this.cameraController.update(delta, this.inputManager);
 
             const inSafe = (currentLocation instanceof MainHall) && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
@@ -705,6 +739,78 @@ export class Game {
 
     enterCanyonDungeon() {
         this.networkManager.sendCanyonEnterDungeon();
+    }
+
+    createFaction(ca: string) {
+        this.networkManager.sendFactionCreate(ca);
+    }
+
+    joinFaction(factionId: string) {
+        this.networkManager.sendFactionJoin(factionId);
+    }
+
+    leaveFaction() {
+        this.networkManager.sendFactionLeave();
+    }
+
+    searchFactions(ca?: string, name?: string) {
+        this.networkManager.sendFactionSearch(ca, name);
+    }
+
+    listFactions(page?: number) {
+        this.networkManager.sendFactionList(page);
+    }
+
+    requestFactionInfo(factionId?: string) {
+        this.networkManager.sendFactionInfo(factionId);
+    }
+
+    requestPlayerProfile(wallet: string) {
+        this.networkManager.sendPlayerProfileRequest(wallet);
+    }
+
+    requestLeaderboard(limit?: number) {
+        this.networkManager.sendLeaderboardRequest(limit);
+    }
+
+    requestFactionLeaderboard(limit?: number) {
+        this.networkManager.sendFactionLeaderboardRequest(limit);
+    }
+
+    sendFriendRequest(target: { wallet?: string; nickname?: string }) {
+        this.networkManager.sendFriendRequest(target);
+    }
+
+    acceptFriendRequest(requestUserId: string) {
+        this.networkManager.sendFriendRequestAccept(requestUserId);
+    }
+
+    declineFriendRequest(requestUserId: string) {
+        this.networkManager.sendFriendRequestDecline(requestUserId);
+    }
+
+    removeFriend(friendUserId: string) {
+        this.networkManager.sendFriendRemove(friendUserId);
+    }
+
+    requestFriendsList() {
+        this.networkManager.sendFriendsListRequest();
+    }
+
+    searchFriends(query: string) {
+        this.networkManager.sendFriendSearch(query);
+    }
+
+    sendMail(recipient: { wallet?: string; nickname?: string }, subject: string, body: string) {
+        this.networkManager.sendMail(recipient, subject, body);
+    }
+
+    requestMailInbox() {
+        this.networkManager.sendMailInboxRequest();
+    }
+
+    markMailRead(mailId: string) {
+        this.networkManager.sendMailMarkRead(mailId);
     }
 
     getInventory(): InventoryEntry[] {

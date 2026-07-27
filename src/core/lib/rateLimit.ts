@@ -14,6 +14,15 @@ export function getClientIp(req: Request): string {
   return 'unknown';
 }
 
+const INCR_WITH_TTL_SCRIPT = `
+local current = redis.call("INCR", KEYS[1])
+if current == 1 then
+  redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+local pttl = redis.call("PTTL", KEYS[1])
+return {current, pttl}
+`;
+
 let redis: Redis | null = null;
 
 function getRedis(): Redis | null {
@@ -66,12 +75,13 @@ export async function checkRateLimit(
 
   if (r) {
     try {
-      const pipeline = r.pipeline();
-      pipeline.incr(key);
-      pipeline.expire(key, Math.ceil(windowMs / 1000));
-      const [current, ttl] = await pipeline.exec() as [number, number];
+      const [current, pttl] = await r.eval(
+        INCR_WITH_TTL_SCRIPT,
+        [key],
+        [windowMs]
+      ) as [number, number];
 
-      const resetAt = now + (ttl * 1000);
+      const resetAt = now + (pttl > 0 ? pttl : windowMs);
       const remaining = Math.max(0, maxAttempts - current);
 
       return {

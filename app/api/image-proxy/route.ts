@@ -1,6 +1,8 @@
 // app/api/image-proxy/route.ts
 import { NextResponse } from "next/server";
-import { lookup } from "node:dns/promises";
+import http, { type IncomingMessage } from "node:http";
+import https from "node:https";
+import dns, { type LookupAllOptions, type LookupOneOptions } from "node:dns";
 import { isIP } from "node:net";
 
 function isPrivateIp(ip: string): boolean {
@@ -28,11 +30,51 @@ function isPrivateIp(ip: string): boolean {
     return true;
 }
 
-async function assertPublicHost(hostname: string) {
-    const addresses = await lookup(hostname, { all: true });
-    if (addresses.length === 0 || addresses.some((addr) => isPrivateIp(addr.address))) {
-        throw new Error("host_not_allowed");
-    }
+type LookupCallback = (err: NodeJS.ErrnoException | null, address: string, family: number) => void;
+
+function pinnedPublicLookup(
+    hostname: string,
+    options: LookupOneOptions | LookupAllOptions,
+    callback: LookupCallback
+) {
+    dns.lookup(hostname, { all: true }, (err, addresses) => {
+        if (err) {
+            callback(err, "", 0);
+            return;
+        }
+        if (addresses.length === 0 || addresses.some((addr) => isPrivateIp(addr.address))) {
+            callback(new Error("host_not_allowed"), "", 0);
+            return;
+        }
+        const chosen = addresses[0];
+        callback(null, chosen.address, chosen.family);
+    });
+}
+
+function fetchViaPinnedLookup(url: URL): Promise<IncomingMessage> {
+    const lib = url.protocol === "https:" ? https : http;
+    return new Promise((resolve, reject) => {
+        const req = lib.get(
+            url,
+            {
+                lookup: pinnedPublicLookup as unknown as typeof dns.lookup,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                },
+            },
+            (res) => resolve(res)
+        );
+        req.on("error", reject);
+    });
+}
+
+function readBody(res: IncomingMessage): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => resolve(Buffer.concat(chunks)));
+        res.on("error", reject);
+    });
 }
 
 export async function GET(request: Request) {
@@ -55,34 +97,26 @@ export async function GET(request: Request) {
     }
 
     try {
-        await assertPublicHost(parsedUrl.hostname);
-    } catch {
-        return new NextResponse("Host not allowed", { status: 400 });
-    }
+        const response = await fetchViaPinnedLookup(parsedUrl);
+        const statusCode = response.statusCode || 0;
 
-    try {
-        const response = await fetch(parsedUrl.toString(), {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            },
-            redirect: "manual",
-        });
-
-        if (response.status >= 300 && response.status < 400) {
+        if (statusCode >= 300 && statusCode < 400) {
+            response.resume();
             return new NextResponse("Redirects are not allowed", { status: 400 });
         }
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch image: ${response.status}`);
+        if (statusCode < 200 || statusCode >= 300) {
+            response.resume();
+            return new NextResponse("Failed to fetch image", { status: 502 });
         }
 
-        const blob = await response.blob();
+        const body = await readBody(response);
         const headers = new Headers();
-        headers.set("Content-Type", blob.type || "image/png");
+        headers.set("Content-Type", response.headers["content-type"] || "image/png");
         headers.set("Cache-Control", "public, max-age=31536000, immutable");
         headers.set("Access-Control-Allow-Origin", "*");
 
-        return new NextResponse(blob, { headers });
+        return new NextResponse(new Uint8Array(body), { headers });
     } catch (error) {
         return new NextResponse("Failed to proxy image", { status: 500 });
     }

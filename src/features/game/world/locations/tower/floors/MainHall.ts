@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";
 import { createMarbleFloorMaterial, createWallStoneMaterial, createPillarMarbleMaterial } from "./mainHallTextures";
+import { createNpcModel, NpcHandle } from "../../../../entities/npcModel";
 
 interface CrystalData {
     mesh: THREE.Mesh;
@@ -16,10 +17,13 @@ export class MainHall extends TowerFloor {
     public readonly hallRadius = 92;
 
     private crystals: CrystalData[] = [];
-    private vendorNpc!: THREE.Group;
+    private resourceManager!: ResourceManager;
+    private vendorNpc!: NpcHandle;
     private vendorTime: number = 0;
-    private solaNpc!: THREE.Group;
+    private solaNpc!: NpcHandle;
     private solaTime: number = 0;
+    private factionBrokerNpc!: NpcHandle;
+    private factionBrokerTime: number = 0;
 
     private floorMaterial!: THREE.MeshStandardMaterial;
     private wallMaterialRef!: THREE.MeshStandardMaterial;
@@ -32,6 +36,7 @@ export class MainHall extends TowerFloor {
     }
 
     create(rm: ResourceManager) {
+        this.resourceManager = rm;
         const bgColor = 0x2a3038;
         this.scene.background = new THREE.Color(bgColor);
         this.scene.fog = new THREE.FogExp2(bgColor, 0.0015);
@@ -63,6 +68,7 @@ export class MainHall extends TowerFloor {
         this.createCentralCrystal();
         this.createVendorNPC();
         this.createSolaNPC();
+        this.createFactionBrokerNPC();
         this.createDustMotes();
         this.createMedallionGlow();
     }
@@ -173,33 +179,18 @@ export class MainHall extends TowerFloor {
 
         this.scene.add(stallGroup);
 
-        const npcGroup = new THREE.Group();
-        npcGroup.position.set(0, 0, STALL_Z - 0.6);
+        this.vendorNpc = createNpcModel(this.resourceManager, 0x7a2f3a, (headPos) => {
+            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.4, 12), woodMat);
+            hat.position.set(headPos.x, headPos.y + 0.38, headPos.z);
 
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.35, 1.0, 4, 8), clothMat);
-        body.position.y = 1.15;
-        body.castShadow = true;
-        npcGroup.add(body);
+            const glow = new THREE.PointLight(0xffcc66, 1.5, 6);
+            glow.position.set(headPos.x, headPos.y - 0.2, headPos.z + 0.3);
 
-        const head = new THREE.Mesh(
-            new THREE.SphereGeometry(0.28, 16, 16),
-            new THREE.MeshStandardMaterial({ color: 0xd8ac8a, roughness: 0.8 })
-        );
-        head.position.y = 1.95;
-        head.castShadow = true;
-        npcGroup.add(head);
-
-        const hat = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.4, 12), woodMat);
-        hat.position.y = 2.25;
-        npcGroup.add(hat);
-
-        const glow = new THREE.PointLight(0xffcc66, 1.5, 6);
-        glow.position.set(0, 2, 0.5);
-        npcGroup.add(glow);
-
-        npcGroup.userData.interactionId = "token-vendor";
-        this.scene.add(npcGroup);
-        this.vendorNpc = npcGroup;
+            return [hat, glow];
+        });
+        this.vendorNpc.group.position.set(0, 0, STALL_Z - 0.6);
+        this.vendorNpc.group.userData.interactionId = "token-vendor";
+        this.scene.add(this.vendorNpc.group);
 
         this.collisionGrid.insert(new THREE.Box3(
             new THREE.Vector3(-2.2, 0, STALL_Z - 1.8),
@@ -211,46 +202,60 @@ export class MainHall extends TowerFloor {
         const x = 40;
         const z = 28;
 
-        const group = new THREE.Group();
-        group.position.set(x, 0, z);
+        this.solaNpc = createNpcModel(this.resourceManager, 0x2f6b4a, (headPos) => {
+            const hood = new THREE.Mesh(
+                new THREE.ConeGeometry(0.34, 0.5, 12),
+                new THREE.MeshStandardMaterial({ color: 0x214a35, roughness: 0.8 })
+            );
+            hood.position.set(headPos.x, headPos.y + 0.3, headPos.z);
 
-        const robe = new THREE.Mesh(
-            new THREE.CapsuleGeometry(0.38, 1.05, 4, 8),
-            new THREE.MeshStandardMaterial({ color: 0x2f6b4a, roughness: 0.75, metalness: 0.05 })
-        );
-        robe.position.y = 1.2;
-        robe.castShadow = true;
-        group.add(robe);
+            const marker = new THREE.Mesh(
+                new THREE.OctahedronGeometry(0.18, 0),
+                new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0xffcc33, emissiveIntensity: 5 })
+            );
+            marker.position.set(headPos.x, headPos.y + 0.9, headPos.z);
 
-        const head = new THREE.Mesh(
-            new THREE.SphereGeometry(0.26, 16, 16),
-            new THREE.MeshStandardMaterial({ color: 0xe0b8a0, roughness: 0.8 })
-        );
-        head.position.y = 2.0;
-        head.castShadow = true;
-        group.add(head);
+            const glow = new THREE.PointLight(0x66ffb3, 1.4, 6);
+            glow.position.set(headPos.x, headPos.y - 0.2, headPos.z + 0.3);
 
-        const hood = new THREE.Mesh(
-            new THREE.ConeGeometry(0.34, 0.5, 12),
-            new THREE.MeshStandardMaterial({ color: 0x214a35, roughness: 0.8 })
-        );
-        hood.position.y = 2.3;
-        group.add(hood);
+            return [hood, marker, glow];
+        });
+        this.solaNpc.group.position.set(x, 0, z);
+        this.solaNpc.group.userData.interactionId = "quest-giver-sola";
+        this.scene.add(this.solaNpc.group);
 
-        const marker = new THREE.Mesh(
-            new THREE.OctahedronGeometry(0.18, 0),
-            new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: 0xffcc33, emissiveIntensity: 5 })
-        );
-        marker.position.y = 2.9;
-        group.add(marker);
+        this.collisionGrid.insert(new THREE.Box3(
+            new THREE.Vector3(x - 0.5, 0, z - 0.5),
+            new THREE.Vector3(x + 0.5, 2.5, z + 0.5)
+        ));
+    }
 
-        const glow = new THREE.PointLight(0x66ffb3, 1.4, 6);
-        glow.position.set(0, 2, 0.5);
-        group.add(glow);
+    private createFactionBrokerNPC() {
+        const x = -40;
+        const z = 28;
 
-        group.userData.interactionId = "quest-giver-sola";
-        this.scene.add(group);
-        this.solaNpc = group;
+        this.factionBrokerNpc = createNpcModel(this.resourceManager, 0x8b2fc9, (headPos) => {
+            const circlet = new THREE.Mesh(
+                new THREE.TorusGeometry(0.22, 0.03, 8, 16),
+                new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.8 })
+            );
+            circlet.rotation.x = Math.PI / 2;
+            circlet.position.set(headPos.x, headPos.y + 0.28, headPos.z);
+
+            const marker = new THREE.Mesh(
+                new THREE.OctahedronGeometry(0.18, 0),
+                new THREE.MeshStandardMaterial({ color: 0xd8a6ff, emissive: 0x8b2fc9, emissiveIntensity: 5 })
+            );
+            marker.position.set(headPos.x, headPos.y + 0.9, headPos.z);
+
+            const glow = new THREE.PointLight(0xa855f7, 1.4, 6);
+            glow.position.set(headPos.x, headPos.y - 0.2, headPos.z + 0.3);
+
+            return [circlet, marker, glow];
+        });
+        this.factionBrokerNpc.group.position.set(x, 0, z);
+        this.factionBrokerNpc.group.userData.interactionId = "faction-broker";
+        this.scene.add(this.factionBrokerNpc.group);
 
         this.collisionGrid.insert(new THREE.Box3(
             new THREE.Vector3(x - 0.5, 0, z - 0.5),
@@ -592,12 +597,20 @@ export class MainHall extends TowerFloor {
 
         if (this.vendorNpc) {
             this.vendorTime += delta;
-            this.vendorNpc.rotation.y = Math.sin(this.vendorTime * 0.4) * 0.3;
+            this.vendorNpc.group.rotation.y = Math.sin(this.vendorTime * 0.4) * 0.3;
+            this.vendorNpc.update(delta);
         }
 
         if (this.solaNpc) {
             this.solaTime += delta;
-            this.solaNpc.rotation.y = Math.sin(this.solaTime * 0.4) * 0.3;
+            this.solaNpc.group.rotation.y = Math.sin(this.solaTime * 0.4) * 0.3;
+            this.solaNpc.update(delta);
+        }
+
+        if (this.factionBrokerNpc) {
+            this.factionBrokerTime += delta;
+            this.factionBrokerNpc.group.rotation.y = Math.sin(this.factionBrokerTime * 0.4) * 0.3;
+            this.factionBrokerNpc.update(delta);
         }
 
         if (this.dustMotes) {
@@ -613,7 +626,7 @@ export class MainHall extends TowerFloor {
     }
 
     public override getInteractables(): THREE.Object3D[] {
-        return [...super.getInteractables(), this.vendorNpc, this.solaNpc];
+        return [...super.getInteractables(), this.vendorNpc.group, this.solaNpc.group, this.factionBrokerNpc.group];
     }
 
     dispose() {

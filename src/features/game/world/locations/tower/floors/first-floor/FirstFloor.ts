@@ -73,7 +73,7 @@ export class FirstFloor extends TowerFloor {
 
         this.scene.add(new THREE.HemisphereLight(0xE8C99A, 0x8B5A2B, 0.9));
 
-        this.hub = this.segmentBuilder.buildHub();
+        this.hub = this.segmentBuilder.buildHub(resourceManager);
         this.segmentBuilder.rebuildCollisionGrid();
     }
 
@@ -99,7 +99,8 @@ export class FirstFloor extends TowerFloor {
         }
         if (this.hub.dispatcher) {
             this.dispatcherTime += delta;
-            this.hub.dispatcher.rotation.y = Math.sin(this.dispatcherTime * 0.4) * 0.3;
+            this.hub.dispatcher.group.rotation.y = Math.sin(this.dispatcherTime * 0.4) * 0.3;
+            this.hub.dispatcher.update(delta);
         }
 
         this.gateAnimation.updateAnimations();

@@ -5,6 +5,7 @@ import {
   varchar,
   timestamp,
   integer,
+  serial,
   text,
   index,
   boolean,
@@ -321,6 +322,64 @@ export const gameStatistics = pgTable("game_statistics", {
   uniqueIndex("idx_game_statistics_user_game").on(table.userId, table.gameId),
 ]);
 
+export const factions = pgTable("factions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  number: serial("number").unique(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  name: varchar("name", { length: 50 }).notNull(),
+  symbol: varchar("symbol", { length: 20 }),
+  image: varchar("image", { length: 512 }),
+  description: text("description").default(""),
+  tokenCa: varchar("token_ca", { length: 64 }),
+  founderUserId: uuid("founder_user_id").notNull().references(() => users.id),
+  founderWallet: varchar("founder_wallet", { length: 44 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_factions_game_name").on(table.gameId, table.name),
+  index("idx_factions_token_ca").on(table.tokenCa),
+  index("idx_factions_game").on(table.gameId),
+]);
+
+export const factionMembers = pgTable("faction_members", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  factionId: uuid("faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  role: varchar("role", { length: 20 }).default("member").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_faction_members_user_game").on(table.userId, table.gameId),
+  index("idx_faction_members_faction").on(table.factionId),
+]);
+
+export const friendships = pgTable("friendships", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  friendUserId: uuid("friend_user_id").notNull().references(() => users.id),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  respondedAt: timestamp("responded_at"),
+}, (table) => [
+  uniqueIndex("idx_friendships_pair").on(table.userId, table.friendUserId),
+  index("idx_friendships_user").on(table.userId),
+  index("idx_friendships_friend").on(table.friendUserId),
+]);
+
+export const mailMessages = pgTable("mail_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  senderUserId: uuid("sender_user_id").notNull().references(() => users.id),
+  senderWallet: varchar("sender_wallet", { length: 44 }).notNull(),
+  recipientUserId: uuid("recipient_user_id").notNull().references(() => users.id),
+  subject: varchar("subject", { length: 100 }).notNull(),
+  body: text("body").notNull(),
+  isRead: boolean("is_read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_mail_recipient").on(table.recipientUserId),
+  index("idx_mail_sender").on(table.senderUserId),
+]);
+
 
 export const usersRelations = relations(users, ({ many }) => ({
   licenses: many(gameLicenses),
@@ -471,6 +530,44 @@ export const gameStatisticsRelations = relations(gameStatistics, ({ one }) => ({
   game: one(games, { fields: [gameStatistics.gameId], references: [games.id] }),
 }));
 
+export const factionsRelations = relations(factions, ({ one, many }) => ({
+  game: one(games, { fields: [factions.gameId], references: [games.id] }),
+  founder: one(users, { fields: [factions.founderUserId], references: [users.id] }),
+  members: many(factionMembers),
+}));
+
+export const factionMembersRelations = relations(factionMembers, ({ one }) => ({
+  faction: one(factions, { fields: [factionMembers.factionId], references: [factions.id] }),
+  user: one(users, { fields: [factionMembers.userId], references: [users.id] }),
+  game: one(games, { fields: [factionMembers.gameId], references: [games.id] }),
+}));
+
+export const friendshipsRelations = relations(friendships, ({ one }) => ({
+  requester: one(users, {
+    fields: [friendships.userId],
+    references: [users.id],
+    relationName: "friendRequester",
+  }),
+  recipient: one(users, {
+    fields: [friendships.friendUserId],
+    references: [users.id],
+    relationName: "friendRecipient",
+  }),
+}));
+
+export const mailMessagesRelations = relations(mailMessages, ({ one }) => ({
+  sender: one(users, {
+    fields: [mailMessages.senderUserId],
+    references: [users.id],
+    relationName: "mailSender",
+  }),
+  recipient: one(users, {
+    fields: [mailMessages.recipientUserId],
+    references: [users.id],
+    relationName: "mailRecipient",
+  }),
+}));
+
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -528,3 +625,15 @@ export type NewGameInventory = typeof gameInventories.$inferInsert;
 
 export type GameStatistic = typeof gameStatistics.$inferSelect;
 export type NewGameStatistic = typeof gameStatistics.$inferInsert;
+
+export type Faction = typeof factions.$inferSelect;
+export type NewFaction = typeof factions.$inferInsert;
+
+export type FactionMember = typeof factionMembers.$inferSelect;
+export type NewFactionMember = typeof factionMembers.$inferInsert;
+
+export type Friendship = typeof friendships.$inferSelect;
+export type NewFriendship = typeof friendships.$inferInsert;
+
+export type MailMessage = typeof mailMessages.$inferSelect;
+export type NewMailMessage = typeof mailMessages.$inferInsert;
