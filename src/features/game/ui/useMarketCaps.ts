@@ -19,22 +19,26 @@ export function useMarketCaps(addresses: string[], enabled: boolean): Record<str
         const list = addressKey.split(",");
         let cancelled = false;
 
-        const refresh = async () => {
+        const refreshOne = async (address: string) => {
+            try {
+                const res = await fetch(`/api/token-by-ca?ca=${address}`);
+                const data = await res.json();
+                if (cancelled || !data) return;
+                setInfo((prev) => ({
+                    ...prev,
+                    [address]: {
+                        mc: data.mc || 0,
+                        image: data.image || undefined,
+                        name: data.name || undefined,
+                        symbol: data.symbol || undefined,
+                    },
+                }));
+            } catch (e) { }
+        };
+
+        const refresh = () => {
             for (const address of list) {
-                try {
-                    const res = await fetch(`/api/token-by-ca?ca=${address}`);
-                    const data = await res.json();
-                    if (cancelled || !data) continue;
-                    setInfo((prev) => ({
-                        ...prev,
-                        [address]: {
-                            mc: data.mc || 0,
-                            image: data.image || undefined,
-                            name: data.name || undefined,
-                            symbol: data.symbol || undefined,
-                        },
-                    }));
-                } catch (e) { }
+                refreshOne(address);
             }
         };
 

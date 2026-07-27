@@ -37,22 +37,35 @@ interface TokenPanelProps {
 
 export function TokenPanel({ ca, onClose }: TokenPanelProps) {
     const [data, setData] = useState<TokenData | null>(null);
+    const [failed, setFailed] = useState(false);
     const [tab, setTab] = useState<"overview" | "trading" | "links">("overview");
 
     useEffect(() => {
+        let cancelled = false;
+
         const load = async () => {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
             try {
-                const res = await fetch(`/api/token-by-ca?ca=${ca}`);
+                const res = await fetch(`/api/token-by-ca?ca=${ca}`, { signal: controller.signal });
                 const json = await res.json();
+                if (cancelled) return;
                 setData(json);
+                setFailed(!json);
             } catch (e) {
                 console.error("Failed to load token data", e);
+                if (!cancelled) setFailed(true);
+            } finally {
+                clearTimeout(timeout);
             }
         };
 
         load();
         const i = setInterval(load, 30000);
-        return () => clearInterval(i);
+        return () => {
+            cancelled = true;
+            clearInterval(i);
+        };
     }, [ca]);
 
     const format = (val: number | undefined) => {
@@ -74,7 +87,9 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
             <div className="token-overlay" onClick={onClose}>
                 <div className="token-panel" onClick={(e) => e.stopPropagation()}>
                     <button className="close-btn" onClick={onClose}>✖</button>
-                    <div className="loading-state">⏳ Loading token data...</div>
+                    <div className="loading-state">
+                        {failed ? "⚠️ Failed to load token data. Retrying..." : "⏳ Loading token data..."}
+                    </div>
                 </div>
             </div>
         );

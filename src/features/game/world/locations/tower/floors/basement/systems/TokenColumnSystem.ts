@@ -106,61 +106,63 @@ export class TokenColumnSystem {
     }
 
     private async updateColumnsOnce() {
-        for (const col of this.columns) {
-            if (!col.ca) continue;
+        await Promise.all(this.columns.map((col) => this.updateColumn(col)));
+    }
 
-            try {
-                const res = await fetch(`/api/token-by-ca?ca=${col.ca}`);
-                const data = await res.json();
+    private async updateColumn(col: TokenColumn) {
+        if (!col.ca) return;
 
-                if (!data || !data.image) continue;
+        try {
+            const res = await fetch(`/api/token-by-ca?ca=${col.ca}`);
+            const data = await res.json();
 
-                this.floor.textureLoader.load(
-                    `/api/image-proxy?url=${encodeURIComponent(data.image)}`,
-                    (tex) => {
-                        tex.colorSpace = THREE.SRGBColorSpace;
-                        this.floor.applyTextureFilters(tex);
+            if (!data || !data.image) return;
 
-                        col.coin.traverse((child) => {
-                            if (child instanceof THREE.Mesh) {
-                                const materials = Array.isArray(child.material)
-                                    ? child.material
-                                    : [child.material];
+            this.floor.textureLoader.load(
+                `/api/image-proxy?url=${encodeURIComponent(data.image)}`,
+                (tex) => {
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    this.floor.applyTextureFilters(tex);
 
-                                materials.forEach((mat: any) => {
-                                    if (mat.map !== undefined && mat.emissiveMap !== undefined) {
-                                        mat.map = tex;
-                                        mat.emissiveMap = tex;
-                                        mat.needsUpdate = true;
-                                    }
-                                });
-                            }
-                        });
+                    col.coin.traverse((child) => {
+                        if (child instanceof THREE.Mesh) {
+                            const materials = Array.isArray(child.material)
+                                ? child.material
+                                : [child.material];
 
-                        col.texture = tex;
-                    },
-                    undefined,
-                    () => {
-                        console.warn(`[Basement] Column texture load failed: ${data.image}`);
-                    }
-                );
+                            materials.forEach((mat: any) => {
+                                if (mat.map !== undefined && mat.emissiveMap !== undefined) {
+                                    mat.map = tex;
+                                    mat.emissiveMap = tex;
+                                    mat.needsUpdate = true;
+                                }
+                            });
+                        }
+                    });
 
-                if (col.mcText) {
-                    col.group.remove(col.mcText);
-                    (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
-                    (col.mcText.material as THREE.Material).dispose();
+                    col.texture = tex;
+                },
+                undefined,
+                () => {
+                    console.warn(`[Basement] Column texture load failed: ${data.image}`);
                 }
+            );
 
-                const sprite = this.createTextSprite(`MC: ${this.formatMC(data.mc || 0)}`);
-                sprite.position.y = col.baseCoinY + 3.4;
-                col.group.add(sprite);
-                col.mcText = sprite;
-
-                col.group.userData.tokenInfo = data;
-
-            } catch (e) {
-                console.warn(`[Basement] Failed to update column ${col.ca}`, e);
+            if (col.mcText) {
+                col.group.remove(col.mcText);
+                (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
+                (col.mcText.material as THREE.Material).dispose();
             }
+
+            const sprite = this.createTextSprite(`MC: ${this.formatMC(data.mc || 0)}`);
+            sprite.position.y = col.baseCoinY + 3.4;
+            col.group.add(sprite);
+            col.mcText = sprite;
+
+            col.group.userData.tokenInfo = data;
+
+        } catch (e) {
+            console.warn(`[Basement] Failed to update column ${col.ca}`, e);
         }
     }
 
