@@ -240,6 +240,10 @@ export function registerNetworkHandlers(game: Game) {
         });
     };
 
+    game.networkManager.onVoiceClip = (data) => {
+        game.voiceChat.playIncoming(data.senderId, data.chunk, data.mimeType);
+    };
+
     game.networkManager.onProgressLoaded = (data: ProgressData) => {
         if (data?.nickname) game.onNicknameLoaded?.(data.nickname);
 

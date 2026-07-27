@@ -2,15 +2,16 @@
 import { HUDState } from "../core/Game";
 import { Crosshair } from "./Crosshair";
 import { OnlineCounter } from "./OnlineCounter";
-import { Heart, Shield, Activity } from "lucide-react";
+import { Heart, Shield, Activity, Mic } from "lucide-react";
 
 interface HUDProps {
     state: HUDState;
     isPointerLocked: boolean;
     isHitMark?: boolean;
+    isTalking?: boolean;
 }
 
-export function HUD({ state, isPointerLocked, isHitMark = false }: HUDProps) {
+export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false }: HUDProps) {
     const healthPercentage = (state.health / state.maxHealth) * 100;
 
     return (
@@ -32,6 +33,13 @@ export function HUD({ state, isPointerLocked, isHitMark = false }: HUDProps) {
                             />
                         </div>
                     </div>
+
+                    {isTalking && (
+                        <div className="bg-[rgba(74,222,128,0.15)] backdrop-blur-md border border-[#4ADE80]/30 rounded-[10px] px-3 py-2 flex items-center gap-2">
+                            <Mic className="w-4 h-4 text-[#4ADE80] animate-pulse" />
+                            <span className="text-[#4ADE80] text-xs font-bold tracking-wider">TALKING</span>
+                        </div>
+                    )}
                 </div>
             </div>
 

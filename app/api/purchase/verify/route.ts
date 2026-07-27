@@ -146,6 +146,34 @@ export async function POST(req: NextRequest) {
       serverPrice = lot.price;
     }
 
+    // A tx signature must only ever redeem ONE purchase. gameLicenses and
+    // marketplacePurchases each enforce their own uniqueness on txSignature,
+    // but those are separate constraints on separate tables — without this
+    // cross-table check, the same payment could be replayed once as a game
+    // license and once as a marketplace item. (This still isn't fully atomic
+    // against two truly concurrent requests racing each other; closing that
+    // needs a single shared-signature table with one unique constraint.)
+    const [usedAsLicense, usedAsPurchase] = await Promise.all([
+      db.query.gameLicenses.findFirst({ where: eq(gameLicenses.txSignature, signature) }),
+      db.query.marketplacePurchases.findFirst({ where: eq(marketplacePurchases.txSignature, signature) }),
+    ]);
+
+    if (usedAsLicense && gameId) {
+      return NextResponse.json({ success: true, type: "game", id: usedAsLicense.id, alreadyProcessed: true });
+    }
+    if (usedAsPurchase && lotId) {
+      return NextResponse.json({ success: true, type: "item", id: usedAsPurchase.id, alreadyProcessed: true });
+    }
+    if (usedAsLicense || usedAsPurchase) {
+      return NextResponse.json(
+        {
+          error: "signature_already_used",
+          hint: "This transaction already redeemed a different purchase.",
+        },
+        { status: 409, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
     const connection = new Connection(rpcUrl, "confirmed");
 
     let tx: ParsedTransactionWithMeta | null = null;

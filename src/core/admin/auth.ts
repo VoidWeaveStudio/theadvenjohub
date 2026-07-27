@@ -21,6 +21,8 @@ export function verifyAdminToken(token: string): AdminPayload | null {
             audience: "tanjo-admins"
         }) as AdminPayload;
 
+        if (decoded.role !== "admin") return null;
+
         return decoded;
     } catch (error) {
         console.error("Invalid admin token:", error);

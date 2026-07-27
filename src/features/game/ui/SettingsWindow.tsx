@@ -23,6 +23,7 @@ const KEYBINDS: [string, string][] = [
     ["E", "Interact"],
     ["I", "Inventory"],
     ["L", "Social Menu"],
+    ["G (Hold)", "Voice Chat"],
     ["Esc", "Toggle Pointer Lock"],
 ];
 

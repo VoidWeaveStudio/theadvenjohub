@@ -214,6 +214,7 @@ export class NetworkManager {
   public onDisconnected?: () => void;
   public onCount?: (count: number) => void;
   public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; message: string; timestamp: number }) => void;
+  public onVoiceClip?: (data: { senderId: string; senderNickname: string; chunk: string; mimeType: string }) => void;
   public onAuthenticated?: (data: { playerId: string; nickname: string }) => void;
   public onProgressLoaded?: (data: any) => void;
   public onAuthError?: (error: string) => void;
@@ -545,6 +546,9 @@ export class NetworkManager {
       case "chat":
         this.onChatMessage?.(data);
         break;
+      case "voiceClip":
+        this.onVoiceClip?.(data);
+        break;
       case "nicknameChange":
         break;
       case "positionCorrection":
@@ -741,6 +745,11 @@ export class NetworkManager {
       message: message.slice(0, 200),
       timestamp: Date.now(),
     });
+  }
+
+  sendVoiceClip(chunk: string, mimeType: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "voiceClip", chunk, mimeType });
   }
 
   sendFactionCreate(ca: string) {

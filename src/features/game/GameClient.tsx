@@ -69,6 +69,7 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [isVendorOpen, setIsVendorOpen] = useState(false);
   const [isSolaOpen, setIsSolaOpen] = useState(false);
+  const [isVoiceCapturing, setIsVoiceCapturing] = useState(false);
 
   const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
   const [isCreateFactionModalOpen, setIsCreateFactionModalOpen] = useState(false);
@@ -236,6 +237,7 @@ export function GameClient({ slug }: GameClientProps) {
         game.onDeathStateChange = (dead, killer) => { if (!cancelled) hud.handleDeathStateChange(dead, killer); };
         game.onDamageIndicatorUpdate = (attackerId, direction) => { if (!cancelled) hud.handleDamageIndicatorUpdate(attackerId, direction); };
         game.onHitMark = () => { if (!cancelled) hud.handleHitMark(); };
+        game.onVoiceCapturingChange = (capturing) => { if (!cancelled) setIsVoiceCapturing(capturing); };
 
         await game.init();
 
@@ -345,6 +347,13 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
+      if (e.code === "KeyG" && !showFloorSelector && !inventory.isInventoryOpen) {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+        if (!e.repeat) gameRef.current?.startVoiceCapture();
+        return;
+      }
+
       if (isPointerLocked && !showFloorSelector) {
         const digitKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"];
         const index = digitKeys.indexOf(e.code);
@@ -356,6 +365,14 @@ export function GameClient({ slug }: GameClientProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, activeTopWindow]);
+
+  useEffect(() => {
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "KeyG") gameRef.current?.stopVoiceCapture();
+    };
+    window.addEventListener("keyup", handleKeyUp);
+    return () => window.removeEventListener("keyup", handleKeyUp);
+  }, []);
 
   const handleNicknameChange = (nick: string) => {
     chat.setNickname(nick);
@@ -443,6 +460,7 @@ export function GameClient({ slug }: GameClientProps) {
         state={hud.hudState}
         isPointerLocked={isPointerLocked}
         isHitMark={hud.isHitMark}
+        isTalking={isVoiceCapturing}
       />
       <TopMenu active={activeTopWindow} onSelect={handleTopMenuSelect} />
       <Hotbar

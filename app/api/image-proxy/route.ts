@@ -4,6 +4,7 @@ import http, { type IncomingMessage } from "node:http";
 import https from "node:https";
 import dns, { type LookupAllOptions, type LookupOneOptions } from "node:dns";
 import { isIP } from "node:net";
+import zlib from "node:zlib";
 
 function isPrivateIp(ip: string): boolean {
     const version = isIP(ip);
@@ -59,7 +60,8 @@ function fetchViaPinnedLookup(url: URL): Promise<IncomingMessage> {
             {
                 lookup: pinnedPublicLookup as unknown as typeof dns.lookup,
                 headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    "Accept-Encoding": "gzip, deflate, br"
                 },
             },
             (res) => resolve(res)
@@ -68,12 +70,30 @@ function fetchViaPinnedLookup(url: URL): Promise<IncomingMessage> {
     });
 }
 
-function readBody(res: IncomingMessage): Promise<Buffer> {
+// Node's raw http/https client never auto-decompresses (unlike fetch/undici),
+// so a gzip/br/deflate-encoded upstream response must be inflated here or the
+// bytes we hand back are garbage for whatever Content-Type we claim.
+function decompressBody(res: IncomingMessage): NodeJS.ReadableStream {
+    const encoding = (res.headers["content-encoding"] || "").toLowerCase();
+    switch (encoding) {
+        case "gzip":
+        case "x-gzip":
+            return res.pipe(zlib.createGunzip());
+        case "br":
+            return res.pipe(zlib.createBrotliDecompress());
+        case "deflate":
+            return res.pipe(zlib.createInflate());
+        default:
+            return res;
+    }
+}
+
+function readBody(stream: NodeJS.ReadableStream): Promise<Buffer> {
     return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => resolve(Buffer.concat(chunks)));
-        res.on("error", reject);
+        stream.on("data", (chunk) => chunks.push(chunk));
+        stream.on("end", () => resolve(Buffer.concat(chunks)));
+        stream.on("error", reject);
     });
 }
 
@@ -110,7 +130,7 @@ export async function GET(request: Request) {
             return new NextResponse("Failed to fetch image", { status: 502 });
         }
 
-        const body = await readBody(response);
+        const body = await readBody(decompressBody(response));
         const headers = new Headers();
         headers.set("Content-Type", response.headers["content-type"] || "image/png");
         headers.set("Cache-Control", "public, max-age=31536000, immutable");

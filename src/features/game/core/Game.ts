@@ -13,6 +13,7 @@ import { InteractionSystem } from "../systems/InteractionSystem";
 import { NetworkSystem } from "../systems/NetworkSystem";
 import { EnemySystem } from "../systems/EnemySystem";
 import { LootSystem } from "../systems/LootSystem";
+import { VoiceChatSystem } from "../systems/VoiceChatSystem";
 import { ChatMessage } from "../ui/Chat";
 import { LocationManager } from "../world/LocationManager";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
@@ -71,6 +72,7 @@ export class Game {
     private networkSystem: NetworkSystem;
     public readonly enemySystem: EnemySystem;
     public readonly lootSystem: LootSystem;
+    public readonly voiceChat: VoiceChatSystem;
     public readonly locationManager: LocationManager;
     public inventory: InventoryEntry[] = [];
     public ash: number = 0;
@@ -196,6 +198,7 @@ export class Game {
     public onMailSent?: (mailId: string) => void;
     public onMailInboxResult?: (data: { mail: MailEntry[]; unreadCount: number }) => void;
     public onMailMarkedRead?: (mailId: string) => void;
+    public onVoiceCapturingChange?: (capturing: boolean) => void;
 
     public openFloorSelector() {
         this.showFloorSelector = true;
@@ -257,6 +260,7 @@ export class Game {
         this.networkSystem = new NetworkSystem(this.networkManager);
         this.enemySystem = new EnemySystem();
         this.lootSystem = new LootSystem();
+        this.voiceChat = new VoiceChatSystem();
     }
 
 
@@ -414,6 +418,16 @@ export class Game {
 
                 this.interactionSystem.onCanyonReturn = () => {
                     this.networkManager.sendCanyonReturnToHub();
+                };
+
+                this.voiceChat.onCapturingChange = (capturing) => {
+                    this.onVoiceCapturingChange?.(capturing);
+                };
+                this.voiceChat.onError = (message) => {
+                    this.onNotification?.(`🎤 ${message}`, 3000);
+                };
+                this.voiceChat.onClipReady = (base64, mimeType) => {
+                    this.networkManager.sendVoiceClip(base64, mimeType);
                 };
 
                 this.interactionSystem.onEnterLocation = async (locationId: string) => {
@@ -733,6 +747,14 @@ export class Game {
         this.networkManager.sendCanyonMapRequest();
     }
 
+    startVoiceCapture() {
+        this.voiceChat.startCapture();
+    }
+
+    stopVoiceCapture() {
+        this.voiceChat.stopCapture();
+    }
+
     warpCanyonSegment(segment: number) {
         this.networkManager.sendCanyonWarp(segment);
     }
@@ -878,6 +900,7 @@ export class Game {
         this.networkSystem.dispose();
         this.enemySystem.dispose();
         this.lootSystem.dispose();
+        this.voiceChat.dispose();
 
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {

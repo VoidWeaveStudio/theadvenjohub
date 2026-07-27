@@ -4,6 +4,10 @@ import { db } from "@/core/database";
 import { sql } from "drizzle-orm";
 
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
   try {
     const result = await db.execute(sql`SELECT 1 as ping`);
     
