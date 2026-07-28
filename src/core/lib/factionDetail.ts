@@ -2,7 +2,7 @@
 import { db } from "@/core/database";
 import { gameNicknames, factionTaskLog, factions, factionMembers } from "@/core/database/schema";
 import { eq, and, desc, count, sql } from "drizzle-orm";
-import { getFactionRank } from "@/core/lib/factionRank";
+import { getFactionRank, getFactionsRankedByGame } from "@/core/lib/factionRank";
 
 type FactionRow = typeof factions.$inferSelect;
 
@@ -87,20 +87,38 @@ export async function getMyFactionsList(userId: string, gameId: string) {
         where: and(eq(factionMembers.userId, userId), eq(factionMembers.gameId, gameId)),
     });
 
-    const results = [];
-    for (const membership of memberships) {
+    if (memberships.length === 0) return [];
+
+    // Rank + memberCount for every faction in the game, computed ONCE and reused
+    // below — previously each membership re-ran the full game-wide leaderboard
+    // aggregate (via getFactionRank) plus its own separate memberCount query,
+    // scaling with total factions in the game on every single call.
+    const ranked = await getFactionsRankedByGame(gameId);
+    const rankedById = new Map(ranked.map((f) => [f.id, f]));
+
+    const results = await Promise.all(memberships.map(async (membership) => {
         const faction = await db.query.factions.findFirst({ where: eq(factions.id, membership.factionId) });
-        if (!faction) continue;
+        if (!faction) return null;
 
-        const [{ memberCount }] = await db
-            .select({ memberCount: count() })
-            .from(factionMembers)
-            .where(eq(factionMembers.factionId, faction.id));
+        const rankedEntry = rankedById.get(faction.id);
+        let memberCount: number;
+        let rank: number | null;
+        if (rankedEntry) {
+            memberCount = rankedEntry.memberCount;
+            rank = rankedEntry.rank;
+        } else {
+            // Fallback for the rare case a faction falls outside getFactionsRankedByGame's limit.
+            const [{ memberCount: mc }] = await db
+                .select({ memberCount: count() })
+                .from(factionMembers)
+                .where(eq(factionMembers.factionId, faction.id));
+            memberCount = mc;
+            rank = await getFactionRank(gameId, faction.id);
+        }
 
-        const rank = await getFactionRank(gameId, faction.id);
         const taskExtras = await buildFactionTaskExtras(faction, gameId);
 
-        results.push({
+        return {
             id: faction.id,
             number: faction.number,
             name: faction.name,
@@ -114,7 +132,8 @@ export async function getMyFactionsList(userId: string, gameId: string) {
             role: membership.role,
             isDisplayed: membership.isDisplayed,
             ...taskExtras,
-        });
-    }
-    return results;
+        };
+    }));
+
+    return results.filter((r): r is NonNullable<typeof r> => r !== null);
 }

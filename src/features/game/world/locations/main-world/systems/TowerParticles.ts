@@ -136,4 +136,22 @@ export class TowerParticles {
             this.sparkParticleSystem.geometry.attributes.position.needsUpdate = true;
         }
     }
+
+    dispose() {
+        // Both particle systems are children of the towerGroup passed into create(),
+        // so FeatureSystem's traversal removes/disposes them from the scene too —
+        // this just releases our own references and is a safety net if create()
+        // is ever called standalone without that parent-level cleanup.
+        if (this.smokeParticleSystem) {
+            this.smokeParticleSystem.geometry.dispose();
+            (this.smokeParticleSystem.material as THREE.Material).dispose();
+            this.smokeParticleSystem = null;
+        }
+        if (this.sparkParticleSystem) {
+            this.sparkParticleSystem.geometry.dispose();
+            (this.sparkParticleSystem.material as THREE.Material).dispose();
+            this.sparkParticleSystem = null;
+        }
+        this.smokeUniforms = null;
+    }
 }

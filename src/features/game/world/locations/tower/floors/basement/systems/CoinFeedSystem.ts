@@ -41,6 +41,10 @@ export class CoinFeedSystem {
     private spawnInterval: NodeJS.Timeout | null = null;
     private clearQueueInterval: NodeJS.Timeout | null = null;
 
+    private disposed = false;
+    private startupHandle: number | null = null;
+    private startupIsIdleCallback = false;
+
     private readonly MAX_COINS = 50;
     private readonly MAX_QUEUE_SIZE = 200;
 
@@ -101,18 +105,20 @@ export class CoinFeedSystem {
     }
 
     startBackgroundTasks() {
+        const start = () => {
+            this.startupHandle = null;
+            if (this.disposed) return; // floor was torn down before this fired
+            this.startMemeCoinPoller();
+            this.startCoinSpawner();
+            this.startQueueClearer();
+        };
+
         if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-            (window as any).requestIdleCallback(() => {
-                this.startMemeCoinPoller();
-                this.startCoinSpawner();
-                this.startQueueClearer();
-            });
+            this.startupIsIdleCallback = true;
+            this.startupHandle = (window as any).requestIdleCallback(start);
         } else {
-            setTimeout(() => {
-                this.startMemeCoinPoller();
-                this.startCoinSpawner();
-                this.startQueueClearer();
-            }, 100);
+            this.startupIsIdleCallback = false;
+            this.startupHandle = setTimeout(start, 100) as unknown as number;
         }
     }
 
@@ -281,6 +287,17 @@ export class CoinFeedSystem {
     }
 
     dispose() {
+        this.disposed = true;
+
+        if (this.startupHandle !== null) {
+            if (this.startupIsIdleCallback && typeof (window as any).cancelIdleCallback === 'function') {
+                (window as any).cancelIdleCallback(this.startupHandle);
+            } else {
+                clearTimeout(this.startupHandle);
+            }
+            this.startupHandle = null;
+        }
+
         if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
         if (this.spawnInterval) { clearInterval(this.spawnInterval); this.spawnInterval = null; }
         if (this.clearQueueInterval) { clearInterval(this.clearQueueInterval); this.clearQueueInterval = null; }

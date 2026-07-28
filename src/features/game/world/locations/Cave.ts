@@ -23,11 +23,15 @@ export class Cave extends Location {
     private wallGeometry: THREE.BufferGeometry | null = null;
     private wallMaterial: THREE.Material | null = null;
 
-    private torches: { position: THREE.Vector3; light: THREE.PointLight; mesh: THREE.Mesh }[] = [];
+    private torches: { position: THREE.Vector3; light: THREE.PointLight; mesh: THREE.Mesh; pole: THREE.Mesh }[] = [];
     private stalactites: THREE.InstancedMesh | null = null;
     private stalactiteShadows: THREE.InstancedMesh | null = null;
     private mossMesh: THREE.InstancedMesh | null = null;
     private shadowTexture: THREE.Texture | null = null;
+
+    private portalMesh: THREE.Mesh | null = null;
+    private portalLight: THREE.PointLight | null = null;
+    private portalPillarMesh: THREE.Mesh | null = null;
 
     private cellSize = 10;
     private mapSize = 30;
@@ -154,7 +158,7 @@ export class Cave extends Location {
             light.position.set(torchPos.x, torchPos.y + 0.6, torchPos.z);
             this.scene.add(light);
 
-            this.torches.push({ position: torchPos, light, mesh: flameMesh });
+            this.torches.push({ position: torchPos, light, mesh: flameMesh, pole: torchMesh });
         }
     }
 
@@ -292,10 +296,12 @@ export class Cave extends Location {
         const portal = new THREE.Mesh(portalGeo, portalMat);
         portal.position.set(portalX, portalY, portalZ);
         this.scene.add(portal);
+        this.portalMesh = portal;
 
         const portalLight = new THREE.PointLight(0x00ffff, 3, 25);
         portalLight.position.set(portalX, portalY, portalZ);
         this.scene.add(portalLight);
+        this.portalLight = portalLight;
 
         const pillarGeo = new THREE.CylinderGeometry(0.3, 0.3, 10, 8);
         const pillarMat = new THREE.MeshBasicMaterial({
@@ -306,6 +312,7 @@ export class Cave extends Location {
         const pillar = new THREE.Mesh(pillarGeo, pillarMat);
         pillar.position.set(portalX, portalY, portalZ);
         this.scene.add(pillar);
+        this.portalPillarMesh = pillar;
 
         this.addPortal({
             id: "cave-to-main",
@@ -361,24 +368,60 @@ export class Cave extends Location {
         if (this.wallGeometry) this.wallGeometry.dispose();
         if (this.wallMaterial) this.wallMaterial.dispose();
 
+        // InstancedMesh.dispose() only frees the per-instance transform buffer —
+        // the shared geometry/material (not owned by ResourceManager's cache here,
+        // created fresh per Cave instance) must be disposed separately.
         if (this.stalactites) {
             this.scene.remove(this.stalactites);
+            this.stalactites.geometry.dispose();
+            (this.stalactites.material as THREE.Material).dispose();
             this.stalactites.dispose();
+            this.stalactites = null;
         }
         if (this.stalactiteShadows) {
             this.scene.remove(this.stalactiteShadows);
+            this.stalactiteShadows.geometry.dispose();
+            (this.stalactiteShadows.material as THREE.Material).dispose();
             this.stalactiteShadows.dispose();
+            this.stalactiteShadows = null;
         }
         if (this.mossMesh) {
             this.scene.remove(this.mossMesh);
+            this.mossMesh.geometry.dispose();
+            (this.mossMesh.material as THREE.Material).dispose();
             this.mossMesh.dispose();
+            this.mossMesh = null;
         }
         if (this.shadowTexture) this.shadowTexture.dispose();
 
         for (const torch of this.torches) {
             this.scene.remove(torch.light);
+
             this.scene.remove(torch.mesh);
+            torch.mesh.geometry.dispose();
+            (torch.mesh.material as THREE.Material).dispose();
+
+            this.scene.remove(torch.pole);
+            torch.pole.geometry.dispose();
+            (torch.pole.material as THREE.Material).dispose();
         }
         this.torches = [];
+
+        if (this.portalMesh) {
+            this.scene.remove(this.portalMesh);
+            this.portalMesh.geometry.dispose();
+            (this.portalMesh.material as THREE.Material).dispose();
+            this.portalMesh = null;
+        }
+        if (this.portalLight) {
+            this.scene.remove(this.portalLight);
+            this.portalLight = null;
+        }
+        if (this.portalPillarMesh) {
+            this.scene.remove(this.portalPillarMesh);
+            this.portalPillarMesh.geometry.dispose();
+            (this.portalPillarMesh.material as THREE.Material).dispose();
+            this.portalPillarMesh = null;
+        }
     }
 }

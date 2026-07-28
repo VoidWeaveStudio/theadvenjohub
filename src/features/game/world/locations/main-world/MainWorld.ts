@@ -23,6 +23,7 @@ export class MainWorld extends Location {
   public portal: PortalSystem;
 
   private liftCrystal: THREE.Group | null = null;
+  private disposed = false;
 
   private readonly isLowEnd = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency != null)
     ? navigator.hardwareConcurrency <= 4
@@ -119,6 +120,7 @@ export class MainWorld extends Location {
     this.vegetation.createDecorationsByChunks(rm);
 
     rm.onModelLoaded("tree", () => {
+      if (this.disposed) return; // world was torn down before this lazy asset finished loading
       this.vegetation.prepareAssets(rm);
       this.vegetation.createVegetationByChunks(rm);
       this.buildCollisionGrid();
@@ -126,6 +128,7 @@ export class MainWorld extends Location {
     });
 
     rm.onModelLoaded("rock", () => {
+      if (this.disposed) return;
       this.vegetation.prepareAssets(rm);
       this.vegetation.createRocksByChunks(rm);
       this.buildCollisionGrid();
@@ -133,6 +136,7 @@ export class MainWorld extends Location {
     });
 
     rm.onModelLoaded("portal", () => {
+      if (this.disposed) return;
       this.portal.createCaveEntrance(rm);
     });
   }
@@ -195,9 +199,12 @@ export class MainWorld extends Location {
   }
 
   dispose() {
+    this.disposed = true;
+
     this.terrain.dispose();
     this.atmosphere.dispose();
     this.vegetation.dispose();
+    this.features.dispose();
     this.portal.dispose();
 
     if (this.scene.background instanceof THREE.Texture) {

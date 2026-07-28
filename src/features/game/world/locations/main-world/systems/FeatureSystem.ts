@@ -17,11 +17,16 @@ export class FeatureSystem {
     private towerLights: THREE.Light[] = [];
     private particles = new TowerParticles();
 
+    private towerGroup: THREE.Group | null = null;
+    private oceanMeshes: THREE.Mesh[] = [];
+    private oceanMaterial: THREE.Material | null = null;
+
     constructor(private world: MainWorld) { }
 
     createGloomyTower() {
         const result = buildTowerExterior(this.world);
 
+        this.towerGroup = result.towerGroup;
         this.leftDoorGroup = result.leftDoorGroup;
         this.rightDoorGroup = result.rightDoorGroup;
         this.towerPortalMesh = result.towerPortalMesh;
@@ -93,11 +98,13 @@ export class FeatureSystem {
     createOcean() {
         const waterLevel = -5, mapSize = this.world.size, waterWidth = 1500, halfMap = mapSize / 2;
         const material = new THREE.MeshStandardMaterial({ color: 0x1a2a3a, transparent: true, opacity: 0.85, roughness: 0.1, metalness: 0.4, depthWrite: false });
+        this.oceanMaterial = material;
 
         const createPlane = (w: number, h: number, x: number, z: number) => {
             const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
             mesh.rotation.x = -Math.PI / 2; mesh.position.set(x, waterLevel, z); mesh.receiveShadow = true;
             this.world.scene.add(mesh);
+            this.oceanMeshes.push(mesh);
         };
 
         createPlane(mapSize + waterWidth * 2, waterWidth, 0, halfMap + waterWidth / 2);
@@ -118,5 +125,35 @@ export class FeatureSystem {
             this.world.colliders.push(wall);
             this.world.terrainCollisionGrid.insert(wall);
         });
+    }
+
+    dispose() {
+        if (this.towerGroup) {
+            this.world.scene.remove(this.towerGroup);
+            this.towerGroup.traverse((child) => {
+                const obj = child as THREE.Mesh | THREE.Points;
+                if ((obj as THREE.Mesh).isMesh || (obj as THREE.Points).isPoints) {
+                    obj.geometry?.dispose();
+                    const mat = obj.material;
+                    if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+                    else mat?.dispose();
+                }
+            });
+            this.towerGroup = null;
+        }
+        this.leftDoorGroup = null;
+        this.rightDoorGroup = null;
+        this.towerPortalMesh = null;
+        this.towerLights = [];
+
+        for (const mesh of this.oceanMeshes) {
+            this.world.scene.remove(mesh);
+            mesh.geometry.dispose();
+        }
+        this.oceanMeshes = [];
+        this.oceanMaterial?.dispose();
+        this.oceanMaterial = null;
+
+        this.particles.dispose();
     }
 }
