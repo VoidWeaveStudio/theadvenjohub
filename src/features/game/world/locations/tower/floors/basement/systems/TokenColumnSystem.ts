@@ -20,8 +20,65 @@ export class TokenColumnSystem {
     ];
     public columns: TokenColumn[] = [];
     private columnUpdateInterval: NodeJS.Timeout | null = null;
+    private pendingPedestalUpgrades: { group: THREE.Group; fallback: THREE.Mesh }[] = [];
 
     constructor(private floor: Basement) { }
+
+    private attachPedestalModel(group: THREE.Group, columnData: { scene: THREE.Group }): number {
+        const pedestal = columnData.scene;
+        pedestal.scale.set(1, 0.5, 1);
+
+        const box = new THREE.Box3().setFromObject(pedestal);
+        pedestal.position.y -= box.min.y;
+
+        const scaledBox = new THREE.Box3().setFromObject(pedestal);
+        const pedestalHeight = scaledBox.max.y - scaledBox.min.y;
+
+        pedestal.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                const mesh = child as THREE.Mesh;
+                if (Array.isArray(mesh.material)) {
+                    mesh.material.forEach(m => m.needsUpdate = true);
+                } else {
+                    mesh.material.needsUpdate = true;
+                }
+            }
+        });
+        group.add(pedestal);
+        return pedestalHeight;
+    }
+
+    private createFallbackPedestal(): THREE.Mesh {
+        const column = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.2, 1.5, 2, 32),
+            new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.7, metalness: 0.3 })
+        );
+        column.position.y = 1;
+        return column;
+    }
+
+    // The "column" model is lazy-loaded (ResourceManager.loadLazy) and may not be
+    // ready yet when the player reaches the basement. Rather than being stuck with
+    // the fallback cylinder forever, swap in the real pedestal once it finishes
+    // loading — same pattern BasementEnvironmentSystem uses for the cosmos model.
+    private upgradePendingPedestals(rm: ResourceManager) {
+        const still: { group: THREE.Group; fallback: THREE.Mesh }[] = [];
+
+        for (const { group, fallback } of this.pendingPedestalUpgrades) {
+            const columnData = rm.getModel("column");
+            if (!columnData) {
+                still.push({ group, fallback });
+                continue;
+            }
+
+            group.remove(fallback);
+            fallback.geometry.dispose();
+            (fallback.material as THREE.Material).dispose();
+            this.attachPedestalModel(group, columnData);
+        }
+
+        this.pendingPedestalUpgrades = still;
+    }
 
     createColumns(rm: ResourceManager) {
         const radius = 30;
@@ -38,34 +95,11 @@ export class TokenColumnSystem {
             let pedestalHeight = 4;
 
             if (columnData) {
-                const pedestal = columnData.scene;
-                pedestal.scale.set(1, 0.5, 1);
-
-                const box = new THREE.Box3().setFromObject(pedestal);
-                pedestal.position.y -= box.min.y;
-
-                const scaledBox = new THREE.Box3().setFromObject(pedestal);
-                pedestalHeight = scaledBox.max.y - scaledBox.min.y;
-
-                pedestal.traverse((child) => {
-                    if ((child as THREE.Mesh).isMesh) {
-                        const mesh = child as THREE.Mesh;
-                        if (Array.isArray(mesh.material)) {
-                            mesh.material.forEach(m => m.needsUpdate = true);
-                        } else {
-                            mesh.material.needsUpdate = true;
-                        }
-                    }
-                });
-                group.add(pedestal);
+                pedestalHeight = this.attachPedestalModel(group, columnData);
             } else {
-                console.warn("column model not found, using fallback");
-                const column = new THREE.Mesh(
-                    new THREE.CylinderGeometry(1.2, 1.5, 2, 32),
-                    new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.7, metalness: 0.3 })
-                );
-                column.position.y = 1;
-                group.add(column);
+                const fallback = this.createFallbackPedestal();
+                group.add(fallback);
+                this.pendingPedestalUpgrades.push({ group, fallback });
                 pedestalHeight = 2;
             }
 
@@ -102,6 +136,10 @@ export class TokenColumnSystem {
                 new THREE.Vector3(x + radiusCol, heightCol, z + radiusCol)
             );
             this.floor.collisionGrid.insert(collider);
+        }
+
+        if (this.pendingPedestalUpgrades.length > 0) {
+            rm.onModelLoaded("column", () => this.upgradePendingPedestals(rm));
         }
     }
 
@@ -237,6 +275,7 @@ export class TokenColumnSystem {
             clearInterval(this.columnUpdateInterval);
             this.columnUpdateInterval = null;
         }
+        this.pendingPedestalUpgrades = [];
 
         for (const col of this.columns) {
             this.floor.scene.remove(col.group);

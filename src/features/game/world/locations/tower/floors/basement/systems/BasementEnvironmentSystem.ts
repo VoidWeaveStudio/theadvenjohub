@@ -107,12 +107,43 @@ export class BasementEnvironmentSystem {
         if (floorRough) floorRough.repeat.set(20, 20);
 
         const floorMat = new THREE.MeshStandardMaterial({
-            map: floorColor || undefined,
-            normalMap: floorNormal || undefined,
-            roughnessMap: floorRough || undefined,
             roughness: 0.82,
             metalness: 0.08,
         });
+        if (floorColor) floorMat.map = floorColor;
+        if (floorNormal) floorMat.normalMap = floorNormal;
+        if (floorRough) floorMat.roughnessMap = floorRough;
+
+        // Floor textures are lazy-loaded and may not be ready yet when the player
+        // reaches the basement — upgrade the material in place once each arrives,
+        // same pattern as the cosmos sky sphere above.
+        if (!floorColor) {
+            rm.onTextureLoaded("floor-color", () => {
+                const tex = rm.getTexture("floor-color");
+                if (!tex) return;
+                tex.repeat.set(20, 20);
+                floorMat.map = tex;
+                floorMat.needsUpdate = true;
+            });
+        }
+        if (!floorNormal) {
+            rm.onTextureLoaded("floor-normal", () => {
+                const tex = rm.getTexture("floor-normal");
+                if (!tex) return;
+                tex.repeat.set(20, 20);
+                floorMat.normalMap = tex;
+                floorMat.needsUpdate = true;
+            });
+        }
+        if (!floorRough) {
+            rm.onTextureLoaded("floor-roughness", () => {
+                const tex = rm.getTexture("floor-roughness");
+                if (!tex) return;
+                tex.repeat.set(20, 20);
+                floorMat.roughnessMap = tex;
+                floorMat.needsUpdate = true;
+            });
+        }
 
         const radius = 40;
         const holeRadius = 3.6;
