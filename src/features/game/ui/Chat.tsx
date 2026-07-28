@@ -2,11 +2,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { PlayerTag } from "./shell/PlayerTag";
 
 interface ChatMessage {
     id: string;
     sender: string;
     senderWallet?: string;
+    senderFactionSymbol?: string | null;
+    senderFactionImage?: string | null;
     message: string;
     timestamp: number;
     type: "player" | "system";
@@ -101,10 +104,24 @@ export function Chat({ messages, onSendMessage, isVisible, onNicknameClick }: Ch
                                                     onClick={() => onNicknameClick(msg.senderWallet!)}
                                                     className="text-cyan-300 font-semibold hover:underline"
                                                 >
-                                                    {msg.sender}:
+                                                    <PlayerTag
+                                                        nickname={msg.sender}
+                                                        faction={msg.senderFactionSymbol ? { image: msg.senderFactionImage ?? null, symbol: msg.senderFactionSymbol, number: 0 } : null}
+                                                        size="sm"
+                                                        layout="inline"
+                                                    />
+                                                    :
                                                 </button>
                                             ) : (
-                                                <span className="text-cyan-300 font-semibold">{msg.sender}:</span>
+                                                <span className="text-cyan-300 font-semibold">
+                                                    <PlayerTag
+                                                        nickname={msg.sender}
+                                                        faction={msg.senderFactionSymbol ? { image: msg.senderFactionImage ?? null, symbol: msg.senderFactionSymbol, number: 0 } : null}
+                                                        size="sm"
+                                                        layout="inline"
+                                                    />
+                                                    :
+                                                </span>
                                             )}
                                             <span className="text-white ml-2">{msg.message}</span>
                                         </div>

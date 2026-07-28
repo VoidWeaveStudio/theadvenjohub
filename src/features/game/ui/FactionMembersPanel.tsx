@@ -1,0 +1,49 @@
+// src/features/game/ui/FactionMembersPanel.tsx
+"use client";
+
+import { Gem, LogOut } from "lucide-react";
+import { FactionDetail } from "../network/NetworkManager";
+import { FactionHeader } from "./FactionHeader";
+import { FactionRosterList } from "./FactionRosterList";
+
+interface FactionMembersPanelProps {
+    faction: FactionDetail;
+    myWallet: string;
+    onClaimCreator: () => void;
+    onLeaveFaction: () => void;
+}
+
+export function FactionMembersPanel({ faction, myWallet, onClaimCreator, onLeaveFaction }: FactionMembersPanelProps) {
+    const isVerifiedCreator = faction.verifiedCreatorWallet === myWallet;
+
+    return (
+        <div className="space-y-4">
+            <FactionHeader faction={faction} />
+            <FactionRosterList faction={faction} />
+
+            {!isVerifiedCreator && (
+                <div className="bg-[rgba(192,132,252,0.06)] border border-[rgba(192,132,252,0.2)] rounded-lg p-3 space-y-2">
+                    <p className="text-[#8B8F98] text-xs">
+                        Are you the wallet that created ${faction.symbol || "this token"}? Verifying gives you priority over
+                        the founder for accepting faction tasks and receiving their Ash rewards.
+                    </p>
+                    <button
+                        onClick={onClaimCreator}
+                        className="flex items-center gap-1.5 text-[#C084FC] hover:text-[#D8B4FE] text-xs font-bold transition-colors"
+                    >
+                        <Gem className="w-3.5 h-3.5" />
+                        Verify Token Creator
+                    </button>
+                </div>
+            )}
+
+            <button
+                onClick={onLeaveFaction}
+                className="flex items-center gap-2 text-red-400 hover:text-red-300 text-sm font-bold"
+            >
+                <LogOut className="w-4 h-4" />
+                Leave Faction
+            </button>
+        </div>
+    );
+}

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Trophy, Users } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
+import { PlayerTag } from "./shell/PlayerTag";
 import { FactionDetailView } from "./FactionDetailView";
 import { FactionLeaderboardList } from "./FactionRow";
 import { FactionDetail, FactionSummary, LeaderboardEntry } from "../network/NetworkManager";
@@ -85,7 +86,11 @@ export function LeaderboardsWindow({
                             >
                                 <div className="flex items-center gap-3">
                                     <span className="text-[#8B8F98] text-sm font-bold w-6">{index + 1}</span>
-                                    <span className="text-[#E5E7EB] text-sm font-bold">{entry.nickname || truncateWallet(entry.wallet)}</span>
+                                    <PlayerTag
+                                        nickname={entry.nickname || truncateWallet(entry.wallet)}
+                                        faction={entry.faction}
+                                        size="sm"
+                                    />
                                 </div>
                                 <span className="text-[#FFD166] font-bold text-sm">{entry.score} pts</span>
                             </div>

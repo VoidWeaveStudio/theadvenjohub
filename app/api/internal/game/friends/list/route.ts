@@ -4,13 +4,15 @@ import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internal
 import { db } from "@/core/database";
 import { users, gameNicknames, friendships } from "@/core/database/schema";
 import { eq, and, or } from "drizzle-orm";
+import { getUserFactionTag } from "@/core/lib/userFactionTag";
 
 async function describeUser(userId: string, gameId: string) {
     const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
     const nick = await db.query.gameNicknames.findFirst({
         where: and(eq(gameNicknames.userId, userId), eq(gameNicknames.gameId, gameId)),
     });
-    return { userId, wallet: user?.wallet || "", nickname: nick?.nickname || null };
+    const faction = await getUserFactionTag(userId, gameId);
+    return { userId, wallet: user?.wallet || "", nickname: nick?.nickname || null, faction };
 }
 
 export async function POST(req: NextRequest) {

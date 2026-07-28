@@ -333,6 +333,15 @@ export const factions = pgTable("factions", {
   tokenCa: varchar("token_ca", { length: 64 }),
   founderUserId: uuid("founder_user_id").notNull().references(() => users.id),
   founderWallet: varchar("founder_wallet", { length: 44 }).notNull(),
+  tokenCreatorWallet: varchar("token_creator_wallet", { length: 44 }),
+  verifiedCreatorUserId: uuid("verified_creator_user_id").references(() => users.id),
+  verifiedCreatorWallet: varchar("verified_creator_wallet", { length: 44 }),
+  activeTaskKey: varchar("active_task_key", { length: 40 }),
+  activeTaskTarget: integer("active_task_target"),
+  activeTaskProgress: integer("active_task_progress").default(0).notNull(),
+  activeTaskRewardAsh: integer("active_task_reward_ash"),
+  activeTaskAcceptedAt: timestamp("active_task_accepted_at"),
+  activeTaskAcceptedByUserId: uuid("active_task_accepted_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("idx_factions_game_name").on(table.gameId, table.name),
@@ -351,6 +360,18 @@ export const factionMembers = pgTable("faction_members", {
 }, (table) => [
   uniqueIndex("idx_faction_members_user_game").on(table.userId, table.gameId),
   index("idx_faction_members_faction").on(table.factionId),
+]);
+
+export const factionTaskLog = pgTable("faction_task_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  factionId: uuid("faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  taskKey: varchar("task_key", { length: 40 }).notNull(),
+  rewardAsh: integer("reward_ash").notNull(),
+  rewardUserId: uuid("reward_user_id").notNull().references(() => users.id),
+  rewardWallet: varchar("reward_wallet", { length: 44 }).notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_faction_task_log_faction").on(table.factionId),
 ]);
 
 export const friendships = pgTable("friendships", {
@@ -533,13 +554,20 @@ export const gameStatisticsRelations = relations(gameStatistics, ({ one }) => ({
 export const factionsRelations = relations(factions, ({ one, many }) => ({
   game: one(games, { fields: [factions.gameId], references: [games.id] }),
   founder: one(users, { fields: [factions.founderUserId], references: [users.id] }),
+  verifiedCreator: one(users, { fields: [factions.verifiedCreatorUserId], references: [users.id] }),
   members: many(factionMembers),
+  taskLog: many(factionTaskLog),
 }));
 
 export const factionMembersRelations = relations(factionMembers, ({ one }) => ({
   faction: one(factions, { fields: [factionMembers.factionId], references: [factions.id] }),
   user: one(users, { fields: [factionMembers.userId], references: [users.id] }),
   game: one(games, { fields: [factionMembers.gameId], references: [games.id] }),
+}));
+
+export const factionTaskLogRelations = relations(factionTaskLog, ({ one }) => ({
+  faction: one(factions, { fields: [factionTaskLog.factionId], references: [factions.id] }),
+  rewardUser: one(users, { fields: [factionTaskLog.rewardUserId], references: [users.id] }),
 }));
 
 export const friendshipsRelations = relations(friendships, ({ one }) => ({
@@ -631,6 +659,9 @@ export type NewFaction = typeof factions.$inferInsert;
 
 export type FactionMember = typeof factionMembers.$inferSelect;
 export type NewFactionMember = typeof factionMembers.$inferInsert;
+
+export type FactionTaskLog = typeof factionTaskLog.$inferSelect;
+export type NewFactionTaskLog = typeof factionTaskLog.$inferInsert;
 
 export type Friendship = typeof friendships.$inferSelect;
 export type NewFriendship = typeof friendships.$inferInsert;

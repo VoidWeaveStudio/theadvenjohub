@@ -169,7 +169,7 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
 
     const totalAsh = cartEntries.reduce((sum, [address, entry]) => {
         const mc = marketCaps[address]?.mc;
-        return sum + (mc !== undefined ? estimateAsh(mc) * entry.qty : 0);
+        return sum + (mc !== undefined ? estimateAsh(mc ?? 0) * entry.qty : 0);
     }, 0);
 
     const handleConfirm = () => {

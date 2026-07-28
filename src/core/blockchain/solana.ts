@@ -20,6 +20,47 @@ export class SolanaVerificationError extends Error {
   }
 }
 
+const CREATOR_LOOKUP_PAGE_SIZE = 1000;
+const CREATOR_LOOKUP_MAX_PAGES = 25;
+
+export async function getTokenCreatorWallet(mint: string): Promise<string | null> {
+  try {
+    const connection = new Connection(getRpcUrl(), "confirmed");
+    const mintPubkey = new PublicKey(mint);
+
+    let before: string | undefined;
+    let oldestPage: { signature: string }[] = [];
+
+    for (let page = 0; page < CREATOR_LOOKUP_MAX_PAGES; page++) {
+      const signatures = await connection.getSignaturesForAddress(mintPubkey, {
+        before,
+        limit: CREATOR_LOOKUP_PAGE_SIZE,
+      });
+
+      if (signatures.length === 0) break;
+
+      oldestPage = signatures;
+      before = signatures[signatures.length - 1].signature;
+
+      if (signatures.length < CREATOR_LOOKUP_PAGE_SIZE) break;
+    }
+
+    const oldestSignature = oldestPage[oldestPage.length - 1]?.signature;
+    if (!oldestSignature) return null;
+
+    const tx = await connection.getParsedTransaction(oldestSignature, {
+      maxSupportedTransactionVersion: 0,
+      commitment: "confirmed",
+    });
+
+    const feePayer = tx?.transaction.message.accountKeys[0]?.pubkey;
+    return feePayer ? feePayer.toBase58() : null;
+  } catch (error: any) {
+    console.error("[Blockchain] getTokenCreatorWallet failed:", error?.message || error);
+    return null;
+  }
+}
+
 export async function testConnection(): Promise<boolean> {
   try {
     const connection = new Connection(getRpcUrl(), "confirmed");

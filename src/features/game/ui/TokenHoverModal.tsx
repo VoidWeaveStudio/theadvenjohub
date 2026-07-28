@@ -14,7 +14,7 @@ export interface HoveredToken {
 
 interface TokenHoverModalProps {
     token: HoveredToken | null;
-    marketCap?: number;
+    marketCap?: number | null;
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
 }
@@ -76,7 +76,7 @@ export function TokenHoverModal({ token, marketCap, onMouseEnter, onMouseLeave }
                 <div className="w-full flex items-center justify-between">
                     <span className="text-[#8B8F98] text-xs font-bold tracking-wider">MARKET CAP</span>
                     <span className="text-[#4FD1FF] font-bold text-sm">
-                        {marketCap !== undefined ? formatMC(marketCap) : "Loading..."}
+                        {marketCap === null ? "N/A" : marketCap !== undefined ? formatMC(marketCap) : "Loading..."}
                     </span>
                 </div>
             </div>

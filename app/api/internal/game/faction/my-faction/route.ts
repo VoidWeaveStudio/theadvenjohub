@@ -5,6 +5,7 @@ import { db } from "@/core/database";
 import { factions, factionMembers } from "@/core/database/schema";
 import { eq, and, count } from "drizzle-orm";
 import { getFactionRank } from "@/core/lib/factionRank";
+import { buildFactionTaskExtras } from "@/core/lib/factionDetail";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
             .where(eq(factionMembers.factionId, faction.id));
 
         const rank = await getFactionRank(gameId, faction.id);
+        const taskExtras = await buildFactionTaskExtras(faction, gameId);
 
         return NextResponse.json({
             faction: {
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
                 memberCount,
                 rank,
                 role: membership.role,
+                ...taskExtras,
             },
         });
     } catch (error) {

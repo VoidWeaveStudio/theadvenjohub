@@ -2,6 +2,8 @@
 export type PlayerNetData = {
   id: string;
   nickname: string;
+  factionSymbol?: string | null;
+  factionImage?: string | null;
   position: number[];
   rotation: number;
   pitch: number;
@@ -105,6 +107,33 @@ export interface GameSession {
   wallet: string;
 }
 
+export type FactionTaskDefinition = {
+  key: string;
+  label: string;
+  description: string;
+  metric: 'kills' | 'shots' | 'ash';
+  target: number;
+  rewardAsh: number;
+};
+
+export type FactionActiveTask = {
+  key: string;
+  target: number;
+  progress: number;
+  rewardAsh: number;
+  acceptedAt: string | null;
+  acceptedByNickname: string | null;
+};
+
+export type FactionTaskLogEntry = {
+  id: string;
+  taskKey: string;
+  rewardAsh: number;
+  rewardWallet: string;
+  rewardNickname: string | null;
+  completedAt: string;
+};
+
 export type FactionSummary = {
   id: string;
   number: number;
@@ -117,6 +146,11 @@ export type FactionSummary = {
   memberCount: number;
   rank: number | null;
   role?: string;
+  tokenCreatorWallet?: string | null;
+  verifiedCreatorWallet?: string | null;
+  verifiedCreatorUserId?: string | null;
+  activeTask?: FactionActiveTask | null;
+  taskHistory?: FactionTaskLogEntry[];
 };
 
 export type FactionRosterEntry = {
@@ -129,6 +163,13 @@ export type FactionDetail = FactionSummary & {
   roster: FactionRosterEntry[];
 };
 
+export type FactionTag = {
+  name: string;
+  symbol: string | null;
+  image: string | null;
+  number: number;
+} | null;
+
 export type PlayerProfileData = {
   wallet: string;
   nickname: string | null;
@@ -136,7 +177,15 @@ export type PlayerProfileData = {
   deaths: number;
   playtimeSeconds: number;
   ash: number;
-  faction: { id: string; number: number; name: string; image: string | null } | null;
+  faction: {
+    id: string;
+    number: number;
+    name: string;
+    symbol: string | null;
+    image: string | null;
+    founderWallet: string;
+    verifiedCreatorWallet: string | null;
+  } | null;
 };
 
 export type LeaderboardEntry = {
@@ -147,6 +196,7 @@ export type LeaderboardEntry = {
   ash: number;
   playtimeSeconds: number;
   score: number;
+  faction: FactionTag;
 };
 
 export type FriendEntry = {
@@ -154,12 +204,14 @@ export type FriendEntry = {
   wallet: string;
   nickname: string | null;
   online: boolean;
+  faction?: FactionTag;
 };
 
 export type FriendRequestEntry = {
   userId: string;
   wallet: string;
   nickname: string | null;
+  faction?: FactionTag;
 };
 
 export type MailEntry = {
@@ -167,6 +219,10 @@ export type MailEntry = {
   senderUserId: string;
   senderWallet: string;
   senderNickname: string | null;
+  senderFactionName?: string | null;
+  senderFactionSymbol?: string | null;
+  senderFactionImage?: string | null;
+  senderFactionNumber?: number | null;
   subject: string;
   body: string;
   isRead: boolean;
@@ -213,7 +269,7 @@ export class NetworkManager {
   public onConnected?: () => void;
   public onDisconnected?: () => void;
   public onCount?: (count: number) => void;
-  public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; message: string; timestamp: number }) => void;
+  public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; senderFactionSymbol?: string | null; senderFactionImage?: string | null; message: string; timestamp: number }) => void;
   public onVoiceClip?: (data: { senderId: string; senderNickname: string; chunk: string; mimeType: string }) => void;
   public onAuthenticated?: (data: { playerId: string; nickname: string }) => void;
   public onProgressLoaded?: (data: any) => void;
@@ -292,6 +348,11 @@ export class NetworkManager {
   public onPlayerProfile?: (profile: PlayerProfileData | null) => void;
   public onLeaderboardResult?: (leaderboard: LeaderboardEntry[]) => void;
   public onFactionLeaderboardResult?: (leaderboard: FactionSummary[]) => void;
+  public onFactionTaskListResult?: (tasks: FactionTaskDefinition[]) => void;
+  public onFactionTaskAccepted?: (faction: FactionSummary) => void;
+  public onFactionTaskCompleted?: (data: { taskKey: string; label: string; rewardAsh: number; rewardNickname: string | null }) => void;
+  public onFactionCreatorClaimResult?: (data: { isCreator: boolean; faction: FactionSummary }) => void;
+  public onFactionCreatorVerified?: (faction: FactionSummary) => void;
 
   public onFriendRequestSent?: (friend: FriendRequestEntry, status: string) => void;
   public onFriendRequestAccepted?: (friend: FriendEntry) => void;
@@ -421,6 +482,8 @@ export class NetworkManager {
             this.onPlayerJoin?.({
               id: p.id,
               nickname: p.nickname,
+              factionSymbol: p.factionSymbol ?? null,
+              factionImage: p.factionImage ?? null,
               position: p.position,
               rotation: p.rotation,
               pitch: p.pitch || 0,
@@ -587,6 +650,21 @@ export class NetworkManager {
         break;
       case "factionLeaderboardResult":
         this.onFactionLeaderboardResult?.(Array.isArray(data.leaderboard) ? data.leaderboard : []);
+        break;
+      case "factionTaskListResult":
+        this.onFactionTaskListResult?.(Array.isArray(data.tasks) ? data.tasks : []);
+        break;
+      case "factionTaskAccepted":
+        this.onFactionTaskAccepted?.(data.faction);
+        break;
+      case "factionTaskCompleted":
+        this.onFactionTaskCompleted?.(data);
+        break;
+      case "factionCreatorClaimResult":
+        this.onFactionCreatorClaimResult?.({ isCreator: !!data.isCreator, faction: data.faction });
+        break;
+      case "factionCreatorVerified":
+        this.onFactionCreatorVerified?.(data.faction);
         break;
       case "friendRequestSent":
         this.onFriendRequestSent?.(data.friend, data.status);
@@ -795,6 +873,21 @@ export class NetworkManager {
   sendFactionLeaderboardRequest(limit?: number) {
     if (!this.authenticated) return;
     this.send({ type: "factionLeaderboardRequest", limit: limit || 50 });
+  }
+
+  sendFactionTaskListRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "factionTaskListRequest" });
+  }
+
+  sendFactionAcceptTask(taskKey: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionAcceptTask", taskKey });
+  }
+
+  sendFactionClaimCreator() {
+    if (!this.authenticated) return;
+    this.send({ type: "factionClaimCreator" });
   }
 
   sendFriendRequest(walletOrNickname: { wallet?: string; nickname?: string }) {

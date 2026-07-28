@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 export interface TokenInfo {
-    mc: number;
+    mc: number | null;
     image?: string;
     name?: string;
     symbol?: string;
@@ -23,15 +23,17 @@ export function useMarketCaps(addresses: string[], enabled: boolean): Record<str
             try {
                 const res = await fetch(`/api/token-by-ca?ca=${address}`);
                 const data = await res.json();
-                if (cancelled || !data) return;
+                if (cancelled) return;
                 setInfo((prev) => ({
                     ...prev,
-                    [address]: {
-                        mc: data.mc || 0,
-                        image: data.image || undefined,
-                        name: data.name || undefined,
-                        symbol: data.symbol || undefined,
-                    },
+                    [address]: data
+                        ? {
+                            mc: data.mc || 0,
+                            image: data.image || undefined,
+                            name: data.name || undefined,
+                            symbol: data.symbol || undefined,
+                        }
+                        : { mc: null },
                 }));
             } catch (e) { }
         };

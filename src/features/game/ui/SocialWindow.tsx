@@ -17,6 +17,7 @@ import {
     ScrollText,
 } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
+import { PlayerTag } from "./shell/PlayerTag";
 import { FriendEntry, FriendRequestEntry, MailEntry, PlayerProfileData, QuestInfoData } from "../network/NetworkManager";
 
 export type SocialTab = "friends" | "mail" | "account";
@@ -261,9 +262,9 @@ export function SocialWindow({
                                             >
                                                 <button
                                                     onClick={() => onViewProfile(r.wallet)}
-                                                    className="text-[#E5E7EB] text-sm font-bold hover:underline text-left"
+                                                    className="hover:underline text-left"
                                                 >
-                                                    {r.nickname || truncateWallet(r.wallet)}
+                                                    <PlayerTag nickname={r.nickname || truncateWallet(r.wallet)} faction={r.faction ?? null} size="sm" />
                                                 </button>
                                                 <div className="flex items-center gap-2">
                                                     <button
@@ -299,9 +300,9 @@ export function SocialWindow({
                                                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${f.online ? "bg-[#4ADE80]" : "bg-[#6B7280]"}`} />
                                                     <button
                                                         onClick={() => onViewProfile(f.wallet)}
-                                                        className="text-[#E5E7EB] text-sm font-bold hover:underline truncate text-left"
+                                                        className="hover:underline truncate text-left"
                                                     >
-                                                        {f.nickname || truncateWallet(f.wallet)}
+                                                        <PlayerTag nickname={f.nickname || truncateWallet(f.wallet)} faction={f.faction ?? null} size="sm" />
                                                     </button>
                                                     <span className={`text-xs flex-shrink-0 ${f.online ? "text-[#4ADE80]" : "text-[#6B7280]"}`}>
                                                         {f.online ? "Online" : "Offline"}
@@ -326,7 +327,7 @@ export function SocialWindow({
                                     <div className="mt-2 space-y-2">
                                         {outgoingRequests.map((r) => (
                                             <div key={r.userId} className="flex items-center justify-between bg-[rgba(255,255,255,0.03)] rounded-lg p-3">
-                                                <span className="text-[#8B8F98] text-sm">{r.nickname || truncateWallet(r.wallet)}</span>
+                                                <PlayerTag nickname={r.nickname || truncateWallet(r.wallet)} faction={r.faction ?? null} size="sm" />
                                                 <span className="text-[#6B7280] text-xs">Pending</span>
                                             </div>
                                         ))}
@@ -361,9 +362,9 @@ export function SocialWindow({
                                             <div key={r.userId} className="flex items-center justify-between bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
                                                 <button
                                                     onClick={() => onViewProfile(r.wallet)}
-                                                    className="text-[#E5E7EB] text-sm font-bold hover:underline text-left truncate"
+                                                    className="hover:underline text-left truncate"
                                                 >
-                                                    {r.nickname || truncateWallet(r.wallet)}
+                                                    <PlayerTag nickname={r.nickname || truncateWallet(r.wallet)} faction={r.faction ?? null} size="sm" />
                                                 </button>
                                                 {status === "friend" && <span className="text-[#4ADE80] text-xs flex-shrink-0">Friends</span>}
                                                 {status === "outgoing" && <span className="text-[#6B7280] text-xs flex-shrink-0">Pending</span>}
@@ -473,7 +474,15 @@ export function SocialWindow({
                                             </div>
                                             <span className="text-[#6B7280] text-xs flex-shrink-0">{formatMailDate(m.createdAt)}</span>
                                         </div>
-                                        <p className="text-[#8B8F98] text-xs mt-1">From {m.senderNickname || truncateWallet(m.senderWallet)}</p>
+                                        <p className="text-[#8B8F98] text-xs mt-1 flex items-center gap-1">
+                                            From
+                                            <PlayerTag
+                                                nickname={m.senderNickname || truncateWallet(m.senderWallet)}
+                                                faction={m.senderFactionSymbol ? { image: m.senderFactionImage ?? null, symbol: m.senderFactionSymbol, number: m.senderFactionNumber ?? 0 } : null}
+                                                size="sm"
+                                                layout="inline"
+                                            />
+                                        </p>
                                         {isExpanded && <p className="text-[#E5E7EB] text-sm mt-2 whitespace-pre-wrap">{m.body}</p>}
                                     </div>
                                 );
@@ -515,10 +524,17 @@ export function SocialWindow({
                                         </>
                                     ) : (
                                         <>
-                                            {selfProfile?.faction?.image && (
-                                                <img src={selfProfile.faction.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                                            )}
-                                            <span className="text-[#E5E7EB] text-xl font-bold">{nickname}</span>
+                                            <PlayerTag
+                                                nickname={nickname}
+                                                faction={selfProfile?.faction ?? null}
+                                                badge={
+                                                    selfProfile?.faction?.verifiedCreatorWallet === wallet
+                                                        ? "creator"
+                                                        : selfProfile?.faction?.founderWallet === wallet
+                                                            ? "founder"
+                                                            : null
+                                                }
+                                            />
                                             <button
                                                 onClick={() => {
                                                     setTempNickname(nickname);

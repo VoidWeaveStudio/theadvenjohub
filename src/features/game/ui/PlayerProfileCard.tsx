@@ -3,6 +3,7 @@
 
 import { User, Users } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
+import { PlayerTag } from "./shell/PlayerTag";
 import { PlayerProfileData } from "../network/NetworkManager";
 
 interface PlayerProfileCardProps {
@@ -30,19 +31,19 @@ export function PlayerProfileCard({ isOpen, profile, onClose }: PlayerProfileCar
                 <p className="text-[#8B8F98] text-sm text-center py-8">Player not found.</p>
             ) : (
                 <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                        {profile.faction &&
-                            (profile.faction.image ? (
-                                <img src={profile.faction.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                            ) : (
-                                <div className="w-8 h-8 rounded-full bg-[rgba(255,255,255,0.08)] flex items-center justify-center flex-shrink-0">
-                                    <Users className="w-4 h-4 text-[#8B8F98]" />
-                                </div>
-                            ))}
-                        <div>
-                            <span className="text-[#E5E7EB] text-xl font-bold">{profile.nickname || "Unknown"}</span>
-                            <p className="text-[#8B8F98] text-xs font-mono mt-1">{truncateWallet(profile.wallet)}</p>
-                        </div>
+                    <div className="flex items-center gap-2 text-[#E5E7EB]">
+                        <PlayerTag
+                            nickname={profile.nickname || "Unknown"}
+                            faction={profile.faction}
+                            badge={
+                                profile.faction?.verifiedCreatorWallet === profile.wallet
+                                    ? "creator"
+                                    : profile.faction?.founderWallet === profile.wallet
+                                        ? "founder"
+                                        : null
+                            }
+                        />
+                        <p className="text-[#8B8F98] text-xs font-mono">{truncateWallet(profile.wallet)}</p>
                     </div>
 
                     {profile.faction && (

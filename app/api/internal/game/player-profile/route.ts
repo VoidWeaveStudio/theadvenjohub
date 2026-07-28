@@ -48,11 +48,22 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        let faction: { id: string; number: number; name: string; image: string | null } | null = null;
+        let faction: {
+            id: string; number: number; name: string; symbol: string | null; image: string | null;
+            founderWallet: string; verifiedCreatorWallet: string | null;
+        } | null = null;
         if (membership) {
             const factionRow = await db.query.factions.findFirst({ where: eq(factions.id, membership.factionId) });
             if (factionRow) {
-                faction = { id: factionRow.id, number: factionRow.number, name: factionRow.name, image: factionRow.image };
+                faction = {
+                    id: factionRow.id,
+                    number: factionRow.number,
+                    name: factionRow.name,
+                    symbol: factionRow.symbol,
+                    image: factionRow.image,
+                    founderWallet: factionRow.founderWallet,
+                    verifiedCreatorWallet: factionRow.verifiedCreatorWallet,
+                };
             }
         }
 

@@ -37,6 +37,7 @@ interface TokenPanelProps {
 
 export function TokenPanel({ ca, onClose }: TokenPanelProps) {
     const [data, setData] = useState<TokenData | null>(null);
+    const [notFound, setNotFound] = useState(false);
     const [failed, setFailed] = useState(false);
     const [tab, setTab] = useState<"overview" | "trading" | "links">("overview");
 
@@ -51,7 +52,8 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                 const json = await res.json();
                 if (cancelled) return;
                 setData(json);
-                setFailed(!json);
+                setNotFound(!json);
+                setFailed(false);
             } catch (e) {
                 console.error("Failed to load token data", e);
                 if (!cancelled) setFailed(true);
@@ -88,7 +90,11 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                 <div className="token-panel" onClick={(e) => e.stopPropagation()}>
                     <button className="close-btn" onClick={onClose}>✖</button>
                     <div className="loading-state">
-                        {failed ? "⚠️ Failed to load token data. Retrying..." : "⏳ Loading token data..."}
+                        {failed
+                            ? "⚠️ Connection error. Retrying..."
+                            : notFound
+                                ? "❔ No market data found for this token."
+                                : "⏳ Loading token data..."}
                     </div>
                 </div>
             </div>

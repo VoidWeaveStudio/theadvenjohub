@@ -8,6 +8,12 @@ import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWor
 
 export class OtherPlayer extends Entity {
     public nickname: string;
+    private factionSymbol: string | null;
+    private factionImage: string | null;
+    private factionImageEl: HTMLImageElement | null = null;
+    private nameCanvas: HTMLCanvasElement | null = null;
+    private nameCtx: CanvasRenderingContext2D | null = null;
+    private nameTexture: THREE.CanvasTexture | null = null;
     private targetPosition: THREE.Vector3 = new THREE.Vector3();
     private targetRotation: number = 0;
     private targetPitch: number = 0;
@@ -30,9 +36,11 @@ export class OtherPlayer extends Entity {
 
     private animator = new CharacterAnimator();
 
-    constructor(id: string, nickname: string) {
+    constructor(id: string, nickname: string, factionSymbol: string | null = null, factionImage: string | null = null) {
         super(id);
         this.nickname = nickname;
+        this.factionSymbol = factionSymbol;
+        this.factionImage = factionImage;
 
         const hitboxGeometry = new THREE.BoxGeometry(0.8, 1.8, 0.8);
         const hitboxMaterial = new THREE.MeshBasicMaterial({
@@ -99,24 +107,75 @@ export class OtherPlayer extends Entity {
     }
 
     private createNameTag(name: string): THREE.Sprite {
+        const hasFaction = !!this.factionSymbol;
         const canvas = document.createElement("canvas");
-        canvas.width = 512;
-        canvas.height = 96;
-        const ctx = canvas.getContext("2d")!;
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.fillRect(0, 0, 512, 96);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 48px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(name, 256, 48);
+        canvas.width = hasFaction ? 640 : 512;
+        canvas.height = hasFaction ? 128 : 96;
+        this.nameCanvas = canvas;
+        this.nameCtx = canvas.getContext("2d")!;
+
+        this.drawNameTag(name);
 
         const tex = new THREE.CanvasTexture(canvas);
+        this.nameTexture = tex;
         const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
         const sprite = new THREE.Sprite(mat);
         sprite.position.y = 2.8;
-        sprite.scale.set(2, 0.4, 1);
+        sprite.scale.set(hasFaction ? 2.6 : 2, hasFaction ? 0.52 : 0.4, 1);
+
+        if (this.factionImage) {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                this.factionImageEl = img;
+                this.drawNameTag(name);
+                if (this.nameTexture) this.nameTexture.needsUpdate = true;
+            };
+            img.src = this.factionImage;
+        }
+
         return sprite;
+    }
+
+    private drawNameTag(name: string) {
+        const ctx = this.nameCtx;
+        const canvas = this.nameCanvas;
+        if (!ctx || !canvas) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (!this.factionSymbol) {
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 48px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+            return;
+        }
+
+        const imgSize = 96;
+        const imgX = 16;
+        const imgY = (canvas.height - imgSize) / 2;
+
+        if (this.factionImageEl) {
+            ctx.drawImage(this.factionImageEl, imgX, imgY, imgSize, imgSize);
+        } else {
+            ctx.fillStyle = "rgba(255,255,255,0.15)";
+            ctx.fillRect(imgX, imgY, imgSize, imgSize);
+        }
+
+        const textX = imgX + imgSize + 24;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = "#4FD1FF";
+        ctx.font = "bold 34px Arial";
+        ctx.fillText(`$${this.factionSymbol}`, textX, 56);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 42px Arial";
+        ctx.fillText(name, textX, 104);
     }
 
     public setDead(dead: boolean) {

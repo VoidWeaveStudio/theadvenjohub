@@ -2,22 +2,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Flag, Search, Trophy, Plus } from "lucide-react";
+import { Flag, Search, Trophy, Plus, Users, Sparkles, ClipboardList } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FactionDetailView } from "./FactionDetailView";
+import { FactionMembersPanel } from "./FactionMembersPanel";
+import { FactionUpgradesPanel } from "./FactionUpgradesPanel";
+import { FactionTasksPanel } from "./FactionTasksPanel";
 import { FactionRow, FactionLeaderboardList } from "./FactionRow";
-import { FactionDetail, FactionSummary } from "../network/NetworkManager";
+import { FactionDetail, FactionSummary, FactionTaskDefinition } from "../network/NetworkManager";
 
-type FactionsTab = "my" | "search" | "leaderboard";
+type FactionsTab = "members" | "upgrades" | "tasks" | "search" | "leaderboard";
+const OWN_FACTION_TABS: FactionsTab[] = ["members", "upgrades", "tasks"];
 
 interface FactionsWindowProps {
     isOpen: boolean;
     onClose: () => void;
+    myWallet: string;
     myFaction: FactionDetail | FactionSummary | null;
     viewedFaction: FactionDetail | null;
     searchResults: FactionSummary[];
     browseResults: FactionSummary[];
     factionLeaderboard: FactionSummary[];
+    taskDefinitions: FactionTaskDefinition[];
     onRequestOwnFaction: () => void;
     onViewFaction: (factionId: string) => void;
     onSearchFactions: (ca?: string, name?: string) => void;
@@ -26,16 +32,21 @@ interface FactionsWindowProps {
     onJoinFaction: (factionId: string) => void;
     onLeaveFaction: () => void;
     onOpenCreateFaction: () => void;
+    onRequestTaskList: () => void;
+    onAcceptTask: (taskKey: string) => void;
+    onClaimCreator: () => void;
 }
 
 export function FactionsWindow({
     isOpen,
     onClose,
+    myWallet,
     myFaction,
     viewedFaction,
     searchResults,
     browseResults,
     factionLeaderboard,
+    taskDefinitions,
     onRequestOwnFaction,
     onViewFaction,
     onSearchFactions,
@@ -44,8 +55,11 @@ export function FactionsWindow({
     onJoinFaction,
     onLeaveFaction,
     onOpenCreateFaction,
+    onRequestTaskList,
+    onAcceptTask,
+    onClaimCreator,
 }: FactionsWindowProps) {
-    const [activeTab, setActiveTab] = useState<FactionsTab>("my");
+    const [activeTab, setActiveTab] = useState<FactionsTab>("members");
     const [searchQuery, setSearchQuery] = useState("");
     const [viewingFactionId, setViewingFactionId] = useState<string | null>(null);
 
@@ -53,13 +67,13 @@ export function FactionsWindow({
 
     useEffect(() => {
         if (!isOpen) return;
-        if (activeTab === "my") onRequestOwnFaction();
+        if (OWN_FACTION_TABS.includes(activeTab)) onRequestOwnFaction();
         if (activeTab === "search") onBrowseFactions();
         if (activeTab === "leaderboard") onRequestFactionLeaderboard();
     }, [isOpen, activeTab]);
 
     useEffect(() => {
-        if (!isOpen || activeTab !== "my" || !myFaction) return;
+        if (!isOpen || !OWN_FACTION_TABS.includes(activeTab) || !myFaction) return;
         if (!viewedFaction || viewedFaction.id !== myFaction.id) {
             onViewFaction(myFaction.id);
         }
@@ -86,8 +100,23 @@ export function FactionsWindow({
     }, [searchQuery]);
 
     const displayedResults = searchQuery.trim().length > 0 ? searchResults : browseResults;
-    const isViewingOwnDetail = activeTab === "my" && !!myFaction && !!viewedFaction && viewedFaction.id === myFaction.id;
-    const isViewingSearchedDetail = activeTab !== "my" && !!viewingFactionId && !!viewedFaction && viewedFaction.id === viewingFactionId;
+    const isViewingOwnDetail = OWN_FACTION_TABS.includes(activeTab) && !!myFaction && !!viewedFaction && viewedFaction.id === myFaction.id;
+    const isViewingSearchedDetail = !OWN_FACTION_TABS.includes(activeTab) && !!viewingFactionId && !!viewedFaction && viewedFaction.id === viewingFactionId;
+
+    const noFactionPrompt = (
+        <div className="text-center py-10 space-y-4">
+            <p className="text-[#8B8F98] text-sm">You haven&apos;t founded or joined a faction yet.</p>
+            <div className="flex items-center justify-center gap-3">
+                <button onClick={onOpenCreateFaction} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
+                    <Plus className="w-4 h-4" />
+                    Found a Faction
+                </button>
+                <button onClick={() => setActiveTab("search")} className="btn-secondary px-4 py-2 text-sm">
+                    Search Factions
+                </button>
+            </div>
+        </div>
+    );
 
     return (
         <WindowFrame
@@ -96,7 +125,9 @@ export function FactionsWindow({
             title="Factions"
             icon={<Flag className="w-4 h-4" />}
             tabs={[
-                { id: "my", label: "My Faction", icon: <Flag className="w-3.5 h-3.5" /> },
+                { id: "members", label: "Members", icon: <Users className="w-3.5 h-3.5" /> },
+                { id: "upgrades", label: "Upgrades", icon: <Sparkles className="w-3.5 h-3.5" /> },
+                { id: "tasks", label: "Tasks", icon: <ClipboardList className="w-3.5 h-3.5" /> },
                 { id: "search", label: "Search", icon: <Search className="w-3.5 h-3.5" /> },
                 { id: "leaderboard", label: "Leaderboard", icon: <Trophy className="w-3.5 h-3.5" /> },
             ]}
@@ -106,27 +137,39 @@ export function FactionsWindow({
                 setViewingFactionId(null);
             }}
         >
-            {activeTab === "my" && (
-                <>
-                    {!myFaction ? (
-                        <div className="text-center py-10 space-y-4">
-                            <p className="text-[#8B8F98] text-sm">You haven&apos;t founded or joined a faction yet.</p>
-                            <div className="flex items-center justify-center gap-3">
-                                <button onClick={onOpenCreateFaction} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
-                                    <Plus className="w-4 h-4" />
-                                    Found a Faction
-                                </button>
-                                <button onClick={() => setActiveTab("search")} className="btn-secondary px-4 py-2 text-sm">
-                                    Search Factions
-                                </button>
-                            </div>
-                        </div>
-                    ) : isViewingOwnDetail && viewedFaction ? (
-                        <FactionDetailView faction={viewedFaction} isOwnFaction onLeaveFaction={onLeaveFaction} />
-                    ) : (
-                        <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
-                    )}
-                </>
+            {activeTab === "members" && (
+                !myFaction ? noFactionPrompt : isViewingOwnDetail && viewedFaction ? (
+                    <FactionMembersPanel
+                        faction={viewedFaction}
+                        myWallet={myWallet}
+                        onClaimCreator={onClaimCreator}
+                        onLeaveFaction={onLeaveFaction}
+                    />
+                ) : (
+                    <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
+                )
+            )}
+
+            {activeTab === "upgrades" && (
+                !myFaction ? noFactionPrompt : isViewingOwnDetail && viewedFaction ? (
+                    <FactionUpgradesPanel faction={viewedFaction} />
+                ) : (
+                    <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
+                )
+            )}
+
+            {activeTab === "tasks" && (
+                !myFaction ? noFactionPrompt : isViewingOwnDetail && viewedFaction ? (
+                    <FactionTasksPanel
+                        faction={viewedFaction}
+                        myWallet={myWallet}
+                        taskDefinitions={taskDefinitions}
+                        onRequestTaskList={onRequestTaskList}
+                        onAcceptTask={onAcceptTask}
+                    />
+                ) : (
+                    <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
+                )
             )}
 
             {activeTab === "search" && (
@@ -146,7 +189,7 @@ export function FactionsWindow({
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Search by name or token CA..."
-                                    className="w-full bg-zinc-900 text-white pl-9 pr-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none"
+                                    className="w-full bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] pl-9 pr-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#4FD1FF]/50 outline-none"
                                 />
                             </div>
 

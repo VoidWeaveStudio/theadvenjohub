@@ -46,15 +46,15 @@ export function WindowFrame({
 
     return (
         <div
-            className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(4,6,10,0.88)] backdrop-blur-md pointer-events-auto font-oxanium"
+            className="absolute inset-0 z-50 flex items-center justify-center p-4 pointer-events-auto font-oxanium"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}
         >
             <div
-                className={`w-full ${SIZE_CLASSES[size]} flex flex-col bg-[rgba(10,14,20,0.97)] border border-[rgba(79,209,255,0.18)] rounded-2xl shadow-[0_0_70px_rgba(79,209,255,0.07)] overflow-hidden`}
+                className={`w-full ${SIZE_CLASSES[size]} flex flex-col bg-[rgba(13,17,23,0.98)] border border-white/10 rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65),0_0_0_1px_rgba(79,209,255,0.08)] overflow-hidden`}
             >
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(79,209,255,0.12)] bg-gradient-to-r from-[rgba(79,209,255,0.07)] to-transparent flex-shrink-0">
+                <div className="relative flex items-center justify-between px-6 py-4 flex-shrink-0">
                     <div className="flex items-center gap-2.5">
                         {icon && (
                             <div className="w-8 h-8 rounded-lg bg-[rgba(79,209,255,0.12)] border border-[rgba(79,209,255,0.25)] flex items-center justify-center text-[#4FD1FF] flex-shrink-0">
@@ -69,17 +69,18 @@ export function WindowFrame({
                     >
                         <X className="w-4 h-4" />
                     </button>
+                    <div className="absolute bottom-0 left-6 right-6 h-px bg-gradient-to-r from-[#4FD1FF] via-[#C084FC]/60 to-transparent" />
                 </div>
 
                 {tabs && tabs.length > 0 && (
-                    <div className="flex gap-1 px-4 pt-3 border-b border-[rgba(79,209,255,0.1)] flex-shrink-0 overflow-x-auto">
+                    <div className="flex gap-1 mx-4 mt-1 mb-2 p-1 rounded-xl bg-[rgba(255,255,255,0.03)] flex-shrink-0 overflow-x-auto">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => onTabChange?.(tab.id)}
-                                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-t-lg text-xs font-bold tracking-wide whitespace-nowrap transition-colors ${activeTab === tab.id
-                                    ? "text-[#4FD1FF] bg-[rgba(79,209,255,0.08)] border-t border-x border-[rgba(79,209,255,0.2)]"
-                                    : "text-[#6B7280] hover:text-[#8B8F98]"
+                                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold tracking-wide whitespace-nowrap transition-colors ${activeTab === tab.id
+                                    ? "text-[#4FD1FF] bg-[rgba(79,209,255,0.15)] shadow-[inset_0_0_0_1px_rgba(79,209,255,0.35)]"
+                                    : "text-[#6B7280] hover:text-[#9CA3AF] hover:bg-white/5"
                                     }`}
                             >
                                 {tab.icon}
@@ -92,7 +93,7 @@ export function WindowFrame({
                 <div className="flex-1 overflow-y-auto p-6 min-h-0">{children}</div>
 
                 {footer && (
-                    <div className="px-6 py-4 border-t border-[rgba(79,209,255,0.1)] bg-[rgba(255,255,255,0.02)] flex-shrink-0">
+                    <div className="px-6 py-4 border-t border-white/10 bg-[rgba(255,255,255,0.02)] flex-shrink-0">
                         {footer}
                     </div>
                 )}

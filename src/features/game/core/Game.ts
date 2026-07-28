@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, PlayerNetData, InventoryEntry, QuestInfoData, QuestUpdateData, CanyonSegmentData, CanyonClearedData, CanyonMapData, CanyonHubData, FactionSummary, FactionDetail, PlayerProfileData, LeaderboardEntry, FriendEntry, FriendRequestEntry, MailEntry } from "../network/NetworkManager";
+import { NetworkManager, PlayerNetData, InventoryEntry, QuestInfoData, QuestUpdateData, CanyonSegmentData, CanyonClearedData, CanyonMapData, CanyonHubData, FactionSummary, FactionDetail, FactionTaskDefinition, PlayerProfileData, LeaderboardEntry, FriendEntry, FriendRequestEntry, MailEntry } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -188,6 +188,11 @@ export class Game {
     public onViewedProfile?: (profile: PlayerProfileData | null) => void;
     public onLeaderboardResult?: (leaderboard: LeaderboardEntry[]) => void;
     public onFactionLeaderboardResult?: (leaderboard: FactionSummary[]) => void;
+    public onFactionTaskListResult?: (tasks: FactionTaskDefinition[]) => void;
+    public onFactionTaskAccepted?: (faction: FactionSummary) => void;
+    public onFactionTaskCompleted?: (data: { taskKey: string; label: string; rewardAsh: number; rewardNickname: string | null }) => void;
+    public onFactionCreatorClaimResult?: (data: { isCreator: boolean; faction: FactionSummary }) => void;
+    public onFactionCreatorVerified?: (faction: FactionSummary) => void;
 
     public onFriendRequestSent?: (friend: FriendRequestEntry, status: string) => void;
     public onFriendRequestAccepted?: (friend: FriendEntry) => void;
@@ -797,6 +802,18 @@ export class Game {
 
     requestFactionLeaderboard(limit?: number) {
         this.networkManager.sendFactionLeaderboardRequest(limit);
+    }
+
+    requestFactionTaskList() {
+        this.networkManager.sendFactionTaskListRequest();
+    }
+
+    acceptFactionTask(taskKey: string) {
+        this.networkManager.sendFactionAcceptTask(taskKey);
+    }
+
+    claimFactionCreator() {
+        this.networkManager.sendFactionClaimCreator();
     }
 
     sendFriendRequest(target: { wallet?: string; nickname?: string }) {

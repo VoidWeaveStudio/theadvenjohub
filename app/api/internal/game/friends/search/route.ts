@@ -4,6 +4,7 @@ import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internal
 import { db } from "@/core/database";
 import { users, gameNicknames } from "@/core/database/schema";
 import { eq, and, ilike, ne } from "drizzle-orm";
+import { getUserFactionTag, UserFactionTag } from "@/core/lib/userFactionTag";
 
 const MAX_RESULTS = 20;
 
@@ -21,14 +22,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ results: [] });
         }
 
-        const results: { userId: string; wallet: string; nickname: string | null }[] = [];
+        const results: { userId: string; wallet: string; nickname: string | null; faction: UserFactionTag }[] = [];
 
         const byWallet = await db.query.users.findFirst({ where: eq(users.wallet, trimmed) });
         if (byWallet && byWallet.id !== userId) {
             const nick = await db.query.gameNicknames.findFirst({
                 where: and(eq(gameNicknames.userId, byWallet.id), eq(gameNicknames.gameId, gameId)),
             });
-            results.push({ userId: byWallet.id, wallet: byWallet.wallet, nickname: nick?.nickname || null });
+            const faction = await getUserFactionTag(byWallet.id, gameId);
+            results.push({ userId: byWallet.id, wallet: byWallet.wallet, nickname: nick?.nickname || null, faction });
         }
 
         const byNickname = await db
@@ -40,7 +42,8 @@ export async function POST(req: NextRequest) {
 
         for (const row of byNickname) {
             if (!results.some((r) => r.userId === row.userId)) {
-                results.push({ userId: row.userId, wallet: row.wallet, nickname: row.nickname });
+                const faction = await getUserFactionTag(row.userId, gameId);
+                results.push({ userId: row.userId, wallet: row.wallet, nickname: row.nickname, faction });
             }
         }
 

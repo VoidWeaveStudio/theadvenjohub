@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
 import { getCache, setCache } from "@/core/lib/cache";
-import { users, gameNicknames, gameStatistics, gameProgress } from "@/core/database/schema";
+import { users, gameNicknames, gameStatistics, gameProgress, factionMembers, factions } from "@/core/database/schema";
 import { eq, and, gte } from "drizzle-orm";
 
 const DEFAULT_LIMIT = 20;
@@ -59,6 +59,10 @@ export async function POST(req: NextRequest) {
                 deaths: gameStatistics.deaths,
                 playtimeSeconds: gameStatistics.playtimeSeconds,
                 progressData: gameProgress.data,
+                factionName: factions.name,
+                factionSymbol: factions.symbol,
+                factionImage: factions.image,
+                factionNumber: factions.number,
             })
             .from(gameStatistics)
             .innerJoin(users, eq(users.id, gameStatistics.userId))
@@ -70,6 +74,11 @@ export async function POST(req: NextRequest) {
                 gameProgress,
                 and(eq(gameProgress.userId, gameStatistics.userId), eq(gameProgress.gameId, gameStatistics.gameId))
             )
+            .leftJoin(
+                factionMembers,
+                and(eq(factionMembers.userId, gameStatistics.userId), eq(factionMembers.gameId, gameStatistics.gameId))
+            )
+            .leftJoin(factions, eq(factions.id, factionMembers.factionId))
             .where(and(eq(gameStatistics.gameId, gameId), gte(gameStatistics.updatedAt, activeSince)));
 
         const scored = rows.map((row) => {
@@ -90,6 +99,9 @@ export async function POST(req: NextRequest) {
                 ash,
                 playtimeSeconds: row.playtimeSeconds,
                 score: computeScore(row.kills, row.deaths, ash, row.playtimeSeconds),
+                faction: row.factionName
+                    ? { name: row.factionName, symbol: row.factionSymbol, image: row.factionImage, number: row.factionNumber }
+                    : null,
             };
         });
 

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
-import { mailMessages, gameNicknames } from "@/core/database/schema";
+import { mailMessages, gameNicknames, factionMembers, factions } from "@/core/database/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 const MAX_RESULTS = 100;
@@ -30,12 +30,21 @@ export async function POST(req: NextRequest) {
                 isRead: mailMessages.isRead,
                 createdAt: mailMessages.createdAt,
                 senderNickname: gameNicknames.nickname,
+                senderFactionName: factions.name,
+                senderFactionSymbol: factions.symbol,
+                senderFactionImage: factions.image,
+                senderFactionNumber: factions.number,
             })
             .from(mailMessages)
             .leftJoin(
                 gameNicknames,
                 and(eq(gameNicknames.userId, mailMessages.senderUserId), eq(gameNicknames.gameId, gameId))
             )
+            .leftJoin(
+                factionMembers,
+                and(eq(factionMembers.userId, mailMessages.senderUserId), eq(factionMembers.gameId, gameId))
+            )
+            .leftJoin(factions, eq(factions.id, factionMembers.factionId))
             .where(eq(mailMessages.recipientUserId, userId))
             .orderBy(desc(mailMessages.createdAt))
             .limit(MAX_RESULTS);

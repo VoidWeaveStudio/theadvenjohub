@@ -220,6 +220,10 @@ export function GameClient({ slug }: GameClientProps) {
         game.onFactionSearchResult = (results) => { if (!cancelled) factionState.handleFactionSearchResult(results); };
         game.onFactionListResult = (data) => { if (!cancelled) factionState.handleFactionListResult(data); };
         game.onFactionInfo = (f) => { if (!cancelled) factionState.handleFactionInfo(f); };
+        game.onFactionTaskListResult = (tasks) => { if (!cancelled) factionState.handleFactionTaskListResult(tasks); };
+        game.onFactionTaskAccepted = (f) => { if (!cancelled) factionState.handleFactionTaskAccepted(f); };
+        game.onFactionCreatorClaimResult = (data) => { if (!cancelled) factionState.handleFactionCreatorClaimResult(data); };
+        game.onFactionCreatorVerified = (f) => { if (!cancelled) factionState.handleFactionCreatorVerified(f); };
         game.onSelfProfile = (p) => { if (!cancelled) profileState.handleSelfProfile(p); };
         game.onViewedProfile = (p) => { if (!cancelled) profileState.handleViewedProfile(p); };
         game.onLeaderboardResult = (results) => { if (!cancelled) leaderboardState.handlePlayerLeaderboardResult(results); };
@@ -503,11 +507,13 @@ export function GameClient({ slug }: GameClientProps) {
       <FactionsWindow
         isOpen={activeTopWindow === "factions"}
         onClose={() => setActiveTopWindow(null)}
+        myWallet={gameRef.current?.session.wallet ?? ""}
         myFaction={factionState.myFaction}
         viewedFaction={factionState.viewedFaction}
         searchResults={factionState.searchResults}
         browseResults={factionState.browseResults}
         factionLeaderboard={leaderboardState.factionLeaderboard}
+        taskDefinitions={factionState.taskDefinitions}
         onRequestOwnFaction={() => gameRef.current?.requestFactionInfo()}
         onViewFaction={(factionId) => gameRef.current?.requestFactionInfo(factionId)}
         onSearchFactions={(ca, name) => gameRef.current?.searchFactions(ca, name)}
@@ -519,6 +525,9 @@ export function GameClient({ slug }: GameClientProps) {
           setActiveTopWindow(null);
           setIsCreateFactionModalOpen(true);
         }}
+        onRequestTaskList={() => gameRef.current?.requestFactionTaskList()}
+        onAcceptTask={(taskKey) => gameRef.current?.acceptFactionTask(taskKey)}
+        onClaimCreator={() => gameRef.current?.claimFactionCreator()}
       />
 
       <SocialWindow

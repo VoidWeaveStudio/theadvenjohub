@@ -93,7 +93,7 @@ export function CreateFactionModal({ isOpen, onClose, onCreateFaction }: CreateF
                     onChange={(e) => setCreateCa(e.target.value.slice(0, 64))}
                     placeholder="Paste token CA..."
                     autoFocus
-                    className="w-full bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none font-mono"
+                    className="w-full bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#4FD1FF]/50 outline-none font-mono"
                 />
 
                 {previewStatus === "loading" && <p className="text-[#8B8F98] text-sm">Looking up token...</p>}

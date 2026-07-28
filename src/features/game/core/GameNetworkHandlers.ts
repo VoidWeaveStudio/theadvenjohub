@@ -20,6 +20,8 @@ interface AuthData {
 interface PlayerJoinData {
     id: string;
     nickname: string;
+    factionSymbol?: string | null;
+    factionImage?: string | null;
     locationId?: string;
     position?: number[];
     rotation?: number;
@@ -43,6 +45,8 @@ interface ChatData {
     id: string;
     sender: string;
     senderWallet?: string;
+    senderFactionSymbol?: string | null;
+    senderFactionImage?: string | null;
     message: string;
     timestamp: number;
 }
@@ -104,7 +108,7 @@ export function registerNetworkHandlers(game: Game) {
         if (currentLocation.id === locationId) {
             let op = game.otherPlayers.get(data.id);
             if (!op) {
-                op = new OtherPlayer(data.id, data.nickname);
+                op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null);
                 op.create(currentLocation.scene, game.resourceManager);
                 game.otherPlayers.set(data.id, op);
             } else {
@@ -174,7 +178,7 @@ export function registerNetworkHandlers(game: Game) {
         const playerLocation = data.locationId || 'main-world';
         if (playerLocation !== currentLocation.id) {
             if (!game.otherPlayers.has(data.id)) {
-                const op = new OtherPlayer(data.id, data.nickname);
+                const op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null);
                 op.setHidden(true);
                 game.otherPlayers.set(data.id, op);
                 game.updateOnlineCount();
@@ -183,7 +187,7 @@ export function registerNetworkHandlers(game: Game) {
         }
         let op = game.otherPlayers.get(data.id);
         if (!op) {
-            op = new OtherPlayer(data.id, data.nickname);
+            op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null);
             op.create(currentLocation.scene, game.resourceManager);
             game.otherPlayers.set(data.id, op);
         } else if (op.isHidden()) {
@@ -236,6 +240,7 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onChatMessage = (data: ChatData) => {
         game.onChatMessage?.({
             id: data.id, sender: data.sender, senderWallet: data.senderWallet,
+            senderFactionSymbol: data.senderFactionSymbol, senderFactionImage: data.senderFactionImage,
             message: data.message, timestamp: data.timestamp, type: "player",
         });
     };
@@ -482,6 +487,29 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onFactionLeaderboardResult = (leaderboard) => {
         game.onFactionLeaderboardResult?.(leaderboard);
+    };
+
+    game.networkManager.onFactionTaskListResult = (tasks) => {
+        game.onFactionTaskListResult?.(tasks);
+    };
+
+    game.networkManager.onFactionTaskAccepted = (faction) => {
+        game.onFactionTaskAccepted?.(faction);
+        game.onNotification?.("🎯 Faction task accepted", 2500);
+    };
+
+    game.networkManager.onFactionTaskCompleted = (data) => {
+        game.onFactionTaskCompleted?.(data);
+        game.onNotification?.(`🏆 "${data.label}" complete! ${data.rewardAsh} Ash sent to ${data.rewardNickname || "faction leadership"}`, 4000);
+    };
+
+    game.networkManager.onFactionCreatorClaimResult = (data) => {
+        game.onFactionCreatorClaimResult?.(data);
+        game.onNotification?.(data.isCreator ? "💎 Verified as token creator!" : "Wallet doesn't match the token creator", 3000);
+    };
+
+    game.networkManager.onFactionCreatorVerified = (faction) => {
+        game.onFactionCreatorVerified?.(faction);
     };
 
     game.networkManager.onFriendRequestSent = (friend, status) => {
