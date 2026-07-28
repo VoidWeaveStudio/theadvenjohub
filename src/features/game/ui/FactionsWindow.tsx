@@ -150,7 +150,7 @@ export function FactionsWindow({
             title="Factions"
             icon={
                 <Image
-                    src="/icons/topmenu/factions-v2.webp"
+                    src="/icons/topmenu/factions-v3.webp"
                     alt=""
                     width={100}
                     height={200}

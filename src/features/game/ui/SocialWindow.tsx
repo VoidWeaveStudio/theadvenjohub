@@ -89,7 +89,7 @@ export function SocialWindow({
             title="Social"
             icon={
                 <Image
-                    src="/icons/topmenu/social-v2.webp"
+                    src="/icons/topmenu/social-v3.webp"
                     alt=""
                     width={100}
                     height={200}
