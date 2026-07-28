@@ -164,7 +164,7 @@ export class CoinFeedSystem {
             }
         }
 
-        const fallbackTexture = this.floor.textureCache.get('fallback')!;
+        const fallbackTexture = this.floor.textureCache.get('fallback');
         let finalTexture = this.floor.textureCache.get(token.image) || fallbackTexture;
 
         if (token.image && token.image !== 'fallback' && !this.floor.textureCache.has(token.image)) {
@@ -186,10 +186,15 @@ export class CoinFeedSystem {
                     },
                     undefined,
                     () => {
-                        this.floor.textureCache.set(token.image, fallbackTexture);
+                        if (fallbackTexture) this.floor.textureCache.set(token.image, fallbackTexture);
                     }
                 );
             }
+        }
+
+        if (!finalTexture) {
+            console.warn(`[Basement] No texture available for ${token.image}, skipping coin spawn`);
+            return;
         }
 
         this.floor.applyTextureFilters(finalTexture);

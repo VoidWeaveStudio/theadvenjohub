@@ -127,6 +127,7 @@ export async function GET(request: Request) {
 
         if (statusCode < 200 || statusCode >= 300) {
             response.resume();
+            console.warn(`[image-proxy] Upstream returned ${statusCode} for ${parsedUrl.hostname}`);
             return new NextResponse("Failed to fetch image", { status: 502 });
         }
 
@@ -138,6 +139,7 @@ export async function GET(request: Request) {
 
         return new NextResponse(new Uint8Array(body), { headers });
     } catch (error) {
+        console.error(`[image-proxy] Failed for ${parsedUrl.hostname}:`, error);
         return new NextResponse("Failed to proxy image", { status: 500 });
     }
 }

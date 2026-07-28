@@ -31,7 +31,8 @@ export class Basement extends TowerFloor {
         this.columns = new TokenColumnSystem(this);
     }
 
-    public applyTextureFilters(texture: THREE.Texture) {
+    public applyTextureFilters(texture: THREE.Texture | undefined | null) {
+        if (!texture) return;
         texture.anisotropy = 16;
         texture.minFilter = THREE.LinearMipmapLinearFilter;
         texture.magFilter = THREE.LinearFilter;
