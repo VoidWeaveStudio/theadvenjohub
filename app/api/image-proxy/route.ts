@@ -31,22 +31,41 @@ function isPrivateIp(ip: string): boolean {
     return true;
 }
 
-type LookupCallback = (err: NodeJS.ErrnoException | null, address: string, family: number) => void;
+type LookupCallback = (
+    err: NodeJS.ErrnoException | null,
+    addressOrAddresses?: string | dns.LookupAddress[],
+    family?: number
+) => void;
 
+// Node's net/http internals call this with `options.all: true` when Happy
+// Eyeballs (dual-stack `autoSelectFamily`, default since Node 18.13/20) is
+// racing connections — in that mode they expect the array-form callback
+// `(err, addresses[])`, not the single-result `(err, address, family)` form.
+// Always replying in the single-result shape made Node read `.address`/
+// `.family` off a bare string, producing `ERR_INVALID_IP_ADDRESS: undefined`
+// and turning every image-proxy request into a 500.
 function pinnedPublicLookup(
     hostname: string,
     options: LookupOneOptions | LookupAllOptions,
     callback: LookupCallback
 ) {
+    const wantsAll = typeof options === "object" && options !== null && "all" in options && options.all === true;
+
     dns.lookup(hostname, { all: true }, (err, addresses) => {
         if (err) {
-            callback(err, "", 0);
+            callback(err);
             return;
         }
         if (addresses.length === 0 || addresses.some((addr) => isPrivateIp(addr.address))) {
-            callback(new Error("host_not_allowed"), "", 0);
+            callback(new Error("host_not_allowed"));
             return;
         }
+
+        if (wantsAll) {
+            callback(null, addresses);
+            return;
+        }
+
         const chosen = addresses[0];
         callback(null, chosen.address, chosen.family);
     });
