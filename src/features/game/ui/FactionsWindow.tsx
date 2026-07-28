@@ -1,7 +1,8 @@
 // src/features/game/ui/FactionsWindow.tsx
 "use client";
 
-import { Flag, Search, Trophy, Plus, Users, Sparkles, ClipboardList } from "lucide-react";
+import Image from "next/image";
+import { Search, Trophy, Plus, Users, Sparkles, ClipboardList, Star, ChevronLeft } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FactionDetailView } from "./FactionDetailView";
 import { FactionMembersPanel } from "./FactionMembersPanel";
@@ -15,42 +16,48 @@ interface FactionsWindowProps {
     isOpen: boolean;
     onClose: () => void;
     myWallet: string;
-    myFaction: FactionDetail | FactionSummary | null;
+    myFactions: FactionSummary[];
+    selectedFactionId: string | null;
+    setSelectedFactionId: (id: string | null) => void;
     viewedFaction: FactionDetail | null;
     searchResults: FactionSummary[];
     browseResults: FactionSummary[];
     factionLeaderboard: FactionSummary[];
     taskDefinitions: FactionTaskDefinition[];
-    onRequestOwnFaction: () => void;
+    onRequestMyFactions: () => void;
     onViewFaction: (factionId: string) => void;
     onSearchFactions: (ca?: string, name?: string) => void;
     onBrowseFactions: () => void;
     onRequestFactionLeaderboard: () => void;
     onJoinFaction: (factionId: string) => void;
-    onLeaveFaction: () => void;
+    onLeaveFaction: (factionId: string) => void;
+    onSetDisplayedFaction: (factionId: string) => void;
     onOpenCreateFaction: () => void;
     onRequestTaskList: () => void;
-    onAcceptTask: (taskKey: string) => void;
-    onClaimCreator: () => void;
+    onAcceptTask: (factionId: string, taskKey: string) => void;
+    onClaimCreator: (factionId: string) => void;
 }
 
 export function FactionsWindow({
     isOpen,
     onClose,
     myWallet,
-    myFaction,
+    myFactions,
+    selectedFactionId,
+    setSelectedFactionId,
     viewedFaction,
     searchResults,
     browseResults,
     factionLeaderboard,
     taskDefinitions,
-    onRequestOwnFaction,
+    onRequestMyFactions,
     onViewFaction,
     onSearchFactions,
     onBrowseFactions,
     onRequestFactionLeaderboard,
     onJoinFaction,
     onLeaveFaction,
+    onSetDisplayedFaction,
     onOpenCreateFaction,
     onRequestTaskList,
     onAcceptTask,
@@ -58,16 +65,21 @@ export function FactionsWindow({
 }: FactionsWindowProps) {
     const view = useFactionsViewState({
         isOpen,
-        myFaction,
+        myFactions,
+        selectedFactionId,
+        setSelectedFactionId,
         viewedFaction,
         searchResults,
         browseResults,
-        onRequestOwnFaction,
+        onRequestMyFactions,
         onViewFaction,
         onSearchFactions,
         onBrowseFactions,
         onRequestFactionLeaderboard,
     });
+
+    const hasFactions = myFactions.length > 0;
+    const showSwitcher = myFactions.length > 1 && !selectedFactionId;
 
     const noFactionPrompt = (
         <div className="text-center py-10 space-y-4">
@@ -84,12 +96,67 @@ export function FactionsWindow({
         </div>
     );
 
+    const factionSwitcher = (
+        <div className="space-y-3">
+            <p className="text-[#8B8F98] text-xs">You belong to {myFactions.length} factions. Pick one to view.</p>
+            <div className="space-y-2">
+                {myFactions.map((f) => (
+                    <div key={f.id} className="flex items-center gap-2">
+                        <div className="flex-1">
+                            <FactionRow faction={f} onClick={() => setSelectedFactionId(f.id)} />
+                        </div>
+                        <button
+                            onClick={() => onSetDisplayedFaction(f.id)}
+                            title={f.isDisplayed ? "Shown on your avatar" : "Show this faction on your avatar"}
+                            className={`flex-shrink-0 p-2 rounded-lg transition-colors ${f.isDisplayed ? "text-[#FFD166]" : "text-[#6B7280] hover:text-[#FFD166]"
+                                }`}
+                        >
+                            <Star className="w-4 h-4" fill={f.isDisplayed ? "currentColor" : "none"} />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+
+    const backToSwitcher = myFactions.length > 1 && (
+        <button
+            onClick={() => setSelectedFactionId(null)}
+            className="flex items-center gap-1 text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold mb-3"
+        >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            All my factions
+        </button>
+    );
+
+    const renderOwnFactionTab = (panel: React.ReactNode) => {
+        if (!hasFactions) return noFactionPrompt;
+        if (showSwitcher) return factionSwitcher;
+        if (view.isViewingOwnDetail && viewedFaction) {
+            return (
+                <div>
+                    {backToSwitcher}
+                    {panel}
+                </div>
+            );
+        }
+        return <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>;
+    };
+
     return (
         <WindowFrame
             isOpen={isOpen}
             onClose={onClose}
             title="Factions"
-            icon={<Flag className="w-4 h-4" />}
+            icon={
+                <Image
+                    src="/icons/topmenu/factions.webp"
+                    alt=""
+                    width={100}
+                    height={200}
+                    className="h-11 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
+                />
+            }
             tabs={[
                 { id: "members", label: "Members", icon: <Users className="w-3.5 h-3.5" /> },
                 { id: "upgrades", label: "Upgrades", icon: <Sparkles className="w-3.5 h-3.5" /> },
@@ -100,47 +167,41 @@ export function FactionsWindow({
             activeTab={view.activeTab}
             onTabChange={(id) => view.setActiveTab(id as FactionsTab)}
         >
-            {view.activeTab === "members" && (
-                !myFaction ? noFactionPrompt : view.isViewingOwnDetail && viewedFaction ? (
-                    <FactionMembersPanel
-                        faction={viewedFaction}
-                        myWallet={myWallet}
-                        onClaimCreator={onClaimCreator}
-                        onLeaveFaction={onLeaveFaction}
-                    />
-                ) : (
-                    <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
-                )
-            )}
+            {view.activeTab === "members" &&
+                renderOwnFactionTab(
+                    viewedFaction && (
+                        <FactionMembersPanel
+                            faction={viewedFaction}
+                            myWallet={myWallet}
+                            onClaimCreator={() => onClaimCreator(viewedFaction.id)}
+                            onLeaveFaction={() => onLeaveFaction(viewedFaction.id)}
+                        />
+                    )
+                )}
 
-            {view.activeTab === "upgrades" && (
-                !myFaction ? noFactionPrompt : view.isViewingOwnDetail && viewedFaction ? (
-                    <FactionUpgradesPanel faction={viewedFaction} />
-                ) : (
-                    <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
-                )
-            )}
+            {view.activeTab === "upgrades" &&
+                renderOwnFactionTab(viewedFaction && <FactionUpgradesPanel faction={viewedFaction} />)}
 
-            {view.activeTab === "tasks" && (
-                !myFaction ? noFactionPrompt : view.isViewingOwnDetail && viewedFaction ? (
-                    <FactionTasksPanel
-                        faction={viewedFaction}
-                        myWallet={myWallet}
-                        taskDefinitions={taskDefinitions}
-                        onRequestTaskList={onRequestTaskList}
-                        onAcceptTask={onAcceptTask}
-                    />
-                ) : (
-                    <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
-                )
-            )}
+            {view.activeTab === "tasks" &&
+                renderOwnFactionTab(
+                    viewedFaction && (
+                        <FactionTasksPanel
+                            faction={viewedFaction}
+                            myWallet={myWallet}
+                            taskDefinitions={taskDefinitions}
+                            onRequestTaskList={onRequestTaskList}
+                            onAcceptTask={(taskKey) => onAcceptTask(viewedFaction.id, taskKey)}
+                        />
+                    )
+                )}
 
             {view.activeTab === "search" && (
                 <>
                     {view.isViewingSearchedDetail && viewedFaction ? (
                         <FactionDetailView
                             faction={viewedFaction}
-                            isOwnFaction={false}
+                            isOwnFaction={myFactions.some((mf) => mf.id === viewedFaction.id)}
+                            onJoinFaction={() => onJoinFaction(viewedFaction.id)}
                             onBack={() => view.setViewingFactionId(null)}
                         />
                     ) : (
@@ -160,21 +221,24 @@ export function FactionsWindow({
                                 {view.displayedResults.length === 0 ? (
                                     <p className="text-[#8B8F98] text-sm text-center py-6">No factions found.</p>
                                 ) : (
-                                    view.displayedResults.map((f) => (
-                                        <div key={f.id} className="flex items-center gap-2">
-                                            <div className="flex-1">
-                                                <FactionRow faction={f} onClick={() => view.setViewingFactionId(f.id)} />
+                                    view.displayedResults.map((f) => {
+                                        const alreadyMember = myFactions.some((mf) => mf.id === f.id);
+                                        return (
+                                            <div key={f.id} className="flex items-center gap-2">
+                                                <div className="flex-1">
+                                                    <FactionRow faction={f} onClick={() => view.setViewingFactionId(f.id)} />
+                                                </div>
+                                                {!alreadyMember && (
+                                                    <button
+                                                        onClick={() => onJoinFaction(f.id)}
+                                                        className="btn-success px-3 py-1.5 text-xs flex-shrink-0"
+                                                    >
+                                                        Join
+                                                    </button>
+                                                )}
                                             </div>
-                                            {!myFaction && (
-                                                <button
-                                                    onClick={() => onJoinFaction(f.id)}
-                                                    className="btn-secondary px-3 py-1.5 text-xs flex-shrink-0"
-                                                >
-                                                    Join
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>
@@ -187,7 +251,8 @@ export function FactionsWindow({
                     {view.isViewingSearchedDetail && viewedFaction ? (
                         <FactionDetailView
                             faction={viewedFaction}
-                            isOwnFaction={false}
+                            isOwnFaction={myFactions.some((mf) => mf.id === viewedFaction.id)}
+                            onJoinFaction={() => onJoinFaction(viewedFaction.id)}
                             onBack={() => view.setViewingFactionId(null)}
                         />
                     ) : (

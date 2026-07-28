@@ -48,7 +48,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
             </div>
 
             {state.inSafeZone && (
-                <div className="absolute top-20 left-1/2 -translate-x-1/2">
+                <div className="absolute top-40 left-1/2 -translate-x-1/2">
                     <div className="bg-[rgba(74,222,128,0.15)] backdrop-blur-md border border-[#4ADE80]/30 px-5 py-2 rounded-[10px]">
                         <div className="flex items-center gap-2">
                             <Shield className="w-4 h-4 text-[#4ADE80]" />

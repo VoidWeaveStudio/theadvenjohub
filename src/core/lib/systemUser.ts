@@ -1,0 +1,3 @@
+// src/core/lib/systemUser.ts
+export const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
+export const SYSTEM_SENDER_WALLET = "SYSTEM_FACTION_KICK_BOT";

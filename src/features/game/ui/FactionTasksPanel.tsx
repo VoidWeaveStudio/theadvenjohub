@@ -37,7 +37,9 @@ export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onReques
             <FactionHeader faction={faction} />
 
             <div>
-                <span className="text-[#8B8F98] text-xs font-bold tracking-wider">FACTION TASK</span>
+                <span className="text-[#8B8F98] text-xs font-bold tracking-wider">
+                    FACTION TASK — {faction.name}{faction.symbol ? ` ($${faction.symbol})` : ""}
+                </span>
 
                 {activeTask ? (
                     <div className="mt-2 bg-[rgba(79,209,255,0.06)] border border-[rgba(79,209,255,0.2)] rounded-lg p-4 space-y-2">

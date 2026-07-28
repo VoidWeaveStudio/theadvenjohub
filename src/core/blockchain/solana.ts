@@ -61,6 +61,22 @@ export async function getTokenCreatorWallet(mint: string): Promise<string | null
   }
 }
 
+
+export async function getTokenBalance(wallet: string, mint: string): Promise<number> {
+  const connection = new Connection(getRpcUrl(), "confirmed");
+  const walletPubkey = new PublicKey(wallet);
+  const mintPubkey = new PublicKey(mint);
+
+  const { value } = await connection.getParsedTokenAccountsByOwner(walletPubkey, { mint: mintPubkey });
+
+  let total = 0;
+  for (const { account } of value) {
+    const amount = account.data.parsed?.info?.tokenAmount?.uiAmount;
+    if (typeof amount === "number") total += amount;
+  }
+  return total;
+}
+
 export async function testConnection(): Promise<boolean> {
   try {
     const connection = new Connection(getRpcUrl(), "confirmed");

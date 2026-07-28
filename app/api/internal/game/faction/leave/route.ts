@@ -4,6 +4,7 @@ import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internal
 import { db } from "@/core/database";
 import { factionMembers } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
+import { reassignDisplayedIfNeeded } from "@/core/lib/factionDetail";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -12,15 +13,16 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { userId, gameId } = body;
+        const { userId, gameId, factionId } = body;
 
-        if (!userId || !gameId) {
+        if (!userId || !gameId || !factionId) {
             return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
         }
 
         await db.delete(factionMembers).where(
-            and(eq(factionMembers.userId, userId), eq(factionMembers.gameId, gameId))
+            and(eq(factionMembers.userId, userId), eq(factionMembers.factionId, factionId))
         );
+        await reassignDisplayedIfNeeded(userId, gameId);
 
         return NextResponse.json({ success: true });
     } catch (error) {

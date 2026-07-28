@@ -1,20 +1,20 @@
 // src/features/game/ui/PlayerProfileCard.tsx
 "use client";
 
-import { User, Users } from "lucide-react";
+import { User, Users, UserPlus } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { PlayerTag } from "./shell/PlayerTag";
-import { PlayerProfileData } from "../network/NetworkManager";
+import { CopyableText } from "./shell/CopyableText";
+import { FriendEntry, FriendRequestEntry, PlayerProfileData } from "../network/NetworkManager";
 
 interface PlayerProfileCardProps {
     isOpen: boolean;
     profile: PlayerProfileData | null;
+    myWallet: string;
+    friends: FriendEntry[];
+    outgoingRequests: FriendRequestEntry[];
     onClose: () => void;
-}
-
-function truncateWallet(wallet: string): string {
-    if (wallet.length <= 10) return wallet;
-    return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
+    onSendFriendRequest: (target: { wallet?: string; nickname?: string }) => void;
 }
 
 function formatPlaytime(seconds: number): string {
@@ -24,32 +24,53 @@ function formatPlaytime(seconds: number): string {
     return `${minutes}m`;
 }
 
-export function PlayerProfileCard({ isOpen, profile, onClose }: PlayerProfileCardProps) {
+export function PlayerProfileCard({
+    isOpen,
+    profile,
+    myWallet,
+    friends,
+    outgoingRequests,
+    onClose,
+    onSendFriendRequest,
+}: PlayerProfileCardProps) {
+    const isSelf = !!profile && profile.wallet === myWallet;
+    const isFriend = !!profile && friends.some((f) => f.wallet === profile.wallet);
+    const isPending = !!profile && outgoingRequests.some((r) => r.wallet === profile.wallet);
+    const displayedFaction = profile?.factions?.find((f) => f.isDisplayed) ?? profile?.factions?.[0] ?? null;
+
     return (
         <WindowFrame isOpen={isOpen} onClose={onClose} title="Player" icon={<User className="w-4 h-4" />} size="sm">
             {!profile ? (
                 <p className="text-[#8B8F98] text-sm text-center py-8">Player not found.</p>
             ) : (
                 <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-[#E5E7EB]">
+                    <div className="space-y-1">
                         <PlayerTag
                             nickname={profile.nickname || "Unknown"}
-                            faction={profile.faction}
+                            faction={displayedFaction}
                             badge={
-                                profile.faction?.verifiedCreatorWallet === profile.wallet
+                                displayedFaction?.verifiedCreatorWallet === profile.wallet
                                     ? "creator"
-                                    : profile.faction?.founderWallet === profile.wallet
+                                    : displayedFaction?.founderWallet === profile.wallet
                                         ? "founder"
                                         : null
                             }
                         />
-                        <p className="text-[#8B8F98] text-xs font-mono">{truncateWallet(profile.wallet)}</p>
+                        <CopyableText
+                            value={profile.wallet}
+                            className="text-[#8B8F98] text-xs"
+                            iconClassName="w-3 h-3"
+                        />
                     </div>
 
-                    {profile.faction && (
-                        <div className="flex items-center gap-2 text-sm text-[#4FD1FF]">
-                            <Users className="w-4 h-4" />
-                            {profile.faction.name} #{profile.faction.number}
+                    {profile.factions && profile.factions.length > 0 && (
+                        <div className="space-y-1">
+                            {profile.factions.map((f) => (
+                                <div key={f.id} className="flex items-center gap-2 text-sm text-[#4FD1FF]">
+                                    <Users className="w-4 h-4 flex-shrink-0" />
+                                    {f.name} #{f.number}
+                                </div>
+                            ))}
                         </div>
                     )}
 
@@ -71,6 +92,17 @@ export function PlayerProfileCard({ isOpen, profile, onClose }: PlayerProfileCar
                             <div className="text-[#E5E7EB] text-lg font-bold">{formatPlaytime(profile.playtimeSeconds)}</div>
                         </div>
                     </div>
+
+                    {!isSelf && (
+                        <button
+                            onClick={() => onSendFriendRequest({ wallet: profile.wallet })}
+                            disabled={isFriend || isPending}
+                            className="btn-success w-full flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            {isFriend ? "Already Friends" : isPending ? "Request Sent" : "Add Friend"}
+                        </button>
+                    )}
                 </div>
             )}
         </WindowFrame>

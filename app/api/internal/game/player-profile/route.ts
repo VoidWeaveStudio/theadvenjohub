@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ profile: null });
         }
 
-        const [nickname, statistics, progress, membership] = await Promise.all([
+        const [nickname, statistics, progress, memberships] = await Promise.all([
             db.query.gameNicknames.findFirst({
                 where: and(eq(gameNicknames.userId, user.id), eq(gameNicknames.gameId, gameId)),
             }),
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
             db.query.gameProgress.findFirst({
                 where: and(eq(gameProgress.userId, user.id), eq(gameProgress.gameId, gameId)),
             }),
-            db.query.factionMembers.findFirst({
+            db.query.factionMembers.findMany({
                 where: and(eq(factionMembers.userId, user.id), eq(factionMembers.gameId, gameId)),
             }),
         ]);
@@ -48,23 +48,23 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        let faction: {
+        const factionsList: Array<{
             id: string; number: number; name: string; symbol: string | null; image: string | null;
-            founderWallet: string; verifiedCreatorWallet: string | null;
-        } | null = null;
-        if (membership) {
+            founderWallet: string; verifiedCreatorWallet: string | null; isDisplayed: boolean;
+        }> = [];
+        for (const membership of memberships) {
             const factionRow = await db.query.factions.findFirst({ where: eq(factions.id, membership.factionId) });
-            if (factionRow) {
-                faction = {
-                    id: factionRow.id,
-                    number: factionRow.number,
-                    name: factionRow.name,
-                    symbol: factionRow.symbol,
-                    image: factionRow.image,
-                    founderWallet: factionRow.founderWallet,
-                    verifiedCreatorWallet: factionRow.verifiedCreatorWallet,
-                };
-            }
+            if (!factionRow) continue;
+            factionsList.push({
+                id: factionRow.id,
+                number: factionRow.number,
+                name: factionRow.name,
+                symbol: factionRow.symbol,
+                image: factionRow.image,
+                founderWallet: factionRow.founderWallet,
+                verifiedCreatorWallet: factionRow.verifiedCreatorWallet,
+                isDisplayed: membership.isDisplayed,
+            });
         }
 
         return NextResponse.json({
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
                 deaths: statistics?.deaths ?? 0,
                 playtimeSeconds: statistics?.playtimeSeconds ?? 0,
                 ash,
-                faction,
+                factions: factionsList,
             },
         });
     } catch (error) {

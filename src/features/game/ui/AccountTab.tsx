@@ -26,6 +26,7 @@ function formatPlaytime(seconds: number): string {
 }
 
 export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile, onNicknameChange, quest }: AccountTabProps) {
+    const displayedFaction = selfProfile?.factions?.find((f) => f.isDisplayed) ?? selfProfile?.factions?.[0] ?? null;
     const [accountSubTab, setAccountSubTab] = useState<AccountSubTab>("about");
     const [editingNickname, setEditingNickname] = useState(false);
     const [tempNickname, setTempNickname] = useState(nickname);
@@ -83,11 +84,11 @@ export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile
                                 <>
                                     <PlayerTag
                                         nickname={nickname}
-                                        faction={selfProfile?.faction ?? null}
+                                        faction={displayedFaction}
                                         badge={
-                                            selfProfile?.faction?.verifiedCreatorWallet === wallet
+                                            displayedFaction?.verifiedCreatorWallet === wallet
                                                 ? "creator"
-                                                : selfProfile?.faction?.founderWallet === wallet
+                                                : displayedFaction?.founderWallet === wallet
                                                     ? "founder"
                                                     : null
                                         }
@@ -104,10 +105,14 @@ export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile
                                 </>
                             )}
                         </div>
-                        {selfProfile?.faction && (
-                            <p className="mt-1 text-[#4FD1FF] text-xs">
-                                {selfProfile.faction.name} #{selfProfile.faction.number}
-                            </p>
+                        {selfProfile?.factions && selfProfile.factions.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                                {selfProfile.factions.map((f) => (
+                                    <p key={f.id} className="text-[#4FD1FF] text-xs">
+                                        {f.name} #{f.number}
+                                    </p>
+                                ))}
+                            </div>
                         )}
                     </div>
 

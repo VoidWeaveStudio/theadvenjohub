@@ -151,6 +151,11 @@ export function registerNetworkHandlers(game: Game) {
         game.localPlayerNetId = data.playerId;
         game.onNicknameLoaded?.(data.nickname);
 
+
+        game.requestMyFactions();
+        game.requestMailInbox();
+        game.requestFriendsList();
+
         setTimeout(() => {
             if (game.hasRestoredLocation) return;
             game.hasRestoredLocation = true;
@@ -456,9 +461,17 @@ export function registerNetworkHandlers(game: Game) {
         game.onNotification?.(`🚩 Joined faction "${faction.name}"`, 2500);
     };
 
-    game.networkManager.onFactionLeft = () => {
-        game.onFactionLeft?.();
+    game.networkManager.onFactionLeft = (factionId) => {
+        game.onFactionLeft?.(factionId);
         game.onNotification?.("🚩 Left faction", 2000);
+    };
+
+    game.networkManager.onFactionMyListResult = (factions) => {
+        game.onFactionMyListResult?.(factions);
+    };
+
+    game.networkManager.onFactionDisplayedSet = (faction) => {
+        game.onFactionDisplayedSet?.(faction);
     };
 
     game.networkManager.onFactionSearchResult = (results) => {
@@ -546,5 +559,13 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onMailMarkedRead = (mailId) => {
         game.onMailMarkedRead?.(mailId);
+    };
+
+    game.networkManager.onMailReceived = (data) => {
+        game.onMailReceived?.(data);
+    };
+
+    game.networkManager.onFriendRequestReceived = (friend) => {
+        game.onFriendRequestReceived?.(friend);
     };
 }

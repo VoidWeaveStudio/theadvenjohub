@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { Users, Mail as MailIcon, User } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FriendsTab } from "./FriendsTab";
@@ -86,10 +87,18 @@ export function SocialWindow({
             isOpen={isOpen}
             onClose={onClose}
             title="Social"
-            icon={<Users className="w-4 h-4" />}
+            icon={
+                <Image
+                    src="/icons/topmenu/social.webp"
+                    alt=""
+                    width={100}
+                    height={200}
+                    className="h-11 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
+                />
+            }
             tabs={[
-                { id: "friends", label: "Friends", icon: <Users className="w-3.5 h-3.5" /> },
-                { id: "mail", label: "Mail", icon: <MailIcon className="w-3.5 h-3.5" /> },
+                { id: "friends", label: "Friends", icon: <Users className="w-3.5 h-3.5" />, badge: incomingRequests.length > 0 },
+                { id: "mail", label: "Mail", icon: <MailIcon className="w-3.5 h-3.5" />, badge: unreadMailCount > 0 },
                 { id: "account", label: "Account", icon: <User className="w-3.5 h-3.5" /> },
             ]}
             activeTab={activeTab}

@@ -1,7 +1,7 @@
 // src/features/game/ui/FactionDetailView.tsx
 "use client";
 
-import { ArrowLeft, LogOut } from "lucide-react";
+import { ArrowLeft, LogOut, UserPlus } from "lucide-react";
 import { FactionDetail } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { FactionRosterList } from "./FactionRosterList";
@@ -10,10 +10,11 @@ interface FactionDetailViewProps {
     faction: FactionDetail;
     isOwnFaction: boolean;
     onLeaveFaction?: () => void;
+    onJoinFaction?: () => void;
     onBack?: () => void;
 }
 
-export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onBack }: FactionDetailViewProps) {
+export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoinFaction, onBack }: FactionDetailViewProps) {
     return (
         <div className="space-y-4">
             {onBack && (
@@ -32,10 +33,20 @@ export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onBac
             {isOwnFaction && onLeaveFaction && (
                 <button
                     onClick={onLeaveFaction}
-                    className="flex items-center gap-2 text-red-400 hover:text-red-300 text-sm font-bold"
+                    className="btn-error w-full flex items-center justify-center gap-2 text-sm"
                 >
                     <LogOut className="w-4 h-4" />
                     Leave Faction
+                </button>
+            )}
+
+            {!isOwnFaction && onJoinFaction && (
+                <button
+                    onClick={onJoinFaction}
+                    className="btn-success w-full flex items-center justify-center gap-2 text-sm"
+                >
+                    <UserPlus className="w-4 h-4" />
+                    Join Faction
                 </button>
             )}
         </div>

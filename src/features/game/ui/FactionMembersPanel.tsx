@@ -39,7 +39,7 @@ export function FactionMembersPanel({ faction, myWallet, onClaimCreator, onLeave
 
             <button
                 onClick={onLeaveFaction}
-                className="flex items-center gap-2 text-red-400 hover:text-red-300 text-sm font-bold"
+                className="btn-error w-full flex items-center justify-center gap-2 text-sm"
             >
                 <LogOut className="w-4 h-4" />
                 Leave Faction

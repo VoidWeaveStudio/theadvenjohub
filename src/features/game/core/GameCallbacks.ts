@@ -45,10 +45,12 @@ export interface GameCallbacks {
     onOpenFactionBrokerUI?: () => void;
     onFactionCreated?: (faction: FactionSummary) => void;
     onFactionJoined?: (faction: FactionSummary) => void;
-    onFactionLeft?: () => void;
+    onFactionLeft?: (factionId: string) => void;
     onFactionSearchResult?: (results: FactionSummary[]) => void;
     onFactionListResult?: (data: { results: FactionSummary[]; page: number }) => void;
     onFactionInfo?: (faction: FactionDetail | null) => void;
+    onFactionMyListResult?: (factions: FactionSummary[]) => void;
+    onFactionDisplayedSet?: (faction: FactionSummary) => void;
     onSelfProfile?: (profile: PlayerProfileData | null) => void;
     onViewedProfile?: (profile: PlayerProfileData | null) => void;
     onLeaderboardResult?: (leaderboard: LeaderboardEntry[]) => void;
@@ -68,5 +70,7 @@ export interface GameCallbacks {
     onMailSent?: (mailId: string) => void;
     onMailInboxResult?: (data: { mail: MailEntry[]; unreadCount: number }) => void;
     onMailMarkedRead?: (mailId: string) => void;
+    onMailReceived?: (data: { mailId: string; senderNickname: string; subject: string }) => void;
+    onFriendRequestReceived?: (friend: FriendRequestEntry) => void;
     onVoiceCapturingChange?: (capturing: boolean) => void;
 }

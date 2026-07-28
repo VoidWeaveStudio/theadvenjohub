@@ -3,23 +3,33 @@ import { useCallback, useState } from "react";
 import { FactionSummary, FactionDetail, FactionTaskDefinition } from "../../network/NetworkManager";
 
 export function useFactionState() {
-    const [myFaction, setMyFaction] = useState<FactionDetail | FactionSummary | null>(null);
+    const [myFactions, setMyFactions] = useState<FactionSummary[]>([]);
+    const [selectedFactionId, setSelectedFactionId] = useState<string | null>(null);
     const [viewedFaction, setViewedFaction] = useState<FactionDetail | null>(null);
     const [searchResults, setSearchResults] = useState<FactionSummary[]>([]);
     const [browseResults, setBrowseResults] = useState<FactionSummary[]>([]);
     const [taskDefinitions, setTaskDefinitions] = useState<FactionTaskDefinition[]>([]);
 
+    const handleFactionMyListResult = useCallback((factions: FactionSummary[]) => {
+        setMyFactions(factions);
+    }, []);
+
     const handleFactionCreated = useCallback((faction: FactionSummary) => {
-        setMyFaction(faction);
+        setMyFactions((prev) => (prev.some((f) => f.id === faction.id) ? prev : [...prev, faction]));
     }, []);
 
     const handleFactionJoined = useCallback((faction: FactionSummary) => {
-        setMyFaction(faction);
+        setMyFactions((prev) => (prev.some((f) => f.id === faction.id) ? prev : [...prev, faction]));
     }, []);
 
-    const handleFactionLeft = useCallback(() => {
-        setMyFaction(null);
-        setViewedFaction(null);
+    const handleFactionLeft = useCallback((factionId: string) => {
+        setMyFactions((prev) => prev.filter((f) => f.id !== factionId));
+        setSelectedFactionId((prev) => (prev === factionId ? null : prev));
+        setViewedFaction((prev) => (prev && prev.id === factionId ? null : prev));
+    }, []);
+
+    const handleFactionDisplayedSet = useCallback((faction: FactionSummary) => {
+        setMyFactions((prev) => prev.map((f) => ({ ...f, isDisplayed: f.id === faction.id })));
     }, []);
 
     const handleFactionSearchResult = useCallback((results: FactionSummary[]) => {
@@ -30,20 +40,14 @@ export function useFactionState() {
         setBrowseResults(data.results);
     }, []);
 
-    const handleFactionInfo = useCallback((faction: FactionDetail | null) => {
-        if (faction && "roster" in faction) {
-            setViewedFaction(faction);
-        } else {
-            setMyFaction(faction);
-        }
+
+    const mergeFactionUpdate = useCallback((faction: FactionSummary) => {
+        setMyFactions((prev) => prev.map((f) => (f.id === faction.id ? { ...f, ...faction } : f)));
+        setViewedFaction((prev) => (prev && prev.id === faction.id ? { ...prev, ...faction } : prev));
     }, []);
 
-    // Task-accept / creator-claim responses carry a FactionSummary (no roster) —
-    // merge the updated fields into whichever cached faction(s) match its id,
-    // preserving the roster on viewedFaction if one was already loaded.
-    const mergeFactionUpdate = useCallback((faction: FactionSummary) => {
-        setMyFaction((prev) => (prev && prev.id === faction.id ? { ...prev, ...faction } : prev));
-        setViewedFaction((prev) => (prev && prev.id === faction.id ? { ...prev, ...faction } : prev));
+    const handleFactionInfo = useCallback((faction: FactionDetail | null) => {
+        setViewedFaction(faction);
     }, []);
 
     const handleFactionTaskListResult = useCallback((tasks: FactionTaskDefinition[]) => {
@@ -71,14 +75,18 @@ export function useFactionState() {
     }, []);
 
     return {
-        myFaction,
+        myFactions,
+        selectedFactionId,
+        setSelectedFactionId,
         viewedFaction,
         searchResults,
         browseResults,
         taskDefinitions,
+        handleFactionMyListResult,
         handleFactionCreated,
         handleFactionJoined,
         handleFactionLeft,
+        handleFactionDisplayedSet,
         handleFactionSearchResult,
         handleFactionListResult,
         handleFactionInfo,

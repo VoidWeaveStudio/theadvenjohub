@@ -1,9 +1,9 @@
 // src/features/game/ui/FactionHeader.tsx
 "use client";
 
-import { useState } from "react";
-import { Users, Trophy, Copy, Check } from "lucide-react";
+import { Users, Trophy } from "lucide-react";
 import { FactionSummary } from "../network/NetworkManager";
+import { CopyableText } from "./shell/CopyableText";
 
 interface FactionHeaderProps {
     faction: FactionSummary;
@@ -15,16 +15,6 @@ function truncateWallet(wallet: string): string {
 }
 
 export function FactionHeader({ faction }: FactionHeaderProps) {
-    const [caCopied, setCaCopied] = useState(false);
-
-    const handleCopyCa = () => {
-        if (!faction.tokenCa) return;
-        navigator.clipboard.writeText(faction.tokenCa).then(() => {
-            setCaCopied(true);
-            setTimeout(() => setCaCopied(false), 1500);
-        });
-    };
-
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-4">
@@ -40,7 +30,14 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
                         <h3 className="text-[#E5E7EB] text-xl font-bold truncate">{faction.name}</h3>
                         {faction.symbol && <span className="text-[#8B8F98] text-sm flex-shrink-0">${faction.symbol}</span>}
                     </div>
-                    <p className="text-[#8B8F98] text-xs font-mono mt-0.5">#{faction.number} · Founded by {truncateWallet(faction.founderWallet)}</p>
+                    <div className="text-[#8B8F98] text-xs font-mono mt-0.5 flex items-center gap-1">
+                        <span>#{faction.number} · Founded by</span>
+                        <CopyableText
+                            value={faction.founderWallet}
+                            display={truncateWallet(faction.founderWallet)}
+                            iconClassName="w-3 h-3"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -64,15 +61,12 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
             {faction.tokenCa && (
                 <div>
                     <span className="text-[#8B8F98] text-xs font-bold tracking-wider">TOKEN CA</span>
-                    <div className="mt-1 flex items-center gap-2">
-                        <p className="text-[#E5E7EB] text-sm font-mono break-all">{faction.tokenCa}</p>
-                        <button
-                            onClick={handleCopyCa}
-                            className="text-[#8B8F98] hover:text-[#4FD1FF] transition-colors flex-shrink-0"
-                            title="Copy CA"
-                        >
-                            {caCopied ? <Check className="w-4 h-4 text-[#4ADE80]" /> : <Copy className="w-4 h-4" />}
-                        </button>
+                    <div className="mt-1">
+                        <CopyableText
+                            value={faction.tokenCa}
+                            className="text-[#E5E7EB] text-sm break-all"
+                            iconClassName="w-4 h-4"
+                        />
                     </div>
                 </div>
             )}

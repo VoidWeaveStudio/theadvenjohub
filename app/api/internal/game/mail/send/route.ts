@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
             body: trimmedBody,
         }).returning();
 
-        return NextResponse.json({ success: true, mailId: inserted.id });
+        return NextResponse.json({ success: true, mailId: inserted.id, recipientUserId: recipient.id });
     } catch (error) {
         console.error("[internal/mail/send] Error:", error);
         return NextResponse.json({ error: "send_failed" }, { status: 500 });

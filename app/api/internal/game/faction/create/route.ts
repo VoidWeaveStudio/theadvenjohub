@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
 import { factions, factionMembers } from "@/core/database/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getFactionRank } from "@/core/lib/factionRank";
+import { getTokenBalance } from "@/core/blockchain";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -28,11 +29,15 @@ export async function POST(req: NextRequest) {
         const trimmedSymbol = typeof symbol === "string" && symbol.trim().length > 0 ? symbol.trim().slice(0, 20) : null;
         const trimmedImage = typeof image === "string" && image.trim().length > 0 ? image.trim().slice(0, 512) : null;
 
-        const existingMembership = await db.query.factionMembers.findFirst({
-            where: and(eq(factionMembers.userId, userId), eq(factionMembers.gameId, gameId)),
-        });
-        if (existingMembership) {
-            return NextResponse.json({ error: "already_in_faction" }, { status: 409 });
+        let balance: number;
+        try {
+            balance = await getTokenBalance(wallet, trimmedCa);
+        } catch (err) {
+            console.error("[internal/faction/create] balance check failed:", err);
+            return NextResponse.json({ error: "balance_check_failed" }, { status: 502 });
+        }
+        if (balance <= 0) {
+            return NextResponse.json({ error: "insufficient_token_balance" }, { status: 403 });
         }
 
         let created;
@@ -61,13 +66,28 @@ export async function POST(req: NextRequest) {
                 gameId,
                 wallet,
                 role: "founder",
+                isDisplayed: sql`NOT EXISTS (SELECT 1 FROM faction_members WHERE user_id = ${userId} AND game_id = ${gameId})`,
             });
         } catch (membershipError: any) {
-            await db.delete(factions).where(eq(factions.id, created.id));
             if (membershipError?.code === "23505") {
-                return NextResponse.json({ error: "already_in_faction" }, { status: 409 });
+              
+                try {
+                    await db.insert(factionMembers).values({
+                        factionId: created.id,
+                        userId,
+                        gameId,
+                        wallet,
+                        role: "founder",
+                        isDisplayed: false,
+                    });
+                } catch (retryError) {
+                    await db.delete(factions).where(eq(factions.id, created.id));
+                    throw retryError;
+                }
+            } else {
+                await db.delete(factions).where(eq(factions.id, created.id));
+                throw membershipError;
             }
-            throw membershipError;
         }
 
         const rank = await getFactionRank(gameId, created.id);
@@ -85,6 +105,7 @@ export async function POST(req: NextRequest) {
                 founderWallet: created.founderWallet,
                 memberCount: 1,
                 rank,
+                role: "founder",
             },
         });
     } catch (error) {

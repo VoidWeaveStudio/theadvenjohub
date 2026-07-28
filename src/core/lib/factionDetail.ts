@@ -1,7 +1,8 @@
 // src/core/lib/factionDetail.ts
 import { db } from "@/core/database";
-import { gameNicknames, factionTaskLog, factions } from "@/core/database/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { gameNicknames, factionTaskLog, factions, factionMembers } from "@/core/database/schema";
+import { eq, and, desc, count, sql } from "drizzle-orm";
+import { getFactionRank } from "@/core/lib/factionRank";
 
 type FactionRow = typeof factions.$inferSelect;
 
@@ -58,4 +59,62 @@ export async function buildFactionTaskExtras(faction: FactionRow, gameId: string
         verifiedCreatorWallet: faction.verifiedCreatorWallet,
         verifiedCreatorUserId: faction.verifiedCreatorUserId,
     };
+}
+
+/**
+ * Promotes the oldest remaining membership to "displayed" (the one badge shown
+ * on the world avatar / chat) only if the player currently has none marked —
+ * used after a membership is removed (leave, or auto-kick) so the player isn't
+ * left with no displayed faction while they still belong to others.
+ */
+export async function reassignDisplayedIfNeeded(userId: string, gameId: string) {
+    await db.execute(sql`
+        UPDATE faction_members SET is_displayed = true
+        WHERE id = (
+            SELECT id FROM faction_members
+            WHERE user_id = ${userId} AND game_id = ${gameId}
+            ORDER BY joined_at ASC LIMIT 1
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM faction_members WHERE user_id = ${userId} AND game_id = ${gameId} AND is_displayed = true
+        )
+    `);
+}
+
+/** Full list of every faction a player currently belongs to, for the multi-faction "My Factions" view. */
+export async function getMyFactionsList(userId: string, gameId: string) {
+    const memberships = await db.query.factionMembers.findMany({
+        where: and(eq(factionMembers.userId, userId), eq(factionMembers.gameId, gameId)),
+    });
+
+    const results = [];
+    for (const membership of memberships) {
+        const faction = await db.query.factions.findFirst({ where: eq(factions.id, membership.factionId) });
+        if (!faction) continue;
+
+        const [{ memberCount }] = await db
+            .select({ memberCount: count() })
+            .from(factionMembers)
+            .where(eq(factionMembers.factionId, faction.id));
+
+        const rank = await getFactionRank(gameId, faction.id);
+        const taskExtras = await buildFactionTaskExtras(faction, gameId);
+
+        results.push({
+            id: faction.id,
+            number: faction.number,
+            name: faction.name,
+            symbol: faction.symbol,
+            image: faction.image,
+            description: faction.description,
+            tokenCa: faction.tokenCa,
+            founderWallet: faction.founderWallet,
+            memberCount,
+            rank,
+            role: membership.role,
+            isDisplayed: membership.isDisplayed,
+            ...taskExtras,
+        });
+    }
+    return results;
 }

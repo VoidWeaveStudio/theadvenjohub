@@ -1,38 +1,50 @@
 // src/features/game/ui/TopMenu.tsx
 "use client";
 
-import { Flag, Users, ShoppingBag, Trophy, Settings, LucideIcon } from "lucide-react";
+import Image from "next/image";
 
 export type TopWindowId = "factions" | "social" | "shop" | "leaderboards" | "settings";
 
 interface TopMenuProps {
     active: TopWindowId | null;
     onSelect: (id: TopWindowId) => void;
+    badges?: Partial<Record<TopWindowId, boolean>>;
 }
 
-const ITEMS: { id: TopWindowId; icon: LucideIcon; label: string }[] = [
-    { id: "factions", icon: Flag, label: "Factions" },
-    { id: "social", icon: Users, label: "Social" },
-    { id: "shop", icon: ShoppingBag, label: "Shop" },
-    { id: "leaderboards", icon: Trophy, label: "Leaderboards" },
-    { id: "settings", icon: Settings, label: "Settings" },
+const ITEMS: { id: TopWindowId; icon: string; label: string }[] = [
+    { id: "factions", icon: "/icons/topmenu/factions.webp", label: "Factions" },
+    { id: "social", icon: "/icons/topmenu/social.webp", label: "Social" },
+    { id: "shop", icon: "/icons/topmenu/shop.webp", label: "Shop" },
+    { id: "leaderboards", icon: "/icons/topmenu/leaderboard.webp", label: "Leaderboards" },
+    { id: "settings", icon: "/icons/topmenu/settings.webp", label: "Settings" },
 ];
 
-export function TopMenu({ active, onSelect }: TopMenuProps) {
+export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
     return (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 pointer-events-auto font-oxanium select-none">
-            <div className="flex items-center gap-1 bg-[rgba(10,14,20,0.85)] backdrop-blur-md border border-[rgba(79,209,255,0.15)] rounded-xl p-1.5 shadow-[0_4px_30px_rgba(0,0,0,0.4)]">
-                {ITEMS.map(({ id, icon: Icon, label }) => (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-auto font-oxanium select-none">
+            <div className="flex items-start gap-5">
+                {ITEMS.map(({ id, icon, label }) => (
                     <button
                         key={id}
                         onClick={() => onSelect(id)}
                         title={label}
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-all ${active === id
-                            ? "bg-[rgba(79,209,255,0.18)] text-[#4FD1FF] border-[rgba(79,209,255,0.35)]"
-                            : "text-[#8B8F98] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.06)] border-transparent"
+                        style={{ background: "transparent", border: "none", padding: 0, borderRadius: 0, boxShadow: "none" }}
+                        className={`relative origin-top !bg-transparent !border-0 !p-0 !rounded-none !shadow-none transition-transform duration-200 ease-out hover:z-10 hover:!scale-[2] ${active === id ? "z-10 !scale-[2]" : "!scale-100"
                             }`}
                     >
-                        <Icon className="w-5 h-5" />
+                        <Image
+                            src={icon}
+                            alt={label}
+                            width={100}
+                            height={200}
+                            className={`h-14 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] transition-[filter] duration-200 ${active === id
+                                ? "brightness-125 drop-shadow-[0_0_14px_rgba(79,209,255,0.8)]"
+                                : "hover:brightness-125 hover:drop-shadow-[0_0_14px_rgba(79,209,255,0.7)]"
+                                }`}
+                        />
+                        {badges?.[id] && (
+                            <span className="absolute top-0 right-1 w-3 h-3 rounded-full bg-[#FF4D4F] ring-2 ring-[rgba(10,14,20,0.9)]" />
+                        )}
                     </button>
                 ))}
             </div>

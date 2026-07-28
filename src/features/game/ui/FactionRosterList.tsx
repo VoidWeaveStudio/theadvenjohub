@@ -3,6 +3,7 @@
 
 import { FactionDetail } from "../network/NetworkManager";
 import { PlayerTag } from "./shell/PlayerTag";
+import { CopyableText } from "./shell/CopyableText";
 
 interface FactionRosterListProps {
     faction: FactionDetail;
@@ -36,7 +37,12 @@ export function FactionRosterList({ faction }: FactionRosterListProps) {
                                 badge={badge}
                                 size="sm"
                             />
-                            <span className="text-[#8B8F98] text-xs font-mono">{truncateWallet(member.wallet)}</span>
+                            <CopyableText
+                                value={member.wallet}
+                                display={truncateWallet(member.wallet)}
+                                className="text-[#8B8F98] text-xs"
+                                iconClassName="w-3 h-3"
+                            />
                         </div>
                     );
                 })}

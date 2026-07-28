@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
         }
 
         const membership = await db.query.factionMembers.findFirst({
-            where: and(eq(factionMembers.userId, userId), eq(factionMembers.gameId, gameId)),
+            where: and(eq(factionMembers.userId, userId), eq(factionMembers.factionId, factionId)),
         });
-        if (!membership || membership.factionId !== factionId) {
+        if (!membership) {
             return NextResponse.json({ error: "not_a_member" }, { status: 403 });
         }
 

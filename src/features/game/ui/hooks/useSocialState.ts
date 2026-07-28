@@ -63,6 +63,17 @@ export function useSocialState() {
         setUnreadMailCount((prev) => Math.max(0, prev - 1));
     }, []);
 
+    const handleMailReceived = useCallback(() => {
+        setUnreadMailCount((prev) => prev + 1);
+    }, []);
+
+    const handleFriendRequestReceived = useCallback((friend: FriendRequestEntry) => {
+        setIncomingRequests((prev) => (prev.some((r) => r.userId === friend.userId) ? prev : [...prev, friend]));
+    }, []);
+
+    const hasUnreadMail = unreadMailCount > 0;
+    const hasIncomingRequests = incomingRequests.length > 0;
+
     return {
         friends,
         incomingRequests,
@@ -71,6 +82,8 @@ export function useSocialState() {
         mail,
         unreadMailCount,
         lastSentMailId,
+        hasUnreadMail,
+        hasIncomingRequests,
         handleFriendRequestSent,
         handleFriendRequestAccepted,
         handleFriendRequestDeclined,
@@ -81,5 +94,7 @@ export function useSocialState() {
         handleMailSent,
         handleMailInboxResult,
         handleMailMarkedRead,
+        handleMailReceived,
+        handleFriendRequestReceived,
     };
 }

@@ -146,6 +146,7 @@ export type FactionSummary = {
   memberCount: number;
   rank: number | null;
   role?: string;
+  isDisplayed?: boolean;
   tokenCreatorWallet?: string | null;
   verifiedCreatorWallet?: string | null;
   verifiedCreatorUserId?: string | null;
@@ -170,6 +171,17 @@ export type FactionTag = {
   number: number;
 } | null;
 
+export type PlayerProfileFaction = {
+  id: string;
+  number: number;
+  name: string;
+  symbol: string | null;
+  image: string | null;
+  founderWallet: string;
+  verifiedCreatorWallet: string | null;
+  isDisplayed: boolean;
+};
+
 export type PlayerProfileData = {
   wallet: string;
   nickname: string | null;
@@ -177,15 +189,7 @@ export type PlayerProfileData = {
   deaths: number;
   playtimeSeconds: number;
   ash: number;
-  faction: {
-    id: string;
-    number: number;
-    name: string;
-    symbol: string | null;
-    image: string | null;
-    founderWallet: string;
-    verifiedCreatorWallet: string | null;
-  } | null;
+  factions: PlayerProfileFaction[];
 };
 
 export type LeaderboardEntry = {
@@ -341,10 +345,12 @@ export class NetworkManager {
 
   public onFactionCreated?: (faction: FactionSummary) => void;
   public onFactionJoined?: (faction: FactionSummary) => void;
-  public onFactionLeft?: () => void;
+  public onFactionLeft?: (factionId: string) => void;
   public onFactionSearchResult?: (results: FactionSummary[]) => void;
   public onFactionListResult?: (data: { results: FactionSummary[]; page: number }) => void;
   public onFactionInfo?: (faction: FactionDetail | null) => void;
+  public onFactionMyListResult?: (factions: FactionSummary[]) => void;
+  public onFactionDisplayedSet?: (faction: FactionSummary) => void;
   public onPlayerProfile?: (profile: PlayerProfileData | null) => void;
   public onLeaderboardResult?: (leaderboard: LeaderboardEntry[]) => void;
   public onFactionLeaderboardResult?: (leaderboard: FactionSummary[]) => void;
@@ -353,6 +359,9 @@ export class NetworkManager {
   public onFactionTaskCompleted?: (data: { taskKey: string; label: string; rewardAsh: number; rewardNickname: string | null }) => void;
   public onFactionCreatorClaimResult?: (data: { isCreator: boolean; faction: FactionSummary }) => void;
   public onFactionCreatorVerified?: (faction: FactionSummary) => void;
+
+  public onMailReceived?: (data: { mailId: string; senderNickname: string; subject: string }) => void;
+  public onFriendRequestReceived?: (friend: FriendRequestEntry) => void;
 
   public onFriendRequestSent?: (friend: FriendRequestEntry, status: string) => void;
   public onFriendRequestAccepted?: (friend: FriendEntry) => void;
@@ -628,7 +637,13 @@ export class NetworkManager {
         this.onFactionJoined?.(data.faction);
         break;
       case "factionLeft":
-        this.onFactionLeft?.();
+        this.onFactionLeft?.(data.factionId);
+        break;
+      case "factionMyListResult":
+        this.onFactionMyListResult?.(Array.isArray(data.factions) ? data.factions : []);
+        break;
+      case "factionDisplayedSet":
+        this.onFactionDisplayedSet?.(data.faction);
         break;
       case "factionSearchResult":
         this.onFactionSearchResult?.(Array.isArray(data.results) ? data.results : []);
@@ -699,6 +714,12 @@ export class NetworkManager {
         break;
       case "mailMarkedRead":
         this.onMailMarkedRead?.(data.mailId);
+        break;
+      case "mailReceived":
+        this.onMailReceived?.(data);
+        break;
+      case "friendRequestReceived":
+        this.onFriendRequestReceived?.(data.friend);
         break;
     }
   }
@@ -840,9 +861,19 @@ export class NetworkManager {
     this.send({ type: "factionJoin", factionId });
   }
 
-  sendFactionLeave() {
+  sendFactionLeave(factionId: string) {
     if (!this.authenticated) return;
-    this.send({ type: "factionLeave" });
+    this.send({ type: "factionLeave", factionId });
+  }
+
+  sendFactionSetDisplayed(factionId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionSetDisplayed", factionId });
+  }
+
+  sendFactionMyListRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "factionMyListRequest" });
   }
 
   sendFactionSearch(ca?: string, name?: string) {
@@ -880,14 +911,14 @@ export class NetworkManager {
     this.send({ type: "factionTaskListRequest" });
   }
 
-  sendFactionAcceptTask(taskKey: string) {
+  sendFactionAcceptTask(factionId: string, taskKey: string) {
     if (!this.authenticated) return;
-    this.send({ type: "factionAcceptTask", taskKey });
+    this.send({ type: "factionAcceptTask", factionId, taskKey });
   }
 
-  sendFactionClaimCreator() {
+  sendFactionClaimCreator(factionId: string) {
     if (!this.authenticated) return;
-    this.send({ type: "factionClaimCreator" });
+    this.send({ type: "factionClaimCreator", factionId });
   }
 
   sendFriendRequest(walletOrNickname: { wallet?: string; nickname?: string }) {

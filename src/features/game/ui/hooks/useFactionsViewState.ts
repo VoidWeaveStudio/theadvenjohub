@@ -7,11 +7,13 @@ const OWN_FACTION_TABS: FactionsTab[] = ["members", "upgrades", "tasks"];
 
 interface UseFactionsViewStateArgs {
     isOpen: boolean;
-    myFaction: FactionDetail | FactionSummary | null;
+    myFactions: FactionSummary[];
+    selectedFactionId: string | null;
+    setSelectedFactionId: (id: string | null) => void;
     viewedFaction: FactionDetail | null;
     searchResults: FactionSummary[];
     browseResults: FactionSummary[];
-    onRequestOwnFaction: () => void;
+    onRequestMyFactions: () => void;
     onViewFaction: (factionId: string) => void;
     onSearchFactions: (ca?: string, name?: string) => void;
     onBrowseFactions: () => void;
@@ -20,11 +22,13 @@ interface UseFactionsViewStateArgs {
 
 export function useFactionsViewState({
     isOpen,
-    myFaction,
+    myFactions,
+    selectedFactionId,
+    setSelectedFactionId,
     viewedFaction,
     searchResults,
     browseResults,
-    onRequestOwnFaction,
+    onRequestMyFactions,
     onViewFaction,
     onSearchFactions,
     onBrowseFactions,
@@ -38,17 +42,26 @@ export function useFactionsViewState({
 
     useEffect(() => {
         if (!isOpen) return;
-        if (OWN_FACTION_TABS.includes(activeTab)) onRequestOwnFaction();
+        if (OWN_FACTION_TABS.includes(activeTab)) onRequestMyFactions();
         if (activeTab === "search") onBrowseFactions();
         if (activeTab === "leaderboard") onRequestFactionLeaderboard();
     }, [isOpen, activeTab]);
 
+
     useEffect(() => {
-        if (!isOpen || !OWN_FACTION_TABS.includes(activeTab) || !myFaction) return;
-        if (!viewedFaction || viewedFaction.id !== myFaction.id) {
-            onViewFaction(myFaction.id);
+        if (!isOpen || !OWN_FACTION_TABS.includes(activeTab)) return;
+        if (selectedFactionId && myFactions.some((f) => f.id === selectedFactionId)) return;
+        if (myFactions.length === 1) {
+            setSelectedFactionId(myFactions[0].id);
         }
-    }, [isOpen, activeTab, myFaction, viewedFaction]);
+    }, [isOpen, activeTab, myFactions, selectedFactionId]);
+
+    useEffect(() => {
+        if (!isOpen || !OWN_FACTION_TABS.includes(activeTab) || !selectedFactionId) return;
+        if (!viewedFaction || viewedFaction.id !== selectedFactionId) {
+            onViewFaction(selectedFactionId);
+        }
+    }, [isOpen, activeTab, selectedFactionId, viewedFaction]);
 
     useEffect(() => {
         if (!viewingFactionId) return;
@@ -76,7 +89,7 @@ export function useFactionsViewState({
     };
 
     const displayedResults = searchQuery.trim().length > 0 ? searchResults : browseResults;
-    const isViewingOwnDetail = OWN_FACTION_TABS.includes(activeTab) && !!myFaction && !!viewedFaction && viewedFaction.id === myFaction.id;
+    const isViewingOwnDetail = OWN_FACTION_TABS.includes(activeTab) && !!selectedFactionId && !!viewedFaction && viewedFaction.id === selectedFactionId;
     const isViewingSearchedDetail = !OWN_FACTION_TABS.includes(activeTab) && !!viewingFactionId && !!viewedFaction && viewedFaction.id === viewingFactionId;
 
     return {

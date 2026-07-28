@@ -15,6 +15,7 @@ export interface WindowFrameTab {
     id: string;
     label: string;
     icon?: React.ReactNode;
+    badge?: boolean;
 }
 
 interface WindowFrameProps {
@@ -55,17 +56,18 @@ export function WindowFrame({
                 className={`w-full ${SIZE_CLASSES[size]} flex flex-col bg-[rgba(13,17,23,0.98)] border border-white/10 rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65),0_0_0_1px_rgba(79,209,255,0.08)] overflow-hidden`}
             >
                 <div className="relative flex items-center justify-between px-6 py-4 flex-shrink-0">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-3">
                         {icon && (
-                            <div className="w-8 h-8 rounded-lg bg-[rgba(79,209,255,0.12)] border border-[rgba(79,209,255,0.25)] flex items-center justify-center text-[#4FD1FF] flex-shrink-0">
-                                {icon}
+                            <div className="relative flex items-center justify-center flex-shrink-0">
+                                <div className="absolute inset-0 rounded-full bg-[#4FD1FF]/15 blur-md" />
+                                <div className="relative flex items-center justify-center text-[#4FD1FF]">{icon}</div>
                             </div>
                         )}
                         <h2 className="text-lg font-black text-[#E5E7EB] tracking-wide">{title}</h2>
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8B8F98] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.07)] transition-colors flex-shrink-0"
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#8B8F98] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.07)] transition-colors flex-shrink-0"
                     >
                         <X className="w-4 h-4" />
                     </button>
@@ -73,18 +75,21 @@ export function WindowFrame({
                 </div>
 
                 {tabs && tabs.length > 0 && (
-                    <div className="flex gap-1 mx-4 mt-1 mb-2 p-1 rounded-xl bg-[rgba(255,255,255,0.03)] flex-shrink-0 overflow-x-auto">
+                    <div className="flex gap-1 mx-4 mt-1 mb-2 p-1 rounded-full bg-[rgba(255,255,255,0.03)] flex-shrink-0 overflow-x-auto">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => onTabChange?.(tab.id)}
-                                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold tracking-wide whitespace-nowrap transition-colors ${activeTab === tab.id
-                                    ? "text-[#4FD1FF] bg-[rgba(79,209,255,0.15)] shadow-[inset_0_0_0_1px_rgba(79,209,255,0.35)]"
+                                className={`relative flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold tracking-wide whitespace-nowrap transition-colors ${activeTab === tab.id
+                                    ? "text-[#0A0E14] bg-[#4FD1FF] shadow-[0_2px_10px_rgba(79,209,255,0.35)]"
                                     : "text-[#6B7280] hover:text-[#9CA3AF] hover:bg-white/5"
                                     }`}
                             >
                                 {tab.icon}
                                 {tab.label}
+                                {tab.badge && (
+                                    <span className="absolute top-1 right-1.5 w-2 h-2 rounded-full bg-[#FF4D4F] ring-2 ring-[rgba(13,17,23,0.98)]" />
+                                )}
                             </button>
                         ))}
                     </div>

@@ -216,7 +216,9 @@ export function GameClient({ slug }: GameClientProps) {
         };
         game.onFactionCreated = (f) => { if (!cancelled) factionState.handleFactionCreated(f); };
         game.onFactionJoined = (f) => { if (!cancelled) factionState.handleFactionJoined(f); };
-        game.onFactionLeft = () => { if (!cancelled) factionState.handleFactionLeft(); };
+        game.onFactionLeft = (factionId) => { if (!cancelled) factionState.handleFactionLeft(factionId); };
+        game.onFactionMyListResult = (list) => { if (!cancelled) factionState.handleFactionMyListResult(list); };
+        game.onFactionDisplayedSet = (f) => { if (!cancelled) factionState.handleFactionDisplayedSet(f); };
         game.onFactionSearchResult = (results) => { if (!cancelled) factionState.handleFactionSearchResult(results); };
         game.onFactionListResult = (data) => { if (!cancelled) factionState.handleFactionListResult(data); };
         game.onFactionInfo = (f) => { if (!cancelled) factionState.handleFactionInfo(f); };
@@ -237,6 +239,12 @@ export function GameClient({ slug }: GameClientProps) {
         game.onMailSent = (mailId) => { if (!cancelled) socialState.handleMailSent(mailId); };
         game.onMailInboxResult = (data) => { if (!cancelled) socialState.handleMailInboxResult(data); };
         game.onMailMarkedRead = (mailId) => { if (!cancelled) socialState.handleMailMarkedRead(mailId); };
+        game.onMailReceived = () => {
+          if (cancelled) return;
+          socialState.handleMailReceived();
+          gameRef.current?.requestMailInbox();
+        };
+        game.onFriendRequestReceived = (friend) => { if (!cancelled) socialState.handleFriendRequestReceived(friend); };
         game.onDamageEvent = (event) => { if (!cancelled) hud.handleDamageEvent(event); };
         game.onDeathStateChange = (dead, killer) => { if (!cancelled) hud.handleDeathStateChange(dead, killer); };
         game.onDamageIndicatorUpdate = (attackerId, direction) => { if (!cancelled) hud.handleDamageIndicatorUpdate(attackerId, direction); };
@@ -466,7 +474,11 @@ export function GameClient({ slug }: GameClientProps) {
         isHitMark={hud.isHitMark}
         isTalking={isVoiceCapturing}
       />
-      <TopMenu active={activeTopWindow} onSelect={handleTopMenuSelect} />
+      <TopMenu
+        active={activeTopWindow}
+        onSelect={handleTopMenuSelect}
+        badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests }}
+      />
       <Hotbar
         slots={hotbarSlots}
         onSlotClick={handleSlotClick}
@@ -508,26 +520,29 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={activeTopWindow === "factions"}
         onClose={() => setActiveTopWindow(null)}
         myWallet={gameRef.current?.session.wallet ?? ""}
-        myFaction={factionState.myFaction}
+        myFactions={factionState.myFactions}
+        selectedFactionId={factionState.selectedFactionId}
+        setSelectedFactionId={factionState.setSelectedFactionId}
         viewedFaction={factionState.viewedFaction}
         searchResults={factionState.searchResults}
         browseResults={factionState.browseResults}
         factionLeaderboard={leaderboardState.factionLeaderboard}
         taskDefinitions={factionState.taskDefinitions}
-        onRequestOwnFaction={() => gameRef.current?.requestFactionInfo()}
+        onRequestMyFactions={() => gameRef.current?.requestMyFactions()}
         onViewFaction={(factionId) => gameRef.current?.requestFactionInfo(factionId)}
         onSearchFactions={(ca, name) => gameRef.current?.searchFactions(ca, name)}
         onBrowseFactions={() => gameRef.current?.listFactions()}
         onRequestFactionLeaderboard={() => gameRef.current?.requestFactionLeaderboard()}
         onJoinFaction={(factionId) => gameRef.current?.joinFaction(factionId)}
-        onLeaveFaction={() => gameRef.current?.leaveFaction()}
+        onLeaveFaction={(factionId) => gameRef.current?.leaveFaction(factionId)}
+        onSetDisplayedFaction={(factionId) => gameRef.current?.setDisplayedFaction(factionId)}
         onOpenCreateFaction={() => {
           setActiveTopWindow(null);
           setIsCreateFactionModalOpen(true);
         }}
         onRequestTaskList={() => gameRef.current?.requestFactionTaskList()}
-        onAcceptTask={(taskKey) => gameRef.current?.acceptFactionTask(taskKey)}
-        onClaimCreator={() => gameRef.current?.claimFactionCreator()}
+        onAcceptTask={(factionId, taskKey) => gameRef.current?.acceptFactionTask(factionId, taskKey)}
+        onClaimCreator={(factionId) => gameRef.current?.claimFactionCreator(factionId)}
       />
 
       <SocialWindow
@@ -567,12 +582,15 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={activeTopWindow === "leaderboards"}
         onClose={() => setActiveTopWindow(null)}
         wallet={gameRef.current?.session.wallet ?? ""}
+        myFactions={factionState.myFactions}
         playerLeaderboard={leaderboardState.playerLeaderboard}
         factionLeaderboard={leaderboardState.factionLeaderboard}
         viewedFaction={factionState.viewedFaction}
         onRequestPlayerLeaderboard={() => gameRef.current?.requestLeaderboard()}
         onRequestFactionLeaderboard={() => gameRef.current?.requestFactionLeaderboard()}
         onViewFaction={(factionId) => gameRef.current?.requestFactionInfo(factionId)}
+        onViewProfile={handleNicknameClick}
+        onJoinFaction={(factionId) => gameRef.current?.joinFaction(factionId)}
       />
 
       <SettingsWindow
@@ -584,7 +602,11 @@ export function GameClient({ slug }: GameClientProps) {
       <PlayerProfileCard
         isOpen={profileState.isProfileCardOpen}
         profile={profileState.viewedProfile}
+        myWallet={gameRef.current?.session.wallet ?? ""}
+        friends={socialState.friends}
+        outgoingRequests={socialState.outgoingRequests}
         onClose={profileState.closeProfileCard}
+        onSendFriendRequest={(target) => gameRef.current?.sendFriendRequest(target)}
       />
 
       <FloorSelector

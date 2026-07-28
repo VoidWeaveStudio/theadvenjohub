@@ -642,8 +642,16 @@ export class Game {
         this.networkManager.sendFactionJoin(factionId);
     }
 
-    leaveFaction() {
-        this.networkManager.sendFactionLeave();
+    leaveFaction(factionId: string) {
+        this.networkManager.sendFactionLeave(factionId);
+    }
+
+    setDisplayedFaction(factionId: string) {
+        this.networkManager.sendFactionSetDisplayed(factionId);
+    }
+
+    requestMyFactions() {
+        this.networkManager.sendFactionMyListRequest();
     }
 
     searchFactions(ca?: string, name?: string) {
@@ -674,12 +682,12 @@ export class Game {
         this.networkManager.sendFactionTaskListRequest();
     }
 
-    acceptFactionTask(taskKey: string) {
-        this.networkManager.sendFactionAcceptTask(taskKey);
+    acceptFactionTask(factionId: string, taskKey: string) {
+        this.networkManager.sendFactionAcceptTask(factionId, taskKey);
     }
 
-    claimFactionCreator() {
-        this.networkManager.sendFactionClaimCreator();
+    claimFactionCreator(factionId: string) {
+        this.networkManager.sendFactionClaimCreator(factionId);
     }
 
     sendFriendRequest(target: { wallet?: string; nickname?: string }) {

@@ -12,7 +12,7 @@ import {
   bigint,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 
 export const users = pgTable("users", {
@@ -356,10 +356,15 @@ export const factionMembers = pgTable("faction_members", {
   gameId: uuid("game_id").notNull().references(() => games.id),
   wallet: varchar("wallet", { length: 44 }).notNull(),
   role: varchar("role", { length: 20 }).default("member").notNull(),
+  isDisplayed: boolean("is_displayed").default(false).notNull(),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
 }, (table) => [
-  uniqueIndex("idx_faction_members_user_game").on(table.userId, table.gameId),
+  uniqueIndex("idx_faction_members_user_faction").on(table.userId, table.factionId),
+  index("idx_faction_members_user_game").on(table.userId, table.gameId),
   index("idx_faction_members_faction").on(table.factionId),
+  uniqueIndex("idx_faction_members_one_displayed")
+    .on(table.userId, table.gameId)
+    .where(sql`${table.isDisplayed} = true`),
 ]);
 
 export const factionTaskLog = pgTable("faction_task_log", {

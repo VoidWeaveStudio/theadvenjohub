@@ -42,7 +42,11 @@ export async function POST(req: NextRequest) {
             )
             .leftJoin(
                 factionMembers,
-                and(eq(factionMembers.userId, mailMessages.senderUserId), eq(factionMembers.gameId, gameId))
+                and(
+                    eq(factionMembers.userId, mailMessages.senderUserId),
+                    eq(factionMembers.gameId, gameId),
+                    eq(factionMembers.isDisplayed, true)
+                )
             )
             .leftJoin(factions, eq(factions.id, factionMembers.factionId))
             .where(eq(mailMessages.recipientUserId, userId))

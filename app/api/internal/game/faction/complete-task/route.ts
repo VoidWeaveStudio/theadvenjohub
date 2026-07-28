@@ -19,9 +19,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
         }
 
-        // Atomic guard: only one concurrent caller can clear activeTaskKey for this
-        // factionId+taskKey pair. RETURNING reflects the row's state right after the
-        // update, so untouched columns (reward info) still carry their pre-clear values.
+
         const [claimed] = await db
             .update(factions)
             .set({
