@@ -3,12 +3,8 @@ import * as THREE from "three";
 import { Location } from "../Location";
 import { ResourceManager } from "../../core/ResourceManager";
 import { CollisionGrid } from "../CollisionGrid";
-
-interface CaveChunk {
-    floorMesh: THREE.InstancedMesh;
-    ceilingMesh: THREE.InstancedMesh;
-    wallMesh: THREE.InstancedMesh;
-}
+import { generateCaveMap, generateHeights } from "./CaveGridGenerator";
+import { CaveChunkStreamer } from "./CaveChunkStreamer";
 
 export class Cave extends Location {
     public collisionGrid: CollisionGrid;
@@ -18,9 +14,7 @@ export class Cave extends Location {
     private floorHeights: number[][] = [];
     private ceilingHeights: number[][] = [];
 
-    private chunks: Map<string, CaveChunk> = new Map();
-    private loadedChunkKeys: Set<string> = new Set();
-    private streamingRadius: number = 3;
+    private chunkStreamer: CaveChunkStreamer | null = null;
 
     private floorGeometry: THREE.BufferGeometry | null = null;
     private floorMaterial: THREE.Material | null = null;
@@ -40,6 +34,7 @@ export class Cave extends Location {
     private worldSize = 300;
     private chunkSize = 50;
     private chunksPerSide = 6;
+    private streamingRadius = 3;
 
     constructor() {
         super("cave", "Dark Cave");
@@ -51,132 +46,41 @@ export class Cave extends Location {
         this.scene.background = new THREE.Color(0x0a0a1a);
         this.scene.fog = new THREE.FogExp2(0x0a0a1a, 0.02);
 
-        this.generateCaveMap();
-        this.generateHeights();
+        this.caveMap = generateCaveMap(this.mapSize);
+        const heights = generateHeights(this.caveMap, this.mapSize);
+        this.floorHeights = heights.floorHeights;
+        this.ceilingHeights = heights.ceilingHeights;
+
         this.createShadowTexture();
         this.prepareAssets();
-        this.createChunks();
+
+        this.chunkStreamer = new CaveChunkStreamer({
+            scene: this.scene,
+            collisionGrid: this.collisionGrid,
+            caveMap: this.caveMap,
+            floorHeights: this.floorHeights,
+            ceilingHeights: this.ceilingHeights,
+            cellSize: this.cellSize,
+            mapSize: this.mapSize,
+            worldSize: this.worldSize,
+            chunkSize: this.chunkSize,
+            chunksPerSide: this.chunksPerSide,
+            streamingRadius: this.streamingRadius,
+            floorGeometry: this.floorGeometry!,
+            floorMaterial: this.floorMaterial!,
+            ceilingGeometry: this.ceilingGeometry!,
+            ceilingMaterial: this.ceilingMaterial!,
+            wallGeometry: this.wallGeometry!,
+            wallMaterial: this.wallMaterial!,
+        });
+        this.chunkStreamer.createChunks();
+
         this.createTorches();
         this.createGlowingMoss();
         this.createStalactites();
         this.createFakeShadows();
         this.createPortal();
         this.createLighting();
-    }
-
-    private generateCaveMap() {
-        const size = this.mapSize;
-        this.caveMap = [];
-        for (let x = 0; x < size; x++) {
-            this.caveMap[x] = [];
-            for (let z = 0; z < size; z++) {
-                this.caveMap[x][z] = 0;
-            }
-        }
-
-        const rooms = [
-            { x: 13, z: 13, w: 5, h: 5 },
-            { x: 3, z: 3, w: 5, h: 4 },
-            { x: 22, z: 3, w: 5, h: 4 },
-            { x: 3, z: 23, w: 5, h: 4 },
-            { x: 22, z: 23, w: 5, h: 4 },
-            { x: 13, z: 3, w: 4, h: 3 },
-            { x: 13, z: 24, w: 4, h: 3 },
-            { x: 3, z: 13, w: 3, h: 4 },
-            { x: 24, z: 13, w: 3, h: 4 },
-            { x: 8, z: 8, w: 3, h: 3 },
-            { x: 19, z: 8, w: 3, h: 3 },
-            { x: 8, z: 19, w: 3, h: 3 },
-            { x: 19, z: 19, w: 3, h: 3 },
-        ];
-
-        for (const room of rooms) {
-            for (let x = room.x; x < room.x + room.w; x++) {
-                for (let z = room.z; z < room.z + room.h; z++) {
-                    if (x >= 0 && x < size && z >= 0 && z < size) {
-                        this.caveMap[x][z] = 1;
-                    }
-                }
-            }
-        }
-
-        const connections = [
-            [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [0, 7], [0, 8],
-            [1, 9], [2, 10], [3, 11], [4, 12],
-            [9, 5], [10, 5], [11, 6], [12, 6],
-            [9, 7], [10, 8], [11, 7], [12, 8],
-            [1, 7], [2, 8], [3, 7], [4, 8],
-        ];
-
-        for (const [a, b] of connections) {
-            const ra = rooms[a], rb = rooms[b];
-            const cx1 = Math.floor(ra.x + ra.w / 2);
-            const cz1 = Math.floor(ra.z + ra.h / 2);
-            const cx2 = Math.floor(rb.x + rb.w / 2);
-            const cz2 = Math.floor(rb.z + rb.h / 2);
-
-            let x = cx1, z = cz1;
-            while (x !== cx2) {
-                if (x >= 0 && x < size && z >= 0 && z < size) this.caveMap[x][z] = 1;
-                x += x < cx2 ? 1 : -1;
-            }
-            while (z !== cz2) {
-                if (x >= 0 && x < size && z >= 0 && z < size) this.caveMap[x][z] = 1;
-                z += z < cz2 ? 1 : -1;
-            }
-        }
-    }
-
-    private generateHeights() {
-        this.floorHeights = [];
-        this.ceilingHeights = [];
-        for (let x = 0; x < this.mapSize; x++) {
-            this.floorHeights[x] = [];
-            this.ceilingHeights[x] = [];
-            for (let z = 0; z < this.mapSize; z++) {
-                if (this.caveMap[x][z] === 1) {
-                    const baseHeight = (Math.random() - 0.5) * 2;
-                    this.floorHeights[x][z] = baseHeight;
-                    this.ceilingHeights[x][z] = baseHeight + 12;
-                } else {
-                    this.floorHeights[x][z] = -5;
-                    this.ceilingHeights[x][z] = 15;
-                }
-            }
-        }
-
-        this.smoothHeights();
-    }
-
-    private smoothHeights() {
-        const iterations = 3;
-        for (let iter = 0; iter < iterations; iter++) {
-            const newFloors = this.floorHeights.map(row => [...row]);
-            const newCeilings = this.ceilingHeights.map(row => [...row]);
-
-            for (let x = 1; x < this.mapSize - 1; x++) {
-                for (let z = 1; z < this.mapSize - 1; z++) {
-                    if (this.caveMap[x][z] === 1) {
-                        let floorSum = 0, ceilingSum = 0, count = 0;
-                        for (let dx = -1; dx <= 1; dx++) {
-                            for (let dz = -1; dz <= 1; dz++) {
-                                if (this.caveMap[x + dx][z + dz] === 1) {
-                                    floorSum += this.floorHeights[x + dx][z + dz];
-                                    ceilingSum += this.ceilingHeights[x + dx][z + dz];
-                                    count++;
-                                }
-                            }
-                        }
-                        if (count > 0) {
-                            newFloors[x][z] = floorSum / count;
-                            newCeilings[x][z] = ceilingSum / count;
-                        }
-                    }
-                }
-            }
-            this.floorHeights = newFloors;
-            this.ceilingHeights = newCeilings;
-        }
     }
 
     private createShadowTexture() {
@@ -204,85 +108,6 @@ export class Cave extends Location {
 
         this.wallGeometry = new THREE.BoxGeometry(this.cellSize, 20, this.cellSize);
         this.wallMaterial = new THREE.MeshLambertMaterial({ color: 0x2a1a0a });
-    }
-
-    private createChunks() {
-        for (let cx = 0; cx < this.chunksPerSide; cx++) {
-            for (let cz = 0; cz < this.chunksPerSide; cz++) {
-                this.createChunk(cx, cz);
-            }
-        }
-    }
-
-    private createChunk(cx: number, cz: number) {
-        const key = `${cx},${cz}`;
-        const startCellX = cx * 5;
-        const startCellZ = cz * 5;
-
-        let floorCount = 0, ceilingCount = 0, wallCount = 0;
-        for (let x = startCellX; x < startCellX + 5; x++) {
-            for (let z = startCellZ; z < startCellZ + 5; z++) {
-                if (x < this.mapSize && z < this.mapSize) {
-                    if (this.caveMap[x][z] === 1) {
-                        floorCount++;
-                        ceilingCount++;
-                    } else {
-                        wallCount++;
-                    }
-                }
-            }
-        }
-
-        const floorMesh = new THREE.InstancedMesh(this.floorGeometry!, this.floorMaterial!, floorCount);
-        const ceilingMesh = new THREE.InstancedMesh(this.ceilingGeometry!, this.ceilingMaterial!, ceilingCount);
-        const wallMesh = new THREE.InstancedMesh(this.wallGeometry!, this.wallMaterial!, wallCount);
-
-        floorMesh.castShadow = false;
-        floorMesh.receiveShadow = false;
-        ceilingMesh.castShadow = false;
-        ceilingMesh.receiveShadow = false;
-        wallMesh.castShadow = false;
-        wallMesh.receiveShadow = false;
-
-        let fi = 0, ci = 0, wi = 0;
-        const matrix = new THREE.Matrix4();
-
-        for (let x = startCellX; x < startCellX + 5; x++) {
-            for (let z = startCellZ; z < startCellZ + 5; z++) {
-                if (x >= this.mapSize || z >= this.mapSize) continue;
-
-                const worldX = x * this.cellSize + this.cellSize / 2 - this.worldSize / 2;
-                const worldZ = z * this.cellSize + this.cellSize / 2 - this.worldSize / 2;
-
-                if (this.caveMap[x][z] === 1) {
-                    const floorY = this.floorHeights[x][z];
-                    matrix.setPosition(worldX, floorY, worldZ);
-                    floorMesh.setMatrixAt(fi++, matrix);
-
-                    const ceilY = this.ceilingHeights[x][z];
-                    matrix.setPosition(worldX, ceilY, worldZ);
-                    ceilingMesh.setMatrixAt(ci++, matrix);
-                } else {
-                    matrix.setPosition(worldX, 5, worldZ);
-                    wallMesh.setMatrixAt(wi++, matrix);
-
-                    this.collisionGrid.insert(new THREE.Box3(
-                        new THREE.Vector3(worldX - 5, -5, worldZ - 5),
-                        new THREE.Vector3(worldX + 5, 15, worldZ + 5)
-                    ));
-                }
-            }
-        }
-
-        floorMesh.count = fi;
-        ceilingMesh.count = ci;
-        wallMesh.count = wi;
-        floorMesh.instanceMatrix.needsUpdate = true;
-        ceilingMesh.instanceMatrix.needsUpdate = true;
-        wallMesh.instanceMatrix.needsUpdate = true;
-
-        this.scene.add(floorMesh, ceilingMesh, wallMesh);
-        this.chunks.set(key, { floorMesh, ceilingMesh, wallMesh });
     }
 
     private createTorches() {
@@ -505,60 +330,8 @@ export class Cave extends Location {
     }
 
     public update(playerPosition: THREE.Vector3, delta: number) {
-        this.updateStreaming(playerPosition.x, playerPosition.z);
+        this.chunkStreamer?.updateStreaming(playerPosition.x, playerPosition.z);
         this.updateTorches(playerPosition);
-    }
-
-    private updateStreaming(playerX: number, playerZ: number) {
-        const playerChunkX = Math.floor((playerX + this.worldSize / 2) / this.chunkSize);
-        const playerChunkZ = Math.floor((playerZ + this.worldSize / 2) / this.chunkSize);
-
-        const toShow: string[] = [];
-        const toHide: string[] = [];
-
-        for (let dx = -this.streamingRadius; dx <= this.streamingRadius; dx++) {
-            for (let dz = -this.streamingRadius; dz <= this.streamingRadius; dz++) {
-                const cx = playerChunkX + dx;
-                const cz = playerChunkZ + dz;
-                if (cx < 0 || cx >= this.chunksPerSide || cz < 0 || cz >= this.chunksPerSide) continue;
-                const key = `${cx},${cz}`;
-                const chunk = this.chunks.get(key);
-                if (chunk && !this.loadedChunkKeys.has(key)) {
-                    toShow.push(key);
-                }
-            }
-        }
-
-        this.loadedChunkKeys.forEach(key => {
-            const chunk = this.chunks.get(key);
-            if (!chunk) return;
-            const [cx, cz] = key.split(',').map(Number);
-            const dx = Math.abs(cx - playerChunkX);
-            const dz = Math.abs(cz - playerChunkZ);
-            if (dx > this.streamingRadius || dz > this.streamingRadius) {
-                toHide.push(key);
-            }
-        });
-
-        for (const key of toShow) {
-            const chunk = this.chunks.get(key);
-            if (chunk) {
-                chunk.floorMesh.visible = true;
-                chunk.ceilingMesh.visible = true;
-                chunk.wallMesh.visible = true;
-                this.loadedChunkKeys.add(key);
-            }
-        }
-
-        for (const key of toHide) {
-            const chunk = this.chunks.get(key);
-            if (chunk) {
-                chunk.floorMesh.visible = false;
-                chunk.ceilingMesh.visible = false;
-                chunk.wallMesh.visible = false;
-                this.loadedChunkKeys.delete(key);
-            }
-        }
     }
 
     private updateTorches(playerPos: THREE.Vector3) {
@@ -578,15 +351,8 @@ export class Cave extends Location {
     }
 
     dispose() {
-        this.chunks.forEach(chunk => {
-            this.scene.remove(chunk.floorMesh);
-            this.scene.remove(chunk.ceilingMesh);
-            this.scene.remove(chunk.wallMesh);
-            chunk.floorMesh.dispose();
-            chunk.ceilingMesh.dispose();
-            chunk.wallMesh.dispose();
-        });
-        this.chunks.clear();
+        this.chunkStreamer?.dispose();
+        this.chunkStreamer = null;
 
         if (this.floorGeometry) this.floorGeometry.dispose();
         if (this.floorMaterial) this.floorMaterial.dispose();

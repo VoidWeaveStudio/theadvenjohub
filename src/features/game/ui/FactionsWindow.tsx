@@ -1,7 +1,6 @@
 // src/features/game/ui/FactionsWindow.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Flag, Search, Trophy, Plus, Users, Sparkles, ClipboardList } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FactionDetailView } from "./FactionDetailView";
@@ -10,9 +9,7 @@ import { FactionUpgradesPanel } from "./FactionUpgradesPanel";
 import { FactionTasksPanel } from "./FactionTasksPanel";
 import { FactionRow, FactionLeaderboardList } from "./FactionRow";
 import { FactionDetail, FactionSummary, FactionTaskDefinition } from "../network/NetworkManager";
-
-type FactionsTab = "members" | "upgrades" | "tasks" | "search" | "leaderboard";
-const OWN_FACTION_TABS: FactionsTab[] = ["members", "upgrades", "tasks"];
+import { useFactionsViewState, FactionsTab } from "./hooks/useFactionsViewState";
 
 interface FactionsWindowProps {
     isOpen: boolean;
@@ -59,49 +56,18 @@ export function FactionsWindow({
     onAcceptTask,
     onClaimCreator,
 }: FactionsWindowProps) {
-    const [activeTab, setActiveTab] = useState<FactionsTab>("members");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [viewingFactionId, setViewingFactionId] = useState<string | null>(null);
-
-    const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        if (OWN_FACTION_TABS.includes(activeTab)) onRequestOwnFaction();
-        if (activeTab === "search") onBrowseFactions();
-        if (activeTab === "leaderboard") onRequestFactionLeaderboard();
-    }, [isOpen, activeTab]);
-
-    useEffect(() => {
-        if (!isOpen || !OWN_FACTION_TABS.includes(activeTab) || !myFaction) return;
-        if (!viewedFaction || viewedFaction.id !== myFaction.id) {
-            onViewFaction(myFaction.id);
-        }
-    }, [isOpen, activeTab, myFaction, viewedFaction]);
-
-    useEffect(() => {
-        if (!viewingFactionId) return;
-        onViewFaction(viewingFactionId);
-    }, [viewingFactionId]);
-
-    useEffect(() => {
-        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-        if (searchQuery.trim().length === 0) return;
-
-        searchDebounceRef.current = setTimeout(() => {
-            const trimmed = searchQuery.trim();
-            const looksLikeCa = trimmed.length >= 32;
-            onSearchFactions(looksLikeCa ? trimmed : undefined, looksLikeCa ? undefined : trimmed);
-        }, 300);
-
-        return () => {
-            if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-        };
-    }, [searchQuery]);
-
-    const displayedResults = searchQuery.trim().length > 0 ? searchResults : browseResults;
-    const isViewingOwnDetail = OWN_FACTION_TABS.includes(activeTab) && !!myFaction && !!viewedFaction && viewedFaction.id === myFaction.id;
-    const isViewingSearchedDetail = !OWN_FACTION_TABS.includes(activeTab) && !!viewingFactionId && !!viewedFaction && viewedFaction.id === viewingFactionId;
+    const view = useFactionsViewState({
+        isOpen,
+        myFaction,
+        viewedFaction,
+        searchResults,
+        browseResults,
+        onRequestOwnFaction,
+        onViewFaction,
+        onSearchFactions,
+        onBrowseFactions,
+        onRequestFactionLeaderboard,
+    });
 
     const noFactionPrompt = (
         <div className="text-center py-10 space-y-4">
@@ -111,7 +77,7 @@ export function FactionsWindow({
                     <Plus className="w-4 h-4" />
                     Found a Faction
                 </button>
-                <button onClick={() => setActiveTab("search")} className="btn-secondary px-4 py-2 text-sm">
+                <button onClick={() => view.setActiveTab("search")} className="btn-secondary px-4 py-2 text-sm">
                     Search Factions
                 </button>
             </div>
@@ -131,14 +97,11 @@ export function FactionsWindow({
                 { id: "search", label: "Search", icon: <Search className="w-3.5 h-3.5" /> },
                 { id: "leaderboard", label: "Leaderboard", icon: <Trophy className="w-3.5 h-3.5" /> },
             ]}
-            activeTab={activeTab}
-            onTabChange={(id) => {
-                setActiveTab(id as FactionsTab);
-                setViewingFactionId(null);
-            }}
+            activeTab={view.activeTab}
+            onTabChange={(id) => view.setActiveTab(id as FactionsTab)}
         >
-            {activeTab === "members" && (
-                !myFaction ? noFactionPrompt : isViewingOwnDetail && viewedFaction ? (
+            {view.activeTab === "members" && (
+                !myFaction ? noFactionPrompt : view.isViewingOwnDetail && viewedFaction ? (
                     <FactionMembersPanel
                         faction={viewedFaction}
                         myWallet={myWallet}
@@ -150,16 +113,16 @@ export function FactionsWindow({
                 )
             )}
 
-            {activeTab === "upgrades" && (
-                !myFaction ? noFactionPrompt : isViewingOwnDetail && viewedFaction ? (
+            {view.activeTab === "upgrades" && (
+                !myFaction ? noFactionPrompt : view.isViewingOwnDetail && viewedFaction ? (
                     <FactionUpgradesPanel faction={viewedFaction} />
                 ) : (
                     <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
                 )
             )}
 
-            {activeTab === "tasks" && (
-                !myFaction ? noFactionPrompt : isViewingOwnDetail && viewedFaction ? (
+            {view.activeTab === "tasks" && (
+                !myFaction ? noFactionPrompt : view.isViewingOwnDetail && viewedFaction ? (
                     <FactionTasksPanel
                         faction={viewedFaction}
                         myWallet={myWallet}
@@ -172,13 +135,13 @@ export function FactionsWindow({
                 )
             )}
 
-            {activeTab === "search" && (
+            {view.activeTab === "search" && (
                 <>
-                    {isViewingSearchedDetail && viewedFaction ? (
+                    {view.isViewingSearchedDetail && viewedFaction ? (
                         <FactionDetailView
                             faction={viewedFaction}
                             isOwnFaction={false}
-                            onBack={() => setViewingFactionId(null)}
+                            onBack={() => view.setViewingFactionId(null)}
                         />
                     ) : (
                         <div className="space-y-3">
@@ -186,21 +149,21 @@ export function FactionsWindow({
                                 <Search className="w-4 h-4 text-[#8B8F98] absolute left-3 top-1/2 -translate-y-1/2" />
                                 <input
                                     type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    value={view.searchQuery}
+                                    onChange={(e) => view.setSearchQuery(e.target.value)}
                                     placeholder="Search by name or token CA..."
                                     className="w-full bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] pl-9 pr-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#4FD1FF]/50 outline-none"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                {displayedResults.length === 0 ? (
+                                {view.displayedResults.length === 0 ? (
                                     <p className="text-[#8B8F98] text-sm text-center py-6">No factions found.</p>
                                 ) : (
-                                    displayedResults.map((f) => (
+                                    view.displayedResults.map((f) => (
                                         <div key={f.id} className="flex items-center gap-2">
                                             <div className="flex-1">
-                                                <FactionRow faction={f} onClick={() => setViewingFactionId(f.id)} />
+                                                <FactionRow faction={f} onClick={() => view.setViewingFactionId(f.id)} />
                                             </div>
                                             {!myFaction && (
                                                 <button
@@ -219,16 +182,16 @@ export function FactionsWindow({
                 </>
             )}
 
-            {activeTab === "leaderboard" && (
+            {view.activeTab === "leaderboard" && (
                 <>
-                    {isViewingSearchedDetail && viewedFaction ? (
+                    {view.isViewingSearchedDetail && viewedFaction ? (
                         <FactionDetailView
                             faction={viewedFaction}
                             isOwnFaction={false}
-                            onBack={() => setViewingFactionId(null)}
+                            onBack={() => view.setViewingFactionId(null)}
                         />
                     ) : (
-                        <FactionLeaderboardList factions={factionLeaderboard} onSelect={setViewingFactionId} />
+                        <FactionLeaderboardList factions={factionLeaderboard} onSelect={view.setViewingFactionId} />
                     )}
                 </>
             )}

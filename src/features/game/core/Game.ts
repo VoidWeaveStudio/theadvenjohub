@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, PlayerNetData, InventoryEntry, QuestInfoData, QuestUpdateData, CanyonSegmentData, CanyonClearedData, CanyonMapData, CanyonHubData, FactionSummary, FactionDetail, FactionTaskDefinition, PlayerProfileData, LeaderboardEntry, FriendEntry, FriendRequestEntry, MailEntry } from "../network/NetworkManager";
+import { NetworkManager, InventoryEntry } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -14,13 +14,16 @@ import { NetworkSystem } from "../systems/NetworkSystem";
 import { EnemySystem } from "../systems/EnemySystem";
 import { LootSystem } from "../systems/LootSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
-import { ChatMessage } from "../ui/Chat";
 import { LocationManager } from "../world/LocationManager";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { computeDayTime, DayNightConfig } from "../utils/dayNightCycle";
 import { applyLocationMovementConfig, configureLocationSpecifics, syncMainWorldEntry } from "./GameLocationTransition";
 import { registerNetworkHandlers } from "./GameNetworkHandlers";
+import type { GameCallbacks } from "./GameCallbacks";
+import { createGameRenderer } from "./GameRenderer";
+import { updateDamageIndicator } from "./GameDamageIndicator";
+import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone } from "./GameLocationOrchestration";
 
 export interface GameSession {
     gameToken: string;
@@ -82,7 +85,7 @@ export class Game {
 
     public damageAttackerId: string | null = null;
     public lastDamageTime: number = 0;
-    private readonly DAMAGE_INDICATOR_DURATION = 2000;
+    public readonly DAMAGE_INDICATOR_DURATION = 2000;
 
     private isLoaded: boolean = false;
     private animationFrameId: number | null = null;
@@ -112,99 +115,6 @@ export class Game {
     private lastStateEmit: number = 0;
     private stateEmitInterval: number = 100;
 
-    private updateDamageIndicator() {
-        if (this.damageAttackerId === null) return;
-
-        const timeSinceDamage = Date.now() - this.lastDamageTime;
-        if (timeSinceDamage > this.DAMAGE_INDICATOR_DURATION) {
-            this.damageAttackerId = null;
-            this.onDamageIndicatorUpdate?.(null, 0);
-            return;
-        }
-
-        let attackerPos: THREE.Vector3 | null = null;
-
-        const playerAttacker = this.otherPlayers.get(this.damageAttackerId);
-        if (playerAttacker && !playerAttacker.isDead() && !playerAttacker.isHidden()) {
-            attackerPos = playerAttacker.mesh.position;
-        } else {
-            const enemy = this.enemySystem.getEnemy(this.damageAttackerId);
-            if (enemy) {
-                attackerPos = enemy.mesh.position;
-            }
-        }
-
-        if (!attackerPos) {
-            this.damageAttackerId = null;
-            this.onDamageIndicatorUpdate?.(null, 0);
-            return;
-        }
-
-        const playerPos = this.player.mesh.position;
-        const dx = attackerPos.x - playerPos.x;
-        const dz = attackerPos.z - playerPos.z;
-        const worldAngle = Math.atan2(dx, dz);
-        const cameraFacingAngle = this.cameraController.getYaw() + Math.PI;
-
-        let relativeAngle = worldAngle - cameraFacingAngle;
-        while (relativeAngle > Math.PI) relativeAngle -= Math.PI * 2;
-        while (relativeAngle < -Math.PI) relativeAngle += Math.PI * 2;
-
-        this.onDamageIndicatorUpdate?.(this.damageAttackerId, relativeAngle);
-    }
-
-    public onHitMark?: () => void;
-    public onStateChange?: (state: HUDState) => void;
-    public onNotification?: (msg: string, duration?: number) => void;
-    public onLoadStateChange?: (loading: boolean, message?: string) => void;
-    public onChatMessage?: (message: ChatMessage) => void;
-    public onNicknameLoaded?: (nickname: string) => void;
-    public onDamageEvent?: (event: DamageEvent) => void;
-    public onDeathStateChange?: (isDead: boolean, killerName: string | null) => void;
-    public onDamageIndicatorUpdate?: (attackerId: string | null, direction: number) => void;
-
-    public onFloorSelectorToggle?: (isOpen: boolean) => void;
-    public onLocationChange?: (id: string) => void;
-
-    public onOpenTokenUI?: (tokenData: any) => void;
-    public onOpenVendorUI?: () => void;
-    public onOpenSolaUI?: () => void;
-    public onOpenCanyonMapUI?: () => void;
-    public onInventoryChange?: (inventory: InventoryEntry[], ash: number) => void;
-    public onSellResult?: (data: { address: string; quantitySold: number; ashEarned: number; marketCap: number }) => void;
-    public onQuestInfo?: (data: QuestInfoData) => void;
-    public onQuestUpdate?: (data: QuestUpdateData) => void;
-    public onCanyonSegment?: (data: CanyonSegmentData) => void;
-    public onCanyonMap?: (data: CanyonMapData) => void;
-
-    public onOpenFactionBrokerUI?: () => void;
-    public onFactionCreated?: (faction: FactionSummary) => void;
-    public onFactionJoined?: (faction: FactionSummary) => void;
-    public onFactionLeft?: () => void;
-    public onFactionSearchResult?: (results: FactionSummary[]) => void;
-    public onFactionListResult?: (data: { results: FactionSummary[]; page: number }) => void;
-    public onFactionInfo?: (faction: FactionDetail | null) => void;
-    public onSelfProfile?: (profile: PlayerProfileData | null) => void;
-    public onViewedProfile?: (profile: PlayerProfileData | null) => void;
-    public onLeaderboardResult?: (leaderboard: LeaderboardEntry[]) => void;
-    public onFactionLeaderboardResult?: (leaderboard: FactionSummary[]) => void;
-    public onFactionTaskListResult?: (tasks: FactionTaskDefinition[]) => void;
-    public onFactionTaskAccepted?: (faction: FactionSummary) => void;
-    public onFactionTaskCompleted?: (data: { taskKey: string; label: string; rewardAsh: number; rewardNickname: string | null }) => void;
-    public onFactionCreatorClaimResult?: (data: { isCreator: boolean; faction: FactionSummary }) => void;
-    public onFactionCreatorVerified?: (faction: FactionSummary) => void;
-
-    public onFriendRequestSent?: (friend: FriendRequestEntry, status: string) => void;
-    public onFriendRequestAccepted?: (friend: FriendEntry) => void;
-    public onFriendRequestDeclined?: (requestUserId: string) => void;
-    public onFriendRemoved?: (friendUserId: string) => void;
-    public onFriendsListResult?: (data: { friends: FriendEntry[]; incoming: FriendRequestEntry[]; outgoing: FriendRequestEntry[] }) => void;
-    public onFriendSearchResult?: (results: FriendRequestEntry[]) => void;
-    public onMailSent?: (mailId: string) => void;
-    public onMailInboxResult?: (data: { mail: MailEntry[]; unreadCount: number }) => void;
-    public onMailMarkedRead?: (mailId: string) => void;
-    public onVoiceCapturingChange?: (capturing: boolean) => void;
-
     public openFloorSelector() {
         this.showFloorSelector = true;
         this.onFloorSelectorToggle?.(true);
@@ -227,25 +137,11 @@ export class Game {
         this.slug = slug;
         this.session = session;
 
-        this.renderer = new THREE.WebGLRenderer({
-            canvas,
-            antialias: true,
-            powerPreference: "high-performance"
-        });
-
         const container = canvas.parentElement;
         const width = container?.clientWidth || window.innerWidth;
         const height = container?.clientHeight || window.innerHeight;
 
-        this.renderer.setSize(width, height, false);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFShadowMap;
-
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.2;
+        this.renderer = createGameRenderer(canvas, width, height);
 
         canvas.style.width = '100%';
         canvas.style.height = '100%';
@@ -467,7 +363,7 @@ export class Game {
         window.addEventListener("orientationchange", this.handleResize);
     }
 
-    private async changeLocation(
+    public async changeLocation(
         targetLocationId: string,
         options?: { position?: number[]; rotation?: number; silent?: boolean }
     ) {
@@ -559,41 +455,11 @@ export class Game {
     }
 
     public async restoreToSavedProgress(progress?: { locationId?: string; position: number[]; rotation?: number }) {
-        try {
-            const currentId = this.locationManager.getCurrentLocation()?.id;
-            if (progress?.locationId && progress.locationId !== currentId) {
-                await this.changeLocation(progress.locationId, {
-                    position: progress.position,
-                    rotation: progress.rotation,
-                    silent: true,
-                });
-            } else if (progress?.position) {
-                const pos = new THREE.Vector3(progress.position[0], progress.position[1], progress.position[2]);
-                this.player.teleportTo(pos);
-                this.cameraController.yawObject.position.copy(pos);
-                if (progress.rotation !== undefined) {
-                    this.player.mesh.rotation.y = progress.rotation;
-                }
-            }
-        } catch (error) {
-            console.error("Failed to restore saved location:", error);
-        } finally {
-            this.restoreResolver?.();
-            this.restoreResolver = null;
-        }
+        return restoreToSavedProgress(this, progress);
     }
 
     private waitForProgressRestore(timeoutMs = 6000): Promise<void> {
-        return new Promise((resolve) => {
-            let done = false;
-            const finish = () => {
-                if (done) return;
-                done = true;
-                resolve();
-            };
-            this.restoreResolver = finish;
-            setTimeout(finish, timeoutMs);
-        });
+        return waitForProgressRestore(this, timeoutMs);
     }
 
     private setupNetwork() {
@@ -646,7 +512,7 @@ export class Game {
 
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
-            this.updateDamageIndicator();
+            updateDamageIndicator(this);
             this.player.update(delta, isEJustPressed);
             this.cameraController.update(delta, this.inputManager);
 
@@ -857,48 +723,7 @@ export class Game {
     }
 
     public teleportToSafeZone() {
-        const currentLocation = this.locationManager.getCurrentLocation();
-        if (!currentLocation) return;
-
-        if (currentLocation.id !== 'tower-main-hall') {
-            this.changeLocation('tower-main-hall').then(() => {
-                const hall = this.locationManager.getCurrentLocation();
-                if (hall) {
-                    const safePoint = hall.getSpawnPoint();
-                    this.player.teleportTo(safePoint);
-                    this.cameraController.yawObject.position.copy(safePoint);
-                    this.networkManager.sendPlayerUpdate({
-                        position: safePoint.toArray(),
-                        rotation: this.player.mesh.rotation.y,
-                        pitch: this.cameraController.getPitch(),
-                        state: 'idle', jumping: false, velocityY: 0,
-                        weaponEquipped: this.hudState.isWeaponEquipped, isShooting: false,
-                    });
-                    this.onNotification?.("🛡️ Teleported to Safe Zone", 2500);
-                }
-            });
-            return;
-        }
-
-        const safePoint = currentLocation.getSpawnPoint();
-        this.player.teleportTo(safePoint);
-        this.cameraController.yawObject.position.copy(safePoint);
-
-        if (this.isDead) {
-            this.isDead = false;
-            this.killerName = null;
-            this.onDeathStateChange?.(false, null);
-        }
-
-        this.networkManager.sendPlayerUpdate({
-            position: safePoint.toArray(),
-            rotation: this.player.mesh.rotation.y,
-            pitch: this.cameraController.getPitch(),
-            state: 'idle', jumping: false, velocityY: 0,
-            weaponEquipped: this.hudState.isWeaponEquipped, isShooting: false,
-        });
-
-        this.onNotification?.("🛡️ Teleported to Safe Zone", 2500);
+        teleportToSafeZone(this);
     }
 
     dispose() {
@@ -932,3 +757,5 @@ export class Game {
         this.renderer.dispose();
     }
 }
+
+export interface Game extends GameCallbacks { }

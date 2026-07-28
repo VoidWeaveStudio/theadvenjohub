@@ -1,9 +1,9 @@
 // src/features/game/world/locations/tower/floors/basement/systems/BasementEnvironmentSystem.ts
 import * as THREE from "three";
-import { EquirectangularReflectionMapping } from "three";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
 import { createGlowTexture, createGlowSphere } from "../utils/meshFactory";
 import type { Basement } from "../Basement";
+import { setupBasementSky, setupBasementFloor, setupBasementPortals } from "./BasementSceneSetup";
 
 export class BasementEnvironmentSystem {
     public basementCrystal!: THREE.Group;
@@ -11,13 +11,13 @@ export class BasementEnvironmentSystem {
     private portalLight!: THREE.PointLight;
     private sinkGlow!: THREE.PointLight;
 
-    private portalVFX!: THREE.Group;
+    private portalVFX?: THREE.Group;
     private portalMixer?: THREE.AnimationMixer;
 
     private sinkPortal?: THREE.Group;
     private sinkPortalMixer?: THREE.AnimationMixer;
 
-    private skySphere!: THREE.Group;
+    private skySphere?: THREE.Group;
 
     private baseGlowMaterial!: THREE.SpriteMaterial;
 
@@ -33,246 +33,18 @@ export class BasementEnvironmentSystem {
         const hemi = new THREE.HemisphereLight(0x66aaff, 0x000000, 0.8);
         this.floor.scene.add(hemi);
 
-        const cosmosData = rm.getModel("cosmos");
-        const nebulaTexture = rm.getTexture("nebula-sky");
-
-        const setupSky = (data: any, tex: THREE.Texture) => {
-            this.skySphere = data.scene;
-            this.skySphere.scale.set(100, 100, 100);
-            this.skySphere.position.set(0, 0, 0);
-            this.skySphere.renderOrder = -1000;
-
-            this.skySphere.traverse((child) => {
-                if ((child as THREE.Mesh).isMesh) {
-                    const mesh = child as THREE.Mesh;
-                    const mat = new THREE.MeshBasicMaterial({
-                        map: tex,
-                        color: 0xffffff,
-                        side: THREE.BackSide,
-                        depthTest: true,
-                        depthWrite: false,
-                        toneMapped: false
-                    });
-                    mesh.material = mat;
-                    mesh.castShadow = false;
-                    mesh.receiveShadow = false;
-                    mesh.renderOrder = -1000;
-                }
-            });
-
-            this.floor.scene.add(this.skySphere);
-
-            tex.mapping = EquirectangularReflectionMapping;
-            this.floor.scene.environment = tex;
-            (this.floor.scene as any).environmentIntensity = 5.0;
-        };
-
-        if (cosmosData && nebulaTexture) {
-            setupSky(cosmosData, nebulaTexture);
-        } else {
-            console.warn("[Basement] Cosmos or nebula not loaded yet, waiting for lazy load...");
-
-            let cData = cosmosData;
-            let nTex = nebulaTexture;
-
-            const trySetup = () => {
-                if (!cData) cData = rm.getModel("cosmos");
-                if (!nTex) nTex = rm.getTexture("nebula-sky");
-
-                if (cData && nTex) {
-                    setupSky(cData, nTex);
-                }
-            };
-
-            if (!cosmosData) {
-                rm.onModelLoaded("cosmos", () => {
-                    cData = rm.getModel("cosmos");
-                    trySetup();
-                });
-            }
-            if (!nebulaTexture) {
-                rm.onTextureLoaded("nebula-sky", () => {
-                    nTex = rm.getTexture("nebula-sky");
-                    trySetup();
-                });
-            }
-        }
-
-        const floorColor = rm.getTexture("floor-color");
-        const floorNormal = rm.getTexture("floor-normal");
-        const floorRough = rm.getTexture("floor-roughness");
-
-        if (floorColor) floorColor.repeat.set(20, 20);
-        if (floorNormal) floorNormal.repeat.set(20, 20);
-        if (floorRough) floorRough.repeat.set(20, 20);
-
-        const floorMat = new THREE.MeshStandardMaterial({
-            roughness: 0.82,
-            metalness: 0.08,
-        });
-        if (floorColor) floorMat.map = floorColor;
-        if (floorNormal) floorMat.normalMap = floorNormal;
-        if (floorRough) floorMat.roughnessMap = floorRough;
-
-        // Floor textures are lazy-loaded and may not be ready yet when the player
-        // reaches the basement — upgrade the material in place once each arrives,
-        // same pattern as the cosmos sky sphere above.
-        if (!floorColor) {
-            rm.onTextureLoaded("floor-color", () => {
-                const tex = rm.getTexture("floor-color");
-                if (!tex) return;
-                tex.repeat.set(20, 20);
-                floorMat.map = tex;
-                floorMat.needsUpdate = true;
-            });
-        }
-        if (!floorNormal) {
-            rm.onTextureLoaded("floor-normal", () => {
-                const tex = rm.getTexture("floor-normal");
-                if (!tex) return;
-                tex.repeat.set(20, 20);
-                floorMat.normalMap = tex;
-                floorMat.needsUpdate = true;
-            });
-        }
-        if (!floorRough) {
-            rm.onTextureLoaded("floor-roughness", () => {
-                const tex = rm.getTexture("floor-roughness");
-                if (!tex) return;
-                tex.repeat.set(20, 20);
-                floorMat.roughnessMap = tex;
-                floorMat.needsUpdate = true;
-            });
-        }
-
-        const radius = 40;
-        const holeRadius = 3.6;
-
-        const outerFloor = new THREE.Mesh(
-            new THREE.RingGeometry(holeRadius, radius, 64),
-            floorMat
-        );
-        outerFloor.rotation.x = -Math.PI / 2;
-        outerFloor.position.y = 0;
-        outerFloor.receiveShadow = true;
-        this.floor.scene.add(outerFloor);
-
-        const wellDepth = Math.abs(this.floor.SINK_Y) + 1;
-        const wellGeo = new THREE.CylinderGeometry(
-            holeRadius,
-            holeRadius,
-            wellDepth,
-            64,
-            1,
-            true
-        );
-
-        const wellMat = new THREE.MeshStandardMaterial({
-            color: 0x000000,
-            roughness: 1,
-            metalness: 0,
-            side: THREE.BackSide
+        setupBasementSky(this.floor, rm, (skySphere) => {
+            this.skySphere = skySphere;
         });
 
-        const well = new THREE.Mesh(wellGeo, wellMat);
-        well.position.y = -wellDepth / 2;
-        well.receiveShadow = false;
-        well.castShadow = false;
-        this.floor.scene.add(well);
+        const { radius } = setupBasementFloor(this.floor, rm);
 
-        this.floor.collisionGrid.insertCylinder(
-            new THREE.Vector3(0, 0, 0),
-            3.8,
-            4
-        );
-
-        const portalData = rm.getModel("portalVFX");
-        if (portalData) {
-            this.portalVFX = portalData.scene;
-            this.portalVFX.scale.set(7.5, 7.5, 7.5);
-            this.portalVFX.position.set(0, this.floor.HOLE_Y + 0.05, 0);
-            this.portalVFX.rotation.x = -Math.PI / 2;
-            this.floor.scene.add(this.portalVFX);
-
-            this.portalVFX.traverse((child) => {
-                if ((child as THREE.Mesh).isMesh) {
-                    const mesh = child as THREE.Mesh;
-                    const oldMat = mesh.material as THREE.MeshStandardMaterial;
-                    const newMat = new THREE.MeshBasicMaterial({
-                        map: oldMat.map || null,
-                        color: oldMat.color.clone(),
-                        transparent: true,
-                        opacity: oldMat.opacity,
-                        blending: THREE.AdditiveBlending,
-                        depthWrite: false,
-                        side: THREE.DoubleSide
-                    });
-                    mesh.material = newMat;
-                    mesh.castShadow = false;
-                    mesh.receiveShadow = false;
-                }
-            });
-
-            if (portalData.animations.length > 0) {
-                this.portalMixer = new THREE.AnimationMixer(this.portalVFX);
-                portalData.animations.forEach((clip) => {
-                    this.portalMixer!.clipAction(clip).play();
-                });
-            }
-
-            this.sinkPortal = portalData.scene.clone(true) as THREE.Group;
-            this.sinkPortal.scale.set(7.5, 7.5, 7.5);
-            this.sinkPortal.position.set(0, this.floor.SINK_Y, 0);
-            this.sinkPortal.rotation.x = Math.PI / 2;
-            this.floor.scene.add(this.sinkPortal);
-
-            this.sinkPortal.traverse((child) => {
-                if ((child as THREE.Mesh).isMesh) {
-                    const mesh = child as THREE.Mesh;
-                    const oldMat = mesh.material as THREE.MeshStandardMaterial;
-                    mesh.material = new THREE.MeshBasicMaterial({
-                        map: oldMat.map || null,
-                        color: oldMat.color.clone(),
-                        transparent: true,
-                        opacity: oldMat.opacity,
-                        blending: THREE.AdditiveBlending,
-                        depthWrite: false,
-                        side: THREE.DoubleSide
-                    });
-                    mesh.castShadow = false;
-                    mesh.receiveShadow = false;
-                }
-            });
-
-            if (portalData.animations.length > 0) {
-                this.sinkPortalMixer = new THREE.AnimationMixer(this.sinkPortal);
-                portalData.animations.forEach((clip) => {
-                    this.sinkPortalMixer!.clipAction(clip).play();
-                });
-            }
-        }
-
-        const floorSegments = 32;
-        for (let i = 0; i < floorSegments; i++) {
-            const angle1 = (i / floorSegments) * Math.PI * 2;
-            const angle2 = ((i + 1) / floorSegments) * Math.PI * 2;
-            const pts = [
-                new THREE.Vector3(Math.cos(angle1) * holeRadius, 0, Math.sin(angle1) * holeRadius),
-                new THREE.Vector3(Math.cos(angle2) * holeRadius, 0, Math.sin(angle2) * holeRadius),
-                new THREE.Vector3(Math.cos(angle1) * radius, 0, Math.sin(angle1) * radius),
-                new THREE.Vector3(Math.cos(angle2) * radius, 0, Math.sin(angle2) * radius)
-            ];
-            let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-            for (const p of pts) {
-                if (p.x < minX) minX = p.x;
-                if (p.x > maxX) maxX = p.x;
-                if (p.z < minZ) minZ = p.z;
-                if (p.z > maxZ) maxZ = p.z;
-            }
-            this.floor.collisionGrid.insert(new THREE.Box3(
-                new THREE.Vector3(minX, -0.1, minZ),
-                new THREE.Vector3(maxX, 0.1, maxZ)
-            ));
+        const portals = setupBasementPortals(this.floor, rm);
+        if (portals) {
+            this.portalVFX = portals.portalVFX;
+            this.portalMixer = portals.portalMixer;
+            this.sinkPortal = portals.sinkPortal;
+            this.sinkPortalMixer = portals.sinkPortalMixer;
         }
 
         this.portalLight = new THREE.PointLight(0xb8e4ff, 70, 110, 1.8);
