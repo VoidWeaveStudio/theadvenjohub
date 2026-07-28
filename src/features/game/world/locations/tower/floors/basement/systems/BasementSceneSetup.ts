@@ -4,7 +4,12 @@ import { EquirectangularReflectionMapping } from "three";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
 import type { Basement } from "../Basement";
 
-export function setupBasementSky(floor: Basement, rm: ResourceManager, onReady: (skySphere: THREE.Group) => void) {
+export function setupBasementSky(
+    floor: Basement,
+    rm: ResourceManager,
+    onReady: (skySphere: THREE.Group) => void,
+    isDisposed: () => boolean = () => false
+) {
     const cosmosData = rm.getModel("cosmos");
     const nebulaTexture = rm.getTexture("nebula-sky");
 
@@ -50,6 +55,8 @@ export function setupBasementSky(floor: Basement, rm: ResourceManager, onReady: 
         let nTex = nebulaTexture;
 
         const trySetup = () => {
+            if (isDisposed()) return; // floor was torn down before the lazy assets finished loading
+
             if (!cData) cData = rm.getModel("cosmos");
             if (!nTex) nTex = rm.getTexture("nebula-sky");
 
@@ -73,7 +80,7 @@ export function setupBasementSky(floor: Basement, rm: ResourceManager, onReady: 
     }
 }
 
-export function setupBasementFloor(floor: Basement, rm: ResourceManager) {
+export function setupBasementFloor(floor: Basement, rm: ResourceManager, isDisposed: () => boolean = () => false) {
     const floorColor = rm.getTexture("floor-color");
     const floorNormal = rm.getTexture("floor-normal");
     const floorRough = rm.getTexture("floor-roughness");
@@ -92,6 +99,7 @@ export function setupBasementFloor(floor: Basement, rm: ResourceManager) {
 
     if (!floorColor) {
         rm.onTextureLoaded("floor-color", () => {
+            if (isDisposed()) return; // floor already torn down; floorMat has since been disposed
             const tex = rm.getTexture("floor-color");
             if (!tex) return;
             tex.repeat.set(20, 20);
@@ -101,6 +109,7 @@ export function setupBasementFloor(floor: Basement, rm: ResourceManager) {
     }
     if (!floorNormal) {
         rm.onTextureLoaded("floor-normal", () => {
+            if (isDisposed()) return;
             const tex = rm.getTexture("floor-normal");
             if (!tex) return;
             tex.repeat.set(20, 20);
@@ -110,6 +119,7 @@ export function setupBasementFloor(floor: Basement, rm: ResourceManager) {
     }
     if (!floorRough) {
         rm.onTextureLoaded("floor-roughness", () => {
+            if (isDisposed()) return;
             const tex = rm.getTexture("floor-roughness");
             if (!tex) return;
             tex.repeat.set(20, 20);

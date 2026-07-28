@@ -38,7 +38,7 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone }: Settin
             title="Settings"
             icon={
                 <Image
-                    src="/icons/topmenu/settings.webp"
+                    src="/icons/topmenu/settings-v2.webp"
                     alt=""
                     width={100}
                     height={200}

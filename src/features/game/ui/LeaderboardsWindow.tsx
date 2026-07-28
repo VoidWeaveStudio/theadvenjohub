@@ -69,7 +69,7 @@ export function LeaderboardsWindow({
             title="Leaderboards"
             icon={
                 <Image
-                    src="/icons/topmenu/leaderboard.webp"
+                    src="/icons/topmenu/leaderboard-v2.webp"
                     alt=""
                     width={100}
                     height={200}

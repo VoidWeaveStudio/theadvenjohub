@@ -21,6 +21,8 @@ export class BasementEnvironmentSystem {
 
     private baseGlowMaterial!: THREE.SpriteMaterial;
 
+    private disposed = false;
+
     constructor(private floor: Basement) { }
 
     create(rm: ResourceManager) {
@@ -35,9 +37,9 @@ export class BasementEnvironmentSystem {
 
         setupBasementSky(this.floor, rm, (skySphere) => {
             this.skySphere = skySphere;
-        });
+        }, () => this.disposed);
 
-        const { radius } = setupBasementFloor(this.floor, rm);
+        const { radius } = setupBasementFloor(this.floor, rm, () => this.disposed);
 
         const portals = setupBasementPortals(this.floor, rm);
         if (portals) {
@@ -213,6 +215,8 @@ export class BasementEnvironmentSystem {
     }
 
     dispose() {
+        this.disposed = true;
+
         if (this.sinkPortal) {
             this.floor.scene.remove(this.sinkPortal);
             this.sinkPortal.traverse((child) => {

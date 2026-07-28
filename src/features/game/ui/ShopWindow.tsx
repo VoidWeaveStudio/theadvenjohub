@@ -18,7 +18,7 @@ export function ShopWindow({ isOpen, onClose }: ShopWindowProps) {
             title="Shop"
             icon={
                 <Image
-                    src="/icons/topmenu/shop.webp"
+                    src="/icons/topmenu/shop-v2.webp"
                     alt=""
                     width={100}
                     height={200}

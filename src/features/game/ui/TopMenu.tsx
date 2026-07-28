@@ -12,11 +12,11 @@ interface TopMenuProps {
 }
 
 const ITEMS: { id: TopWindowId; icon: string; label: string }[] = [
-    { id: "factions", icon: "/icons/topmenu/factions.webp", label: "Factions" },
-    { id: "social", icon: "/icons/topmenu/social.webp", label: "Social" },
-    { id: "shop", icon: "/icons/topmenu/shop.webp", label: "Shop" },
-    { id: "leaderboards", icon: "/icons/topmenu/leaderboard.webp", label: "Leaderboards" },
-    { id: "settings", icon: "/icons/topmenu/settings.webp", label: "Settings" },
+    { id: "factions", icon: "/icons/topmenu/factions-v2.webp", label: "Factions" },
+    { id: "social", icon: "/icons/topmenu/social-v2.webp", label: "Social" },
+    { id: "shop", icon: "/icons/topmenu/shop-v2.webp", label: "Shop" },
+    { id: "leaderboards", icon: "/icons/topmenu/leaderboard-v2.webp", label: "Leaderboards" },
+    { id: "settings", icon: "/icons/topmenu/settings-v2.webp", label: "Settings" },
 ];
 
 export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
