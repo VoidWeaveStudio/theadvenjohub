@@ -55,7 +55,7 @@ export class EnemySystem extends System {
         const enemy = this.enemies.get(id);
         if (!enemy) return;
         this.onEnemyDespawn?.(id);
-        this.scene.remove(enemy.mesh);
+        enemy.dispose(this.scene);
         this.enemies.delete(id);
     }
 

@@ -29,6 +29,9 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
                     <div className="flex items-center gap-2">
                         <h3 className="text-[#E5E7EB] text-xl font-bold truncate">{faction.name}</h3>
                         {faction.symbol && <span className="text-[#8B8F98] text-sm flex-shrink-0">${faction.symbol}</span>}
+                        <span className="bg-[rgba(79,209,255,0.15)] text-[#4FD1FF] text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                            Lv. {faction.level}
+                        </span>
                     </div>
                     <div className="text-[#8B8F98] text-xs font-mono mt-0.5 flex items-center gap-1">
                         <span>#{faction.number} · Founded by</span>
@@ -38,6 +41,19 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
                             iconClassName="w-3 h-3"
                         />
                     </div>
+                </div>
+            </div>
+
+            <div>
+                <div className="flex items-center justify-between text-xs text-[#8B8F98] mb-1">
+                    <span>Faction Level {faction.level}</span>
+                    <span>{faction.levelProgressAsh} / {faction.xpForNextLevel} Ash</span>
+                </div>
+                <div className="h-1.5 w-full bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
+                    <div
+                        className="h-full bg-[#4FD1FF] rounded-full"
+                        style={{ width: `${Math.min(100, (faction.levelProgressAsh / faction.xpForNextLevel) * 100)}%` }}
+                    />
                 </div>
             </div>
 

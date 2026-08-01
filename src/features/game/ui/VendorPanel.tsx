@@ -1,13 +1,14 @@
 // src/features/game/ui/VendorPanel.tsx
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, Sparkles, Store, ArrowLeftRight } from "lucide-react";
 import { InventoryGrid, InventoryGridItem } from "./InventoryGrid";
 import { useMarketCaps } from "./useMarketCaps";
 import { TokenHoverModal } from "./TokenHoverModal";
 import { useVendorCart } from "./useVendorCart";
 import { VendorQuantityDialog } from "./VendorQuantityDialog";
+import { SoundManager } from "../core/SoundManager";
 
 interface VendorPanelProps {
     isOpen: boolean;
@@ -58,6 +59,14 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
         };
     }, [hovered, marketCaps]);
 
+    const wasOpenRef = useRef(false);
+    useEffect(() => {
+        if (isOpen && !wasOpenRef.current) {
+            SoundManager.getInstance().play('modal-open');
+        }
+        wasOpenRef.current = isOpen;
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const handleConfirm = () => {
@@ -75,7 +84,7 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
                     <Store className="w-5 h-5 text-[#FFD166]" />
                     <h2 className="text-xl font-black text-[#E5E7EB]">Token Vendor</h2>
                 </div>
-                <button onClick={onClose} className="text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
+                <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                     <X className="w-5 h-5" />
                 </button>
             </div>

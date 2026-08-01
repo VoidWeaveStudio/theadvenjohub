@@ -1,6 +1,7 @@
 // src/features/game/ui/VendorQuantityDialog.tsx
 "use client";
 
+import { X } from "lucide-react";
 import { InventoryGridItem } from "./InventoryGrid";
 
 interface VendorQuantityDialogProps {
@@ -22,6 +23,12 @@ export function VendorQuantityDialog({ item, origin, quantity, onQuantityChange,
                 className="bg-[rgba(18,18,20,0.98)] border border-[rgba(255,255,255,0.12)] rounded-[12px] p-5 w-[280px]"
                 onClick={(e) => e.stopPropagation()}
             >
+                <div className="flex justify-end mb-1">
+                    <button onClick={onCancel} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
                 <div className="flex items-center gap-3 mb-4">
                     <img
                         src={item.image || "/fallback-token.png"}

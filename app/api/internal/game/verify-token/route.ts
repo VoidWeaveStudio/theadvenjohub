@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
-import { gameLicenses } from "@/core/database/schema";
+import { gameLicenses, users } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
+import { getMaintenanceStatus } from "@/core/lib/maintenance";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -64,12 +65,34 @@ export async function POST(req: NextRequest) {
             });
         }
 
+        const user = await db.query.users.findFirst({ where: eq(users.id, decoded.userId) });
+        if (user?.isBanned) {
+            return NextResponse.json({
+                valid: false,
+                error: "banned",
+            });
+        }
+
+        const isAdmin = !!process.env.ADMIN_WALLET && decoded.wallet === process.env.ADMIN_WALLET;
+
+        if (!isAdmin) {
+            const maintenance = await getMaintenanceStatus();
+            if (maintenance.enabled) {
+                return NextResponse.json({
+                    valid: false,
+                    error: "maintenance",
+                });
+            }
+        }
+
         return NextResponse.json({
             valid: true,
             userId: decoded.userId,
             wallet: decoded.wallet,
             gameId: decoded.gameId,
             gameSlug: decoded.gameSlug,
+            mutedUntil: user?.mutedUntil ?? null,
+            isAdmin,
         });
 
     } catch (error) {

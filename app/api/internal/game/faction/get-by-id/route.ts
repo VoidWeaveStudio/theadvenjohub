@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
 import { factions, factionMembers, gameNicknames } from "@/core/database/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { getFactionRank } from "@/core/lib/factionRank";
 import { buildFactionTaskExtras } from "@/core/lib/factionDetail";
 
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
                 wallet: factionMembers.wallet,
                 role: factionMembers.role,
                 joinedAt: factionMembers.joinedAt,
+                contributionPoints: factionMembers.contributionPoints,
                 nickname: gameNicknames.nickname,
             })
             .from(factionMembers)
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
                 and(eq(gameNicknames.userId, factionMembers.userId), eq(gameNicknames.gameId, factionMembers.gameId))
             )
             .where(eq(factionMembers.factionId, factionId))
-            .orderBy(asc(factionMembers.joinedAt));
+            .orderBy(desc(factionMembers.contributionPoints));
 
         const rank = await getFactionRank(gameId, factionId);
         const taskExtras = await buildFactionTaskExtras(faction, gameId);
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
                     wallet: r.wallet,
                     role: r.role,
                     nickname: r.nickname || null,
+                    contributionPoints: r.contributionPoints,
                 })),
             },
         });

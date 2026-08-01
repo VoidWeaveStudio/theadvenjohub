@@ -24,6 +24,7 @@ import type { GameCallbacks } from "./GameCallbacks";
 import { createGameRenderer } from "./GameRenderer";
 import { updateDamageIndicator } from "./GameDamageIndicator";
 import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone } from "./GameLocationOrchestration";
+import { SoundManager } from "./SoundManager";
 
 export interface GameSession {
     gameToken: string;
@@ -98,6 +99,7 @@ export class Game {
     public dayNightConfig: DayNightConfig | null = null;
     public hasRestoredLocation: boolean = false;
     public restoreResolver: (() => void) | null = null;
+    public restoreTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
     public readonly hudState: HUDState = {
         health: 100,
@@ -167,6 +169,10 @@ export class Game {
 
     async init() {
         this.onLoadStateChange?.(true, "Initializing core assets...");
+
+        SoundManager.getInstance().loadCritical().then(() => {
+            SoundManager.getInstance().loadLazy();
+        });
 
         this.resourceManager.onProgress = (progress, message) => {
             this.onLoadStateChange?.(true, `${message} ${Math.round(progress)}%`);
@@ -315,6 +321,10 @@ export class Game {
 
                 this.interactionSystem.onOpenFactionBroker = () => {
                     this.onOpenFactionBrokerUI?.();
+                };
+
+                this.interactionSystem.onOpenAlfredo = () => {
+                    this.onOpenAlfredoUI?.();
                 };
 
                 this.interactionSystem.onCanyonReturn = () => {
@@ -514,6 +524,9 @@ export class Game {
         if (currentLocation) {
             updateDamageIndicator(this);
             this.player.update(delta, isEJustPressed);
+            if (this.isDead && this.inputManager.isKeyJustPressed("Space")) {
+                this.networkManager.sendRespawnRequest();
+            }
             this.cameraController.update(delta, this.inputManager);
 
             const inSafe = (currentLocation instanceof MainHall) && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
@@ -584,14 +597,21 @@ export class Game {
     };
 
     setWeaponEquipped(equipped: boolean) {
-        this.hudState.isWeaponEquipped = equipped;
-        this.player.setWeaponVisible(equipped);
-        this.shootingSystem.setWeaponEquipped(equipped);
+        const currentLocation = this.locationManager.getCurrentLocation();
+        const finalEquipped = currentLocation?.id === 'tower-main-hall' ? false : equipped;
+        this.hudState.isWeaponEquipped = finalEquipped;
+        this.player.setWeaponVisible(finalEquipped);
+        this.shootingSystem.setWeaponEquipped(finalEquipped);
         this.emitState(true);
     }
 
     setNickname(nickname: string) {
         this.networkManager.setNickname(nickname);
+    }
+
+    applyAndBroadcastSkin(url: string) {
+        this.player.applySkinTexture(url);
+        this.networkManager.sendSkinUpdate(url);
     }
 
     sendChatMessage(message: string) {
@@ -726,6 +746,38 @@ export class Game {
         this.networkManager.sendMailMarkRead(mailId);
     }
 
+    requestTokenInfo(ca: string) {
+        this.networkManager.requestTokenInfo(ca);
+    }
+
+    sendSupportTicket(subject: string, message: string) {
+        this.networkManager.sendSupportTicket(subject, message);
+    }
+
+    blockPlayer(target: { wallet?: string; nickname?: string }) {
+        this.networkManager.sendBlockUser(target);
+    }
+
+    unblockPlayer(blockedUserId: string) {
+        this.networkManager.sendUnblockUser(blockedUserId);
+    }
+
+    requestBlockedList() {
+        this.networkManager.sendBlockedListRequest();
+    }
+
+    sendPrivateMessage(toWallet: string, text: string) {
+        this.networkManager.sendPrivateMessage(toWallet, text);
+    }
+
+    sendFactionChatMessage(factionId: string, message: string) {
+        this.networkManager.sendFactionChatMessage(factionId, message);
+    }
+
+    inviteToFaction(toWallet: string, factionId: string) {
+        this.networkManager.sendFactionInvite(toWallet, factionId);
+    }
+
     getInventory(): InventoryEntry[] {
         return this.inventory;
     }
@@ -741,6 +793,10 @@ export class Game {
             cancelAnimationFrame(this.animationFrameId);
             this.animationFrameId = null;
         }
+        if (this.restoreTimeoutId !== null) {
+            clearTimeout(this.restoreTimeoutId);
+            this.restoreTimeoutId = null;
+        }
         window.removeEventListener("resize", this.handleResize);
         window.removeEventListener("orientationchange", this.handleResize);
         this.networkManager.disconnect();
@@ -755,7 +811,7 @@ export class Game {
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
             this.otherPlayers.forEach((op) => {
-                if (!op.isHidden()) op.dispose(currentLocation.scene);
+                op.dispose(currentLocation.scene);
             });
             this.player.dispose(currentLocation.scene);
         }

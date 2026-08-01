@@ -106,6 +106,8 @@ export function LeaderboardsWindow({
                                         nickname={entry.nickname || truncateWallet(entry.wallet)}
                                         faction={entry.faction}
                                         size="sm"
+                                        isAdmin={entry.isAdmin}
+                                        isFactionCreator={entry.isFactionCreator}
                                     />
                                 </div>
                                 <span className="text-[#FFD166] font-bold text-sm">{entry.score} pts</span>

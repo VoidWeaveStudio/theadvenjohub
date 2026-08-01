@@ -34,6 +34,7 @@ export class InteractionSystem extends System {
     public onOpenSola?: () => void;
     public onOpenCanyonMap?: () => void;
     public onOpenFactionBroker?: () => void;
+    public onOpenAlfredo?: () => void;
     public onCanyonReturn?: () => void;
     public onOpenTokenUI?: (token: any) => void;
     public onEnterLocation?: (locationId: string) => void;
@@ -147,6 +148,11 @@ export class InteractionSystem extends System {
                 this.onPrompt?.("[E] Manage Factions");
                 if (isEJustPressed === true) {
                     this.onOpenFactionBroker?.();
+                }
+            } else if (id === "npc-alfredo") {
+                this.onPrompt?.("[E] Talk to Alfredo");
+                if (isEJustPressed === true) {
+                    this.onOpenAlfredo?.();
                 }
             } else if (id === "canyon-dispatcher") {
                 this.onPrompt?.("[E] View Canyon Map");

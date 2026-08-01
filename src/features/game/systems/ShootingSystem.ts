@@ -10,6 +10,7 @@ import { OtherPlayer } from "../entities/OtherPlayer";
 import { Location } from "../world/Location";
 import { CollisionGrid } from "../world/CollisionGrid";
 import { ShootingEffects } from "./ShootingEffects";
+import { SoundManager } from "../core/SoundManager";
 
 interface RaycastHit {
     id: string;
@@ -110,6 +111,7 @@ export class ShootingSystem extends System {
             if (weapon.canShoot()) {
                 if (weapon.shoot()) {
                     this.localShoot();
+                    SoundManager.getInstance().play('shoot');
                 }
             }
         }
@@ -229,6 +231,7 @@ export class ShootingSystem extends System {
             if (targetType === 'player') {
                 this.effects.spawnBloodEffect(hitPoint);
                 this.onHitPlayer?.();
+                SoundManager.getInstance().play('hitmarker');
                 this.network.sendHit({
                     target: targetId,
                     point: hitPoint.toArray(),

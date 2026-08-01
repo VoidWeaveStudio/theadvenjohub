@@ -3,6 +3,7 @@ import { db } from "@/core/database";
 import { gameNicknames, factionTaskLog, factions, factionMembers } from "@/core/database/schema";
 import { eq, and, desc, count, sql } from "drizzle-orm";
 import { getFactionRank, getFactionsRankedByGame } from "@/core/lib/factionRank";
+import { xpForLevel } from "@/core/lib/factionLeveling";
 
 type FactionRow = typeof factions.$inferSelect;
 
@@ -37,6 +38,9 @@ export async function buildFactionTaskExtras(faction: FactionRow, gameId: string
         .limit(5);
 
     return {
+        level: faction.level,
+        levelProgressAsh: faction.levelProgressAsh,
+        xpForNextLevel: xpForLevel(faction.level),
         activeTask: faction.activeTaskKey
             ? {
                 key: faction.activeTaskKey,

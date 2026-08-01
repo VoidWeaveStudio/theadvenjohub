@@ -3,26 +3,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/database";
 import { games, gameScreenshots, gameVideos } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
-import { verifyAdminToken } from "@/core/admin/auth";
+import { requireAdmin } from "@/core/admin/requireAdmin";
+import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 import { put } from "@vercel/blob";
+
+const ALLOWED_TYPES = new Set(["screenshot", "video", "cover", "background"]);
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const ALLOWED_MIME_PREFIXES = ["image/", "video/"];
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100);
+}
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const admin = requireAdmin(req);
+  if (admin instanceof NextResponse) return admin;
+
   try {
     const { slug } = await params;
-
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const token = authHeader.slice(7);
-    const admin = verifyAdminToken(token);
-    if (!admin) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
 
     const game = await db.query.games.findFirst({
       where: eq(games.slug, slug),
@@ -39,8 +40,30 @@ export async function POST(
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
+    if (!ALLOWED_TYPES.has(type)) {
+      return NextResponse.json({ error: "Invalid media type" }, { status: 400 });
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      return NextResponse.json({ error: "File too large" }, { status: 400 });
+    }
+    if (!ALLOWED_MIME_PREFIXES.some((p) => file.type.startsWith(p))) {
+      return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+    }
 
-    const blob = await put(`${slug}/${type}/${file.name}`, file, {
+    const sigError = verifyAdminAction(
+      req,
+      {
+        wallet: formData.get("wallet"),
+        signature: formData.get("signature"),
+        timestamp: Number(formData.get("timestamp")),
+      },
+      "media_upload",
+      slug
+    );
+    if (sigError) return sigError;
+
+    const safeName = sanitizeFileName(file.name);
+    const blob = await put(`${slug}/${type}/${safeName}`, file, {
       access: "public",
       addRandomSuffix: true,
     });

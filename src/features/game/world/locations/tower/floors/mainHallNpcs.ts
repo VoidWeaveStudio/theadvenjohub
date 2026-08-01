@@ -90,6 +90,48 @@ export function createSolaNPC(scene: THREE.Scene, collisionGrid: CollisionGrid, 
     return solaNpc;
 }
 
+export function createAlfredoNPC(scene: THREE.Scene, collisionGrid: CollisionGrid, rm: ResourceManager): NpcHandle {
+    const x = 0;
+    const z = 55;
+
+    const alfredoNpc = createNpcModel(rm, 0x1e6091, (headPos) => {
+        const beret = new THREE.Mesh(
+            new THREE.SphereGeometry(0.26, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
+            new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.75 })
+        );
+        beret.position.set(headPos.x, headPos.y + 0.32, headPos.z);
+        beret.rotation.x = Math.PI;
+
+        const palette = new THREE.Mesh(
+            new THREE.CircleGeometry(0.16, 16),
+            new THREE.MeshStandardMaterial({ color: 0xd9c2a6, roughness: 0.6, side: THREE.DoubleSide })
+        );
+        palette.position.set(headPos.x + 0.35, headPos.y - 0.1, headPos.z + 0.2);
+        palette.rotation.y = Math.PI / 3;
+
+        const marker = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.18, 0),
+            new THREE.MeshStandardMaterial({ color: 0xff6b6b, emissive: 0xff3b6b, emissiveIntensity: 5 })
+        );
+        marker.position.set(headPos.x, headPos.y + 0.9, headPos.z);
+
+        const glow = new THREE.PointLight(0x66ccff, 1.4, 6);
+        glow.position.set(headPos.x, headPos.y - 0.2, headPos.z + 0.3);
+
+        return [beret, palette, marker, glow];
+    });
+    alfredoNpc.group.position.set(x, 0, z);
+    alfredoNpc.group.userData.interactionId = "npc-alfredo";
+    scene.add(alfredoNpc.group);
+
+    collisionGrid.insert(new THREE.Box3(
+        new THREE.Vector3(x - 0.5, 0, z - 0.5),
+        new THREE.Vector3(x + 0.5, 2.5, z + 0.5)
+    ));
+
+    return alfredoNpc;
+}
+
 export function createFactionBrokerNPC(scene: THREE.Scene, collisionGrid: CollisionGrid, rm: ResourceManager): NpcHandle {
     const x = -40;
     const z = 28;

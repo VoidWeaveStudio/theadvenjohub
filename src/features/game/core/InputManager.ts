@@ -1,5 +1,12 @@
 // src/features/game/core/InputManager.ts
 import * as THREE from "three";
+import { SoundManager } from "./SoundManager";
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
+}
 
 export class InputManager {
   private keys: Set<string> = new Set();
@@ -25,6 +32,7 @@ export class InputManager {
 
     this.onKeyDown = (e) => {
       if (!this.isEnabled) return;
+      if (isTypingTarget(e.target)) return;
       this.keys.add(e.code);
     };
 
@@ -56,6 +64,7 @@ export class InputManager {
     };
 
     this.onCanvasClick = () => {
+      SoundManager.getInstance().resume();
       if (!this.isPointerLocked && this.isEnabled) {
         canvas.requestPointerLock().catch(() => { });
       }

@@ -5,21 +5,23 @@ import { Gem, LogOut } from "lucide-react";
 import { FactionDetail } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { FactionRosterList } from "./FactionRosterList";
+import { NicknameMenuActions } from "./shell/NicknameMenu";
 
 interface FactionMembersPanelProps {
     faction: FactionDetail;
     myWallet: string;
     onClaimCreator: () => void;
     onLeaveFaction: () => void;
+    getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
 }
 
-export function FactionMembersPanel({ faction, myWallet, onClaimCreator, onLeaveFaction }: FactionMembersPanelProps) {
+export function FactionMembersPanel({ faction, myWallet, onClaimCreator, onLeaveFaction, getNicknameMenuActions }: FactionMembersPanelProps) {
     const isVerifiedCreator = faction.verifiedCreatorWallet === myWallet;
 
     return (
         <div className="space-y-4">
             <FactionHeader faction={faction} />
-            <FactionRosterList faction={faction} />
+            <FactionRosterList faction={faction} getNicknameMenuActions={getNicknameMenuActions} />
 
             {!isVerifiedCreator && (
                 <div className="bg-[rgba(192,132,252,0.06)] border border-[rgba(192,132,252,0.2)] rounded-lg p-3 space-y-2">

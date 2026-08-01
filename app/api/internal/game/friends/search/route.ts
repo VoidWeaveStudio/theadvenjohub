@@ -5,6 +5,7 @@ import { db } from "@/core/database";
 import { users, gameNicknames } from "@/core/database/schema";
 import { eq, and, ilike, ne } from "drizzle-orm";
 import { getUserFactionTag, UserFactionTag } from "@/core/lib/userFactionTag";
+import { isAdminWallet, isFactionCreatorWallet } from "@/core/lib/playerBadges";
 
 const MAX_RESULTS = 20;
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ results: [] });
         }
 
-        const results: { userId: string; wallet: string; nickname: string | null; faction: UserFactionTag }[] = [];
+        const results: { userId: string; wallet: string; nickname: string | null; faction: UserFactionTag; isAdmin: boolean; isFactionCreator: boolean }[] = [];
 
         const byWallet = await db.query.users.findFirst({ where: eq(users.wallet, trimmed) });
         if (byWallet && byWallet.id !== userId) {
@@ -30,7 +31,14 @@ export async function POST(req: NextRequest) {
                 where: and(eq(gameNicknames.userId, byWallet.id), eq(gameNicknames.gameId, gameId)),
             });
             const faction = await getUserFactionTag(byWallet.id, gameId);
-            results.push({ userId: byWallet.id, wallet: byWallet.wallet, nickname: nick?.nickname || null, faction });
+            results.push({
+                userId: byWallet.id,
+                wallet: byWallet.wallet,
+                nickname: nick?.nickname || null,
+                faction,
+                isAdmin: isAdminWallet(byWallet.wallet),
+                isFactionCreator: await isFactionCreatorWallet(gameId, byWallet.wallet),
+            });
         }
 
         const byNickname = await db
@@ -43,7 +51,14 @@ export async function POST(req: NextRequest) {
         for (const row of byNickname) {
             if (!results.some((r) => r.userId === row.userId)) {
                 const faction = await getUserFactionTag(row.userId, gameId);
-                results.push({ userId: row.userId, wallet: row.wallet, nickname: row.nickname, faction });
+                results.push({
+                    userId: row.userId,
+                    wallet: row.wallet,
+                    nickname: row.nickname,
+                    faction,
+                    isAdmin: isAdminWallet(row.wallet),
+                    isFactionCreator: await isFactionCreatorWallet(gameId, row.wallet),
+                });
             }
         }
 

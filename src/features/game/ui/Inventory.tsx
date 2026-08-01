@@ -66,7 +66,7 @@ export function Inventory({ items, ash, isOpen, onClose }: InventoryProps) {
                         <Backpack className="w-4 h-4 text-[#4FD1FF]" />
                         <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">INVENTORY</span>
                     </div>
-                    <button onClick={onClose} className="text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
+                    <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         <X className="w-4 h-4" />
                     </button>
                 </div>

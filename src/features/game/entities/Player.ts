@@ -9,6 +9,8 @@ import { CollisionGrid } from "../world/CollisionGrid";
 import { HeightProvider } from "../world/Location";
 import { CharacterAnimator } from "./CharacterAnimator";
 import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
+import { SoundManager } from "../core/SoundManager";
+import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl } from "./characterPaint";
 
 export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
@@ -23,6 +25,7 @@ export class Player extends Entity {
     private jumpCooldown: number = 0;
 
     private baseY: number = 0;
+    private lastFootstepSign: number = 0;
 
     private readonly GRAVITY = 22;
     private readonly JUMP_FORCE = 8.5;
@@ -47,9 +50,15 @@ export class Player extends Entity {
     private isShooting: boolean = false;
     private readonly SHOOTING_SPEED_MULTIPLIER = 0.5;
 
+    private dead: boolean = false;
+    private paintableMaterial: THREE.Material | null = null;
+
     private static readonly _moveDir = new THREE.Vector3();
     private static readonly _step = new THREE.Vector3();
     private static readonly _nextPos = new THREE.Vector3();
+    private static readonly _checkPos = new THREE.Vector3();
+    private static readonly _surfacePos = new THREE.Vector3();
+    private static readonly _UP = new THREE.Vector3(0, 1, 0);
     private static readonly _playerBox = new THREE.Box3();
     private static readonly _playerSize = new THREE.Vector3(0.8, 2, 0.8);
 
@@ -81,9 +90,12 @@ export class Player extends Entity {
             throw new Error("Player model not found. Cannot initialize game.");
         }
 
-        scaleAndCenterModel(data.scene, 1.8, Math.PI / 2);
+        scaleAndCenterModel(data.scene, 1.8, 0);
 
         this.mesh.add(data.scene);
+
+        const paintableMesh = findPaintableMesh(data.scene);
+        this.paintableMaterial = paintableMesh ? clonePaintableMaterial(paintableMesh) : null;
 
         this.rightHand = findBoneFirst(data.scene, (name) =>
             name === 'handr' || name === 'hand.r' ||
@@ -135,6 +147,17 @@ export class Player extends Entity {
         this.weaponEquipped = visible;
     }
 
+    applySkinTexture(url: string | null) {
+        applySkinTextureUrl(this.paintableMaterial, url);
+    }
+
+    public setDead(dead: boolean) {
+        this.dead = dead;
+        if (dead) {
+            this.animator.play('death', this.weaponEquipped);
+        }
+    }
+
     public setHealth(health: number) {
         this.health = Math.max(0, Math.min(this.maxHealth, health));
     }
@@ -161,7 +184,7 @@ export class Player extends Entity {
         if (this.collisionGrid) {
             const centerY = this.baseY + Player.HALF_HEIGHT;
             const platformCheck = this.collisionGrid.checkPlatformBelow(
-                new THREE.Vector3(x, centerY, z),
+                Player._surfacePos.set(x, centerY, z),
                 Player._playerSize.y,
                 2.5
             );
@@ -176,6 +199,11 @@ export class Player extends Entity {
 
     update(delta: number, isInteracting: boolean = false) {
         if (!this.inputManager || !this.camera) return;
+
+        if (this.dead) {
+            this.animator.update(delta);
+            return;
+        }
 
         this.time += delta;
         if (this.jumpCooldown > 0) this.jumpCooldown -= delta;
@@ -223,7 +251,7 @@ export class Player extends Entity {
         }
 
         if (moveDir.lengthSq() > 0) {
-            moveDir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camera.getYaw());
+            moveDir.normalize().applyAxisAngle(Player._UP, this.camera.getYaw());
             const targetAngle = this.isShooting ? this.getCameraLookAngle() : Math.atan2(moveDir.x, moveDir.z);
             this.rotateToAngle(targetAngle, delta);
 
@@ -233,7 +261,7 @@ export class Player extends Entity {
             let blocked = false;
             if (this.collisionGrid) {
                 const centerY = this.baseY + Player.HALF_HEIGHT;
-                const checkPos = new THREE.Vector3(nextPos.x, centerY, nextPos.z);
+                const checkPos = Player._checkPos.set(nextPos.x, centerY, nextPos.z);
                 blocked = this.collisionGrid.checkCollisionHorizontal(checkPos, Player._playerSize);
             }
 
@@ -280,12 +308,15 @@ export class Player extends Entity {
             this.rotateToAngle(targetAngle, delta);
         }
 
+        const isFiring = this.isShooting && this.weaponEquipped;
+
         if (!this.isGrounded) {
             this.animator.play('jump', this.weaponEquipped);
         } else if (moved) {
-            this.animator.play(isSprinting && !this.isShooting ? 'run' : 'walk', this.weaponEquipped);
+            const moveKey = isSprinting && !this.isShooting ? 'run' : 'walk';
+            this.animator.play(isFiring ? `${moveKey}-firing` : moveKey, this.weaponEquipped);
         } else {
-            this.animator.play('idle', this.weaponEquipped);
+            this.animator.play(isFiring ? 'idle-firing' : 'idle', this.weaponEquipped);
         }
 
         let bobOffset = 0;
@@ -293,9 +324,17 @@ export class Player extends Entity {
             if (moved) {
                 const bobFreq = isSprinting ? 14 : 10;
                 const bobAmp = isSprinting ? 0.08 : 0.05;
-                bobOffset = Math.abs(Math.sin(this.time * bobFreq)) * bobAmp;
+                const sinValue = Math.sin(this.time * bobFreq);
+                bobOffset = Math.abs(sinValue) * bobAmp;
+
+                const footstepSign = sinValue >= 0 ? 1 : -1;
+                if (footstepSign !== this.lastFootstepSign) {
+                    this.lastFootstepSign = footstepSign;
+                    SoundManager.getInstance().playFootstep();
+                }
             } else {
                 bobOffset = Math.sin(this.time * 2) * 0.02;
+                this.lastFootstepSign = 0;
             }
         }
 
@@ -328,15 +367,15 @@ export class Player extends Entity {
     }
 
     public getState(): PlayerState {
-        const moveDir = new THREE.Vector3();
-        if (this.inputManager?.isKeyPressed("KeyW")) moveDir.z -= 1;
-        if (this.inputManager?.isKeyPressed("KeyS")) moveDir.z += 1;
-        if (this.inputManager?.isKeyPressed("KeyA")) moveDir.x -= 1;
-        if (this.inputManager?.isKeyPressed("KeyD")) moveDir.x += 1;
+        const isMoving =
+            !!this.inputManager?.isKeyPressed("KeyW") ||
+            !!this.inputManager?.isKeyPressed("KeyS") ||
+            !!this.inputManager?.isKeyPressed("KeyA") ||
+            !!this.inputManager?.isKeyPressed("KeyD");
         const isSprinting = this.inputManager?.isKeyPressed("ShiftLeft") || this.inputManager?.isKeyPressed("ShiftRight");
 
         if (!this.isGrounded) return 'jump';
-        if (moveDir.lengthSq() > 0) {
+        if (isMoving) {
             return isSprinting && !this.isShooting ? 'sprint' : 'walk';
         }
         return 'idle';

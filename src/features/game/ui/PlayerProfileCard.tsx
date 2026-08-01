@@ -1,7 +1,7 @@
 // src/features/game/ui/PlayerProfileCard.tsx
 "use client";
 
-import { User, Users, UserPlus } from "lucide-react";
+import { User, Users, UserPlus, Trophy } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { PlayerTag } from "./shell/PlayerTag";
 import { CopyableText } from "./shell/CopyableText";
@@ -37,6 +37,7 @@ export function PlayerProfileCard({
     const isFriend = !!profile && friends.some((f) => f.wallet === profile.wallet);
     const isPending = !!profile && outgoingRequests.some((r) => r.wallet === profile.wallet);
     const displayedFaction = profile?.factions?.find((f) => f.isDisplayed) ?? profile?.factions?.[0] ?? null;
+    const isFactionCreator = !!profile && profile.factions.some((f) => f.verifiedCreatorWallet === profile.wallet);
 
     return (
         <WindowFrame isOpen={isOpen} onClose={onClose} title="Player" icon={<User className="w-4 h-4" />} size="sm">
@@ -55,6 +56,8 @@ export function PlayerProfileCard({
                                         ? "founder"
                                         : null
                             }
+                            isAdmin={profile.isAdmin}
+                            isFactionCreator={isFactionCreator}
                         />
                         <CopyableText
                             value={profile.wallet}
@@ -92,6 +95,27 @@ export function PlayerProfileCard({
                             <div className="text-[#E5E7EB] text-lg font-bold">{formatPlaytime(profile.playtimeSeconds)}</div>
                         </div>
                     </div>
+
+                    {profile.achievements && profile.achievements.length > 0 && (
+                        <div className="space-y-1.5">
+                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider flex items-center gap-1.5">
+                                <Trophy className="w-3.5 h-3.5" />
+                                ACHIEVEMENTS ({profile.achievements.length})
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                {profile.achievements.map((a) => (
+                                    <div
+                                        key={a.key}
+                                        title={a.description}
+                                        className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.2)] rounded-lg px-2.5 py-1.5"
+                                    >
+                                        <div className="text-[#FFD166] text-xs font-bold truncate">{a.label}</div>
+                                        <div className="text-[#8B8F98] text-[10px] truncate">{a.description}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {!isSelf && (
                         <button

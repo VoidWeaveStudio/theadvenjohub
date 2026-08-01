@@ -8,8 +8,10 @@ import {
     gameBuildings,
     gameInventories,
     gameStatistics,
+    factionMembers,
 } from "@/core/database/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
+import { evaluateAndUnlockAchievements } from "@/core/lib/achievementEngine";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -40,15 +42,16 @@ export async function POST(req: NextRequest) {
         if (progress) {
             const num = (v: unknown, fallback: number) =>
                 typeof v === "number" && Number.isFinite(v) ? v : fallback;
+            const numStr = (v: unknown, fallback: number) => num(v, fallback).toFixed(6).slice(0, 20);
 
             const locationId =
                 typeof progress.locationId === "string" && progress.locationId.length > 0
                     ? progress.locationId.slice(0, 50)
                     : "main-world";
-            const positionX = String(num(progress.position?.[0], 0));
-            const positionY = String(num(progress.position?.[1], 0));
-            const positionZ = String(num(progress.position?.[2], 0));
-            const rotation = String(num(progress.rotation, 0));
+            const positionX = numStr(progress.position?.[0], 0);
+            const positionY = numStr(progress.position?.[1], 0);
+            const positionZ = numStr(progress.position?.[2], 0);
+            const rotation = numStr(progress.rotation, 0);
             const health = Math.max(0, Math.min(100, Math.round(num(progress.health, 100))));
 
             queries.push(
@@ -192,7 +195,24 @@ export async function POST(req: NextRequest) {
             await db.batch(queries as [any, ...any[]]);
         }
 
-        return NextResponse.json({ success: true });
+        let unlockedAchievements: { key: string; label: string }[] = [];
+        if (statistics) {
+            const [{ tasksContributed }] = await db
+                .select({ tasksContributed: sql<number>`coalesce(sum(${factionMembers.tasksContributed}), 0)` })
+                .from(factionMembers)
+                .where(eq(factionMembers.userId, userId));
+
+            unlockedAchievements = await evaluateAndUnlockAchievements(userId, gameId, {
+                kills: statistics.kills ?? 0,
+                shotsFired: statistics.shotsFired ?? 0,
+                buildingsPlaced: statistics.buildingsPlaced ?? 0,
+                playtimeSeconds: statistics.playtimeSeconds ?? 0,
+                deaths: statistics.deaths ?? 0,
+                factionTasksContributed: tasksContributed,
+            });
+        }
+
+        return NextResponse.json({ success: true, unlockedAchievements });
 
     } catch (error) {
         console.error("[internal/save-progress] Error:", error);

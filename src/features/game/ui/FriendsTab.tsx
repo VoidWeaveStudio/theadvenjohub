@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Search, UserPlus, UserMinus, Check, X as XIcon } from "lucide-react";
 import { SubTabs } from "./shell/SubTabs";
 import { PlayerTag } from "./shell/PlayerTag";
+import { NicknameMenu, NicknameMenuActions } from "./shell/NicknameMenu";
 import { FriendEntry, FriendRequestEntry } from "../network/NetworkManager";
 
 type FriendsSubTab = "list" | "search";
@@ -21,6 +22,7 @@ interface FriendsTabProps {
     onDeclineFriendRequest: (requestUserId: string) => void;
     onRemoveFriend: (friendUserId: string) => void;
     onViewProfile: (wallet: string) => void;
+    getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
 }
 
 function truncateWallet(wallet: string): string {
@@ -40,6 +42,7 @@ export function FriendsTab({
     onDeclineFriendRequest,
     onRemoveFriend,
     onViewProfile,
+    getNicknameMenuActions,
 }: FriendsTabProps) {
     const [friendsSubTab, setFriendsSubTab] = useState<FriendsSubTab>("list");
     const [friendQuery, setFriendQuery] = useState("");
@@ -61,6 +64,29 @@ export function FriendsTab({
             if (friendSearchDebounceRef.current) clearTimeout(friendSearchDebounceRef.current);
         };
     }, [friendQuery]);
+
+    const renderNickname = (
+        wallet: string,
+        nickname: string | null,
+        faction: FriendEntry["faction"] | undefined,
+        isAdmin?: boolean,
+        isFactionCreator?: boolean
+    ) => {
+        const displayName = nickname || truncateWallet(wallet);
+        const tag = <PlayerTag nickname={displayName} faction={faction ?? null} size="sm" isAdmin={isAdmin} isFactionCreator={isFactionCreator} />;
+        if (getNicknameMenuActions) {
+            return (
+                <NicknameMenu {...getNicknameMenuActions(wallet, displayName)}>
+                    {tag}
+                </NicknameMenu>
+            );
+        }
+        return (
+            <button onClick={() => onViewProfile(wallet)} className="bg-transparent border-0 p-0 hover:underline text-left truncate">
+                {tag}
+            </button>
+        );
+    };
 
     const friendStatus = (userId: string): "friend" | "incoming" | "outgoing" | "none" => {
         if (friends.some((f) => f.userId === userId)) return "friend";
@@ -91,12 +117,7 @@ export function FriendsTab({
                                         key={r.userId}
                                         className="flex items-center justify-between bg-[rgba(255,209,102,0.06)] border border-[rgba(255,209,102,0.2)] rounded-lg p-3"
                                     >
-                                        <button
-                                            onClick={() => onViewProfile(r.wallet)}
-                                            className="hover:underline text-left"
-                                        >
-                                            <PlayerTag nickname={r.nickname || truncateWallet(r.wallet)} faction={r.faction ?? null} size="sm" />
-                                        </button>
+                                        {renderNickname(r.wallet, r.nickname, r.faction, r.isAdmin, r.isFactionCreator)}
                                         <div className="flex items-center gap-2">
                                             <button
                                                 onClick={() => onAcceptFriendRequest(r.userId)}
@@ -129,12 +150,7 @@ export function FriendsTab({
                                     <div key={f.userId} className="flex items-center justify-between bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
                                         <div className="flex items-center gap-2.5 min-w-0">
                                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${f.online ? "bg-[#4ADE80]" : "bg-[#6B7280]"}`} />
-                                            <button
-                                                onClick={() => onViewProfile(f.wallet)}
-                                                className="hover:underline truncate text-left"
-                                            >
-                                                <PlayerTag nickname={f.nickname || truncateWallet(f.wallet)} faction={f.faction ?? null} size="sm" />
-                                            </button>
+                                            {renderNickname(f.wallet, f.nickname, f.faction, f.isAdmin, f.isFactionCreator)}
                                             <span className={`text-xs flex-shrink-0 ${f.online ? "text-[#4ADE80]" : "text-[#6B7280]"}`}>
                                                 {f.online ? "Online" : "Offline"}
                                             </span>
@@ -191,12 +207,7 @@ export function FriendsTab({
                                 const status = friendStatus(r.userId);
                                 return (
                                     <div key={r.userId} className="flex items-center justify-between bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
-                                        <button
-                                            onClick={() => onViewProfile(r.wallet)}
-                                            className="hover:underline text-left truncate"
-                                        >
-                                            <PlayerTag nickname={r.nickname || truncateWallet(r.wallet)} faction={r.faction ?? null} size="sm" />
-                                        </button>
+                                        {renderNickname(r.wallet, r.nickname, r.faction, r.isAdmin, r.isFactionCreator)}
                                         {status === "friend" && <span className="text-[#4ADE80] text-xs flex-shrink-0">Friends</span>}
                                         {status === "outgoing" && <span className="text-[#6B7280] text-xs flex-shrink-0">Pending</span>}
                                         {status === "incoming" && (

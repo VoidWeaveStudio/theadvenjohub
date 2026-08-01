@@ -18,6 +18,12 @@ import { relations, sql } from "drizzle-orm";
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   wallet: varchar("wallet", { length: 44 }).notNull().unique(),
+  isBanned: boolean("is_banned").default(false).notNull(),
+  bannedAt: timestamp("banned_at"),
+  banReason: text("ban_reason"),
+  isOnline: boolean("is_online").default(false).notNull(),
+  lastSeenAt: timestamp("last_seen_at"),
+  mutedUntil: timestamp("muted_until"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
@@ -270,6 +276,7 @@ export const gameNicknames = pgTable("game_nicknames", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("idx_game_nicknames_user_game").on(table.userId, table.gameId),
+  uniqueIndex("idx_game_nicknames_unique_ci").on(table.gameId, sql`lower(${table.nickname})`),
   index("idx_game_nicknames_nickname").on(table.nickname),
 ]);
 
@@ -342,6 +349,8 @@ export const factions = pgTable("factions", {
   activeTaskRewardAsh: integer("active_task_reward_ash"),
   activeTaskAcceptedAt: timestamp("active_task_accepted_at"),
   activeTaskAcceptedByUserId: uuid("active_task_accepted_by_user_id").references(() => users.id),
+  level: integer("level").default(1).notNull(),
+  levelProgressAsh: integer("level_progress_ash").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("idx_factions_game_name").on(table.gameId, table.name),
@@ -357,6 +366,8 @@ export const factionMembers = pgTable("faction_members", {
   wallet: varchar("wallet", { length: 44 }).notNull(),
   role: varchar("role", { length: 20 }).default("member").notNull(),
   isDisplayed: boolean("is_displayed").default(false).notNull(),
+  contributionPoints: integer("contribution_points").default(0).notNull(),
+  tasksContributed: integer("tasks_contributed").default(0).notNull(),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("idx_faction_members_user_faction").on(table.userId, table.factionId),
@@ -392,6 +403,16 @@ export const friendships = pgTable("friendships", {
   index("idx_friendships_friend").on(table.friendUserId),
 ]);
 
+export const playerBlocks = pgTable("player_blocks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  blockerUserId: uuid("blocker_user_id").notNull().references(() => users.id),
+  blockedUserId: uuid("blocked_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_player_blocks_pair").on(table.blockerUserId, table.blockedUserId),
+  index("idx_player_blocks_blocker").on(table.blockerUserId),
+]);
+
 export const mailMessages = pgTable("mail_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
   senderUserId: uuid("sender_user_id").notNull().references(() => users.id),
@@ -404,6 +425,39 @@ export const mailMessages = pgTable("mail_messages", {
 }, (table) => [
   index("idx_mail_recipient").on(table.recipientUserId),
   index("idx_mail_sender").on(table.senderUserId),
+]);
+
+export const userAchievements = pgTable("user_achievements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  achievementKey: varchar("achievement_key", { length: 40 }).notNull(),
+  unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_user_achievements_user_game_key").on(table.userId, table.gameId, table.achievementKey),
+  index("idx_user_achievements_user_game").on(table.userId, table.gameId),
+]);
+
+export const appSettings = pgTable("app_settings", {
+  key: varchar("key", { length: 50 }).primaryKey(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const supportTickets = pgTable("support_tickets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  subject: varchar("subject", { length: 100 }).notNull().default(""),
+  message: text("message").notNull(),
+  status: varchar("status", { length: 20 }).default("open").notNull(),
+  reply: text("reply"),
+  repliedAt: timestamp("replied_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_support_tickets_status").on(table.status),
+  index("idx_support_tickets_user").on(table.userId),
 ]);
 
 
@@ -420,6 +474,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   gameBuildings: many(gameBuildings),
   gameInventories: many(gameInventories),
   gameStatistics: many(gameStatistics),
+  achievements: many(userAchievements),
 }));
 
 export const gamesRelations = relations(games, ({ many, one }) => ({
@@ -588,6 +643,19 @@ export const friendshipsRelations = relations(friendships, ({ one }) => ({
   }),
 }));
 
+export const playerBlocksRelations = relations(playerBlocks, ({ one }) => ({
+  blocker: one(users, {
+    fields: [playerBlocks.blockerUserId],
+    references: [users.id],
+    relationName: "playerBlocksBlocker",
+  }),
+  blocked: one(users, {
+    fields: [playerBlocks.blockedUserId],
+    references: [users.id],
+    relationName: "playerBlocksBlocked",
+  }),
+}));
+
 export const mailMessagesRelations = relations(mailMessages, ({ one }) => ({
   sender: one(users, {
     fields: [mailMessages.senderUserId],
@@ -599,6 +667,16 @@ export const mailMessagesRelations = relations(mailMessages, ({ one }) => ({
     references: [users.id],
     relationName: "mailRecipient",
   }),
+}));
+
+export const userAchievementsRelations = relations(userAchievements, ({ one }) => ({
+  user: one(users, { fields: [userAchievements.userId], references: [users.id] }),
+  game: one(games, { fields: [userAchievements.gameId], references: [games.id] }),
+}));
+
+export const supportTicketsRelations = relations(supportTickets, ({ one }) => ({
+  user: one(users, { fields: [supportTickets.userId], references: [users.id] }),
+  game: one(games, { fields: [supportTickets.gameId], references: [games.id] }),
 }));
 
 
@@ -671,5 +749,17 @@ export type NewFactionTaskLog = typeof factionTaskLog.$inferInsert;
 export type Friendship = typeof friendships.$inferSelect;
 export type NewFriendship = typeof friendships.$inferInsert;
 
+export type PlayerBlock = typeof playerBlocks.$inferSelect;
+export type NewPlayerBlock = typeof playerBlocks.$inferInsert;
+
 export type MailMessage = typeof mailMessages.$inferSelect;
 export type NewMailMessage = typeof mailMessages.$inferInsert;
+
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type NewUserAchievement = typeof userAchievements.$inferInsert;
+
+export type AppSetting = typeof appSettings.$inferSelect;
+export type NewAppSetting = typeof appSettings.$inferInsert;
+
+export type SupportTicket = typeof supportTickets.$inferSelect;
+export type NewSupportTicket = typeof supportTickets.$inferInsert;

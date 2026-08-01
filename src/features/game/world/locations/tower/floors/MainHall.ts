@@ -4,7 +4,7 @@ import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";
 import { createWallStoneMaterial, createPillarMarbleMaterial } from "./mainHallTextures";
 import { NpcHandle } from "../../../../entities/npcModel";
-import { createVendorNPC, createSolaNPC, createFactionBrokerNPC } from "./mainHallNpcs";
+import { createVendorNPC, createSolaNPC, createFactionBrokerNPC, createAlfredoNPC } from "./mainHallNpcs";
 import { buildFloor, buildWalls, buildColumns, buildSecondLevel, buildDome, buildChandelier, CrystalData } from "./mainHallArchitecture";
 
 export class MainHall extends TowerFloor {
@@ -18,6 +18,8 @@ export class MainHall extends TowerFloor {
     private solaTime: number = 0;
     private factionBrokerNpc!: NpcHandle;
     private factionBrokerTime: number = 0;
+    private alfredoNpc!: NpcHandle;
+    private alfredoTime: number = 0;
 
     private floorMaterial!: THREE.MeshStandardMaterial;
     private wallMaterialRef!: THREE.MeshStandardMaterial;
@@ -63,6 +65,7 @@ export class MainHall extends TowerFloor {
         this.vendorNpc = createVendorNPC(this.scene, this.collisionGrid, this.resourceManager);
         this.solaNpc = createSolaNPC(this.scene, this.collisionGrid, this.resourceManager);
         this.factionBrokerNpc = createFactionBrokerNPC(this.scene, this.collisionGrid, this.resourceManager);
+        this.alfredoNpc = createAlfredoNPC(this.scene, this.collisionGrid, this.resourceManager);
         this.createDustMotes();
         this.createMedallionGlow();
     }
@@ -169,6 +172,12 @@ export class MainHall extends TowerFloor {
             this.factionBrokerNpc.update(delta);
         }
 
+        if (this.alfredoNpc) {
+            this.alfredoTime += delta;
+            this.alfredoNpc.group.rotation.y = Math.sin(this.alfredoTime * 0.4) * 0.3;
+            this.alfredoNpc.update(delta);
+        }
+
         if (this.dustMotes) {
             const positions = this.dustMotes.geometry.attributes.position.array as Float32Array;
             for (let i = 0; i < positions.length / 3; i++) {
@@ -182,7 +191,7 @@ export class MainHall extends TowerFloor {
     }
 
     public override getInteractables(): THREE.Object3D[] {
-        return [...super.getInteractables(), this.vendorNpc.group, this.solaNpc.group, this.factionBrokerNpc.group];
+        return [...super.getInteractables(), this.vendorNpc.group, this.solaNpc.group, this.factionBrokerNpc.group, this.alfredoNpc.group];
     }
 
     dispose() {

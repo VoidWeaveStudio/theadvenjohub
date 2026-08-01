@@ -15,7 +15,7 @@ export class CharacterAnimator {
             action.setEffectiveWeight(1);
 
             const key = clip.name.toLowerCase();
-            if (key === 'jump' || key === 'rifle_jump') {
+            if (key === 'jump' || key === 'rifle-jump' || key === 'death' || key === 'rifle-death') {
                 action.setLoop(THREE.LoopOnce, 1);
                 action.clampWhenFinished = true;
             }
@@ -25,7 +25,7 @@ export class CharacterAnimator {
     }
 
     play(name: string, armed: boolean = false) {
-        const armedKey = `rifle_${name}`;
+        const armedKey = `rifle-${name}`;
         const key = armed && this.animations.has(armedKey) ? armedKey : name;
         if (this.currentKey === key) return;
 

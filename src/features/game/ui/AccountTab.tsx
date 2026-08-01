@@ -2,12 +2,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Copy, ScrollText } from "lucide-react";
+import { Check, Copy, ScrollText, Trophy } from "lucide-react";
 import { SubTabs } from "./shell/SubTabs";
 import { PlayerTag } from "./shell/PlayerTag";
 import { PlayerProfileData, QuestInfoData } from "../network/NetworkManager";
 
-type AccountSubTab = "about" | "quests";
+type AccountSubTab = "about" | "quests" | "achievements";
 
 interface AccountTabProps {
     nickname: string;
@@ -27,13 +27,14 @@ function formatPlaytime(seconds: number): string {
 
 export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile, onNicknameChange, quest }: AccountTabProps) {
     const displayedFaction = selfProfile?.factions?.find((f) => f.isDisplayed) ?? selfProfile?.factions?.[0] ?? null;
+    const isFactionCreator = !!selfProfile && selfProfile.factions.some((f) => f.verifiedCreatorWallet === wallet);
     const [accountSubTab, setAccountSubTab] = useState<AccountSubTab>("about");
     const [editingNickname, setEditingNickname] = useState(false);
     const [tempNickname, setTempNickname] = useState(nickname);
     const [walletCopied, setWalletCopied] = useState(false);
 
     useEffect(() => {
-        if (accountSubTab === "about") onRequestSelfProfile();
+        if (accountSubTab === "about" || accountSubTab === "achievements") onRequestSelfProfile();
     }, [accountSubTab]);
 
     const handleSaveNickname = () => {
@@ -56,6 +57,7 @@ export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile
                 tabs={[
                     { id: "about", label: "About Account" },
                     { id: "quests", label: "Quests" },
+                    { id: "achievements", label: "Achievements" },
                 ]}
                 active={accountSubTab}
                 onChange={(id) => setAccountSubTab(id as AccountSubTab)}
@@ -92,6 +94,8 @@ export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile
                                                     ? "founder"
                                                     : null
                                         }
+                                        isAdmin={selfProfile?.isAdmin}
+                                        isFactionCreator={isFactionCreator}
                                     />
                                     <button
                                         onClick={() => {
@@ -190,6 +194,35 @@ export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile
                         </div>
                     )}
                     <p className="text-[#6B7280] text-xs text-center pt-2">Faction quests are coming soon.</p>
+                </div>
+            )}
+
+            {accountSubTab === "achievements" && (
+                <div className="space-y-2">
+                    {!selfProfile ? (
+                        <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
+                    ) : selfProfile.achievements.length === 0 ? (
+                        <div className="text-center py-10">
+                            <Trophy className="w-8 h-8 text-[#6B7280] mx-auto mb-2" />
+                            <p className="text-[#8B8F98] text-sm">No achievements unlocked yet.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                            {selfProfile.achievements.map((a) => (
+                                <div
+                                    key={a.key}
+                                    title={a.description}
+                                    className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.2)] rounded-lg px-3 py-2"
+                                >
+                                    <div className="flex items-center gap-1.5 text-[#FFD166] text-sm font-bold">
+                                        <Trophy className="w-3.5 h-3.5 flex-shrink-0" />
+                                        {a.label}
+                                    </div>
+                                    <div className="text-[#8B8F98] text-xs mt-0.5">{a.description}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

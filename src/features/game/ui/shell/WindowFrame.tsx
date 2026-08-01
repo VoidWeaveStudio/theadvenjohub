@@ -1,7 +1,9 @@
 // src/features/game/ui/shell/WindowFrame.tsx
 "use client";
 
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import { SoundManager } from "../../core/SoundManager";
 
 export type WindowFrameSize = "sm" | "md" | "lg";
 
@@ -43,6 +45,14 @@ export function WindowFrame({
     footer,
     children,
 }: WindowFrameProps) {
+    const wasOpenRef = useRef(false);
+    useEffect(() => {
+        if (isOpen && !wasOpenRef.current) {
+            SoundManager.getInstance().play('modal-open');
+        }
+        wasOpenRef.current = isOpen;
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     return (
@@ -67,9 +77,9 @@ export function WindowFrame({
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#8B8F98] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.07)] transition-colors flex-shrink-0"
+                        className="w-8 h-8 p-0 border-0 rounded-full flex items-center justify-center bg-[rgba(255,255,255,0.06)] text-[#C5C9D1] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.12)] transition-colors flex-shrink-0"
                     >
-                        <X className="w-4 h-4" />
+                        <X className="w-4 h-4" strokeWidth={2.5} />
                     </button>
                     <div className="absolute bottom-0 left-6 right-6 h-px bg-gradient-to-r from-[#4FD1FF] via-[#C084FC]/60 to-transparent" />
                 </div>

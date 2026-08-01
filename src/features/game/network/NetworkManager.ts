@@ -15,6 +15,9 @@ export type PlayerNetData = {
   weaponEquipped: boolean;
   isShooting: boolean;
   locationId?: string;
+  isAdmin?: boolean;
+  isFactionCreator?: boolean;
+  skinTextureUrl?: string | null;
 };
 
 export type DayNightSyncData = {
@@ -152,12 +155,16 @@ export type FactionSummary = {
   verifiedCreatorUserId?: string | null;
   activeTask?: FactionActiveTask | null;
   taskHistory?: FactionTaskLogEntry[];
+  level: number;
+  levelProgressAsh: number;
+  xpForNextLevel: number;
 };
 
 export type FactionRosterEntry = {
   wallet: string;
   role: string;
   nickname: string | null;
+  contributionPoints: number;
 };
 
 export type FactionDetail = FactionSummary & {
@@ -182,6 +189,13 @@ export type PlayerProfileFaction = {
   isDisplayed: boolean;
 };
 
+export type PlayerAchievementEntry = {
+  key: string;
+  label: string;
+  description: string;
+  unlockedAt: string;
+};
+
 export type PlayerProfileData = {
   wallet: string;
   nickname: string | null;
@@ -190,6 +204,8 @@ export type PlayerProfileData = {
   playtimeSeconds: number;
   ash: number;
   factions: PlayerProfileFaction[];
+  achievements: PlayerAchievementEntry[];
+  isAdmin?: boolean;
 };
 
 export type LeaderboardEntry = {
@@ -201,6 +217,8 @@ export type LeaderboardEntry = {
   playtimeSeconds: number;
   score: number;
   faction: FactionTag;
+  isAdmin?: boolean;
+  isFactionCreator?: boolean;
 };
 
 export type FriendEntry = {
@@ -209,6 +227,8 @@ export type FriendEntry = {
   nickname: string | null;
   online: boolean;
   faction?: FactionTag;
+  isAdmin?: boolean;
+  isFactionCreator?: boolean;
 };
 
 export type FriendRequestEntry = {
@@ -216,6 +236,16 @@ export type FriendRequestEntry = {
   wallet: string;
   nickname: string | null;
   faction?: FactionTag;
+  isAdmin?: boolean;
+  isFactionCreator?: boolean;
+};
+
+export type BlockedEntry = {
+  userId: string;
+  wallet: string;
+  nickname: string | null;
+  isAdmin?: boolean;
+  isFactionCreator?: boolean;
 };
 
 export type MailEntry = {
@@ -270,12 +300,11 @@ export class NetworkManager {
   public onPlayerLeave?: (playerId: string) => void;
   public onPlayerUpdate?: (data: PlayerNetData) => void;
   public onShoot?: (data: { id: string; origin: number[]; direction: number[] }) => void;
-  public onConnected?: () => void;
   public onDisconnected?: () => void;
   public onCount?: (count: number) => void;
-  public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; senderFactionSymbol?: string | null; senderFactionImage?: string | null; message: string; timestamp: number }) => void;
+  public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; senderFactionSymbol?: string | null; senderFactionImage?: string | null; senderIsAdmin?: boolean; senderIsFactionCreator?: boolean; message: string; timestamp: number }) => void;
   public onVoiceClip?: (data: { senderId: string; senderNickname: string; chunk: string; mimeType: string }) => void;
-  public onAuthenticated?: (data: { playerId: string; nickname: string }) => void;
+  public onAuthenticated?: (data: { playerId: string; nickname: string; skinTextureUrl?: string | null }) => void;
   public onProgressLoaded?: (data: any) => void;
   public onAuthError?: (error: string) => void;
   public onSessionRevoked?: () => void;
@@ -373,6 +402,22 @@ export class NetworkManager {
   public onMailSent?: (mailId: string) => void;
   public onMailInboxResult?: (data: { mail: MailEntry[]; unreadCount: number }) => void;
   public onMailMarkedRead?: (mailId: string) => void;
+  public onTokenInfoSent?: (mailId: string) => void;
+  public onSupportTicketSent?: () => void;
+  public onAchievementsUnlocked?: (achievements: { key: string; label: string }[]) => void;
+  public onNicknameChanged?: (nickname: string) => void;
+  public onOtherPlayerNicknameChange?: (data: { id: string; nickname: string }) => void;
+  public onSkinUpdate?: (data: { playerId: string; url: string | null }) => void;
+
+  public onWeaponForceUnequip?: () => void;
+  public onUserBlocked?: (entry: BlockedEntry) => void;
+  public onUserUnblocked?: (blockedUserId: string) => void;
+  public onBlockedListResult?: (blocked: BlockedEntry[]) => void;
+  public onPrivateMessage?: (data: { fromWallet: string; fromNickname: string; text: string; timestamp: number }) => void;
+  public onPrivateMessageSent?: (data: { toWallet: string; toNickname: string; text: string; timestamp: number }) => void;
+  public onPrivateMessageError?: (data: { code: string; toWallet: string }) => void;
+  public onFactionChatMessage?: (data: { id: string; factionId: string; sender: string; senderWallet?: string; senderFactionSymbol?: string | null; senderFactionImage?: string | null; senderIsAdmin?: boolean; senderIsFactionCreator?: boolean; message: string; timestamp: number }) => void;
+  public onFactionInviteSent?: (toWallet: string) => void;
 
   setSessionRefresher(fn: () => Promise<GameSession | null>) {
     this.refreshSession = fn;
@@ -403,7 +448,6 @@ export class NetworkManager {
       this.ws.onclose = (event) => {
         this.stopHeartbeat();
         this.authenticated = false;
-        this.onDisconnected?.();
 
         if (event.code === 1000) return;
 
@@ -412,6 +456,7 @@ export class NetworkManager {
           return;
         }
 
+        this.onDisconnected?.();
         const needsFreshToken = event.code === 4001 || event.code === 4003;
         this.scheduleReconnect(needsFreshToken);
       };
@@ -469,6 +514,7 @@ export class NetworkManager {
         this.onAuthenticated?.({
           playerId: data.playerId,
           nickname: data.nickname,
+          skinTextureUrl: data.skinTextureUrl ?? null,
         });
         if (typeof data.daySyncEpoch === "number") {
           this.onDayNightSync?.({
@@ -504,6 +550,9 @@ export class NetworkManager {
               weaponEquipped: p.weaponEquipped !== false,
               isShooting: p.isShooting || false,
               locationId: p.locationId || 'main-world',
+              isAdmin: !!p.isAdmin,
+              isFactionCreator: !!p.isFactionCreator,
+              skinTextureUrl: p.skinTextureUrl ?? null,
             });
           }
         }
@@ -622,6 +671,13 @@ export class NetworkManager {
         this.onVoiceClip?.(data);
         break;
       case "nicknameChange":
+        this.onOtherPlayerNicknameChange?.(data);
+        break;
+      case "nicknameChanged":
+        this.onNicknameChanged?.(data.nickname);
+        break;
+      case "skinUpdate":
+        this.onSkinUpdate?.({ playerId: data.playerId, url: data.url ?? null });
         break;
       case "positionCorrection":
         if (Array.isArray(data.position) && data.position.length === 3) {
@@ -718,8 +774,44 @@ export class NetworkManager {
       case "mailReceived":
         this.onMailReceived?.(data);
         break;
+      case "tokenInfoSent":
+        this.onTokenInfoSent?.(data.mailId);
+        break;
+      case "supportTicketSent":
+        this.onSupportTicketSent?.();
+        break;
+      case "achievementsUnlocked":
+        this.onAchievementsUnlocked?.(Array.isArray(data.achievements) ? data.achievements : []);
+        break;
       case "friendRequestReceived":
         this.onFriendRequestReceived?.(data.friend);
+        break;
+      case "weaponForceUnequip":
+        this.onWeaponForceUnequip?.();
+        break;
+      case "userBlocked":
+        this.onUserBlocked?.({ userId: data.userId, wallet: data.wallet, nickname: data.nickname ?? null });
+        break;
+      case "userUnblocked":
+        this.onUserUnblocked?.(data.blockedUserId);
+        break;
+      case "blockedListResult":
+        this.onBlockedListResult?.(Array.isArray(data.blocked) ? data.blocked : []);
+        break;
+      case "privateMessage":
+        this.onPrivateMessage?.(data);
+        break;
+      case "privateMessageSent":
+        this.onPrivateMessageSent?.(data);
+        break;
+      case "privateMessageError":
+        this.onPrivateMessageError?.(data);
+        break;
+      case "factionChat":
+        this.onFactionChatMessage?.(data);
+        break;
+      case "factionInviteSent":
+        this.onFactionInviteSent?.(data.toWallet);
         break;
     }
   }
@@ -966,6 +1058,51 @@ export class NetworkManager {
     this.send({ type: "mailMarkRead", mailId });
   }
 
+  sendRespawnRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "respawnRequest" });
+  }
+
+  requestTokenInfo(ca: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "tokenInfoRequest", ca });
+  }
+
+  sendSupportTicket(subject: string, message: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "supportTicketSend", subject, message });
+  }
+
+  sendBlockUser(target: { wallet?: string; nickname?: string }) {
+    if (!this.authenticated) return;
+    this.send({ type: "blockUser", wallet: target.wallet, nickname: target.nickname });
+  }
+
+  sendUnblockUser(blockedUserId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "unblockUser", blockedUserId });
+  }
+
+  sendBlockedListRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "blockedListRequest" });
+  }
+
+  sendPrivateMessage(toWallet: string, text: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "privateMessage", toWallet, text: text.slice(0, 500) });
+  }
+
+  sendFactionChatMessage(factionId: string, message: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionChat", factionId, message: message.slice(0, 200) });
+  }
+
+  sendFactionInvite(toWallet: string, factionId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionInvite", toWallet, factionId });
+  }
+
   sendLocationChange(locationId: string) {
     if (!this.authenticated) return;
     this.send({ type: 'locationChange', locationId });
@@ -984,6 +1121,11 @@ export class NetworkManager {
     if (this.authenticated) {
       this.send({ type: "nicknameChange", nickname });
     }
+  }
+
+  sendSkinUpdate(url: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "skinUpdate", url });
   }
 
   isAuthenticated(): boolean {

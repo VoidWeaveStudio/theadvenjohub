@@ -44,6 +44,11 @@ export function waitForProgressRestore(game: Game, timeoutMs = 6000): Promise<vo
 }
 
 export function teleportToSafeZone(game: Game) {
+    if (game.isDead) {
+        game.networkManager.sendRespawnRequest();
+        return;
+    }
+
     const currentLocation = game.locationManager.getCurrentLocation();
     if (!currentLocation) return;
 
@@ -70,12 +75,6 @@ export function teleportToSafeZone(game: Game) {
     const safePoint = currentLocation.getSpawnPoint();
     game.player.teleportTo(safePoint);
     game.cameraController.yawObject.position.copy(safePoint);
-
-    if (game.isDead) {
-        game.isDead = false;
-        game.killerName = null;
-        game.onDeathStateChange?.(false, null);
-    }
 
     game.networkManager.sendPlayerUpdate({
         position: safePoint.toArray(),

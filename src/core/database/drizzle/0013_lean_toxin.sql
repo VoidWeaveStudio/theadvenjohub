@@ -1,0 +1,1 @@
+ALTER TABLE "faction_members" ADD COLUMN "tasks_contributed" integer DEFAULT 0 NOT NULL;

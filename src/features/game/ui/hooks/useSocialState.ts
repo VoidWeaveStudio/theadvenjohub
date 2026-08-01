@@ -1,6 +1,6 @@
 // src/features/game/ui/hooks/useSocialState.ts
 import { useCallback, useState } from "react";
-import { FriendEntry, FriendRequestEntry, MailEntry } from "../../network/NetworkManager";
+import { FriendEntry, FriendRequestEntry, MailEntry, BlockedEntry } from "../../network/NetworkManager";
 
 export function useSocialState() {
     const [friends, setFriends] = useState<FriendEntry[]>([]);
@@ -10,6 +10,7 @@ export function useSocialState() {
     const [mail, setMail] = useState<MailEntry[]>([]);
     const [unreadMailCount, setUnreadMailCount] = useState(0);
     const [lastSentMailId, setLastSentMailId] = useState<string | null>(null);
+    const [blocked, setBlocked] = useState<BlockedEntry[]>([]);
 
     const handleFriendRequestSent = useCallback((friend: FriendRequestEntry, status: string) => {
         if (status === "accepted") {
@@ -71,6 +72,18 @@ export function useSocialState() {
         setIncomingRequests((prev) => (prev.some((r) => r.userId === friend.userId) ? prev : [...prev, friend]));
     }, []);
 
+    const handleUserBlocked = useCallback((entry: BlockedEntry) => {
+        setBlocked((prev) => (prev.some((b) => b.userId === entry.userId) ? prev : [...prev, entry]));
+    }, []);
+
+    const handleUserUnblocked = useCallback((blockedUserId: string) => {
+        setBlocked((prev) => prev.filter((b) => b.userId !== blockedUserId));
+    }, []);
+
+    const handleBlockedListResult = useCallback((list: BlockedEntry[]) => {
+        setBlocked(list);
+    }, []);
+
     const hasUnreadMail = unreadMailCount > 0;
     const hasIncomingRequests = incomingRequests.length > 0;
 
@@ -96,5 +109,9 @@ export function useSocialState() {
         handleMailMarkedRead,
         handleMailReceived,
         handleFriendRequestReceived,
+        blocked,
+        handleUserBlocked,
+        handleUserUnblocked,
+        handleBlockedListResult,
     };
 }

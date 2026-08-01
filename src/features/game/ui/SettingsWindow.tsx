@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Info, Keyboard, TriangleAlert } from "lucide-react";
+import { Info, Keyboard, TriangleAlert, LifeBuoy } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 
 type SettingsTab = "controls" | "about";
@@ -12,6 +12,7 @@ interface SettingsWindowProps {
     isOpen: boolean;
     onClose: () => void;
     onTeleportToSafeZone?: () => void;
+    onOpenSupport?: () => void;
 }
 
 const KEYBINDS: [string, string][] = [
@@ -28,7 +29,7 @@ const KEYBINDS: [string, string][] = [
     ["Esc", "Toggle Pointer Lock"],
 ];
 
-export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone }: SettingsWindowProps) {
+export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, onOpenSupport }: SettingsWindowProps) {
     const [activeTab, setActiveTab] = useState<SettingsTab>("controls");
 
     return (
@@ -53,16 +54,28 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone }: Settin
             activeTab={activeTab}
             onTabChange={(id) => setActiveTab(id as SettingsTab)}
             footer={
-                <button
-                    onClick={() => {
-                        onTeleportToSafeZone?.();
-                        onClose();
-                    }}
-                    className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2 group border border-orange-400/30"
-                >
-                    <TriangleAlert className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                    <span>I&apos;m Stuck (Teleport to SafeZone)</span>
-                </button>
+                <div className="space-y-2">
+                    <button
+                        onClick={() => {
+                            onTeleportToSafeZone?.();
+                            onClose();
+                        }}
+                        className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2 group border border-orange-400/30"
+                    >
+                        <TriangleAlert className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                        <span>I&apos;m Stuck (Teleport to SafeZone)</span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            onOpenSupport?.();
+                            onClose();
+                        }}
+                        className="w-full bg-gradient-to-r from-[#4FD1FF] to-[#3B9FD9] hover:brightness-110 text-[rgba(12,12,14,0.9)] font-bold py-3 rounded-lg shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 group border border-cyan-400/30"
+                    >
+                        <LifeBuoy className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                        <span>Contact Support</span>
+                    </button>
+                </div>
             }
         >
             {activeTab === "controls" && (

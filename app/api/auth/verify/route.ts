@@ -1,57 +1,18 @@
 // app/api/auth/verify/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { PublicKey } from "@solana/web3.js";
-import nacl from "tweetnacl";
 import { Redis } from "@upstash/redis";
 import { generateCSRFToken, verifyCSRF } from "@/core/auth/lib/csrf";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { db } from "@/core/database";
 import { users } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
-import { buildSignInMessage } from "@/core/auth/lib/signMessage";
+import { buildExpectedSignInMessages, verifySolanaSignature } from "@/core/auth/lib/signMessage";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
-
-function buildExpectedMessages(wallet: string, nonce: string, domain: string): string[] {
-  return [
-    buildSignInMessage({ domain, wallet, nonce, platform: "web" }),
-    buildSignInMessage({ domain, wallet, nonce, platform: "desktop" }),
-  ];
-}
-
-function verifySolanaSignature(
-  signatureBase64: string,
-  message: string,
-  wallet: string
-): boolean {
-  try {
-    console.log("[verify] Checking signature:", {
-      signatureLength: signatureBase64.length,
-      messageLength: message.length,
-      wallet,
-    });
-    
-    const signature = Uint8Array.from(Buffer.from(signatureBase64, "base64"));
-    const messageBytes = new TextEncoder().encode(message);
-    const publicKey = new PublicKey(wallet);
-
-    const isValid = nacl.sign.detached.verify(
-      messageBytes,
-      signature,
-      publicKey.toBytes()
-    );
-    
-    console.log("[verify] Signature valid:", isValid);
-    return isValid;
-  } catch (err) {
-    console.error("[verify] Signature verification error:", err);
-    return false;
-  }
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -80,14 +41,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { signature, wallet, message, nonce, platform } = body;
 
-    console.log("[verify] Request received:", {
-      hasSignature: !!signature,
-      hasWallet: !!wallet,
-      hasMessage: !!message,
-      hasNonce: !!nonce,
-      wallet,
-      nonce,
-    });
+    if (process.env.NODE_ENV === "development") {
+      console.log("[verify] Request received:", {
+        hasSignature: !!signature,
+        hasWallet: !!wallet,
+        hasMessage: !!message,
+        hasNonce: !!nonce,
+        wallet,
+        nonce,
+      });
+    }
 
     if (
       !signature ||
@@ -130,11 +93,13 @@ export async function POST(req: NextRequest) {
     const storedNonce = storedChallenge?.nonce;
     const storedDomain = storedChallenge?.domain;
 
-    console.log("[verify] Nonce check:", {
-      received: nonce,
-      stored: storedNonce,
-      match: storedNonce === nonce,
-    });
+    if (process.env.NODE_ENV === "development") {
+      console.log("[verify] Nonce check:", {
+        received: nonce,
+        stored: storedNonce,
+        match: storedNonce === nonce,
+      });
+    }
 
     if (!storedNonce || !storedDomain || storedNonce !== nonce) {
       console.error("[verify] Invalid or expired nonce");
@@ -144,7 +109,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const expectedMessages = buildExpectedMessages(wallet, nonce, storedDomain);
+    const expectedMessages = buildExpectedSignInMessages(wallet, nonce, storedDomain);
     if (!expectedMessages.includes(message)) {
       console.error("[verify] Message does not match expected template for wallet+nonce");
       return NextResponse.json(
@@ -190,6 +155,13 @@ export async function POST(req: NextRequest) {
     if (!finalUser) {
       console.error("[verify] Failed to create/retrieve user");
       throw new Error("Failed to create or retrieve user");
+    }
+
+    if (finalUser.isBanned) {
+      return NextResponse.json(
+        { error: "banned", reason: finalUser.banReason || undefined },
+        { status: 403, headers: formatRateLimitHeaders(rl) }
+      );
     }
 
     console.log("[verify] User found:", finalUser.id);

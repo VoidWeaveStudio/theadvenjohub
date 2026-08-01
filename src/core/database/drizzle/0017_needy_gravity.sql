@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "idx_game_nicknames_unique_ci" ON "game_nicknames" USING btree ("game_id",lower("nickname"));

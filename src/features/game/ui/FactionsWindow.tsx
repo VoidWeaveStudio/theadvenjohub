@@ -11,6 +11,7 @@ import { FactionTasksPanel } from "./FactionTasksPanel";
 import { FactionRow, FactionLeaderboardList } from "./FactionRow";
 import { FactionDetail, FactionSummary, FactionTaskDefinition } from "../network/NetworkManager";
 import { useFactionsViewState, FactionsTab } from "./hooks/useFactionsViewState";
+import { NicknameMenuActions } from "./shell/NicknameMenu";
 
 interface FactionsWindowProps {
     isOpen: boolean;
@@ -36,6 +37,7 @@ interface FactionsWindowProps {
     onRequestTaskList: () => void;
     onAcceptTask: (factionId: string, taskKey: string) => void;
     onClaimCreator: (factionId: string) => void;
+    getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
 }
 
 export function FactionsWindow({
@@ -62,6 +64,7 @@ export function FactionsWindow({
     onRequestTaskList,
     onAcceptTask,
     onClaimCreator,
+    getNicknameMenuActions,
 }: FactionsWindowProps) {
     const view = useFactionsViewState({
         isOpen,
@@ -175,6 +178,7 @@ export function FactionsWindow({
                             myWallet={myWallet}
                             onClaimCreator={() => onClaimCreator(viewedFaction.id)}
                             onLeaveFaction={() => onLeaveFaction(viewedFaction.id)}
+                            getNicknameMenuActions={getNicknameMenuActions}
                         />
                     )
                 )}
@@ -203,6 +207,7 @@ export function FactionsWindow({
                             isOwnFaction={myFactions.some((mf) => mf.id === viewedFaction.id)}
                             onJoinFaction={() => onJoinFaction(viewedFaction.id)}
                             onBack={() => view.setViewingFactionId(null)}
+                            getNicknameMenuActions={getNicknameMenuActions}
                         />
                     ) : (
                         <div className="space-y-3">
@@ -254,6 +259,7 @@ export function FactionsWindow({
                             isOwnFaction={myFactions.some((mf) => mf.id === viewedFaction.id)}
                             onJoinFaction={() => onJoinFaction(viewedFaction.id)}
                             onBack={() => view.setViewingFactionId(null)}
+                            getNicknameMenuActions={getNicknameMenuActions}
                         />
                     ) : (
                         <FactionLeaderboardList factions={factionLeaderboard} onSelect={view.setViewingFactionId} />

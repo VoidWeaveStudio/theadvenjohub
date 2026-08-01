@@ -1,4 +1,6 @@
 // src/core/auth/lib/signMessage.ts
+import { PublicKey } from "@solana/web3.js";
+import nacl from "tweetnacl";
 
 export type SignInPlatform = "web" | "desktop";
 
@@ -29,4 +31,24 @@ export function buildSignInMessage(params: {
   const { domain, wallet, nonce, platform } = params;
   const label = platform === "desktop" ? "TANJO Desktop" : "TANJO Game Store";
   return `${domain} wants you to sign in to ${label}\nWallet: ${wallet}\nNonce: ${nonce}`;
+}
+
+export function buildExpectedSignInMessages(wallet: string, nonce: string, domain: string): string[] {
+  return [
+    buildSignInMessage({ domain, wallet, nonce, platform: "web" }),
+    buildSignInMessage({ domain, wallet, nonce, platform: "desktop" }),
+  ];
+}
+
+export function verifySolanaSignature(signatureBase64: string, message: string, wallet: string): boolean {
+  try {
+    const signature = Uint8Array.from(Buffer.from(signatureBase64, "base64"));
+    const messageBytes = new TextEncoder().encode(message);
+    const publicKey = new PublicKey(wallet);
+
+    return nacl.sign.detached.verify(messageBytes, signature, publicKey.toBytes());
+  } catch (err) {
+    console.error("[signMessage] Signature verification error:", err);
+    return false;
+  }
 }

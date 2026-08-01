@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
 import { users, gameNicknames, mailMessages } from "@/core/database/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ilike } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
             recipient = await db.query.users.findFirst({ where: eq(users.wallet, recipientWallet.trim()) });
         } else if (typeof recipientNickname === "string" && recipientNickname.trim().length > 0) {
             const nickRow = await db.query.gameNicknames.findFirst({
-                where: and(eq(gameNicknames.gameId, gameId), eq(gameNicknames.nickname, recipientNickname.trim())),
+                where: and(eq(gameNicknames.gameId, gameId), ilike(gameNicknames.nickname, recipientNickname.trim())),
             });
             if (nickRow) {
                 recipient = await db.query.users.findFirst({ where: eq(users.id, nickRow.userId) });

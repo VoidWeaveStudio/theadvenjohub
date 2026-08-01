@@ -14,6 +14,7 @@ import {
     FriendEntry,
     FriendRequestEntry,
     MailEntry,
+    BlockedEntry,
 } from "../network/NetworkManager";
 import type { HUDState, DamageEvent } from "./Game";
 
@@ -26,6 +27,7 @@ export interface GameCallbacks {
     onNicknameLoaded?: (nickname: string) => void;
     onDamageEvent?: (event: DamageEvent) => void;
     onDeathStateChange?: (isDead: boolean, killerName: string | null) => void;
+    onAuthError?: (error: string) => void;
     onDamageIndicatorUpdate?: (attackerId: string | null, direction: number) => void;
 
     onFloorSelectorToggle?: (isOpen: boolean) => void;
@@ -34,6 +36,7 @@ export interface GameCallbacks {
     onOpenTokenUI?: (tokenData: any) => void;
     onOpenVendorUI?: () => void;
     onOpenSolaUI?: () => void;
+    onOpenAlfredoUI?: () => void;
     onOpenCanyonMapUI?: () => void;
     onInventoryChange?: (inventory: InventoryEntry[], ash: number) => void;
     onSellResult?: (data: { address: string; quantitySold: number; ashEarned: number; marketCap: number }) => void;
@@ -73,4 +76,14 @@ export interface GameCallbacks {
     onMailReceived?: (data: { mailId: string; senderNickname: string; subject: string }) => void;
     onFriendRequestReceived?: (friend: FriendRequestEntry) => void;
     onVoiceCapturingChange?: (capturing: boolean) => void;
+
+    onUserBlocked?: (entry: BlockedEntry) => void;
+    onUserUnblocked?: (blockedUserId: string) => void;
+    onBlockedListResult?: (blocked: BlockedEntry[]) => void;
+    onPrivateMessage?: (data: { fromWallet: string; fromNickname: string; text: string; timestamp: number }) => void;
+    onPrivateMessageSent?: (data: { toWallet: string; toNickname: string; text: string; timestamp: number }) => void;
+    onPrivateMessageError?: (data: { code: string; toWallet: string }) => void;
+    onFactionChatMessage?: (data: ChatMessage & { factionId: string }) => void;
+    onFactionInviteSent?: (toWallet: string) => void;
+    onMySkinChange?: (url: string | null) => void;
 }

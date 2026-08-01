@@ -1,37 +1,12 @@
 // src/features/game/ui/DeathScreen.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-
 interface DeathScreenProps {
   isVisible: boolean;
   killerName: string | null;
-  respawnTime: number;
 }
 
-export function DeathScreen({ isVisible, killerName, respawnTime }: DeathScreenProps) {
-  const [timeLeft, setTimeLeft] = useState(respawnTime);
-
-  useEffect(() => {
-    if (!isVisible) {
-      setTimeLeft(respawnTime);
-      return;
-    }
-
-    setTimeLeft(respawnTime);
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isVisible, respawnTime]);
-
+export function DeathScreen({ isVisible, killerName }: DeathScreenProps) {
   if (!isVisible) return null;
 
   return (
@@ -59,42 +34,11 @@ export function DeathScreen({ isVisible, killerName, respawnTime }: DeathScreenP
         )}
 
         <div className="flex flex-col items-center gap-3">
-          <div className="text-zinc-400 text-sm uppercase tracking-widest">
-            Respawning in
+          <div className="bg-black/60 backdrop-blur-md border border-red-500/30 rounded-lg px-6 py-3 animate-pulse">
+            <span className="text-white text-xl font-bold tracking-widest">
+              Press <span className="text-red-400">SPACE</span> to respawn
+            </span>
           </div>
-          <div className="relative w-24 h-24">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                fill="none"
-                stroke="rgba(63, 63, 70, 0.5)"
-                strokeWidth="6"
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                fill="none"
-                stroke="rgb(239, 68, 68)"
-                strokeWidth="6"
-                strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 45}`}
-                strokeDashoffset={`${2 * Math.PI * 45 * (1 - timeLeft / respawnTime)}`}
-                style={{ transition: 'stroke-dashoffset 1s linear' }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-5xl font-black text-white drop-shadow-lg">
-                {timeLeft}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-zinc-500 text-xs text-center max-w-sm">
-          You will respawn in the safe zone automatically
         </div>
       </div>
 

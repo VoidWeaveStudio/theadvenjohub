@@ -2,9 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
-import { factions, factionTaskLog, gameNicknames } from "@/core/database/schema";
-import { eq, and } from "drizzle-orm";
+import { factions, factionTaskLog, gameNicknames, factionMembers } from "@/core/database/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { grantAsh } from "@/core/lib/economy";
+import { applyFactionXp } from "@/core/lib/factionLeveling";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -13,11 +14,13 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { factionId, taskKey } = body;
+        const { factionId, taskKey, contributions } = body;
 
         if (!factionId || typeof taskKey !== "string" || taskKey.trim().length === 0) {
             return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
         }
+
+        const contributionsList: { userId: string; amount: number }[] = Array.isArray(contributions) ? contributions : [];
 
 
         const [claimed] = await db
@@ -49,6 +52,23 @@ export async function POST(req: NextRequest) {
             rewardUserId,
             rewardWallet,
         });
+
+        const totalContributed = contributionsList.reduce((sum, c) => sum + (c.amount || 0), 0);
+        if (totalContributed > 0) {
+            await Promise.all(contributionsList.map((c) => {
+                const points = Math.round((c.amount / totalContributed) * rewardAsh);
+                if (points <= 0) return null;
+                return db.update(factionMembers)
+                    .set({
+                        contributionPoints: sql`${factionMembers.contributionPoints} + ${points}`,
+                        tasksContributed: sql`${factionMembers.tasksContributed} + 1`,
+                    })
+                    .where(and(eq(factionMembers.factionId, factionId), eq(factionMembers.userId, c.userId)));
+            }));
+        }
+
+        const { level, progress } = applyFactionXp(claimed.level, claimed.levelProgressAsh, rewardAsh);
+        await db.update(factions).set({ level, levelProgressAsh: progress }).where(eq(factions.id, factionId));
 
         const rewardNick = await db.query.gameNicknames.findFirst({
             where: and(eq(gameNicknames.userId, rewardUserId), eq(gameNicknames.gameId, claimed.gameId)),

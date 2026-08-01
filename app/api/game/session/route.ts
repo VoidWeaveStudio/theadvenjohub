@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { requireAuth } from "@/core/auth/lib/auth";
 import { db } from "@/core/database";
-import { games, gameLicenses } from "@/core/database/schema";
+import { games, gameLicenses, users } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
+import { getMaintenanceStatus } from "@/core/lib/maintenance";
 
 export async function POST(req: NextRequest) {
     const ip = getClientIp(req);
@@ -29,6 +30,24 @@ export async function POST(req: NextRequest) {
             return authResult;
         }
         const { user } = authResult;
+
+        if (user.wallet !== process.env.ADMIN_WALLET) {
+            const maintenance = await getMaintenanceStatus();
+            if (maintenance.enabled) {
+                return NextResponse.json(
+                    { error: "maintenance", code: "maintenance", message: maintenance.message },
+                    { status: 503, headers: formatRateLimitHeaders(rl) }
+                );
+            }
+        }
+
+        const dbUser = await db.query.users.findFirst({ where: eq(users.id, user.userId) });
+        if (dbUser?.isBanned) {
+            return NextResponse.json(
+                { error: "banned", code: "banned", reason: dbUser.banReason || undefined },
+                { status: 403, headers: formatRateLimitHeaders(rl) }
+            );
+        }
 
         const body = await req.json();
         const { gameSlug } = body;

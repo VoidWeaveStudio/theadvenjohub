@@ -5,6 +5,7 @@ import { PlayerNetData } from "../network/NetworkManager";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
 import { apiPost } from "@/core/api/client";
+import { SoundManager } from "./SoundManager";
 
 interface PlayerLeaveLocationData {
     playerId: string;
@@ -15,6 +16,7 @@ interface PlayerLeaveLocationData {
 interface AuthData {
     playerId: string;
     nickname: string;
+    skinTextureUrl?: string | null;
 }
 
 interface PlayerJoinData {
@@ -25,6 +27,9 @@ interface PlayerJoinData {
     locationId?: string;
     position?: number[];
     rotation?: number;
+    isAdmin?: boolean;
+    isFactionCreator?: boolean;
+    skinTextureUrl?: string | null;
 }
 
 interface PlayerUpdateData {
@@ -47,6 +52,8 @@ interface ChatData {
     senderWallet?: string;
     senderFactionSymbol?: string | null;
     senderFactionImage?: string | null;
+    senderIsAdmin?: boolean;
+    senderIsFactionCreator?: boolean;
     message: string;
     timestamp: number;
 }
@@ -108,7 +115,7 @@ export function registerNetworkHandlers(game: Game) {
         if (currentLocation.id === locationId) {
             let op = game.otherPlayers.get(data.id);
             if (!op) {
-                op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null);
+                op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
                 op.create(currentLocation.scene, game.resourceManager);
                 game.otherPlayers.set(data.id, op);
             } else {
@@ -118,6 +125,8 @@ export function registerNetworkHandlers(game: Game) {
             }
             game.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
             op.updateFromNetwork(data);
+            op.setBadges(data.isAdmin ?? false, data.isFactionCreator ?? false);
+            op.setSkinTexture(data.skinTextureUrl ?? null);
             game.updateOnlineCount();
             game.onChatMessage?.({
                 id: `system-${Date.now()}`, sender: "System",
@@ -141,6 +150,17 @@ export function registerNetworkHandlers(game: Game) {
         game.onNotification?.("⚠️ Connected from another tab/device", 5000);
     };
 
+    game.networkManager.onDisconnected = () => {
+        game.onNotification?.("⚠️ Connection lost, reconnecting...", 3000);
+    };
+
+    game.networkManager.onAuthError = (error) => {
+        if (error === 'banned') {
+            game.networkManager.disconnect();
+            game.onAuthError?.(error);
+        }
+    };
+
     game.networkManager.onReconnectFailed = () => {
         game.onNotification?.("❌ Lost connection to game server", 5000);
     };
@@ -150,13 +170,16 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onAuthenticated = (data: AuthData) => {
         game.localPlayerNetId = data.playerId;
         game.onNicknameLoaded?.(data.nickname);
+        game.player.applySkinTexture(data.skinTextureUrl ?? null);
+        game.onMySkinChange?.(data.skinTextureUrl ?? null);
 
 
         game.requestMyFactions();
         game.requestMailInbox();
         game.requestFriendsList();
 
-        setTimeout(() => {
+        game.restoreTimeoutId = setTimeout(() => {
+            game.restoreTimeoutId = null;
             if (game.hasRestoredLocation) return;
             game.hasRestoredLocation = true;
             game.restoreResolver?.();
@@ -169,7 +192,7 @@ export function registerNetworkHandlers(game: Game) {
         const currentLocation = game.locationManager.getCurrentLocation();
         for (const [id, op] of Array.from(game.otherPlayers.entries())) {
             if (known.has(id)) continue;
-            if (currentLocation && !op.isHidden()) op.dispose(currentLocation.scene);
+            if (currentLocation) op.dispose(currentLocation.scene);
             game.otherPlayers.delete(id);
             game.shootingSystem.unregisterOtherPlayer(id);
         }
@@ -183,7 +206,7 @@ export function registerNetworkHandlers(game: Game) {
         const playerLocation = data.locationId || 'main-world';
         if (playerLocation !== currentLocation.id) {
             if (!game.otherPlayers.has(data.id)) {
-                const op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null);
+                const op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
                 op.setHidden(true);
                 game.otherPlayers.set(data.id, op);
                 game.updateOnlineCount();
@@ -192,7 +215,7 @@ export function registerNetworkHandlers(game: Game) {
         }
         let op = game.otherPlayers.get(data.id);
         if (!op) {
-            op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null);
+            op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
             op.create(currentLocation.scene, game.resourceManager);
             game.otherPlayers.set(data.id, op);
         } else if (op.isHidden()) {
@@ -202,6 +225,8 @@ export function registerNetworkHandlers(game: Game) {
         }
         game.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
         op.updateFromNetwork(data);
+        op.setBadges(data.isAdmin ?? false, data.isFactionCreator ?? false);
+        op.setSkinTexture(data.skinTextureUrl ?? null);
         game.updateOnlineCount();
         game.onChatMessage?.({
             id: `system-${Date.now()}`, sender: "System",
@@ -219,7 +244,7 @@ export function registerNetworkHandlers(game: Game) {
                 timestamp: Date.now(), type: "system",
             });
             const currentLocation = game.locationManager.getCurrentLocation();
-            if (currentLocation && !op.isHidden()) op.dispose(currentLocation.scene);
+            if (currentLocation) op.dispose(currentLocation.scene);
             game.otherPlayers.delete(playerId);
             game.shootingSystem.unregisterOtherPlayer(playerId);
             game.updateOnlineCount();
@@ -235,6 +260,7 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onShoot = (data: ShootData) => {
         if (data.id === game.localPlayerNetId) return;
         game.shootingSystem.handleNetworkShoot({ origin: data.origin, direction: data.direction });
+        SoundManager.getInstance().play('shoot', { volume: 0.5 });
     };
 
     game.networkManager.onCount = (count: number) => {
@@ -246,6 +272,7 @@ export function registerNetworkHandlers(game: Game) {
         game.onChatMessage?.({
             id: data.id, sender: data.sender, senderWallet: data.senderWallet,
             senderFactionSymbol: data.senderFactionSymbol, senderFactionImage: data.senderFactionImage,
+            senderIsAdmin: data.senderIsAdmin, senderIsFactionCreator: data.senderIsFactionCreator,
             message: data.message, timestamp: data.timestamp, type: "player",
         });
     };
@@ -272,6 +299,7 @@ export function registerNetworkHandlers(game: Game) {
             game.player.takeDamage(data.damage);
             game.hudState.health = game.player.health;
             game.emitState(true);
+            SoundManager.getInstance().play('damage-taken');
             game.damageAttackerId = data.attackerId;
             game.lastDamageTime = Date.now();
             const attacker = game.otherPlayers.get(data.attackerId);
@@ -298,6 +326,7 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onPlayerDeath = (data: DeathData) => {
         if (data.playerId === game.localPlayerNetId) {
             game.isDead = true;
+            game.player.setDead(true);
             const killer = game.otherPlayers.get(data.killerId);
             game.killerName = killer?.nickname || (data.killerId.startsWith('canyon-') ? 'Enemy' : 'Unknown');
             game.onDeathStateChange?.(true, game.killerName);
@@ -323,12 +352,14 @@ export function registerNetworkHandlers(game: Game) {
                 position: data.position, rotation: op.mesh.rotation.y,
                 pitch: 0, state: 'idle', alive: true, health: data.health,
             });
+            op.mesh.position.fromArray(data.position);
         }
     };
 
     game.networkManager.onRespawn = (data: LocalRespawnData) => {
-        game.player.mesh.position.fromArray(data.position);
+        game.player.teleportTo(new THREE.Vector3().fromArray(data.position));
         game.player.setHealth(data.health);
+        game.player.setDead(false);
         game.hudState.health = game.player.health;
         game.emitState(true);
         game.onNotification?.('✨ Respawned!', 2000);
@@ -386,6 +417,25 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onServerError = (message) => {
         game.onNotification?.(`⚠️ ${message}`, 2500);
+    };
+
+    game.networkManager.onNicknameChanged = (nickname) => {
+        game.onNicknameLoaded?.(nickname);
+    };
+
+    game.networkManager.onOtherPlayerNicknameChange = (data) => {
+        const op = game.otherPlayers.get(data.id);
+        if (op) op.setNickname(data.nickname);
+    };
+
+    game.networkManager.onSkinUpdate = (data) => {
+        if (data.playerId === game.localPlayerNetId) {
+            game.player.applySkinTexture(data.url);
+            game.onMySkinChange?.(data.url);
+            return;
+        }
+        const op = game.otherPlayers.get(data.playerId);
+        op?.setSkinTexture(data.url);
     };
 
     game.networkManager.onQuestInfo = (data) => {
@@ -565,7 +615,63 @@ export function registerNetworkHandlers(game: Game) {
         game.onMailReceived?.(data);
     };
 
+    game.networkManager.onTokenInfoSent = () => {
+        game.onNotification?.('📬 Token info sent to your mail', 2500);
+    };
+
+    game.networkManager.onSupportTicketSent = () => {
+        game.onNotification?.('📨 Message sent to support — the reply will arrive in your mail', 3500);
+    };
+
+    game.networkManager.onAchievementsUnlocked = (achievements) => {
+        achievements.forEach((a) => {
+            game.onNotification?.(`🏆 Achievement unlocked: ${a.label}`, 3500);
+        });
+    };
+
     game.networkManager.onFriendRequestReceived = (friend) => {
         game.onFriendRequestReceived?.(friend);
+    };
+
+    game.networkManager.onWeaponForceUnequip = () => {
+        game.setWeaponEquipped(false);
+    };
+
+    game.networkManager.onUserBlocked = (entry) => {
+        game.onUserBlocked?.(entry);
+    };
+
+    game.networkManager.onUserUnblocked = (blockedUserId) => {
+        game.onUserUnblocked?.(blockedUserId);
+    };
+
+    game.networkManager.onBlockedListResult = (blocked) => {
+        game.onBlockedListResult?.(blocked);
+    };
+
+    game.networkManager.onPrivateMessage = (data) => {
+        game.onPrivateMessage?.(data);
+    };
+
+    game.networkManager.onPrivateMessageSent = (data) => {
+        game.onPrivateMessageSent?.(data);
+    };
+
+    game.networkManager.onPrivateMessageError = (data) => {
+        game.onPrivateMessageError?.(data);
+    };
+
+    game.networkManager.onFactionChatMessage = (data) => {
+        game.onFactionChatMessage?.({
+            id: data.id, factionId: data.factionId, sender: data.sender, senderWallet: data.senderWallet,
+            senderFactionSymbol: data.senderFactionSymbol, senderFactionImage: data.senderFactionImage,
+            senderIsAdmin: data.senderIsAdmin, senderIsFactionCreator: data.senderIsFactionCreator,
+            message: data.message, timestamp: data.timestamp, type: "player",
+        });
+    };
+
+    game.networkManager.onFactionInviteSent = (toWallet) => {
+        game.onFactionInviteSent?.(toWallet);
+        game.onNotification?.('✉️ Faction invite sent', 2500);
     };
 }

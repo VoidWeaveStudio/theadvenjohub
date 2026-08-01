@@ -6,6 +6,7 @@ import { factions, factionMembers } from "@/core/database/schema";
 import { eq, and, count, isNull } from "drizzle-orm";
 import { getFactionRank } from "@/core/lib/factionRank";
 import { buildFactionTaskExtras } from "@/core/lib/factionDetail";
+import { taskRewardBonusMultiplier } from "@/core/lib/factionLeveling";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -41,13 +42,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "task_already_active" }, { status: 409 });
         }
 
+        const boostedRewardAsh = Math.round(rewardAsh * taskRewardBonusMultiplier(faction.level));
+
         const [updated] = await db
             .update(factions)
             .set({
                 activeTaskKey: taskKey,
                 activeTaskTarget: target,
                 activeTaskProgress: 0,
-                activeTaskRewardAsh: rewardAsh,
+                activeTaskRewardAsh: boostedRewardAsh,
                 activeTaskAcceptedAt: new Date(),
                 activeTaskAcceptedByUserId: userId,
             })

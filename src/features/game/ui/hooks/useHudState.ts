@@ -1,5 +1,5 @@
 // src/features/game/ui/hooks/useHudState.ts
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { HUDState, DamageEvent } from "../../core/Game";
 
 export function useHudState() {
@@ -39,8 +39,17 @@ export function useHudState() {
     setKillerName(killer);
   }, []);
 
+  const lastDamageIndicatorUpdateRef = useRef(0);
   const handleDamageIndicatorUpdate = useCallback((attackerId: string | null, direction: number) => {
-    setDamageIndicator({ attackerId, direction });
+    setDamageIndicator((prev) => {
+      const attackerChanged = attackerId !== prev.attackerId;
+      const now = Date.now();
+      if (!attackerChanged && now - lastDamageIndicatorUpdateRef.current < 66) {
+        return prev;
+      }
+      lastDamageIndicatorUpdateRef.current = now;
+      return { attackerId, direction };
+    });
   }, []);
 
   const handleHitMark = useCallback(() => {

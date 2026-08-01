@@ -3,11 +3,14 @@ import * as THREE from "three";
 import { Entity } from "./Entity";
 import { ResourceManager } from "../core/ResourceManager";
 import { CharacterAnimator } from "./CharacterAnimator";
-import { RIFLE_GRIP_QUATERNION } from "./Weapon";
+import { RIFLE_GRIP_QUATERNION, RIFLE_GRIP_OFFSET } from "./Weapon";
 import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
+import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl, disposePaintableMaterial } from "./characterPaint";
 
 export class OtherPlayer extends Entity {
     public nickname: string;
+    private isAdmin: boolean;
+    private isFactionCreator: boolean;
     private factionSymbol: string | null;
     private factionImage: string | null;
     private factionImageEl: HTMLImageElement | null = null;
@@ -33,14 +36,24 @@ export class OtherPlayer extends Entity {
 
     private weaponMesh: THREE.Group | null = null;
     private weaponEquipped: boolean = true;
+    private paintableMaterial: THREE.Material | null = null;
 
     private animator = new CharacterAnimator();
 
-    constructor(id: string, nickname: string, factionSymbol: string | null = null, factionImage: string | null = null) {
+    constructor(
+        id: string,
+        nickname: string,
+        factionSymbol: string | null = null,
+        factionImage: string | null = null,
+        isAdmin: boolean = false,
+        isFactionCreator: boolean = false
+    ) {
         super(id);
         this.nickname = nickname;
         this.factionSymbol = factionSymbol;
         this.factionImage = factionImage;
+        this.isAdmin = isAdmin;
+        this.isFactionCreator = isFactionCreator;
 
         const hitboxGeometry = new THREE.BoxGeometry(0.8, 1.8, 0.8);
         const hitboxMaterial = new THREE.MeshBasicMaterial({
@@ -59,9 +72,12 @@ export class OtherPlayer extends Entity {
             throw new Error("Player model not found. Cannot initialize other player.");
         }
 
-        scaleAndCenterModel(data.scene, 1.8, -Math.PI / 2);
+        scaleAndCenterModel(data.scene, 1.8, 0);
 
         this.mesh.add(data.scene);
+
+        const paintableMesh = findPaintableMesh(data.scene);
+        this.paintableMaterial = paintableMesh ? clonePaintableMaterial(paintableMesh) : null;
 
         this.headBone = findBoneLast(data.scene, (name) => name.includes('head') && !name.endsWith('_end'));
         this.hipsBone = findBoneFirst(data.scene, (name) =>
@@ -89,7 +105,7 @@ export class OtherPlayer extends Entity {
             rifle.scale.setScalar(weaponScale);
 
             const scaledCenter = weaponBox.getCenter(new THREE.Vector3()).multiplyScalar(weaponScale);
-            rifle.position.copy(scaledCenter).multiplyScalar(-1);
+            rifle.position.copy(scaledCenter).multiplyScalar(-1).add(RIFLE_GRIP_OFFSET);
             rifle.quaternion.copy(RIFLE_GRIP_QUATERNION);
 
             this.mesh.add(rifle);
@@ -108,8 +124,10 @@ export class OtherPlayer extends Entity {
 
     private createNameTag(name: string): THREE.Sprite {
         const hasFaction = !!this.factionSymbol;
+        const baseWidth = hasFaction ? 640 : 512;
+        const extraWidth = this.isAdmin ? 200 : 0;
         const canvas = document.createElement("canvas");
-        canvas.width = hasFaction ? 640 : 512;
+        canvas.width = baseWidth + extraWidth;
         canvas.height = hasFaction ? 128 : 96;
         this.nameCanvas = canvas;
         this.nameCtx = canvas.getContext("2d")!;
@@ -121,7 +139,8 @@ export class OtherPlayer extends Entity {
         const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
         const sprite = new THREE.Sprite(mat);
         sprite.position.y = 2.8;
-        sprite.scale.set(hasFaction ? 2.6 : 2, hasFaction ? 0.52 : 0.4, 1);
+        const baseScaleX = hasFaction ? 2.6 : 2;
+        sprite.scale.set(baseScaleX * (canvas.width / baseWidth), hasFaction ? 0.52 : 0.4, 1);
 
         if (this.factionImage) {
             const img = new Image();
@@ -137,6 +156,16 @@ export class OtherPlayer extends Entity {
         return sprite;
     }
 
+    private nicknameColor(): string {
+        if (this.isAdmin) return "#FFD700";
+        if (this.isFactionCreator) return "#EF4444";
+        return "#ffffff";
+    }
+
+    private displayName(name: string): string {
+        return this.isAdmin ? `${name}  [ADMIN]` : name;
+    }
+
     private drawNameTag(name: string) {
         const ctx = this.nameCtx;
         const canvas = this.nameCanvas;
@@ -146,12 +175,15 @@ export class OtherPlayer extends Entity {
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+        const color = this.nicknameColor();
+        const label = this.displayName(name);
+
         if (!this.factionSymbol) {
-            ctx.fillStyle = "#ffffff";
+            ctx.fillStyle = color;
             ctx.font = "bold 48px Arial";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+            ctx.fillText(label, canvas.width / 2, canvas.height / 2);
             return;
         }
 
@@ -173,9 +205,27 @@ export class OtherPlayer extends Entity {
         ctx.font = "bold 34px Arial";
         ctx.fillText(`$${this.factionSymbol}`, textX, 56);
 
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = color;
         ctx.font = "bold 42px Arial";
-        ctx.fillText(name, textX, 104);
+        ctx.fillText(label, textX, 104);
+    }
+
+    public setNickname(nickname: string) {
+        this.nickname = nickname;
+        this.drawNameTag(nickname);
+        if (this.nameTexture) this.nameTexture.needsUpdate = true;
+    }
+
+    public setBadges(isAdmin: boolean, isFactionCreator: boolean) {
+        if (this.isAdmin === isAdmin && this.isFactionCreator === isFactionCreator) return;
+        this.isAdmin = isAdmin;
+        this.isFactionCreator = isFactionCreator;
+        this.drawNameTag(this.nickname);
+        if (this.nameTexture) this.nameTexture.needsUpdate = true;
+    }
+
+    public setSkinTexture(url: string | null) {
+        applySkinTextureUrl(this.paintableMaterial, url);
     }
 
     public setDead(dead: boolean) {
@@ -290,5 +340,7 @@ export class OtherPlayer extends Entity {
             mat.map?.dispose();
             mat.dispose();
         }
+
+        disposePaintableMaterial(this.paintableMaterial);
     }
 }

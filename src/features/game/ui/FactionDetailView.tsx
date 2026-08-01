@@ -5,6 +5,7 @@ import { ArrowLeft, LogOut, UserPlus } from "lucide-react";
 import { FactionDetail } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { FactionRosterList } from "./FactionRosterList";
+import { NicknameMenuActions } from "./shell/NicknameMenu";
 
 interface FactionDetailViewProps {
     faction: FactionDetail;
@@ -12,9 +13,10 @@ interface FactionDetailViewProps {
     onLeaveFaction?: () => void;
     onJoinFaction?: () => void;
     onBack?: () => void;
+    getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
 }
 
-export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoinFaction, onBack }: FactionDetailViewProps) {
+export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoinFaction, onBack, getNicknameMenuActions }: FactionDetailViewProps) {
     return (
         <div className="space-y-4">
             {onBack && (
@@ -28,7 +30,7 @@ export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoi
             )}
 
             <FactionHeader faction={faction} />
-            <FactionRosterList faction={faction} />
+            <FactionRosterList faction={faction} getNicknameMenuActions={getNicknameMenuActions} />
 
             {isOwnFaction && onLeaveFaction && (
                 <button

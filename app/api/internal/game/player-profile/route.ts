@@ -2,8 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
-import { users, gameNicknames, gameStatistics, gameProgress, factionMembers, factions } from "@/core/database/schema";
-import { eq, and } from "drizzle-orm";
+import { users, gameNicknames, gameStatistics, gameProgress, factionMembers, factions, userAchievements } from "@/core/database/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { ACHIEVEMENTS_BY_KEY } from "@/core/lib/achievements";
+import { isAdminWallet } from "@/core/lib/playerBadges";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ profile: null });
         }
 
-        const [nickname, statistics, progress, memberships] = await Promise.all([
+        const [nickname, statistics, progress, memberships, unlockedAchievements] = await Promise.all([
             db.query.gameNicknames.findFirst({
                 where: and(eq(gameNicknames.userId, user.id), eq(gameNicknames.gameId, gameId)),
             }),
@@ -36,7 +38,24 @@ export async function POST(req: NextRequest) {
             db.query.factionMembers.findMany({
                 where: and(eq(factionMembers.userId, user.id), eq(factionMembers.gameId, gameId)),
             }),
+            db.query.userAchievements.findMany({
+                where: and(eq(userAchievements.userId, user.id), eq(userAchievements.gameId, gameId)),
+                orderBy: desc(userAchievements.unlockedAt),
+            }),
         ]);
+
+        const achievements = unlockedAchievements
+            .map((row) => {
+                const def = ACHIEVEMENTS_BY_KEY.get(row.achievementKey);
+                if (!def) return null;
+                return {
+                    key: def.key,
+                    label: def.label,
+                    description: def.description,
+                    unlockedAt: row.unlockedAt,
+                };
+            })
+            .filter((a): a is NonNullable<typeof a> => a !== null);
 
         let ash = 0;
         if (progress?.data) {
@@ -76,6 +95,8 @@ export async function POST(req: NextRequest) {
                 playtimeSeconds: statistics?.playtimeSeconds ?? 0,
                 ash,
                 factions: factionsList,
+                achievements,
+                isAdmin: isAdminWallet(user.wallet),
             },
         });
     } catch (error) {

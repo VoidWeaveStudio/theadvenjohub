@@ -17,6 +17,8 @@ interface PlayerTagProps {
     badge?: PlayerTagBadge;
     size?: "sm" | "md";
     layout?: "stacked" | "inline";
+    isAdmin?: boolean;
+    isFactionCreator?: boolean;
 }
 
 const BADGE_COLOR: Record<Exclude<PlayerTagBadge, null>, string> = {
@@ -25,6 +27,8 @@ const BADGE_COLOR: Record<Exclude<PlayerTagBadge, null>, string> = {
 };
 
 const DEFAULT_COLOR = "#4FD1FF";
+const ADMIN_GOLD = "#FFD700";
+const CREATOR_RED = "#EF4444";
 
 function BadgeIcon({ badge, className }: { badge: PlayerTagBadge; className?: string }) {
     if (badge === "founder") return <Crown className={className} />;
@@ -32,9 +36,40 @@ function BadgeIcon({ badge, className }: { badge: PlayerTagBadge; className?: st
     return null;
 }
 
-export function PlayerTag({ nickname, faction, badge = null, size = "md", layout = "stacked" }: PlayerTagProps) {
+function nicknameColor(isAdmin: boolean, isFactionCreator: boolean, fallback?: string): string | undefined {
+    if (isAdmin) return ADMIN_GOLD;
+    if (isFactionCreator) return CREATOR_RED;
+    return fallback;
+}
+
+function AdminTag({ size }: { size: "sm" | "md" }) {
+    return (
+        <span
+            className={`font-oxanium font-black uppercase tracking-wider ${size === "sm" ? "text-[9px]" : "text-[10px]"} px-1 py-px rounded bg-[#FFD700]/15 text-[#FFD700] flex-shrink-0`}
+        >
+            ADMIN
+        </span>
+    );
+}
+
+export function PlayerTag({
+    nickname,
+    faction,
+    badge = null,
+    size = "md",
+    layout = "stacked",
+    isAdmin = false,
+    isFactionCreator = false,
+}: PlayerTagProps) {
+    const nickColor = nicknameColor(isAdmin, isFactionCreator);
+
     if (!faction) {
-        return <span className={size === "sm" ? "text-sm" : "text-base"}>{nickname}</span>;
+        return (
+            <span className={`inline-flex items-center gap-1 align-middle ${size === "sm" ? "text-sm" : "text-base"}`}>
+                <span style={nickColor ? { color: nickColor } : undefined}>{nickname}</span>
+                {isAdmin && <AdminTag size={size} />}
+            </span>
+        );
     }
 
     const accentColor = badge ? BADGE_COLOR[badge] : DEFAULT_COLOR;
@@ -60,7 +95,10 @@ export function PlayerTag({ nickname, faction, badge = null, size = "md", layout
                         <BadgeIcon badge={badge} className="w-2.5 h-2.5" />${faction.symbol}
                     </span>
                 )}
-                <span className={size === "sm" ? "text-sm" : "text-base"}>{nickname}</span>
+                <span className={size === "sm" ? "text-sm" : "text-base"} style={nickColor ? { color: nickColor } : undefined}>
+                    {nickname}
+                </span>
+                {isAdmin && <AdminTag size={size} />}
             </span>
         );
     }
@@ -77,8 +115,14 @@ export function PlayerTag({ nickname, faction, badge = null, size = "md", layout
                         <BadgeIcon badge={badge} className="w-2.5 h-2.5 flex-shrink-0" />${faction.symbol}
                     </span>
                 )}
-                <span className={`${size === "sm" ? "text-sm" : "text-base"} text-[#E5E7EB] font-medium truncate`}>
-                    {nickname}
+                <span className="inline-flex items-center gap-1">
+                    <span
+                        className={`${size === "sm" ? "text-sm" : "text-base"} font-medium truncate`}
+                        style={{ color: nickColor || "#E5E7EB" }}
+                    >
+                        {nickname}
+                    </span>
+                    {isAdmin && <AdminTag size={size} />}
                 </span>
             </span>
         </span>

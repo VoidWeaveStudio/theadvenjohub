@@ -5,6 +5,7 @@ import { db } from "@/core/database";
 import { getCache, setCache } from "@/core/lib/cache";
 import { users, gameNicknames, gameStatistics, gameProgress, factionMembers, factions } from "@/core/database/schema";
 import { eq, and, gte } from "drizzle-orm";
+import { isAdminWallet, getFactionCreatorWallets } from "@/core/lib/playerBadges";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -81,6 +82,8 @@ export async function POST(req: NextRequest) {
             .leftJoin(factions, eq(factions.id, factionMembers.factionId))
             .where(and(eq(gameStatistics.gameId, gameId), gte(gameStatistics.updatedAt, activeSince)));
 
+        const creatorWallets = await getFactionCreatorWallets(gameId, rows.map((r) => r.wallet));
+
         const scored = rows.map((row) => {
             let ash = 0;
             if (row.progressData) {
@@ -102,6 +105,8 @@ export async function POST(req: NextRequest) {
                 faction: row.factionName
                     ? { name: row.factionName, symbol: row.factionSymbol, image: row.factionImage, number: row.factionNumber }
                     : null,
+                isAdmin: isAdminWallet(row.wallet),
+                isFactionCreator: creatorWallets.has(row.wallet),
             };
         });
 

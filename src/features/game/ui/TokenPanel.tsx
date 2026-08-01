@@ -25,8 +25,6 @@ interface TokenData {
     dex?: string;
     pairAddress?: string;
     url?: string;
-    websites?: { label?: string; url: string }[];
-    socials?: { type: string; url: string }[];
     labels?: string[];
 }
 
@@ -35,11 +33,31 @@ interface TokenPanelProps {
     onClose: () => void;
 }
 
+function isSafeHttpUrl(url: string | undefined): url is string {
+    if (!url) return false;
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+        return false;
+    }
+}
+
+function isSafeDexscreenerUrl(url: string | undefined): url is string {
+    if (!url) return false;
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === "https:" && parsed.hostname === "dexscreener.com";
+    } catch {
+        return false;
+    }
+}
+
 export function TokenPanel({ ca, onClose }: TokenPanelProps) {
     const [data, setData] = useState<TokenData | null>(null);
     const [notFound, setNotFound] = useState(false);
     const [failed, setFailed] = useState(false);
-    const [tab, setTab] = useState<"overview" | "trading" | "links">("overview");
+    const [tab, setTab] = useState<"overview" | "trading">("overview");
 
     useEffect(() => {
         let cancelled = false;
@@ -76,12 +94,6 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
         if (val > 1e6) return (val / 1e6).toFixed(2) + "M";
         if (val > 1e3) return (val / 1e3).toFixed(2) + "K";
         return val.toFixed(2);
-    };
-
-    const getDexName = () => {
-        if (!data?.url) return "DEX";
-        if (data.url.includes("dexscreener")) return "Dexscreener";
-        return data.dex?.toUpperCase() || "DEX";
     };
 
     if (!data) {
@@ -143,7 +155,6 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                 <div className="tabs">
                     <button onClick={() => setTab("overview")} className={tab === "overview" ? "active" : ""}>Overview</button>
                     <button onClick={() => setTab("trading")} className={tab === "trading" ? "active" : ""}>Trading</button>
-                    <button onClick={() => setTab("links")} className={tab === "links" ? "active" : ""}>Links</button>
                 </div>
 
                 <div className="tab-content">
@@ -174,43 +185,24 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                         </div>
                     )}
 
-                    {tab === "links" && (
-                        <div className="links-container">
-                            {data.websites?.map((w: any, i: number) => (
-                                <a key={i} href={w.url} target="_blank" rel="noopener noreferrer" className="link-item">
-                                    🌍 {w.label || "Official Website"}
-                                </a>
-                            ))}
-                            {data.socials?.map((s: any, i: number) => (
-                                <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="link-item">
-                                    🔗 {s.type.charAt(0).toUpperCase() + s.type.slice(1)}
-                                </a>
-                            ))}
-                            {data.url && (
-                                <a href={data.url} target="_blank" rel="noopener noreferrer" className="link-item">
-                                    📊 View Full Chart on Dexscreener
-                                </a>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 <div className="token-bottom">
-                    <img src={data.image || "/fallback-token.png"} alt={data.symbol} />
+                    <img src={isSafeHttpUrl(data.image) ? data.image : "/fallback-token.png"} alt={data.symbol} />
                     <div className="token-meta">
                         <h2>{data.name}</h2>
                         <span className="symbol">{data.symbol}</span>
                     </div>
                 </div>
 
-                {data.url && (
+                {isSafeDexscreenerUrl(data.url) && (
                     <a
                         href={data.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="buy-btn"
                     >
-                        🚀 Buy on {getDexName()}
+                        📊 View on Dexscreener
                     </a>
                 )}
             </div>

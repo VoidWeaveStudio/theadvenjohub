@@ -17,6 +17,9 @@ import { TokenPanel } from "./ui/TokenPanel";
 import { Inventory } from "./ui/Inventory";
 import { VendorPanel } from "./ui/VendorPanel";
 import { SolaPanel } from "./ui/SolaPanel";
+import { AlfredoPanel } from "./ui/AlfredoPanel";
+import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
+import { getCsrfToken } from "@/core/lib/clientUtils";
 import { QuestTracker } from "./ui/QuestTracker";
 import { CanyonMapPanel } from "./ui/CanyonMapPanel";
 import { CreateFactionModal } from "./ui/CreateFactionModal";
@@ -25,11 +28,15 @@ import { SocialWindow, SocialTab } from "./ui/SocialWindow";
 import { ShopWindow } from "./ui/ShopWindow";
 import { LeaderboardsWindow } from "./ui/LeaderboardsWindow";
 import { SettingsWindow } from "./ui/SettingsWindow";
+import { SupportModal } from "./ui/SupportModal";
 import { PlayerProfileCard } from "./ui/PlayerProfileCard";
+import { FactionInvitePicker } from "./ui/FactionInvitePicker";
+import { NicknameMenuActions } from "./ui/shell/NicknameMenu";
 import { useHudState } from "./ui/hooks/useHudState";
 import { useQuestState, SOLA_QUEST_ID } from "./ui/hooks/useQuestState";
 import { useInventoryState } from "./ui/hooks/useInventoryState";
 import { useChatState } from "./ui/hooks/useChatState";
+import { usePrivateMessagesState } from "./ui/hooks/usePrivateMessagesState";
 import { useNotifications } from "./ui/hooks/useNotifications";
 import { useCanyonMapState } from "./ui/hooks/useCanyonMapState";
 import { useFactionState } from "./ui/hooks/useFactionState";
@@ -69,6 +76,15 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [isVendorOpen, setIsVendorOpen] = useState(false);
   const [isSolaOpen, setIsSolaOpen] = useState(false);
+  const [isAlfredoOpen, setIsAlfredoOpen] = useState(false);
+  const [isPersonalizationOpen, setIsPersonalizationOpen] = useState(false);
+  const [mySkinUrl, setMySkinUrl] = useState<string | null>(null);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [supportPrefillMessage, setSupportPrefillMessage] = useState("");
+  const openSupportWithReport = (wallet: string, nickname: string) => {
+    setSupportPrefillMessage(`Reporting player ${nickname} (${wallet}):\n\n`);
+    setIsSupportOpen(true);
+  };
   const [isVoiceCapturing, setIsVoiceCapturing] = useState(false);
 
   const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
@@ -79,12 +95,15 @@ export function GameClient({ slug }: GameClientProps) {
   const quest = useQuestState();
   const inventory = useInventoryState();
   const chat = useChatState();
+  const pm = usePrivateMessagesState();
   const notifications = useNotifications();
   const canyonMap = useCanyonMapState();
   const factionState = useFactionState();
   const profileState = useProfileState();
   const leaderboardState = useLeaderboardState();
   const socialState = useSocialState();
+
+  const [factionInviteTarget, setFactionInviteTarget] = useState<{ wallet: string; nickname: string } | null>(null);
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
@@ -200,6 +219,12 @@ export function GameClient({ slug }: GameClientProps) {
           gameRef.current?.talkToQuestGiver(SOLA_QUEST_ID);
           document.exitPointerLock();
         };
+        game.onOpenAlfredoUI = () => {
+          if (cancelled) return;
+          setIsAlfredoOpen(true);
+          document.exitPointerLock();
+        };
+        game.onMySkinChange = (url) => { if (!cancelled) setMySkinUrl(url); };
         game.onQuestInfo = (data) => { if (!cancelled) quest.handleQuestInfo(data); };
         game.onQuestUpdate = (data) => { if (!cancelled) quest.handleQuestUpdate(data); };
         game.onOpenCanyonMapUI = () => {
@@ -245,8 +270,26 @@ export function GameClient({ slug }: GameClientProps) {
           gameRef.current?.requestMailInbox();
         };
         game.onFriendRequestReceived = (friend) => { if (!cancelled) socialState.handleFriendRequestReceived(friend); };
+        game.onUserBlocked = (entry) => { if (!cancelled) socialState.handleUserBlocked(entry); };
+        game.onUserUnblocked = (blockedUserId) => { if (!cancelled) socialState.handleUserUnblocked(blockedUserId); };
+        game.onBlockedListResult = (list) => { if (!cancelled) socialState.handleBlockedListResult(list); };
+        game.onPrivateMessage = (data) => { if (!cancelled) pm.handlePrivateMessage(data); };
+        game.onPrivateMessageSent = (data) => { if (!cancelled) pm.handlePrivateMessageSent(data); };
+        game.onPrivateMessageError = (data) => {
+          if (cancelled) return;
+          if (data.code === 'offline') notifications.addNotification('⚠️ Player is offline', 2500);
+          else notifications.addNotification('⚠️ Message could not be delivered', 2500);
+        };
+        game.onFactionChatMessage = (message) => { if (!cancelled) chat.handleFactionChatMessage(message); };
         game.onDamageEvent = (event) => { if (!cancelled) hud.handleDamageEvent(event); };
         game.onDeathStateChange = (dead, killer) => { if (!cancelled) hud.handleDeathStateChange(dead, killer); };
+        game.onAuthError = (error) => {
+          if (cancelled) return;
+          if (error === 'banned') {
+            setAuthError("🚫 You have been banned from this game.");
+            setLoading(false);
+          }
+        };
         game.onDamageIndicatorUpdate = (attackerId, direction) => { if (!cancelled) hud.handleDamageIndicatorUpdate(attackerId, direction); };
         game.onHitMark = () => { if (!cancelled) hud.handleHitMark(); };
         game.onVoiceCapturingChange = (capturing) => { if (!cancelled) setIsVoiceCapturing(capturing); };
@@ -266,6 +309,10 @@ export function GameClient({ slug }: GameClientProps) {
           setAuthError("Your license has expired.");
         } else if (error.message?.includes("Unauthorized")) {
           setAuthError("Please log in to play.");
+        } else if (error.message?.includes("banned")) {
+          setAuthError("🚫 You have been banned from this game.");
+        } else if (error.message?.includes("maintenance")) {
+          setAuthError("🛠️ The game is currently down for maintenance. Please check back later.");
         } else {
           setAuthError(error.message || "Failed to start game");
         }
@@ -311,6 +358,14 @@ export function GameClient({ slug }: GameClientProps) {
           setIsSolaOpen(false);
           return;
         }
+        if (isPersonalizationOpen) {
+          setIsPersonalizationOpen(false);
+          return;
+        }
+        if (isAlfredoOpen) {
+          setIsAlfredoOpen(false);
+          return;
+        }
         if (canyonMap.isCanyonMapOpen) {
           canyonMap.setIsCanyonMapOpen(false);
           return;
@@ -333,7 +388,7 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || activeTopWindow !== null) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || activeTopWindow !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -376,7 +431,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, activeTopWindow]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, activeTopWindow]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -387,8 +442,28 @@ export function GameClient({ slug }: GameClientProps) {
   }, []);
 
   const handleNicknameChange = (nick: string) => {
-    chat.setNickname(nick);
     gameRef.current?.setNickname(nick);
+  };
+
+  const handleSaveSkin = async (blob: Blob) => {
+    const formData = new FormData();
+    formData.append("file", blob, "skin.png");
+
+    const csrf = getCsrfToken();
+    const res = await fetch("/api/game/skin/upload", {
+      method: "POST",
+      credentials: "include",
+      headers: csrf ? { "x-csrf-token": csrf } : undefined,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      throw new Error("upload_failed");
+    }
+
+    const data: { url: string } = await res.json();
+    gameRef.current?.applyAndBroadcastSkin(data.url);
+    notifications.addNotification("🎨 Your look has been saved", 2500);
   };
 
   const handleSendMessage = (message: string) => {
@@ -397,6 +472,25 @@ export function GameClient({ slug }: GameClientProps) {
 
   const handleNicknameClick = (wallet: string) => {
     gameRef.current?.requestPlayerProfile(wallet);
+  };
+
+  const getNicknameMenuActions = (wallet: string, nickname: string): NicknameMenuActions => {
+    const blockedEntry = socialState.blocked.find((b) => b.wallet === wallet);
+    return {
+      isBlocked: !!blockedEntry,
+      canInviteToFaction: factionState.myFactions.length > 0,
+      onInfo: () => gameRef.current?.requestPlayerProfile(wallet),
+      onPrivateMessage: () => pm.openThread(wallet, nickname),
+      onReport: () => openSupportWithReport(wallet, nickname),
+      onToggleBlock: () => {
+        if (blockedEntry) {
+          gameRef.current?.unblockPlayer(blockedEntry.userId);
+        } else {
+          gameRef.current?.blockPlayer({ wallet });
+        }
+      },
+      onInviteToFaction: () => setFactionInviteTarget({ wallet, nickname }),
+    };
   };
 
   const handleTopMenuSelect = (id: TopWindowId) => {
@@ -500,14 +594,21 @@ export function GameClient({ slug }: GameClientProps) {
       <DeathScreen
         isVisible={hud.isDead}
         killerName={hud.killerName}
-        respawnTime={3}
       />
 
       <Chat
         messages={chat.chatMessages}
+        factionMessages={chat.factionMessages}
+        myFactions={factionState.myFactions}
+        dmThreads={pm.threads}
+        dmFocus={pm.focusWallet}
+        myWallet={gameRef.current?.session.wallet ?? ""}
         onSendMessage={handleSendMessage}
+        onSendFactionMessage={(factionId, message) => gameRef.current?.sendFactionChatMessage(factionId, message)}
+        onSendPrivateMessage={(wallet, message) => gameRef.current?.sendPrivateMessage(wallet, message)}
+        onCloseDmThread={(wallet) => pm.closeThread(wallet)}
         isVisible={chat.isChatVisible}
-        onNicknameClick={handleNicknameClick}
+        getNicknameMenuActions={getNicknameMenuActions}
       />
 
       <CreateFactionModal
@@ -543,6 +644,16 @@ export function GameClient({ slug }: GameClientProps) {
         onRequestTaskList={() => gameRef.current?.requestFactionTaskList()}
         onAcceptTask={(factionId, taskKey) => gameRef.current?.acceptFactionTask(factionId, taskKey)}
         onClaimCreator={(factionId) => gameRef.current?.claimFactionCreator(factionId)}
+        getNicknameMenuActions={getNicknameMenuActions}
+      />
+
+      <FactionInvitePicker
+        target={factionInviteTarget}
+        myFactions={factionState.myFactions}
+        onClose={() => setFactionInviteTarget(null)}
+        onInvite={(factionId) => {
+          if (factionInviteTarget) gameRef.current?.inviteToFaction(factionInviteTarget.wallet, factionId);
+        }}
       />
 
       <SocialWindow
@@ -574,6 +685,10 @@ export function GameClient({ slug }: GameClientProps) {
         onRequestMailInbox={() => gameRef.current?.requestMailInbox()}
         onSendMail={(recipient, subject, body) => gameRef.current?.sendMail(recipient, subject, body)}
         onMarkMailRead={(mailId) => gameRef.current?.markMailRead(mailId)}
+        blocked={socialState.blocked}
+        onRequestBlockedList={() => gameRef.current?.requestBlockedList()}
+        onUnblockUser={(blockedUserId) => gameRef.current?.unblockPlayer(blockedUserId)}
+        getNicknameMenuActions={getNicknameMenuActions}
       />
 
       <ShopWindow isOpen={activeTopWindow === "shop"} onClose={() => setActiveTopWindow(null)} />
@@ -597,6 +712,14 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={activeTopWindow === "settings"}
         onClose={() => setActiveTopWindow(null)}
         onTeleportToSafeZone={() => gameRef.current?.teleportToSafeZone()}
+        onOpenSupport={() => setIsSupportOpen(true)}
+      />
+
+      <SupportModal
+        isOpen={isSupportOpen}
+        onClose={() => { setIsSupportOpen(false); setSupportPrefillMessage(""); }}
+        onSend={(subject, message) => gameRef.current?.sendSupportTicket(subject, message)}
+        initialMessage={supportPrefillMessage}
       />
 
       <PlayerProfileCard
@@ -639,6 +762,25 @@ export function GameClient({ slug }: GameClientProps) {
         onClose={() => setIsSolaOpen(false)}
         onAccept={(questId) => gameRef.current?.acceptQuest(questId)}
         onTurnIn={(questId) => gameRef.current?.turnInQuest(questId)}
+        onRequestTokenInfo={(ca) => gameRef.current?.requestTokenInfo(ca)}
+      />
+
+      <AlfredoPanel
+        isOpen={isAlfredoOpen}
+        onClose={() => setIsAlfredoOpen(false)}
+        onOpenPersonalization={() => {
+          setIsAlfredoOpen(false);
+          setIsPersonalizationOpen(true);
+        }}
+        onNotification={(msg, duration) => notifications.addNotification(msg, duration)}
+      />
+
+      <PersonalizationEditor
+        isOpen={isPersonalizationOpen}
+        onClose={() => setIsPersonalizationOpen(false)}
+        currentSkinUrl={mySkinUrl}
+        onSave={handleSaveSkin}
+        onNotification={(msg, duration) => notifications.addNotification(msg, duration)}
       />
 
       <CanyonMapPanel

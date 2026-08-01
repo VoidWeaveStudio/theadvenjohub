@@ -9,6 +9,8 @@ export const RIFLE_GRIP_QUATERNION = new THREE.Quaternion(
     -0.43556503715239797
 );
 
+export const RIFLE_GRIP_OFFSET = new THREE.Vector3(-0.09299880266052234, 0.8357661666701275, 0.4848819943996206);
+
 export class Weapon {
     public mesh: THREE.Group = new THREE.Group();
     public muzzle: THREE.Object3D = new THREE.Object3D();
@@ -46,6 +48,7 @@ export class Weapon {
         rifle.quaternion.copy(RIFLE_GRIP_QUATERNION);
 
         this.mesh.add(rifle);
+        this.mesh.position.copy(RIFLE_GRIP_OFFSET);
 
         this.muzzle.position.set(0, -0.4, 0.03);
         this.mesh.add(this.muzzle);

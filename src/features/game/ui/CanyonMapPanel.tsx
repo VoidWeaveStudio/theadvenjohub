@@ -1,8 +1,10 @@
 // src/features/game/ui/CanyonMapPanel.tsx
 "use client";
 
+import { useEffect, useRef } from "react";
 import { X, MapPinned, CheckCircle2, Lock, MapPin } from "lucide-react";
 import { CanyonMapData } from "../network/NetworkManager";
+import { SoundManager } from "../core/SoundManager";
 
 interface CanyonMapPanelProps {
     isOpen: boolean;
@@ -16,6 +18,14 @@ function segmentName(segment: number): string {
 }
 
 export function CanyonMapPanel({ isOpen, data, onClose, onWarp }: CanyonMapPanelProps) {
+    const wasOpenRef = useRef(false);
+    useEffect(() => {
+        if (isOpen && !wasOpenRef.current) {
+            SoundManager.getInstance().play('modal-open');
+        }
+        wasOpenRef.current = isOpen;
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     return (
@@ -26,7 +36,7 @@ export function CanyonMapPanel({ isOpen, data, onClose, onWarp }: CanyonMapPanel
                         <MapPinned className="w-5 h-5 text-[#4FD1FF]" />
                         <h2 className="text-xl font-black text-[#E5E7EB]">Canyon Map</h2>
                     </div>
-                    <button onClick={onClose} className="text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
+                    <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
