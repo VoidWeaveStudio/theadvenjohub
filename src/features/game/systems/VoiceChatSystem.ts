@@ -20,9 +20,16 @@ export class VoiceChatSystem {
 
     private readonly playbackQueues = new Map<string, PlaybackEntry>();
 
-    private readonly SEGMENT_MS = 4000;
+    private readonly SEGMENT_MS = 2000;
     private readonly MAX_HOLD_MS = 60000;
-    private readonly MAX_CLIP_BYTES = 12 * 1024;
+    // Kept well under the server's WS frame limit (game-server's
+    // CONFIG.network.maxMessageSize) once base64-encoded (~4/3 inflation)
+    // and wrapped in the {type,chunk,mimeType} JSON envelope — the previous
+    // 12KB cap left almost no margin (12KB raw -> ~16.4KB encoded, right at
+    // the old 16KB server limit), so most real segments either got dropped
+    // client-side or, worse, overflowed the server's maxPayload and got the
+    // connection killed.
+    private readonly MAX_CLIP_BYTES = 16 * 1024;
 
     private static readonly CANDIDATE_MIME_TYPES = [
         "audio/webm;codecs=opus",

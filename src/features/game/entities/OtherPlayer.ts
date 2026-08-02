@@ -107,15 +107,26 @@ export class OtherPlayer extends Entity {
             const weaponScale = targetLength / maxDim;
             rifle.scale.setScalar(weaponScale);
 
-            const scaledCenter = weaponBox.getCenter(new THREE.Vector3()).multiplyScalar(weaponScale);
-            rifle.position.copy(scaledCenter).multiplyScalar(-1).add(RIFLE_GRIP_OFFSET);
+            const scaledBox = new THREE.Box3().setFromObject(rifle);
+            const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+            rifle.position.copy(scaledCenter).multiplyScalar(-1);
             rifle.quaternion.copy(RIFLE_GRIP_QUATERNION);
 
-            this.mesh.add(rifle);
+            // Grip offset must live on a wrapper positioned in the (unrotated)
+            // hand-bone frame, not summed into rifle.position directly — rifle
+            // is already rotated by RIFLE_GRIP_QUATERNION, so adding the offset
+            // to the same vector would apply it through that rotation instead
+            // of in the hand's own space, landing the weapon far from the grip
+            // (this is how Weapon.ts/Player.ts do it for the local player).
+            const weaponMount = new THREE.Group();
+            weaponMount.add(rifle);
+            weaponMount.position.copy(RIFLE_GRIP_OFFSET);
+
+            this.mesh.add(weaponMount);
             if (this.rightHand) {
-                reparentPreservingWorldScale(rifle, this.rightHand);
+                reparentPreservingWorldScale(weaponMount, this.rightHand);
             }
-            this.weaponMesh = rifle;
+            this.weaponMesh = weaponMount;
         }
 
         this.nameSprite = this.createNameTag(this.nickname);
