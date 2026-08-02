@@ -14,6 +14,7 @@ export function useHudState() {
     prompt: null,
     isReloading: false,
     isWeaponEquipped: true,
+    equippedTool: "weapon",
   });
 
   const [damageEvents, setDamageEvents] = useState<DamageEvent[]>([]);

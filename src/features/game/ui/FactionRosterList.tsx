@@ -18,11 +18,17 @@ function truncateWallet(wallet: string): string {
 }
 
 export function FactionRosterList({ faction, getNicknameMenuActions }: FactionRosterListProps) {
+    const sortedRoster = [...faction.roster].sort((a, b) => {
+        const rank = (member: typeof a) =>
+            member.role === "founder" || member.wallet === faction.verifiedCreatorWallet ? 0 : 1;
+        return rank(a) - rank(b);
+    });
+
     return (
         <div>
             <span className="text-[#8B8F98] text-xs font-bold tracking-wider">MEMBERS</span>
             <div className="mt-2 space-y-1 max-h-52 overflow-y-auto">
-                {faction.roster.map((member) => {
+                {sortedRoster.map((member) => {
                     const isFactionCreator = faction.verifiedCreatorWallet === member.wallet;
                     const badge = isFactionCreator ? "creator" : member.role === "founder" ? "founder" : null;
                     return (

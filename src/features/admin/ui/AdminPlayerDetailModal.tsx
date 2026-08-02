@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useAdminSignature } from "../lib/useAdminSignature";
+import { PLACEABLE_ITEMS } from "../../game/data/placeableItems";
 
 interface PlayerDetail {
     id: string;
@@ -25,6 +26,7 @@ interface PlayerDetail {
     };
     ash: number;
     skinTextureUrl: string | null;
+    placeables: Record<string, number>;
     locationId: string | null;
     inventory: { slot: number; itemId: string; quantity: number }[];
     factions: {
@@ -73,6 +75,9 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
     const [loading, setLoading] = useState(false);
     const [banReasonInput, setBanReasonInput] = useState("");
     const [actionError, setActionError] = useState<string | null>(null);
+    const [ashAmountInput, setAshAmountInput] = useState("100");
+    const [itemToGrant, setItemToGrant] = useState(PLACEABLE_ITEMS[0]?.id || "");
+    const [itemQuantityInput, setItemQuantityInput] = useState("1");
     const { signedFetch } = useAdminSignature();
 
     useEffect(() => {
@@ -139,6 +144,65 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                 setPlayer((prev) => (prev ? { ...prev, skinTextureUrl: null } : prev));
             } else {
                 setActionError("Failed to reset skin");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        }
+    };
+
+    const adjustAsh = async (sign: 1 | -1) => {
+        const amount = Math.floor(Number(ashAmountInput));
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        const delta = amount * sign;
+
+        setActionError(null);
+        try {
+            const res = await signedFetch(`/api/admin/players/${userId}/ash`, sign > 0 ? "grantAsh" : "takeAsh", userId, { delta });
+            if (res.ok) {
+                const data = await res.json();
+                setPlayer((prev) => (prev ? { ...prev, ash: data.ash } : prev));
+            } else {
+                setActionError("Failed to update ash");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        }
+    };
+
+    const adjustPlaceable = async (itemId: string, sign: 1 | -1) => {
+        const amount = Math.floor(Number(itemQuantityInput));
+        if (!itemId || !Number.isFinite(amount) || amount <= 0) return;
+        const delta = amount * sign;
+
+        setActionError(null);
+        try {
+            const res = await signedFetch(
+                `/api/admin/players/${userId}/placeables`,
+                sign > 0 ? "grantItem" : "takeItem",
+                `${userId}:${itemId}`,
+                { itemId, delta }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                setPlayer((prev) => (prev ? { ...prev, placeables: data.placeables } : prev));
+            } else {
+                setActionError("Failed to update inventory");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        }
+    };
+
+    const removeInventoryItem = async (slot: number) => {
+        if (!confirm("Remove this item from the player's inventory?")) return;
+
+        setActionError(null);
+        try {
+            const res = await signedFetch(`/api/admin/players/${userId}/inventory`, "removeInventoryItem", `${userId}:${slot}`, { slot });
+            if (res.ok) {
+                setPlayer((prev) => (prev ? { ...prev, inventory: prev.inventory.filter((i) => i.slot !== slot) } : prev));
+            } else {
+                setActionError("Failed to remove item");
             }
         } catch (err: any) {
             setActionError(err.message || "Signature failed");
@@ -234,8 +298,30 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                             ) : (
                                 <div className="grid grid-cols-2 gap-1.5">
                                     {player.inventory.map((i) => (
-                                        <div key={i.slot} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white">
-                                            {i.itemId} × {i.quantity}
+                                        <div key={i.slot} className="flex items-center justify-between gap-1.5 bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white">
+                                            <span className="truncate">{i.itemId} × {i.quantity}</span>
+                                            <button
+                                                onClick={() => removeInventoryItem(i.slot)}
+                                                className="text-[#6B7280] hover:text-red-400 transition-colors flex-shrink-0"
+                                                title="Remove"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">PLACEABLES</div>
+                            {Object.keys(player.placeables).length === 0 ? (
+                                <p className="text-[#6B7280] text-xs">None owned.</p>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {Object.entries(player.placeables).map(([itemId, qty]) => (
+                                        <div key={itemId} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white">
+                                            {PLACEABLE_ITEMS.find((p) => p.id === itemId)?.name || itemId} × {qty}
                                         </div>
                                     ))}
                                 </div>
@@ -302,6 +388,53 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                 >
                                     Reset Skin
                                 </button>
+                            </div>
+
+                            <div>
+                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">ASH</div>
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={ashAmountInput}
+                                        onChange={(e) => setAshAmountInput(e.target.value)}
+                                        className="w-24 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
+                                    />
+                                    <button onClick={() => adjustAsh(1)} className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80]">
+                                        Grant
+                                    </button>
+                                    <button onClick={() => adjustAsh(-1)} className="btn-secondary px-3 py-1.5 text-xs text-red-400">
+                                        Take
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">GRANT / TAKE ITEM</div>
+                                <div className="flex items-center gap-1.5">
+                                    <select
+                                        value={itemToGrant}
+                                        onChange={(e) => setItemToGrant(e.target.value)}
+                                        className="flex-1 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
+                                    >
+                                        {PLACEABLE_ITEMS.map((item) => (
+                                            <option key={item.id} value={item.id}>{item.name}</option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={itemQuantityInput}
+                                        onChange={(e) => setItemQuantityInput(e.target.value)}
+                                        className="w-16 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none flex-shrink-0"
+                                    />
+                                    <button onClick={() => adjustPlaceable(itemToGrant, 1)} className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] flex-shrink-0">
+                                        Grant
+                                    </button>
+                                    <button onClick={() => adjustPlaceable(itemToGrant, -1)} className="btn-secondary px-3 py-1.5 text-xs text-red-400 flex-shrink-0">
+                                        Take
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </>

@@ -216,8 +216,9 @@ export class Player extends Entity {
 
         const isSprinting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
         this.isShooting = this.inputManager.isMousePressed(0);
+        const isFiringSlowdown = this.isShooting && this.weaponEquipped;
         const shouldFaceLookDirection = this.isShooting || isInteracting;
-        const currentSpeed = this.isShooting
+        const currentSpeed = isFiringSlowdown
             ? this.speed * this.SHOOTING_SPEED_MULTIPLIER
             : this.speed * (isSprinting ? this.sprintMultiplier : 1);
 

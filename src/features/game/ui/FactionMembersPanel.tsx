@@ -9,21 +9,18 @@ import { NicknameMenuActions } from "./shell/NicknameMenu";
 
 interface FactionMembersPanelProps {
     faction: FactionDetail;
-    myWallet: string;
     onClaimCreator: () => void;
     onLeaveFaction: () => void;
     getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
 }
 
-export function FactionMembersPanel({ faction, myWallet, onClaimCreator, onLeaveFaction, getNicknameMenuActions }: FactionMembersPanelProps) {
-    const isVerifiedCreator = faction.verifiedCreatorWallet === myWallet;
-
+export function FactionMembersPanel({ faction, onClaimCreator, onLeaveFaction, getNicknameMenuActions }: FactionMembersPanelProps) {
     return (
         <div className="space-y-4">
             <FactionHeader faction={faction} />
             <FactionRosterList faction={faction} getNicknameMenuActions={getNicknameMenuActions} />
 
-            {!isVerifiedCreator && (
+            {!faction.verifiedCreatorWallet && (
                 <div className="bg-[rgba(192,132,252,0.06)] border border-[rgba(192,132,252,0.2)] rounded-lg p-3 space-y-2">
                     <p className="text-[#8B8F98] text-xs">
                         Are you the wallet that created ${faction.symbol || "this token"}? Verifying gives you priority over

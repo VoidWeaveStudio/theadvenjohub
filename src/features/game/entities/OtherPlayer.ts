@@ -321,6 +321,10 @@ export class OtherPlayer extends Entity {
         this.targetPitch = data.pitch || 0;
         this.targetState = (data.state as any) || 'idle';
 
+        if (data.weaponEquipped !== undefined) {
+            this.setWeaponVisible(data.weaponEquipped);
+        }
+
         if (data.alive !== undefined) {
             this.setDead(!data.alive);
         }

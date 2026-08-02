@@ -16,7 +16,7 @@ interface NotificationsProps {
 
 export function Notifications({ notifications, onRemove }: NotificationsProps) {
     return (
-        <div className="absolute top-20 right-4 space-y-2 pointer-events-none z-40 w-80">
+        <div className="absolute top-20 right-4 space-y-2 pointer-events-none z-[300] w-80">
             {notifications.map((n) => (
                 <NotificationItem key={n.id} notification={n} onRemove={onRemove} />
             ))}

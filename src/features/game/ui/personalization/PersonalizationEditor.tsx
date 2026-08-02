@@ -6,6 +6,7 @@ import { X, Palette, RotateCcw, Loader2 } from "lucide-react";
 import { ResourceManager } from "../../core/ResourceManager";
 import { PaintEditorScene } from "./PaintEditorScene";
 import { SoundManager } from "../../core/SoundManager";
+import { ColorPalette } from "../shell/ColorPalette";
 
 interface PersonalizationEditorProps {
     isOpen: boolean;
@@ -14,8 +15,6 @@ interface PersonalizationEditorProps {
     onSave: (blob: Blob) => Promise<void>;
     onNotification?: (msg: string, duration?: number) => void;
 }
-
-const BRUSH_COLORS = ["#ffffff", "#111827", "#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ec4899"];
 
 export function PersonalizationEditor({ isOpen, onClose, currentSkinUrl, onSave, onNotification }: PersonalizationEditorProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -116,21 +115,8 @@ export function PersonalizationEditor({ isOpen, onClose, currentSkinUrl, onSave,
 
                         <div>
                             <label className="text-[#8B8F98] text-xs font-bold tracking-wider">COLOR</label>
-                            <input
-                                type="color"
-                                value={color}
-                                onChange={(e) => setColor(e.target.value)}
-                                className="w-full h-9 mt-2 bg-transparent border border-white/10 rounded cursor-pointer"
-                            />
-                            <div className="grid grid-cols-4 gap-1.5 mt-2">
-                                {BRUSH_COLORS.map((c) => (
-                                    <button
-                                        key={c}
-                                        onClick={() => setColor(c)}
-                                        className={`w-full aspect-square rounded border-2 ${color === c ? "border-[#4FC3FF]" : "border-white/10"}`}
-                                        style={{ backgroundColor: c }}
-                                    />
-                                ))}
+                            <div className="mt-2">
+                                <ColorPalette color={color} onChange={setColor} />
                             </div>
                         </div>
 

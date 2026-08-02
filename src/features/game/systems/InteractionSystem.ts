@@ -38,6 +38,10 @@ export class InteractionSystem extends System {
     public onCanyonReturn?: () => void;
     public onOpenTokenUI?: (token: any) => void;
     public onEnterLocation?: (locationId: string) => void;
+    public onOpenSignEditor?: (signId: string) => void;
+    public onOpenSignViewer?: (signId: string) => void;
+    public localUserId: string = "";
+    public isBlueprintActive: boolean = false;
 
     public setScene(scene: THREE.Scene) {
         this.scene = scene;
@@ -163,6 +167,23 @@ export class InteractionSystem extends System {
                 this.onPrompt?.("[E] Return to the Outpost");
                 if (isEJustPressed === true) {
                     this.onCanyonReturn?.();
+                }
+            } else if (id?.startsWith("sign-")) {
+                const ownerId = nearest.obj.userData.ownerId;
+                const hasContent = !!nearest.obj.userData.contentType;
+                const isOwner = ownerId === this.localUserId;
+                if (isOwner && this.isBlueprintActive) {
+                    this.onPrompt?.("[E] Read Sign  •  [RMB] Delete sign forever (no refund)");
+                } else {
+                    this.onPrompt?.("[E] Read Sign");
+                }
+                if (isEJustPressed === true) {
+                    const signId = id.slice("sign-".length);
+                    if (!hasContent && isOwner) {
+                        this.onOpenSignEditor?.(signId);
+                    } else {
+                        this.onOpenSignViewer?.(signId);
+                    }
                 }
             }
         } else {

@@ -42,11 +42,15 @@ export async function GET(
 
         let ash = 0;
         let skinTextureUrl: string | null = null;
+        let placeables: Record<string, number> = {};
         if (progress?.data) {
             try {
                 const parsedProgress = JSON.parse(progress.data);
                 ash = Number(parsedProgress?.ash) || 0;
                 skinTextureUrl = typeof parsedProgress?.skinTextureUrl === "string" ? parsedProgress.skinTextureUrl : null;
+                if (parsedProgress?.placeables && typeof parsedProgress.placeables === "object") {
+                    placeables = parsedProgress.placeables;
+                }
             } catch {
                 ash = 0;
             }
@@ -101,6 +105,7 @@ export async function GET(
                 },
                 ash,
                 skinTextureUrl,
+                placeables,
                 locationId: progress?.locationId ?? null,
                 inventory: inventory.map((i) => ({ slot: i.slot, itemId: i.itemId, quantity: i.quantity })),
                 factions: factionsList,

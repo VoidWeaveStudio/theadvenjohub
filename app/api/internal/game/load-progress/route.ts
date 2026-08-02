@@ -11,6 +11,15 @@ import {
 } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
 
+function safeJsonParse(text: string | null): Record<string, unknown> {
+    if (!text) return {};
+    try {
+        return JSON.parse(text);
+    } catch {
+        return {};
+    }
+}
+
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
         return unauthorizedResponse();
@@ -70,7 +79,7 @@ export async function POST(req: NextRequest) {
                 ],
                 rotation: parseFloat(progress.rotation),
                 health: progress.health,
-                data: progress.data ? JSON.parse(progress.data) : {},
+                data: safeJsonParse(progress.data),
             } : null,
             nickname: nickname?.nickname || null,
             buildings: buildings.map((b) => ({
@@ -80,13 +89,13 @@ export async function POST(req: NextRequest) {
                 gridZ: b.gridZ,
                 type: b.type,
                 rotation: b.rotation,
-                data: b.data ? JSON.parse(b.data) : {},
+                data: safeJsonParse(b.data),
             })),
             inventory: inventory.map((i) => ({
                 slot: i.slot,
                 itemId: i.itemId,
                 quantity: i.quantity,
-                data: i.data ? JSON.parse(i.data) : {},
+                data: safeJsonParse(i.data),
             })),
             statistics: statistics ? {
                 playtimeSeconds: statistics.playtimeSeconds,

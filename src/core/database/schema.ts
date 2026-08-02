@@ -314,6 +314,25 @@ export const gameInventories = pgTable("game_inventories", {
   index("idx_game_inventories_user_game").on(table.userId, table.gameId),
 ]);
 
+export const gameSigns = pgTable("game_signs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  locationId: varchar("location_id", { length: 50 }).default("main-world").notNull(),
+  positionX: varchar("position_x", { length: 20 }).notNull(),
+  positionY: varchar("position_y", { length: 20 }).notNull(),
+  positionZ: varchar("position_z", { length: 20 }).notNull(),
+  rotation: varchar("rotation", { length: 20 }).default("0").notNull(),
+  contentType: varchar("content_type", { length: 10 }),
+  textContent: varchar("text_content", { length: 200 }),
+  drawingUrl: varchar("drawing_url", { length: 512 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  contentSetAt: timestamp("content_set_at"),
+}, (table) => [
+  index("idx_game_signs_game_location").on(table.gameId, table.locationId),
+  index("idx_game_signs_user").on(table.userId),
+]);
+
 export const gameStatistics = pgTable("game_statistics", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id),
@@ -425,6 +444,22 @@ export const mailMessages = pgTable("mail_messages", {
 }, (table) => [
   index("idx_mail_recipient").on(table.recipientUserId),
   index("idx_mail_sender").on(table.senderUserId),
+]);
+
+export const chatMessages = pgTable("chat_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  senderUserId: uuid("sender_user_id").notNull().references(() => users.id),
+  senderWallet: varchar("sender_wallet", { length: 44 }).notNull(),
+  senderNickname: varchar("sender_nickname", { length: 30 }).notNull(),
+  factionId: uuid("faction_id"),
+  message: varchar("message", { length: 500 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+  deletedByAdminWallet: varchar("deleted_by_admin_wallet", { length: 44 }),
+}, (table) => [
+  index("idx_chat_messages_game_created").on(table.gameId, table.createdAt),
+  index("idx_chat_messages_sender").on(table.senderUserId),
 ]);
 
 export const userAchievements = pgTable("user_achievements", {

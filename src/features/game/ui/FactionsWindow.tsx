@@ -175,7 +175,6 @@ export function FactionsWindow({
                     viewedFaction && (
                         <FactionMembersPanel
                             faction={viewedFaction}
-                            myWallet={myWallet}
                             onClaimCreator={() => onClaimCreator(viewedFaction.id)}
                             onLeaveFaction={() => onLeaveFaction(viewedFaction.id)}
                             getNicknameMenuActions={getNicknameMenuActions}

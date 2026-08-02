@@ -1,7 +1,7 @@
 // src/features/game/ui/Hotbar.tsx
 "use client";
 
-import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack } from "lucide-react";
+import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack, Lock } from "lucide-react";
 
 interface HotbarSlot {
     id: string;
@@ -9,6 +9,8 @@ interface HotbarSlot {
     name: string;
     equipped: boolean;
     count?: number;
+    locked?: boolean;
+    lockReason?: string;
 }
 
 interface HotbarProps {
@@ -37,14 +39,16 @@ export function Hotbar({ slots, onSlotClick }: HotbarProps) {
                         key={slot.id}
                         onClick={() => onSlotClick?.(i)}
                         className={`
-                            relative w-16 h-16 rounded-[10px] border-2 backdrop-blur-md 
+                            relative w-16 h-16 rounded-[10px] border-2 backdrop-blur-md
                             flex flex-col items-center justify-center
                             transition-all duration-200 cursor-pointer
-                            ${slot.equipped
-                                ? "border-[#4FD1FF] bg-[rgba(12,12,14,0.85)] shadow-lg shadow-[#4FD1FF]/20 scale-110"
-                                : slot.icon
-                                    ? "border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[rgba(255,255,255,0.4)] hover:bg-[rgba(12,12,14,0.75)]"
-                                    : "border-[rgba(255,255,255,0.1)] bg-[rgba(12,12,14,0.4)]"
+                            ${slot.locked
+                                ? "border-[rgba(255,255,255,0.1)] bg-[rgba(12,12,14,0.5)] opacity-50"
+                                : slot.equipped
+                                    ? "border-[#4FD1FF] bg-[rgba(12,12,14,0.85)] shadow-lg shadow-[#4FD1FF]/20 scale-110"
+                                    : slot.icon
+                                        ? "border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[rgba(255,255,255,0.4)] hover:bg-[rgba(12,12,14,0.75)]"
+                                        : "border-[rgba(255,255,255,0.1)] bg-[rgba(12,12,14,0.4)]"
                             }
                         `}
                     >
@@ -60,6 +64,12 @@ export function Hotbar({ slots, onSlotClick }: HotbarProps) {
                             <div className="text-2xl leading-none">{slot.icon}</div>
                         ) : null}
 
+                        {slot.locked && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-[8px]">
+                                <Lock className="w-6 h-6 text-[#E5E7EB]" />
+                            </div>
+                        )}
+
                         {slot.count !== undefined && slot.count > 1 && (
                             <span className="absolute bottom-1 right-2 text-xs font-bold text-[#E5E7EB]">
                                 {slot.count}
@@ -73,7 +83,9 @@ export function Hotbar({ slots, onSlotClick }: HotbarProps) {
                         {slot.icon && (
                             <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
                                 <div className="bg-[rgba(12,12,14,0.9)] border border-[rgba(255,255,255,0.1)] rounded-md px-2 py-1 whitespace-nowrap">
-                                    <span className="text-[10px] text-[#E5E7EB] font-medium">{slot.name}</span>
+                                    <span className="text-[10px] text-[#E5E7EB] font-medium">
+                                        {slot.locked && slot.lockReason ? slot.lockReason : slot.name}
+                                    </span>
                                 </div>
                             </div>
                         )}

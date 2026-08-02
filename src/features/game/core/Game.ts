@@ -13,6 +13,7 @@ import { InteractionSystem } from "../systems/InteractionSystem";
 import { NetworkSystem } from "../systems/NetworkSystem";
 import { EnemySystem } from "../systems/EnemySystem";
 import { LootSystem } from "../systems/LootSystem";
+import { BuildSystem } from "../systems/BuildSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
 import { LocationManager } from "../world/LocationManager";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
@@ -44,6 +45,7 @@ export interface HUDState {
     prompt: string | null;
     isReloading: boolean;
     isWeaponEquipped: boolean;
+    equippedTool: "weapon" | "blueprint" | null;
 }
 
 export interface DamageEvent {
@@ -76,10 +78,13 @@ export class Game {
     private networkSystem: NetworkSystem;
     public readonly enemySystem: EnemySystem;
     public readonly lootSystem: LootSystem;
+    public readonly buildSystem: BuildSystem;
     public readonly voiceChat: VoiceChatSystem;
     public readonly locationManager: LocationManager;
     public inventory: InventoryEntry[] = [];
     public ash: number = 0;
+    public placeables: Record<string, number> = {};
+    private pendingSignSave: { signId: string; resolve: () => void; reject: (err: Error) => void } | null = null;
 
     public isDead: boolean = false;
     public killerName: string | null = null;
@@ -112,6 +117,7 @@ export class Game {
         prompt: null,
         isReloading: false,
         isWeaponEquipped: true,
+        equippedTool: "weapon",
     };
 
     private lastStateEmit: number = 0;
@@ -163,6 +169,7 @@ export class Game {
         this.networkSystem = new NetworkSystem(this.networkManager);
         this.enemySystem = new EnemySystem();
         this.lootSystem = new LootSystem();
+        this.buildSystem = new BuildSystem();
         this.voiceChat = new VoiceChatSystem();
     }
 
@@ -254,6 +261,10 @@ export class Game {
 
                 this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
                 this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight);
+                this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId);
+                this.buildSystem.onNotification = (msg, duration) => {
+                    this.onNotification?.(msg, duration);
+                };
 
                 this.shootingSystem.prewarm();
                 await this.lootSystem.prewarm();
@@ -327,6 +338,37 @@ export class Game {
                     this.onOpenAlfredoUI?.();
                 };
 
+                this.interactionSystem.localUserId = this.session.userId;
+                this.interactionSystem.onOpenSignEditor = (signId) => {
+                    this.onOpenSignEditorUI?.(signId);
+                };
+                this.interactionSystem.onOpenSignViewer = (signId) => {
+                    const sign = this.buildSystem.getSign(signId);
+                    if (sign) {
+                        this.onOpenSignViewerUI?.({
+                            id: sign.id,
+                            ownerNickname: sign.ownerNickname,
+                            contentType: sign.contentType,
+                            textContent: sign.textContent,
+                            drawingUrl: sign.drawingUrl,
+                        });
+                    }
+                };
+
+                this.networkManager.onSignState = (signs) => {
+                    this.buildSystem.handleSignState(signs);
+                };
+                this.networkManager.onSignSpawn = (sign) => {
+                    this.buildSystem.handleSignSpawn(sign);
+                };
+                this.networkManager.onSignContentSet = (data) => {
+                    this.buildSystem.handleSignContentSet(data);
+                    this.resolvePendingSignSave(data.id);
+                };
+                this.networkManager.onSignDespawn = (id) => {
+                    this.buildSystem.handleSignDespawn(id);
+                };
+
                 this.interactionSystem.onCanyonReturn = () => {
                     this.networkManager.sendCanyonReturnToHub();
                 };
@@ -390,6 +432,7 @@ export class Game {
 
             this.enemySystem.clear();
             this.lootSystem.clear();
+            this.buildSystem.clear();
 
             const newLocation = await this.locationManager.loadLocation(targetLocationId);
             if (this.disposed) return;
@@ -423,6 +466,7 @@ export class Game {
             this.interactionSystem.clearInteractables();
             this.enemySystem.setScene(newLocation.scene);
             this.lootSystem.setScene(newLocation.scene);
+            this.buildSystem.setScene(newLocation.scene, newLocation.id);
 
             this.shootingSystem.prewarm();
             await this.lootSystem.prewarm();
@@ -438,6 +482,10 @@ export class Game {
 
             applyLocationMovementConfig(this, newLocation);
             configureLocationSpecifics(this, newLocation);
+
+            if (newLocation.id !== 'main-world' && this.hudState.equippedTool === 'blueprint') {
+                this.setBlueprintEquipped(false);
+            }
 
             const spawnPoint = options?.position
                 ? new THREE.Vector3(options.position[0], options.position[1], options.position[2])
@@ -543,6 +591,7 @@ export class Game {
                 this.player.getWeapon().update(delta);
             }
             this.lootSystem.update(delta);
+            this.buildSystem.update(delta);
 
             if (currentLocation.update) {
                 const dayTime = this.dayNightConfig
@@ -602,6 +651,36 @@ export class Game {
         this.hudState.isWeaponEquipped = finalEquipped;
         this.player.setWeaponVisible(finalEquipped);
         this.shootingSystem.setWeaponEquipped(finalEquipped);
+
+        if (finalEquipped) {
+            this.hudState.equippedTool = 'weapon';
+            this.buildSystem.setActive(false);
+        } else if (this.hudState.equippedTool === 'weapon') {
+            this.hudState.equippedTool = null;
+        }
+        this.interactionSystem.isBlueprintActive = this.hudState.equippedTool === 'blueprint';
+        this.onEquippedToolChange?.(this.hudState.equippedTool);
+        this.emitState(true);
+    }
+
+    setBlueprintEquipped(equipped: boolean) {
+        const currentLocation = this.locationManager.getCurrentLocation();
+        const finalEquipped = currentLocation?.id === 'main-world' ? equipped : false;
+
+        if (finalEquipped && this.hudState.equippedTool !== 'blueprint') {
+            this.onNotification?.("📐 Press Q to choose what to place", 3000);
+        }
+
+        if (finalEquipped && this.hudState.isWeaponEquipped) {
+            this.hudState.isWeaponEquipped = false;
+            this.player.setWeaponVisible(false);
+            this.shootingSystem.setWeaponEquipped(false);
+        }
+
+        this.hudState.equippedTool = finalEquipped ? 'blueprint' : (this.hudState.equippedTool === 'blueprint' ? null : this.hudState.equippedTool);
+        this.interactionSystem.isBlueprintActive = this.hudState.equippedTool === 'blueprint';
+        this.buildSystem.setActive(finalEquipped);
+        this.onEquippedToolChange?.(this.hudState.equippedTool);
         this.emitState(true);
     }
 
@@ -620,6 +699,49 @@ export class Game {
 
     sellToken(address: string, quantity?: number) {
         this.networkManager.sendSellToken(address, quantity);
+    }
+
+    buyShopItem(itemId: string, quantity: number = 1) {
+        this.networkManager.sendShopBuyItem(itemId, quantity);
+    }
+
+    armPlaceable(itemId: string) {
+        this.buildSystem.armPlaceable(itemId);
+    }
+
+    setSignText(signId: string, text: string): Promise<void> {
+        return this.awaitSignSave(signId, () => this.networkManager.sendSignSetText(signId, text));
+    }
+
+    setSignDrawingUrl(signId: string, url: string): Promise<void> {
+        return this.awaitSignSave(signId, () => this.networkManager.sendSignSetDrawingUrl(signId, url));
+    }
+
+    private awaitSignSave(signId: string, send: () => void): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.pendingSignSave = { signId, resolve, reject };
+            send();
+            setTimeout(() => {
+                if (this.pendingSignSave?.signId === signId) {
+                    this.pendingSignSave.reject(new Error("Timed out waiting for the server"));
+                    this.pendingSignSave = null;
+                }
+            }, 8000);
+        });
+    }
+
+    public resolvePendingSignSave(signId: string) {
+        if (this.pendingSignSave?.signId === signId) {
+            this.pendingSignSave.resolve();
+            this.pendingSignSave = null;
+        }
+    }
+
+    public rejectPendingSignSave(message: string) {
+        if (this.pendingSignSave) {
+            this.pendingSignSave.reject(new Error(message));
+            this.pendingSignSave = null;
+        }
     }
 
     talkToQuestGiver(questId: string) {

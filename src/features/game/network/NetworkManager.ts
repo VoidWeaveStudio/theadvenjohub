@@ -74,6 +74,18 @@ export type LootDropData = {
   tokens: LootTokenData[];
 };
 
+export type SignData = {
+  id: string;
+  ownerId: string;
+  ownerNickname: string;
+  position: number[];
+  rotation: number;
+  contentType: "text" | "draw" | null;
+  textContent: string | null;
+  drawingUrl: string | null;
+  createdAt: string | number;
+};
+
 export type QuestStatus = "not_started" | "active" | "ready_to_turn_in" | "completed";
 
 export type QuestInfoData = {
@@ -356,7 +368,11 @@ export class NetworkManager {
   public onLootState?: (loot: LootDropData[]) => void;
   public onLootSpawn?: (loot: LootDropData) => void;
   public onLootDespawn?: (id: string) => void;
-  public onInventoryUpdate?: (data: { inventory: InventoryEntry[]; ash: number }) => void;
+  public onSignState?: (signs: SignData[]) => void;
+  public onSignSpawn?: (sign: SignData) => void;
+  public onSignContentSet?: (data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) => void;
+  public onSignDespawn?: (id: string) => void;
+  public onInventoryUpdate?: (data: { inventory: InventoryEntry[]; ash: number; placeables: Record<string, number> }) => void;
   public onSellResult?: (data: {
     address: string;
     quantitySold: number;
@@ -632,9 +648,23 @@ export class NetworkManager {
       case "lootDespawn":
         this.onLootDespawn?.(data.id);
         break;
+      case "signState":
+        if (Array.isArray(data.signs)) {
+          this.onSignState?.(data.signs);
+        }
+        break;
+      case "signSpawn":
+        this.onSignSpawn?.(data.sign);
+        break;
+      case "signContentSet":
+        this.onSignContentSet?.(data);
+        break;
+      case "signDespawn":
+        this.onSignDespawn?.(data.id);
+        break;
       case "inventoryUpdate":
         if (Array.isArray(data.inventory)) {
-          this.onInventoryUpdate?.({ inventory: data.inventory, ash: data.ash ?? 0 });
+          this.onInventoryUpdate?.({ inventory: data.inventory, ash: data.ash ?? 0, placeables: data.placeables ?? {} });
         }
         break;
       case "sellResult":
@@ -887,6 +917,31 @@ export class NetworkManager {
   sendSellToken(address: string, quantity?: number) {
     if (!this.authenticated) return;
     this.send({ type: "sellToken", address, quantity });
+  }
+
+  sendShopBuyItem(itemId: string, quantity: number = 1) {
+    if (!this.authenticated) return;
+    this.send({ type: "shopBuyItem", itemId, quantity });
+  }
+
+  sendSignPlace(position: number[], rotation: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "signPlace", position, rotation });
+  }
+
+  sendSignRemove(id: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "signRemove", id });
+  }
+
+  sendSignSetText(id: string, text: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "signSetText", id, text });
+  }
+
+  sendSignSetDrawingUrl(id: string, url: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "signSetDrawingUrl", id, url });
   }
 
   sendQuestInteract(questId: string) {

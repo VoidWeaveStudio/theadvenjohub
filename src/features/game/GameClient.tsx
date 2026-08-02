@@ -29,6 +29,9 @@ import { ShopWindow } from "./ui/ShopWindow";
 import { LeaderboardsWindow } from "./ui/LeaderboardsWindow";
 import { SettingsWindow } from "./ui/SettingsWindow";
 import { SupportModal } from "./ui/SupportModal";
+import { SignEditorModal } from "./ui/SignEditorModal";
+import { SignViewerModal, SignViewData } from "./ui/SignViewerModal";
+import { PlaceableMenu } from "./ui/PlaceableMenu";
 import { PlayerProfileCard } from "./ui/PlayerProfileCard";
 import { FactionInvitePicker } from "./ui/FactionInvitePicker";
 import { NicknameMenuActions } from "./ui/shell/NicknameMenu";
@@ -86,6 +89,9 @@ export function GameClient({ slug }: GameClientProps) {
     setIsSupportOpen(true);
   };
   const [isVoiceCapturing, setIsVoiceCapturing] = useState(false);
+  const [signEditorId, setSignEditorId] = useState<string | null>(null);
+  const [viewingSign, setViewingSign] = useState<SignViewData | null>(null);
+  const [isPlaceableMenuOpen, setIsPlaceableMenuOpen] = useState(false);
 
   const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
   const [isCreateFactionModalOpen, setIsCreateFactionModalOpen] = useState(false);
@@ -107,30 +113,42 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
-    { id: "slot2", icon: "", name: "", equipped: false },
+    { id: "blueprint", icon: "📐", name: "Blueprint", equipped: false },
     { id: "slot3", icon: "", name: "", equipped: false },
     { id: "slot4", icon: "", name: "", equipped: false },
     { id: "slot5", icon: "", name: "", equipped: false },
   ]);
 
+  const getSlotLockReason = (slotId: string): string | null => {
+    if (slotId === "rifle" && currentLocationId === "tower-main-hall") {
+      return "🔒 Weapons are not allowed in the Main Hall";
+    }
+    if (slotId === "blueprint" && currentLocationId !== "main-world") {
+      return "🔒 Blueprint can only be used in the open world";
+    }
+    return null;
+  };
+
+  const displayHotbarSlots = hotbarSlots.map((slot) => {
+    const lockReason = getSlotLockReason(slot.id);
+    return lockReason ? { ...slot, locked: true, lockReason } : slot;
+  });
+
   const handleSlotClick = (index: number) => {
-    setHotbarSlots((prev) => {
-      const slot = prev[index];
-      if (!slot.icon) return prev;
+    const slot = hotbarSlots[index];
+    if (!slot.icon) return;
 
-      if (slot.equipped) {
-        const newSlots = prev.map((s) => ({ ...s, equipped: false }));
-        gameRef.current?.setWeaponEquipped(false);
-        return newSlots;
-      }
+    const lockReason = getSlotLockReason(slot.id);
+    if (lockReason) {
+      notifications.addNotification(lockReason, 2500);
+      return;
+    }
 
-      const newSlots = prev.map((s, i) => ({
-        ...s,
-        equipped: i === index,
-      }));
-      gameRef.current?.setWeaponEquipped(true);
-      return newSlots;
-    });
+    if (slot.id === "rifle") {
+      gameRef.current?.setWeaponEquipped(!slot.equipped);
+    } else if (slot.id === "blueprint") {
+      gameRef.current?.setBlueprintEquipped(!slot.equipped);
+    }
   };
 
   useEffect(() => {
@@ -199,9 +217,9 @@ export function GameClient({ slug }: GameClientProps) {
           setShowFloorSelector(isOpen);
           if (isOpen) document.exitPointerLock();
         };
-        game.onInventoryChange = (inv, ashValue) => {
+        game.onInventoryChange = (inv, ashValue, placeablesValue) => {
           if (cancelled) return;
-          inventory.handleInventoryChange(inv, ashValue);
+          inventory.handleInventoryChange(inv, ashValue, placeablesValue);
         };
         game.onOpenTokenUI = (tokenData) => {
           if (cancelled) return;
@@ -223,6 +241,25 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           setIsAlfredoOpen(true);
           document.exitPointerLock();
+        };
+        game.onOpenSignEditorUI = (signId) => {
+          if (cancelled) return;
+          setSignEditorId(signId);
+          document.exitPointerLock();
+        };
+        game.onOpenSignViewerUI = (sign) => {
+          if (cancelled) return;
+          setViewingSign(sign);
+          document.exitPointerLock();
+        };
+        game.onEquippedToolChange = (tool) => {
+          if (cancelled) return;
+          setHotbarSlots((prev) =>
+            prev.map((s) => ({
+              ...s,
+              equipped: (s.id === "rifle" && tool === "weapon") || (s.id === "blueprint" && tool === "blueprint"),
+            }))
+          );
         };
         game.onMySkinChange = (url) => { if (!cancelled) setMySkinUrl(url); };
         game.onQuestInfo = (data) => { if (!cancelled) quest.handleQuestInfo(data); };
@@ -366,6 +403,18 @@ export function GameClient({ slug }: GameClientProps) {
           setIsAlfredoOpen(false);
           return;
         }
+        if (signEditorId !== null) {
+          setSignEditorId(null);
+          return;
+        }
+        if (viewingSign !== null) {
+          setViewingSign(null);
+          return;
+        }
+        if (isPlaceableMenuOpen) {
+          setIsPlaceableMenuOpen(false);
+          return;
+        }
         if (canyonMap.isCanyonMapOpen) {
           canyonMap.setIsCanyonMapOpen(false);
           return;
@@ -388,7 +437,7 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || activeTopWindow !== null) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -427,11 +476,16 @@ export function GameClient({ slug }: GameClientProps) {
         if (index !== -1) {
           handleSlotClick(index);
         }
+
+        if (e.code === "KeyQ" && hud.hudState.equippedTool === "blueprint") {
+          setIsPlaceableMenuOpen(true);
+          document.exitPointerLock();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, activeTopWindow]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, hud.hudState.equippedTool]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -464,6 +518,30 @@ export function GameClient({ slug }: GameClientProps) {
     const data: { url: string } = await res.json();
     gameRef.current?.applyAndBroadcastSkin(data.url);
     notifications.addNotification("🎨 Your look has been saved", 2500);
+  };
+
+  const handleSignSaveText = async (signId: string, text: string) => {
+    await gameRef.current?.setSignText(signId, text);
+  };
+
+  const handleSignSaveDrawing = async (signId: string, blob: Blob) => {
+    const formData = new FormData();
+    formData.append("file", blob, "sign.png");
+
+    const csrf = getCsrfToken();
+    const res = await fetch("/api/game/sign/upload", {
+      method: "POST",
+      credentials: "include",
+      headers: csrf ? { "x-csrf-token": csrf } : undefined,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      throw new Error("upload_failed");
+    }
+
+    const data: { url: string } = await res.json();
+    await gameRef.current?.setSignDrawingUrl(signId, data.url);
   };
 
   const handleSendMessage = (message: string) => {
@@ -574,7 +652,7 @@ export function GameClient({ slug }: GameClientProps) {
         badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests }}
       />
       <Hotbar
-        slots={hotbarSlots}
+        slots={displayHotbarSlots}
         onSlotClick={handleSlotClick}
       />
       <Notifications notifications={notifications.notifications} onRemove={notifications.removeNotification} />
@@ -691,7 +769,35 @@ export function GameClient({ slug }: GameClientProps) {
         getNicknameMenuActions={getNicknameMenuActions}
       />
 
-      <ShopWindow isOpen={activeTopWindow === "shop"} onClose={() => setActiveTopWindow(null)} />
+      <ShopWindow
+        isOpen={activeTopWindow === "shop"}
+        onClose={() => setActiveTopWindow(null)}
+        ash={inventory.ash}
+        placeables={inventory.placeables}
+        onBuyItem={(itemId, quantity) => gameRef.current?.buyShopItem(itemId, quantity)}
+      />
+
+      <SignEditorModal
+        isOpen={signEditorId !== null}
+        onClose={() => setSignEditorId(null)}
+        signId={signEditorId}
+        onSubmitText={handleSignSaveText}
+        onSubmitDraw={handleSignSaveDrawing}
+        onNotification={notifications.addNotification}
+      />
+
+      <SignViewerModal
+        isOpen={viewingSign !== null}
+        onClose={() => setViewingSign(null)}
+        sign={viewingSign}
+      />
+
+      <PlaceableMenu
+        isOpen={isPlaceableMenuOpen}
+        onClose={() => setIsPlaceableMenuOpen(false)}
+        placeables={inventory.placeables}
+        onSelect={(itemId) => gameRef.current?.armPlaceable(itemId)}
+      />
 
       <LeaderboardsWindow
         isOpen={activeTopWindow === "leaderboards"}

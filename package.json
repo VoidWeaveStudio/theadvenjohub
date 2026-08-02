@@ -14,7 +14,8 @@
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "optimize:assets": "node scripts/optimize-assets.js"
   },
   "dependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.35.4",
@@ -66,5 +67,9 @@
     "tweetnacl-util": "^0.15.1",
     "typescript": "^5.8.3",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.4.2",
+    "glob": "^13.0.6"
   }
 }

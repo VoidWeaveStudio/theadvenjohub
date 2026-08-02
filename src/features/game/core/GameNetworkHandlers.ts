@@ -404,10 +404,12 @@ export function registerNetworkHandlers(game: Game) {
         game.lootSystem.handleLootDespawn(id);
     };
 
-    game.networkManager.onInventoryUpdate = ({ inventory, ash }) => {
+    game.networkManager.onInventoryUpdate = ({ inventory, ash, placeables }) => {
         game.inventory = inventory;
         game.ash = ash;
-        game.onInventoryChange?.(inventory, ash);
+        game.placeables = placeables;
+        game.buildSystem.setPlaceables(placeables);
+        game.onInventoryChange?.(inventory, ash, placeables);
     };
 
     game.networkManager.onSellResult = (data) => {
@@ -417,6 +419,7 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onServerError = (message) => {
         game.onNotification?.(`⚠️ ${message}`, 2500);
+        game.rejectPendingSignSave(message);
     };
 
     game.networkManager.onNicknameChanged = (nickname) => {

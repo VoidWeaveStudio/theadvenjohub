@@ -6,10 +6,11 @@ import { RefreshCw } from "lucide-react";
 import { AdminPlayersTable } from "./AdminPlayersTable";
 import { AdminFactionsTable } from "./AdminFactionsTable";
 import { AdminSupportTable } from "./AdminSupportTable";
+import { AdminChatTable } from "./AdminChatTable";
 import { AdminMaintenanceToggle } from "./AdminMaintenanceToggle";
 import { AdminTableRef } from "./AdminTableRef";
 
-type AdminTab = "players" | "factions" | "support";
+type AdminTab = "players" | "factions" | "support" | "chat";
 
 export function AdminDashboard() {
     const [tab, setTab] = useState<AdminTab>("players");
@@ -17,17 +18,19 @@ export function AdminDashboard() {
     const playersRef = useRef<AdminTableRef>(null);
     const factionsRef = useRef<AdminTableRef>(null);
     const supportRef = useRef<AdminTableRef>(null);
+    const chatRef = useRef<AdminTableRef>(null);
     const maintenanceRef = useRef<AdminTableRef>(null);
 
     const tabs: { id: AdminTab; label: string }[] = [
         { id: "players", label: "Players" },
         { id: "factions", label: "Factions" },
         { id: "support", label: "Support" },
+        { id: "chat", label: "Chat" },
     ];
 
     const handleRefresh = () => {
         maintenanceRef.current?.refresh();
-        const activeRef = { players: playersRef, factions: factionsRef, support: supportRef }[tab];
+        const activeRef = { players: playersRef, factions: factionsRef, support: supportRef, chat: chatRef }[tab];
         activeRef.current?.refresh();
     };
 
@@ -60,6 +63,7 @@ export function AdminDashboard() {
             {tab === "players" && <AdminPlayersTable ref={playersRef} />}
             {tab === "factions" && <AdminFactionsTable ref={factionsRef} />}
             {tab === "support" && <AdminSupportTable ref={supportRef} />}
+            {tab === "chat" && <AdminChatTable ref={chatRef} />}
         </div>
     );
 }
