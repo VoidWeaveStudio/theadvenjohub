@@ -6,6 +6,7 @@ import { CharacterAnimator } from "./CharacterAnimator";
 import { RIFLE_GRIP_QUATERNION, RIFLE_GRIP_OFFSET } from "./Weapon";
 import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl, disposePaintableMaterial } from "./characterPaint";
+import type { PlayerNetData } from "../network/NetworkManager";
 
 export class OtherPlayer extends Entity {
     public nickname: string;
@@ -32,6 +33,7 @@ export class OtherPlayer extends Entity {
     private health: number = 100;
     private hidden: boolean = false;
     private created: boolean = false;
+    private pendingJoinData: PlayerNetData | null = null;
 
     private hitbox: THREE.Mesh;
 
@@ -126,6 +128,14 @@ export class OtherPlayer extends Entity {
 
     public isCreated(): boolean {
         return this.created;
+    }
+
+    public setPendingJoinData(data: PlayerNetData) {
+        this.pendingJoinData = data;
+    }
+
+    public getPendingJoinData(): PlayerNetData | null {
+        return this.pendingJoinData;
     }
 
     private createNameTag(name: string): THREE.Sprite {

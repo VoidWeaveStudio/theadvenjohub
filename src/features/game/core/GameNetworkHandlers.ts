@@ -19,18 +19,6 @@ interface AuthData {
     skinTextureUrl?: string | null;
 }
 
-interface PlayerJoinData {
-    id: string;
-    nickname: string;
-    factionSymbol?: string | null;
-    factionImage?: string | null;
-    locationId?: string;
-    position?: number[];
-    rotation?: number;
-    isAdmin?: boolean;
-    isFactionCreator?: boolean;
-    skinTextureUrl?: string | null;
-}
 
 interface PlayerUpdateData {
     id: string;
@@ -89,7 +77,40 @@ interface LocalRespawnData {
     health: number;
 }
 
+// When a playerJoin/init arrives for someone not in our current (client-side)
+// location, we stash their data on a hidden placeholder instead of building
+// them — this commonly happens right after connecting, since the client
+// always bootstraps into tower-main-hall before restoring to the saved
+// location, so join broadcasts for that saved location arrive "too early".
+// Once our own location actually catches up, build any placeholders whose
+// stashed location now matches instead of leaving them permanently invisible
+// and non-interactable.
+function reconcilePendingOtherPlayers(game: Game, locationId: string) {
+    const currentLocation = game.locationManager.getCurrentLocation();
+    if (!currentLocation) return;
+    for (const op of game.otherPlayers.values()) {
+        if (op.isCreated()) continue;
+        const pending = op.getPendingJoinData();
+        if (!pending) continue;
+        const playerLocation = pending.locationId || 'main-world';
+        if (playerLocation !== locationId) continue;
+
+        op.create(currentLocation.scene, game.resourceManager);
+        op.setHidden(false);
+        game.shootingSystem.registerOtherPlayer(op.id, op.getHitbox());
+        op.updateFromNetwork(pending);
+        op.setBadges(pending.isAdmin ?? false, pending.isFactionCreator ?? false);
+        op.setSkinTexture(pending.skinTextureUrl ?? null);
+    }
+}
+
 export function registerNetworkHandlers(game: Game) {
+    const previousOnLocationChange = game.locationManager.onLocationChange;
+    game.locationManager.onLocationChange = (id: string) => {
+        previousOnLocationChange?.(id);
+        reconcilePendingOtherPlayers(game, id);
+    };
+
     game.networkManager.onPlayerLeaveLocation = (data: PlayerLeaveLocationData) => {
         const op = game.otherPlayers.get(data.playerId);
         if (!op) return;
@@ -204,17 +225,26 @@ export function registerNetworkHandlers(game: Game) {
         game.updateOnlineCount();
     };
 
-    game.networkManager.onPlayerJoin = (data: PlayerJoinData) => {
+    game.networkManager.onPlayerJoin = (data: PlayerNetData) => {
         if (data.id === game.localPlayerNetId) return;
         const currentLocation = game.locationManager.getCurrentLocation();
         if (!currentLocation) return;
         const playerLocation = data.locationId || 'main-world';
         if (playerLocation !== currentLocation.id) {
-            if (!game.otherPlayers.has(data.id)) {
-                const op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
-                op.setHidden(true);
-                game.otherPlayers.set(data.id, op);
+            let hiddenOp = game.otherPlayers.get(data.id);
+            if (!hiddenOp) {
+                hiddenOp = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
+                hiddenOp.setHidden(true);
+                game.otherPlayers.set(data.id, hiddenOp);
                 game.updateOnlineCount();
+            }
+            // Not in our current location (typically: we're still on the bootstrap
+            // location and haven't restored to our saved one yet). Remember the
+            // latest data so that once our location actually catches up to theirs,
+            // reconcilePendingOtherPlayers can build them in properly instead of
+            // leaving a permanently invisible, non-interactable placeholder.
+            if (!hiddenOp.isCreated()) {
+                hiddenOp.setPendingJoinData(data);
             }
             return;
         }

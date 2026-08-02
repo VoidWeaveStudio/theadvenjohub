@@ -139,6 +139,7 @@ export class BuildSystem extends System {
 
     public handleSignDespawn(id: string) {
         this.despawnLocal(id);
+        this.pendingSigns = this.pendingSigns.filter((s) => s.id !== id);
     }
 
     public handleSignContentSet(data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) {
@@ -217,7 +218,6 @@ export class BuildSystem extends System {
         for (const id of Array.from(this.signs.keys())) {
             this.despawnLocal(id);
         }
-        this.pendingSigns = [];
         if (this.ghost) {
             this.ghost.dispose(this.scene);
             this.ghost = null;
