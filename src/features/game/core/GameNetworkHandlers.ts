@@ -75,6 +75,7 @@ interface PlayerRespawnData {
 interface LocalRespawnData {
     position: number[];
     health: number;
+    locationId?: string;
 }
 
 // When a playerJoin/init arrives for someone not in our current (client-side)
@@ -182,7 +183,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onAuthError = (error) => {
-        if (error === 'banned') {
+        if (error === 'banned' || error === 'license_revoked') {
             game.networkManager.disconnect();
             game.onAuthError?.(error);
         }
@@ -403,15 +404,24 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onRespawn = (data: LocalRespawnData) => {
-        game.player.teleportTo(new THREE.Vector3().fromArray(data.position));
-        game.player.setHealth(data.health);
-        game.player.setDead(false);
-        game.hudState.health = game.player.health;
-        game.emitState(true);
-        game.onNotification?.('✨ Respawned!', 2000);
-        game.isDead = false;
-        game.killerName = null;
-        game.onDeathStateChange?.(false, null);
+        const finishRespawn = () => {
+            game.player.setHealth(data.health);
+            game.player.setDead(false);
+            game.hudState.health = game.player.health;
+            game.emitState(true);
+            game.onNotification?.('✨ Respawned!', 2000);
+            game.isDead = false;
+            game.killerName = null;
+            game.onDeathStateChange?.(false, null);
+        };
+
+        const currentLocationId = game.locationManager.getCurrentLocation()?.id;
+        if (data.locationId && data.locationId !== currentLocationId) {
+            game.changeLocation(data.locationId, { position: data.position, silent: true }).then(finishRespawn);
+        } else {
+            game.player.teleportTo(new THREE.Vector3().fromArray(data.position));
+            finishRespawn();
+        }
     };
 
     game.networkManager.onPositionCorrection = (data: { position: number[] }) => {

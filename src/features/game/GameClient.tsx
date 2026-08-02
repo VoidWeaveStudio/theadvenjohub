@@ -325,6 +325,9 @@ export function GameClient({ slug }: GameClientProps) {
           if (error === 'banned') {
             setAuthError("🚫 You have been banned from this game.");
             setLoading(false);
+          } else if (error === 'license_revoked') {
+            setAuthError("Your access to this game was revoked because you no longer meet the requirements of the faction promo code that granted it (left the faction or lost its token).");
+            setLoading(false);
           }
         };
         game.onDamageIndicatorUpdate = (attackerId, direction) => { if (!cancelled) hud.handleDamageIndicatorUpdate(attackerId, direction); };

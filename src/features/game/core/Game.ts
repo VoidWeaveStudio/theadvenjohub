@@ -456,14 +456,24 @@ export class Game {
             previousLocation.scene.remove(this.cameraController.yawObject);
             newLocation.scene.add(this.cameraController.yawObject);
 
+            // Anyone visible to us belonged to the location we're leaving —
+            // none of them are automatically relevant to where we're going.
+            // Detach and hide them here; the server's own notifyLocationTransition
+            // (triggered by sendLocationChange below) will tell us who's
+            // actually in the new location via fresh playerJoinLocation
+            // messages, which reveal-or-recreate as needed. Moving their
+            // meshes into the new scene instead (as this used to do) dragged
+            // players who never left the old location along as permanent,
+            // non-interactive ghosts.
             this.otherPlayers.forEach((op) => {
                 if (!op.isHidden()) {
                     previousLocation.scene.remove(op.mesh);
                     previousLocation.scene.remove(op.getHitbox());
-                    newLocation.scene.add(op.mesh);
-                    newLocation.scene.add(op.getHitbox());
+                    this.shootingSystem.unregisterOtherPlayer(op.id);
+                    op.setHidden(true);
                 }
             });
+            this.updateOnlineCount();
 
             this.locationManager.evictLocation(previousLocation.id);
 

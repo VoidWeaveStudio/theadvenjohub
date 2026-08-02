@@ -43,6 +43,17 @@ interface PlayerDetail {
         joinedAt: string;
     }[];
     achievements: { key: string; label: string; description: string; unlockedAt: string }[];
+    licenses: {
+        id: string;
+        gameId: string;
+        gameTitle: string;
+        isActive: boolean;
+        purchasedAt: string;
+        price: number;
+        txSignature: string | null;
+        grantedViaPromoFactionId: string | null;
+        promoFactionName: string | null;
+    }[];
 }
 
 interface AdminPlayerDetailModalProps {
@@ -243,6 +254,11 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                     Muted until {formatDate(player.mutedUntil)}
                                 </span>
                             )}
+                            {player.licenses.some((l) => l.isActive && l.promoFactionName) && (
+                                <span className="px-2 py-1 rounded-full font-bold bg-[rgba(255,209,102,0.15)] text-[#FFD166]">
+                                    🎟 Promo: {player.licenses.find((l) => l.isActive && l.promoFactionName)?.promoFactionName}
+                                </span>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-sm">
@@ -285,6 +301,24 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                     {player.achievements.map((a) => (
                                         <div key={a.key} title={a.description} className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.2)] rounded-lg px-2 py-1.5 text-xs text-[#FFD166] font-bold truncate">
                                             {a.label}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">GAME LICENSES ({player.licenses.length})</div>
+                            {player.licenses.length === 0 ? (
+                                <p className="text-[#6B7280] text-xs">No licenses.</p>
+                            ) : (
+                                <div className="space-y-1.5">
+                                    {player.licenses.map((l) => (
+                                        <div key={l.id} className="bg-white/5 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
+                                            <span className={l.isActive ? "text-white" : "text-[#6B7280] line-through"}>
+                                                {l.gameTitle} {l.promoFactionName ? `— 🎟 via ${l.promoFactionName}` : ""}
+                                            </span>
+                                            <span className="text-[#6B7280]">{formatDate(l.purchasedAt)}</span>
                                         </div>
                                     ))}
                                 </div>

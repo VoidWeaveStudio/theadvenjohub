@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { gameId, factionId } = body;
+        const { gameId, factionId, viewerUserId } = body;
 
         if (!gameId || !factionId) {
             return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
@@ -47,6 +47,16 @@ export async function POST(req: NextRequest) {
         const rank = await getFactionRank(gameId, factionId);
         const taskExtras = await buildFactionTaskExtras(faction, gameId);
 
+        // promoCode must only be visible to members — this route also serves
+        // Search/leaderboard lookups of factions the caller isn't in.
+        let promoCode = taskExtras.promoCode;
+        if (viewerUserId) {
+            const viewerMembership = await db.query.factionMembers.findFirst({
+                where: and(eq(factionMembers.userId, viewerUserId), eq(factionMembers.factionId, factionId)),
+            });
+            if (!viewerMembership) promoCode = null;
+        }
+
         return NextResponse.json({
             faction: {
                 id: faction.id,
@@ -60,6 +70,7 @@ export async function POST(req: NextRequest) {
                 memberCount: roster.length,
                 rank,
                 ...taskExtras,
+                promoCode,
                 roster: roster.map((r) => ({
                     wallet: r.wallet,
                     role: r.role,

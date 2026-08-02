@@ -57,16 +57,19 @@ export const gameLicenses = pgTable("game_licenses", {
   userId: uuid("user_id").notNull().references(() => users.id),
   gameId: uuid("game_id").notNull().references(() => games.id),
   wallet: varchar("wallet", { length: 44 }).notNull(),
-  txSignature: varchar("tx_signature", { length: 88 }).notNull().unique(),
+  txSignature: varchar("tx_signature", { length: 88 }).unique(),
   price: bigint("price", { mode: "number" }).notNull(),
   purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at"),
   isActive: boolean("is_active").default(true).notNull(),
+  grantedViaPromoFactionId: uuid("granted_via_promo_faction_id").references(() => factions.id, { onDelete: "set null" }),
+  promoCodeUsed: varchar("promo_code_used", { length: 20 }),
 }, (table) => [
   index("idx_licenses_user_game").on(table.userId, table.gameId),
   index("idx_licenses_wallet").on(table.wallet),
   index("idx_licenses_tx").on(table.txSignature),
   index("idx_licenses_active").on(table.isActive),
+  index("idx_licenses_promo_faction").on(table.grantedViaPromoFactionId),
 ]);
 
 export const marketplaceLots = pgTable("marketplace_lots", {
@@ -371,6 +374,9 @@ export const factions = pgTable("factions", {
   level: integer("level").default(1).notNull(),
   levelProgressAsh: integer("level_progress_ash").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  promoCode: varchar("promo_code", { length: 20 }).unique(),
+  promoCodePurchaseTx: varchar("promo_code_purchase_tx", { length: 88 }).unique(),
+  promoCodePurchasedAt: timestamp("promo_code_purchased_at"),
 }, (table) => [
   uniqueIndex("idx_factions_game_name").on(table.gameId, table.name),
   index("idx_factions_token_ca").on(table.tokenCa),

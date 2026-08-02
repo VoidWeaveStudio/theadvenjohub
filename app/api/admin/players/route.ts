@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
 import { db } from "@/core/database";
-import { users, gameNicknames } from "@/core/database/schema";
+import { users, gameNicknames, gameLicenses, factions } from "@/core/database/schema";
 import { desc, ilike, or, inArray, sql } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
@@ -23,6 +23,13 @@ export async function GET(req: NextRequest) {
                 lastSeenAt: users.lastSeenAt,
                 createdAt: users.createdAt,
                 nickname: sql<string | null>`(SELECT ${gameNicknames.nickname} FROM ${gameNicknames} WHERE ${gameNicknames.userId} = ${users.id} ORDER BY ${gameNicknames.updatedAt} DESC LIMIT 1)`,
+                ownsGame: sql<boolean>`EXISTS (SELECT 1 FROM ${gameLicenses} WHERE ${gameLicenses.userId} = ${users.id} AND ${gameLicenses.isActive} = true)`,
+                promoFactionName: sql<string | null>`(
+                    SELECT ${factions.name} FROM ${gameLicenses}
+                    JOIN ${factions} ON ${factions.id} = ${gameLicenses.grantedViaPromoFactionId}
+                    WHERE ${gameLicenses.userId} = ${users.id} AND ${gameLicenses.isActive} = true AND ${gameLicenses.grantedViaPromoFactionId} IS NOT NULL
+                    ORDER BY ${gameLicenses.purchasedAt} DESC LIMIT 1
+                )`,
             })
             .from(users)
             .where(query ? or(

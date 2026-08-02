@@ -170,6 +170,7 @@ export type FactionSummary = {
   level: number;
   levelProgressAsh: number;
   xpForNextLevel: number;
+  promoCode?: string | null;
 };
 
 export type FactionRosterEntry = {

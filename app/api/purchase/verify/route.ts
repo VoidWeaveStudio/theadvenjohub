@@ -11,10 +11,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
-import { Connection, PublicKey, ParsedTransactionWithMeta } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
-
-const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
 
 const verifySchema = z.object({
   signature: z.string().min(80).max(100, "Invalid signature length"),
@@ -106,19 +103,6 @@ export async function POST(req: NextRequest) {
 
     const { signature, gameId, lotId } = validation.data;
 
-    const treasuryWallet = process.env.TREASURY_WALLET_ADDRESS?.trim();
-    const tokenMint = process.env.TNJ_TOKEN_MINT_ADDRESS?.trim();
-    const rpcUrl = process.env.SOLANA_RPC_PRIVATE?.trim() || "https://mainnet.helius-rpc.com";
-    const decimals = Number.parseInt(process.env.TNJ_DECIMALS || "6", 10);
-
-    if (!treasuryWallet || !tokenMint) {
-      console.error("[purchase/verify] Missing env config:", { treasuryWallet, tokenMint });
-      return NextResponse.json(
-        { error: "server_config_error" },
-        { status: 500, headers: formatRateLimitHeaders(rl) }
-      );
-    }
-
     let serverPrice: number;
     if (gameId) {
       const game = await db.query.games.findFirst({ where: eq(games.id, gameId) });
@@ -146,25 +130,22 @@ export async function POST(req: NextRequest) {
       serverPrice = lot.price;
     }
 
-    // A tx signature must only ever redeem ONE purchase. gameLicenses and
-    // marketplacePurchases each enforce their own uniqueness on txSignature,
-    // but those are separate constraints on separate tables — without this
-    // cross-table check, the same payment could be replayed once as a game
-    // license and once as a marketplace item. (This still isn't fully atomic
-    // against two truly concurrent requests racing each other; closing that
-    // needs a single shared-signature table with one unique constraint.)
-    const [usedAsLicense, usedAsPurchase] = await Promise.all([
-      db.query.gameLicenses.findFirst({ where: eq(gameLicenses.txSignature, signature) }),
-      db.query.marketplacePurchases.findFirst({ where: eq(marketplacePurchases.txSignature, signature) }),
-    ]);
+    // A tx signature must only ever redeem ONE purchase. gameLicenses,
+    // marketplacePurchases, and factions (promo-code unlock) each enforce
+    // their own uniqueness on their signature column, but those are separate
+    // constraints on separate tables — without this cross-table check, the
+    // same payment could be replayed once per table. (This still isn't fully
+    // atomic against two truly concurrent requests racing each other; closing
+    // that needs a single shared-signature table with one unique constraint.)
+    const existingUse = await findExistingSignatureUse(signature);
 
-    if (usedAsLicense && gameId) {
-      return NextResponse.json({ success: true, type: "game", id: usedAsLicense.id, alreadyProcessed: true });
+    if (existingUse?.kind === "license" && gameId) {
+      return NextResponse.json({ success: true, type: "game", id: existingUse.id, alreadyProcessed: true });
     }
-    if (usedAsPurchase && lotId) {
-      return NextResponse.json({ success: true, type: "item", id: usedAsPurchase.id, alreadyProcessed: true });
+    if (existingUse?.kind === "purchase" && lotId) {
+      return NextResponse.json({ success: true, type: "item", id: existingUse.id, alreadyProcessed: true });
     }
-    if (usedAsLicense || usedAsPurchase) {
+    if (existingUse) {
       return NextResponse.json(
         {
           error: "signature_already_used",
@@ -174,115 +155,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const connection = new Connection(rpcUrl, "confirmed");
-
-    let tx: ParsedTransactionWithMeta | null = null;
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt < 8; attempt++) {
-      try {
-        tx = await connection.getParsedTransaction(signature, {
-          maxSupportedTransactionVersion: 0,
-          commitment: "confirmed",
-        });
-        if (tx) break;
-      } catch (err: any) {
-        lastError = err;
-      }
-      await new Promise(res => setTimeout(res, 1000 * Math.min(2 ** attempt, 8)));
-    }
-
-    if (!tx) {
+    const verifyResult = await verifyTnjTransferToTreasury({
+      signature,
+      expectedAmountTnj: serverPrice,
+      expectedSigner: user.wallet,
+    });
+    if (!verifyResult.ok) {
       return NextResponse.json(
-        { error: "transaction_not_found", hint: "Wait 10-15 seconds and retry" },
-        { status: 400, headers: formatRateLimitHeaders(rl) }
-      );
-    }
-
-    if (tx.meta?.err) {
-      return NextResponse.json(
-        { error: "transaction_failed", details: tx.meta.err },
-        { status: 400, headers: formatRateLimitHeaders(rl) }
-      );
-    }
-
-    const expectedAmount = BigInt(serverPrice) * (10n ** BigInt(decimals));
-    let transferFound = false;
-
-    if (tx.meta?.postTokenBalances) {
-      for (const tb of tx.meta.postTokenBalances) {
-        const isCorrectMint = tb.mint === tokenMint;
-        const isTreasuryOwner = tb.owner === treasuryWallet;
-
-        if (isCorrectMint && isTreasuryOwner) {
-          const postAmount = BigInt(tb.uiTokenAmount?.amount || "0");
-          const preTB = tx.meta?.preTokenBalances?.find((p: any) =>
-            p.mint === tokenMint && p.owner === treasuryWallet
-          );
-          const preAmount = preTB ? BigInt(preTB.uiTokenAmount?.amount || "0") : 0n;
-          const received = postAmount - preAmount;
-
-          if (received >= expectedAmount) {
-            transferFound = true;
-            break;
-          }
-        }
-      }
-    }
-
-    if (!transferFound && tx.meta?.innerInstructions) {
-      for (const ix of tx.meta.innerInstructions) {
-        for (const inner of ix.instructions) {
-          const programId = inner.programId?.toString();
-
-          if (programId === TOKEN_PROGRAM_ID.toString() || programId === TOKEN_2022_PROGRAM_ID.toString()) {
-            const parsed = (inner as any).parsed;
-
-            if (parsed?.type === "transfer" && parsed?.info?.amount) {
-              const transferAmount = BigInt(parsed.info.amount);
-              const transferMint = parsed.info.mint;
-              const destination = parsed.info.destination;
-
-              if (transferMint === tokenMint && transferAmount >= expectedAmount) {
-                const expectedTreasuryATA = await getAssociatedTokenAddress(
-                  new PublicKey(tokenMint),
-                  new PublicKey(treasuryWallet),
-                  undefined,
-                  programId === TOKEN_2022_PROGRAM_ID.toString() ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID
-                );
-
-                if (destination === expectedTreasuryATA.toString()) {
-                  transferFound = true;
-                  break;
-                }
-              }
-            }
-          }
-        }
-        if (transferFound) break;
-      }
-    }
-
-    if (!transferFound) {
-      return NextResponse.json(
-        {
-          error: "transfer_verification_failed",
-          expected: expectedAmount.toString(),
-          hint: "Send tokens to treasury ATA (not wallet directly). Check mint matches."
-        },
-        { status: 400, headers: formatRateLimitHeaders(rl) }
-      );
-    }
-
-    const signer = tx.transaction.message.accountKeys[0]?.pubkey?.toString();
-    if (!signer || signer !== user.wallet) {
-      console.warn("[purchase/verify] Wallet mismatch:", {
-        expected: user.wallet,
-        got: signer
-      });
-      return NextResponse.json(
-        { error: "wrong_signer", expected: user.wallet, got: signer },
-        { status: 400, headers: formatRateLimitHeaders(rl) }
+        { error: verifyResult.error, ...(verifyResult.details ? { details: verifyResult.details } : {}) },
+        { status: verifyResult.status, headers: formatRateLimitHeaders(rl) }
       );
     }
 

@@ -183,7 +183,15 @@ export function FactionsWindow({
                 )}
 
             {view.activeTab === "upgrades" &&
-                renderOwnFactionTab(viewedFaction && <FactionUpgradesPanel faction={viewedFaction} />)}
+                renderOwnFactionTab(
+                    viewedFaction && (
+                        <FactionUpgradesPanel
+                            faction={viewedFaction}
+                            myWallet={myWallet}
+                            onPurchased={() => onViewFaction(viewedFaction.id)}
+                        />
+                    )
+                )}
 
             {view.activeTab === "tasks" &&
                 renderOwnFactionTab(

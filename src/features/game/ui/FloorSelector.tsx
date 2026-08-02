@@ -2,7 +2,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, Building, ArrowDownToLine, ArrowUpToLine, DoorOpen } from "lucide-react";
+import Image from "next/image";
+import { X, DoorOpen } from "lucide-react";
 import { TOWER_FLOORS } from "../world/locations/tower/TowerRegistry";
 
 interface FloorSelectorProps {
@@ -12,18 +13,37 @@ interface FloorSelectorProps {
     currentLocationId: string;
 }
 
-const iconMap = {
-    'building': Building,
-    'arrow-down': ArrowDownToLine,
-    'arrow-up': ArrowUpToLine,
+// Percentages measured against the crystal portals painted into background.webp.
+const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
+    'tower-main-hall': { x: 66.4, y: 38.1 },
+    'tower-first-floor': { x: 21.2, y: 59.1 },
+    'tower-token-gates': { x: 75.5, y: 61.0 },
+    'tower-basement': { x: 49.2, y: 67.9 },
+    'main-world': { x: 28.0, y: 36.6 },
 };
 
-const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
-    'tower-main-hall': { x: 50, y: 55 },
-    'tower-first-floor': { x: 22, y: 26 },
-    'tower-token-gates': { x: 78, y: 26 },
-    'tower-basement': { x: 50, y: 88 },
-    'main-world': { x: 88, y: 62 },
+const NODE_ICONS: Record<string, string> = {
+    'tower-main-hall': '/locations/main-hall.webp',
+    'tower-first-floor': '/locations/canyon.webp',
+    'tower-token-gates': '/locations/token-gates.webp',
+    'tower-basement': '/locations/crypto-universe.webp',
+    'main-world': '/locations/open-world.webp',
+};
+
+const NODE_GLOW: Record<string, string> = {
+    'tower-main-hall': 'radial-gradient(circle, rgba(79,209,255,0.6) 0%, rgba(79,209,255,0) 70%)',
+    'tower-first-floor': 'radial-gradient(circle, rgba(255,159,28,0.6) 0%, rgba(255,159,28,0) 70%)',
+    'tower-token-gates': 'radial-gradient(circle, rgba(74,222,128,0.6) 0%, rgba(74,222,128,0) 70%)',
+    'tower-basement': 'radial-gradient(circle, rgba(168,85,247,0.6) 0%, rgba(168,85,247,0) 70%)',
+    'main-world': 'radial-gradient(circle, rgba(250,204,21,0.6) 0%, rgba(250,204,21,0) 70%)',
+};
+
+const NODE_DELAY: Record<string, number> = {
+    'tower-main-hall': 0,
+    'tower-first-floor': 0.45,
+    'tower-token-gates': 0.9,
+    'tower-basement': 1.35,
+    'main-world': 1.8,
 };
 
 export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationId }: FloorSelectorProps) {
@@ -31,11 +51,9 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
 
     if (!isOpen) return null;
 
-    const hub = NODE_POSITIONS['tower-main-hall'];
-
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto font-oxanium">
-            <div className="bg-[rgba(12,12,14,0.92)] border border-[rgba(79,209,255,0.2)] rounded-[16px] p-6 max-w-2xl w-full mx-4 shadow-2xl shadow-[#4FD1FF]/10 relative">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">
+            <div className="bg-[rgba(12,12,14,0.92)] border border-[rgba(79,209,255,0.2)] rounded-[16px] p-6 max-w-[1100px] w-full mx-4 shadow-2xl shadow-[#4FD1FF]/10 relative">
                 <button onClick={onClose} className="absolute top-4 right-4 z-10 bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                     <X className="w-6 h-6" />
                 </button>
@@ -49,35 +67,23 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                     </p>
                 </div>
 
-                <div className="relative w-full aspect-[4/3] rounded-[12px] bg-[radial-gradient(ellipse_at_center,rgba(79,209,255,0.08)_0%,rgba(6,6,8,0)_70%)] border border-[rgba(255,255,255,0.06)] overflow-hidden">
-                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        {TOWER_FLOORS.filter((f) => f.id !== 'tower-main-hall').map((floor) => {
-                            const pos = NODE_POSITIONS[floor.id];
-                            if (!pos) return null;
-                            const isHighlighted = hoveredId === floor.id;
-                            return (
-                                <line
-                                    key={floor.id}
-                                    x1={hub.x}
-                                    y1={hub.y}
-                                    x2={pos.x}
-                                    y2={pos.y}
-                                    stroke={isHighlighted ? "#4FD1FF" : "rgba(79,209,255,0.25)"}
-                                    strokeWidth={isHighlighted ? 0.6 : 0.35}
-                                    strokeDasharray="1.5 1.5"
-                                    vectorEffect="non-scaling-stroke"
-                                />
-                            );
-                        })}
-                    </svg>
+                <div className="relative w-full aspect-[3/2] rounded-[12px] overflow-hidden border border-[rgba(255,255,255,0.08)]">
+                    <Image
+                        src="/locations/background.webp"
+                        alt=""
+                        fill
+                        priority
+                        sizes="(max-width: 1100px) 100vw, 1100px"
+                        className="object-cover select-none pointer-events-none"
+                    />
 
                     {TOWER_FLOORS.map((floor) => {
                         const pos = NODE_POSITIONS[floor.id];
-                        if (!pos) return null;
+                        const icon = NODE_ICONS[floor.id];
+                        if (!pos || !icon) return null;
 
                         const isCurrent = currentLocationId === floor.id;
                         const isHovered = hoveredId === floor.id;
-                        const Icon = iconMap[floor.icon] || Building;
 
                         return (
                             <button
@@ -87,23 +93,25 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                                 onMouseLeave={() => setHoveredId((prev) => (prev === floor.id ? null : prev))}
                                 disabled={isCurrent}
                                 title={isCurrent ? "You are here" : floor.description}
-                                className={`absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 transition-transform duration-200 ease-out ${isCurrent ? "cursor-not-allowed" : "cursor-pointer"
-                                    } ${isHovered && !isCurrent ? "scale-125" : "scale-100"}`}
+                                className={`absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 bg-transparent border-0 p-0 ${isCurrent ? "cursor-not-allowed" : "cursor-pointer"}`}
                                 style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                             >
                                 <div
-                                    className={`w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${isCurrent
-                                            ? "bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.15)]"
-                                            : isHovered
-                                                ? "bg-[rgba(79,209,255,0.25)] border-[#4FD1FF] shadow-[0_0_22px_rgba(79,209,255,0.6)]"
-                                                : "bg-[rgba(79,209,255,0.1)] border-[rgba(79,209,255,0.4)]"
-                                        }`}
+                                    className={`portal-node relative flex items-center justify-center ${isHovered && !isCurrent ? "portal-node-hovered" : ""} ${isCurrent ? "portal-node-current" : ""}`}
+                                    style={{ animationDelay: `${NODE_DELAY[floor.id] ?? 0}s` }}
                                 >
-                                    <Icon className={`w-6 h-6 ${isCurrent ? "text-[#8B8F98]" : "text-[#4FD1FF]"}`} />
+                                    <span className="portal-glow" style={{ background: NODE_GLOW[floor.id] }} />
+                                    <Image
+                                        src={icon}
+                                        alt={floor.name}
+                                        width={112}
+                                        height={112}
+                                        priority
+                                        className="portal-icon relative"
+                                    />
                                 </div>
                                 <span
-                                    className={`text-xs font-bold px-2 py-0.5 rounded-[6px] whitespace-nowrap ${isCurrent ? "text-[#8B8F98]" : "text-[#E5E7EB] bg-[rgba(12,12,14,0.7)]"
-                                        }`}
+                                    className={`text-xs font-bold px-2.5 py-1 rounded-[6px] whitespace-nowrap backdrop-blur-sm ${isCurrent ? "text-[#8B8F98] bg-[rgba(12,12,14,0.55)]" : "text-[#E5E7EB] bg-[rgba(12,12,14,0.75)]"}`}
                                 >
                                     {floor.name}
                                 </span>
@@ -122,6 +130,56 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                     </span>
                 </div>
             </div>
+
+            <style jsx>{`
+                @keyframes portal-float {
+                    0%, 100% { transform: translateY(0); }
+                    50% { transform: translateY(-7px); }
+                }
+                @keyframes portal-pulse {
+                    0%, 100% { transform: scale(0.9); }
+                    50% { transform: scale(1.08); }
+                }
+                .portal-node {
+                    animation: portal-float 3.4s ease-in-out infinite;
+                    transition: transform 0.25s ease-out, filter 0.25s ease-out;
+                    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.55));
+                }
+                .portal-node-current {
+                    opacity: 0.88;
+                }
+                .portal-node-hovered {
+                    transform: scale(1.14);
+                    filter: drop-shadow(0 6px 18px rgba(0,0,0,0.65)) brightness(1.18);
+                }
+                .portal-icon {
+                    width: 84px;
+                    height: 84px;
+                    display: block;
+                }
+                @media (min-width: 640px) {
+                    .portal-icon {
+                        width: 112px;
+                        height: 112px;
+                    }
+                }
+                .portal-glow {
+                    position: absolute;
+                    inset: -22%;
+                    border-radius: 9999px;
+                    opacity: 0;
+                    filter: blur(14px);
+                    pointer-events: none;
+                    transition: opacity 0.3s ease-out;
+                    animation: portal-pulse 2.6s ease-in-out infinite;
+                }
+                .portal-node-current .portal-glow {
+                    opacity: 0.32;
+                }
+                .portal-node-hovered .portal-glow {
+                    opacity: 0.85;
+                }
+            `}</style>
         </div>
     );
 }

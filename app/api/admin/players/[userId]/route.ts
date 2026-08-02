@@ -11,8 +11,10 @@ import {
     factionMembers,
     factions,
     userAchievements,
+    gameLicenses,
+    games,
 } from "@/core/database/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { ACHIEVEMENTS_BY_KEY } from "@/core/lib/achievements";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 
@@ -31,13 +33,29 @@ export async function GET(
             return NextResponse.json({ error: "user_not_found" }, { status: 404 });
         }
 
-        const [nicknames, statistics, progress, inventory, memberships, achievements] = await Promise.all([
+        const [nicknames, statistics, progress, inventory, memberships, achievements, licenses] = await Promise.all([
             db.query.gameNicknames.findMany({ where: eq(gameNicknames.userId, userId) }),
             db.query.gameStatistics.findFirst({ where: eq(gameStatistics.userId, userId) }),
             db.query.gameProgress.findFirst({ where: eq(gameProgress.userId, userId) }),
             db.query.gameInventories.findMany({ where: eq(gameInventories.userId, userId) }),
             db.query.factionMembers.findMany({ where: eq(factionMembers.userId, userId) }),
             db.query.userAchievements.findMany({ where: eq(userAchievements.userId, userId) }),
+            db.select({
+                id: gameLicenses.id,
+                gameId: gameLicenses.gameId,
+                gameTitle: games.title,
+                isActive: gameLicenses.isActive,
+                purchasedAt: gameLicenses.purchasedAt,
+                price: gameLicenses.price,
+                txSignature: gameLicenses.txSignature,
+                grantedViaPromoFactionId: gameLicenses.grantedViaPromoFactionId,
+                promoFactionName: factions.name,
+            })
+                .from(gameLicenses)
+                .innerJoin(games, eq(games.id, gameLicenses.gameId))
+                .leftJoin(factions, eq(factions.id, gameLicenses.grantedViaPromoFactionId))
+                .where(eq(gameLicenses.userId, userId))
+                .orderBy(desc(gameLicenses.purchasedAt)),
         ]);
 
         let ash = 0;
@@ -110,6 +128,7 @@ export async function GET(
                 inventory: inventory.map((i) => ({ slot: i.slot, itemId: i.itemId, quantity: i.quantity })),
                 factions: factionsList,
                 achievements: achievementsList,
+                licenses,
             },
         });
     } catch (error) {

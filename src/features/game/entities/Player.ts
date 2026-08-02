@@ -158,6 +158,10 @@ export class Player extends Entity {
         }
     }
 
+    public isDead(): boolean {
+        return this.dead;
+    }
+
     public setHealth(health: number) {
         this.health = Math.max(0, Math.min(this.maxHealth, health));
     }

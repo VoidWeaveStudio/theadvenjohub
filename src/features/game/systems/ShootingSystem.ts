@@ -106,7 +106,9 @@ export class ShootingSystem extends System {
     }
 
     update(delta: number) {
-        if (this.weaponEquipped && this.inputManager.isMousePressed(0)) {
+        const alive = !this.player.isDead();
+
+        if (alive && this.weaponEquipped && this.inputManager.isMousePressed(0)) {
             const weapon = this.player.getWeapon();
             if (weapon.canShoot()) {
                 if (weapon.shoot()) {
@@ -116,7 +118,7 @@ export class ShootingSystem extends System {
             }
         }
 
-        if (this.weaponEquipped && this.inputManager.isKeyJustPressed("KeyR")) {
+        if (alive && this.weaponEquipped && this.inputManager.isKeyJustPressed("KeyR")) {
             this.player.getWeapon().reload();
         }
 

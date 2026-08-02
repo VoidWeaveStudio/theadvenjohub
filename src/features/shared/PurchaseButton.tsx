@@ -24,14 +24,15 @@ const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqC
 interface PurchaseButtonProps {
   gameId?: string;
   lotId?: string;
+  factionId?: string;
   price: number;
   isLot?: boolean;
-  onSuccess?: (result: { id: string; type: "game" | "item" }) => void;
+  onSuccess?: (result: { id: string; type: "game" | "item" | "faction_upgrade"; promoCode?: string }) => void;
 }
 
 type LoadingState = boolean | "connecting" | "signing" | "confirming";
 
-export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
+export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
   const { t } = useLanguage();
   const { publicKey, connected, wallet } = useWallet();
   const { login, refreshAuth, userWallet, isAuthorized } = useAuth();
@@ -42,8 +43,8 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const purchaseConfig = useMemo(() => ({
-    gameId, lotId, price, isLot, onSuccess
-  }), [gameId, lotId, price, isLot, onSuccess]);
+    gameId, lotId, factionId, price, isLot, onSuccess
+  }), [gameId, lotId, factionId, price, isLot, onSuccess]);
 
   const getFreshCsrf = (): string | undefined => {
     if (typeof document === "undefined") return undefined;
@@ -95,9 +96,9 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
     const walletAdapter = wallet.adapter;
     const walletName = walletAdapter.name;
 
-    const { gameId, lotId, price, onSuccess } = purchaseConfig;
+    const { gameId, lotId, factionId, price, onSuccess } = purchaseConfig;
 
-    if (!gameId && !lotId) {
+    if (!gameId && !lotId && !factionId) {
       setError(t("errors.missingGameOrLotId"));
       return;
     }
@@ -266,7 +267,10 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
 
       const newCsrfToken = getFreshCsrf();
 
-      const verifyRes = await fetch("/api/purchase/verify", {
+      const endpoint = factionId ? "/api/faction/upgrades/promo-code/purchase" : "/api/purchase/verify";
+      const verifyBody = factionId ? { signature, factionId } : { signature, gameId, lotId, price };
+
+      const verifyRes = await fetch(endpoint, {
         method: "POST",
         credentials: "include",
         signal: abortController.signal,
@@ -274,7 +278,7 @@ export function PurchaseButton({ gameId, lotId, price, isLot = false, onSuccess 
           "Content-Type": "application/json",
           ...(newCsrfToken ? { "x-csrf-token": newCsrfToken } : {}),
         },
-        body: JSON.stringify({ signature, gameId, lotId, price }),
+        body: JSON.stringify(verifyBody),
       });
 
       if (!verifyRes.ok) {

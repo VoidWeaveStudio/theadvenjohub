@@ -14,6 +14,8 @@ interface AdminPlayer {
     isOnline: boolean;
     lastSeenAt: string | null;
     createdAt: string;
+    ownsGame: boolean;
+    promoFactionName: string | null;
 }
 
 function truncateWallet(wallet: string): string {
@@ -112,6 +114,9 @@ export const AdminPlayersTable = forwardRef<AdminTableRef>(function AdminPlayers
                                         </span>
                                         {p.isBanned && (
                                             <span className="ml-2 text-red-400 text-xs font-bold">BANNED{p.banReason ? `: ${p.banReason}` : ""}</span>
+                                        )}
+                                        {p.ownsGame && p.promoFactionName && (
+                                            <span className="ml-2 text-[#FFD166] text-xs font-bold">🎟 Promo: {p.promoFactionName}</span>
                                         )}
                                     </td>
                                     <td className="px-3 py-2 text-[#8B8F98]">{formatLastSeen(p.lastSeenAt)}</td>

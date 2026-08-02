@@ -143,6 +143,14 @@ export class OtherPlayer extends Entity {
 
     public setPendingJoinData(data: PlayerNetData) {
         this.pendingJoinData = data;
+        // Keep identity current even while still hidden: create() (run later,
+        // once this placeholder is promoted) builds the name tag from these
+        // fields directly, not from pendingJoinData — without this, a stale
+        // first snapshot (e.g. nickname not assigned yet server-side at that
+        // exact moment) would get baked into the sprite permanently.
+        this.nickname = data.nickname;
+        this.factionSymbol = data.factionSymbol ?? null;
+        this.factionImage = data.factionImage ?? null;
     }
 
     public getPendingJoinData(): PlayerNetData | null {
@@ -199,8 +207,6 @@ export class OtherPlayer extends Entity {
         if (!ctx || !canvas) return;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         const color = this.nicknameColor();
         const label = this.displayName(name);
@@ -257,9 +263,8 @@ export class OtherPlayer extends Entity {
 
     public setDead(dead: boolean) {
         this.dead = dead;
-        if (!this.hidden) {
-            this.mesh.visible = !dead;
-            this.hitbox.visible = !dead;
+        if (dead) {
+            this.animator.play('death', this.weaponEquipped);
         }
     }
 
@@ -269,8 +274,8 @@ export class OtherPlayer extends Entity {
 
     public setHidden(hidden: boolean) {
         this.hidden = hidden;
-        this.mesh.visible = !hidden && !this.dead;
-        this.hitbox.visible = !hidden && !this.dead;
+        this.mesh.visible = !hidden;
+        this.hitbox.visible = !hidden;
     }
 
     public isHidden(): boolean {
@@ -297,7 +302,11 @@ export class OtherPlayer extends Entity {
     }
 
     update(delta: number) {
-        if (this.dead || this.hidden) return;
+        if (this.hidden) return;
+        if (this.dead) {
+            this.animator.update(delta);
+            return;
+        }
 
         this.time += delta;
         this.mesh.position.lerp(this.targetPosition, Math.min(1, delta * 12));

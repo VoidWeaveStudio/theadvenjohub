@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { apiGet } from "@/core/api/client";
 import { PurchaseButton } from "@/features/shared/PurchaseButton";
+import { PromoCodeRedeem } from "@/features/shared/PromoCodeRedeem";
 import { Spinner } from "@/core/ui/Spinner";
 
 interface GameData {
@@ -432,16 +433,27 @@ export default function GamePageContent() {
                                     >
                                         {t("game.play") || "Play Now"}
                                     </button>
+                                    <div className="pt-2 border-t border-border">
+                                        <p className="text-xs text-text-secondary mb-2">
+                                            {t("promoCode.joinFactionHint") || "Have a faction promo code? Redeem it to join their faction."}
+                                        </p>
+                                        <PromoCodeRedeem gameId={game.id} onSuccess={() => window.location.reload()} />
+                                    </div>
                                 </div>
                             ) : (
-                                <PurchaseButton
-                                    gameId={game.id}
-                                    price={game.price}
-                                    onSuccess={() => {
+                                <div className="space-y-3">
+                                    <PurchaseButton
+                                        gameId={game.id}
+                                        price={game.price}
+                                        onSuccess={() => {
 
-                                        window.location.reload();
-                                    }}
-                                />
+                                            window.location.reload();
+                                        }}
+                                    />
+                                    <div className="pt-2 border-t border-border">
+                                        <PromoCodeRedeem gameId={game.id} onSuccess={() => window.location.reload()} />
+                                    </div>
+                                </div>
                             )}
 
                             <div className="pt-4 border-t border-border space-y-3">
