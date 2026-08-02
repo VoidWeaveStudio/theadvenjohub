@@ -1,45 +1,42 @@
 // src/features/game/systems/VoiceChatSystem.ts
-// Push-to-talk voice chat. Records in short, independently-decodable segments
-// (rather than one continuous stream) so each network message stays well under
-// the server's per-message size cap without needing MediaSource/streaming APIs.
-interface PlaybackEntry {
-    queue: Blob[];
-    playing: boolean;
-    audio: HTMLAudioElement | null;
+// Proximity push-to-talk voice chat over WebRTC. Peers connect directly to
+// each other (mesh) — the game server only relays SDP offers/answers and ICE
+// candidates over the existing game WebSocket, there's no separate media
+// server. Game.ts calls syncPeers() periodically with the set of player ids
+// currently nearby (the same set used for visibility/shooting), so peers
+// connect/disconnect automatically as players come in and out of range.
+//
+// Negotiation follows the standard "perfect negotiation" pattern (see MDN):
+// each connection has a "polite" side (decided deterministically by comparing
+// player ids) that yields when an incoming offer collides with one it's
+// already sending, so both sides can independently react to proximity
+// changes without a separate "who goes first" handshake.
+const ICE_SERVERS: RTCIceServer[] = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+];
+
+interface PeerEntry {
+    pc: RTCPeerConnection;
+    audioEl: HTMLAudioElement;
+    polite: boolean;
+    makingOffer: boolean;
+    ignoreOffer: boolean;
 }
 
 export class VoiceChatSystem {
-    private stream: MediaStream | null = null;
-    private recorder: MediaRecorder | null = null;
-    private chunks: BlobPart[] = [];
-    private capturing = false;
-    private segmentTimer: ReturnType<typeof setTimeout> | null = null;
-    private mimeType = "";
-    private holdStartedAt = 0;
-    private startToken = 0;
-
-    private readonly playbackQueues = new Map<string, PlaybackEntry>();
-
-    private readonly SEGMENT_MS = 2000;
-    private readonly MAX_HOLD_MS = 60000;
-    // Kept well under the server's WS frame limit (game-server's
-    // CONFIG.network.maxMessageSize) once base64-encoded (~4/3 inflation)
-    // and wrapped in the {type,chunk,mimeType} JSON envelope — the previous
-    // 12KB cap left almost no margin (12KB raw -> ~16.4KB encoded, right at
-    // the old 16KB server limit), so most real segments either got dropped
-    // client-side or, worse, overflowed the server's maxPayload and got the
-    // connection killed.
-    private readonly MAX_CLIP_BYTES = 16 * 1024;
-
-    private static readonly CANDIDATE_MIME_TYPES = [
-        "audio/webm;codecs=opus",
-        "audio/webm",
-        "audio/mp4",
-    ];
+    private peers: Map<string, PeerEntry> = new Map();
+    private localStream: MediaStream | null = null;
+    private localTrack: MediaStreamTrack | null = null;
+    private talking = false;
+    private localId = "";
 
     public onCapturingChange?: (capturing: boolean) => void;
-    public onClipReady?: (base64: string, mimeType: string) => void;
     public onError?: (message: string) => void;
+
+    public sendOffer?: (targetId: string, sdp: string) => void;
+    public sendAnswer?: (targetId: string, sdp: string) => void;
+    public sendIceCandidate?: (targetId: string, candidate: RTCIceCandidateInit) => void;
 
     private readonly handleBlur = () => this.stopCapture();
     private readonly handleVisibilityChange = () => {
@@ -51,178 +48,182 @@ export class VoiceChatSystem {
         document.addEventListener("visibilitychange", this.handleVisibilityChange);
     }
 
-    private pickMimeType(): string {
-        if (typeof MediaRecorder === "undefined") return "";
-        for (const type of VoiceChatSystem.CANDIDATE_MIME_TYPES) {
-            if (MediaRecorder.isTypeSupported(type)) return type;
-        }
-        return "";
+    setLocalId(id: string) {
+        this.localId = id;
     }
 
-    async startCapture() {
-        if (this.capturing) return;
+    private async ensureLocalStream(): Promise<MediaStream | null> {
+        if (this.localStream) return this.localStream;
 
         if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
             this.onError?.("Voice chat isn't supported in this browser");
-            return;
+            return null;
         }
-
-        const mimeType = this.pickMimeType();
-        if (!mimeType) {
+        if (typeof RTCPeerConnection === "undefined") {
             this.onError?.("Voice chat isn't supported in this browser");
-            return;
+            return null;
         }
 
-        const token = ++this.startToken;
         let stream: MediaStream;
         try {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch {
             this.onError?.("Microphone access was denied");
-            return;
+            return null;
         }
 
-        if (token !== this.startToken) {
-            // G was released (or pressed again) before the permission prompt/mic
-            // init resolved — don't start transmitting after the fact.
-            stream.getTracks().forEach((t) => t.stop());
-            return;
+        const track = stream.getAudioTracks()[0] ?? null;
+        if (track) track.enabled = this.talking;
+        this.localStream = stream;
+        this.localTrack = track;
+
+        for (const entry of this.peers.values()) {
+            if (track && !entry.pc.getSenders().some((s) => s.track === track)) {
+                entry.pc.addTrack(track, stream);
+            }
         }
 
-        this.stream = stream;
-        this.mimeType = mimeType;
-        this.capturing = true;
-        this.holdStartedAt = Date.now();
+        return stream;
+    }
+
+    async startCapture() {
+        if (this.talking) return;
+        const stream = await this.ensureLocalStream();
+        if (!stream) return;
+        this.talking = true;
+        if (this.localTrack) this.localTrack.enabled = true;
         this.onCapturingChange?.(true);
-        this.recordSegment();
     }
 
     stopCapture() {
-        this.startToken++;
-        if (!this.capturing) return;
-        this.capturing = false;
-
-        if (this.segmentTimer) {
-            clearTimeout(this.segmentTimer);
-            this.segmentTimer = null;
-        }
-
-        if (this.recorder && this.recorder.state !== "inactive") {
-            this.recorder.stop();
-        } else {
-            this.releaseStream();
-        }
-    }
-
-    private recordSegment() {
-        if (!this.stream || !this.capturing) return;
-
-        if (Date.now() - this.holdStartedAt > this.MAX_HOLD_MS) {
-            this.stopCapture();
-            return;
-        }
-
-        const recorder = new MediaRecorder(this.stream, {
-            mimeType: this.mimeType,
-            audioBitsPerSecond: 16000,
-        });
-        this.chunks = [];
-
-        recorder.ondataavailable = (e) => {
-            if (e.data.size > 0) this.chunks.push(e.data);
-        };
-
-        recorder.onstop = () => {
-            const blob = new Blob(this.chunks, { type: this.mimeType });
-            this.chunks = [];
-            if (blob.size > 0) this.emitClip(blob);
-
-            if (this.capturing) {
-                this.recordSegment();
-            } else {
-                this.releaseStream();
-            }
-        };
-
-        this.recorder = recorder;
-        recorder.start();
-        this.segmentTimer = setTimeout(() => {
-            if (recorder.state !== "inactive") recorder.stop();
-        }, this.SEGMENT_MS);
-    }
-
-    private releaseStream() {
-        this.stream?.getTracks().forEach((t) => t.stop());
-        this.stream = null;
-        this.recorder = null;
+        if (!this.talking) return;
+        this.talking = false;
+        if (this.localTrack) this.localTrack.enabled = false;
         this.onCapturingChange?.(false);
     }
 
-    private emitClip(blob: Blob) {
-        if (blob.size > this.MAX_CLIP_BYTES) {
-            console.warn("[VoiceChat] Dropped an oversized voice segment");
-            return;
-        }
+    private createPeerConnection(remoteId: string): PeerEntry {
+        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const audioEl = new Audio();
+        audioEl.autoplay = true;
 
-        const reader = new FileReader();
-        reader.onload = () => {
-            const result = reader.result as string;
-            const base64 = result.slice(result.indexOf(",") + 1);
-            this.onClipReady?.(base64, this.mimeType);
+        const entry: PeerEntry = {
+            pc,
+            audioEl,
+            polite: this.localId > remoteId,
+            makingOffer: false,
+            ignoreOffer: false,
         };
-        reader.readAsDataURL(blob);
+        this.peers.set(remoteId, entry);
+
+        if (this.localTrack && this.localStream) {
+            pc.addTrack(this.localTrack, this.localStream);
+        } else {
+            pc.addTransceiver("audio", { direction: "recvonly" });
+        }
+
+        pc.ontrack = (event) => {
+            audioEl.srcObject = event.streams[0] ?? null;
+            audioEl.play().catch(() => {});
+        };
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.sendIceCandidate?.(remoteId, event.candidate.toJSON());
+            }
+        };
+
+        pc.onnegotiationneeded = async () => {
+            try {
+                entry.makingOffer = true;
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                if (pc.localDescription) {
+                    this.sendOffer?.(remoteId, pc.localDescription.sdp);
+                }
+            } catch (err) {
+                console.error("[VoiceChat] Negotiation failed:", err);
+            } finally {
+                entry.makingOffer = false;
+            }
+        };
+
+        return entry;
     }
 
-    playIncoming(senderId: string, base64: string, mimeType: string) {
-        let bytes: Uint8Array<ArrayBuffer>;
-        try {
-            const binary = atob(base64);
-            bytes = new Uint8Array(new ArrayBuffer(binary.length));
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        } catch {
-            return;
-        }
-        const blob = new Blob([bytes], { type: mimeType || "audio/webm" });
-
-        let entry = this.playbackQueues.get(senderId);
-        if (!entry) {
-            entry = { queue: [], playing: false, audio: null };
-            this.playbackQueues.set(senderId, entry);
-        }
-        entry.queue.push(blob);
-        if (!entry.playing) this.playNext(senderId);
-    }
-
-    private playNext(senderId: string) {
-        const entry = this.playbackQueues.get(senderId);
+    private removePeer(remoteId: string) {
+        const entry = this.peers.get(remoteId);
         if (!entry) return;
+        entry.pc.close();
+        entry.audioEl.pause();
+        entry.audioEl.srcObject = null;
+        this.peers.delete(remoteId);
+    }
 
-        const blob = entry.queue.shift();
-        if (!blob) {
-            entry.playing = false;
-            entry.audio = null;
-            return;
+    syncPeers(activeIds: ReadonlySet<string>) {
+        for (const remoteId of activeIds) {
+            if (remoteId !== this.localId && !this.peers.has(remoteId)) {
+                this.createPeerConnection(remoteId);
+            }
         }
+        for (const remoteId of Array.from(this.peers.keys())) {
+            if (!activeIds.has(remoteId)) {
+                this.removePeer(remoteId);
+            }
+        }
+    }
 
-        entry.playing = true;
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        entry.audio = audio;
+    async handleOffer(fromId: string, sdp: string) {
+        let entry = this.peers.get(fromId);
+        if (!entry) entry = this.createPeerConnection(fromId);
 
-        const advance = () => {
-            URL.revokeObjectURL(url);
-            this.playNext(senderId);
-        };
-        audio.onended = advance;
-        audio.onerror = advance;
-        audio.play().catch(advance);
+        const offerCollision = entry.makingOffer || entry.pc.signalingState !== "stable";
+        entry.ignoreOffer = !entry.polite && offerCollision;
+        if (entry.ignoreOffer) return;
+
+        try {
+            if (offerCollision) {
+                await entry.pc.setLocalDescription({ type: "rollback" });
+            }
+            await entry.pc.setRemoteDescription({ type: "offer", sdp });
+            const answer = await entry.pc.createAnswer();
+            await entry.pc.setLocalDescription(answer);
+            if (entry.pc.localDescription) {
+                this.sendAnswer?.(fromId, entry.pc.localDescription.sdp);
+            }
+        } catch (err) {
+            console.error("[VoiceChat] Failed to handle offer:", err);
+        }
+    }
+
+    async handleAnswer(fromId: string, sdp: string) {
+        const entry = this.peers.get(fromId);
+        if (!entry) return;
+        try {
+            await entry.pc.setRemoteDescription({ type: "answer", sdp });
+        } catch (err) {
+            console.error("[VoiceChat] Failed to handle answer:", err);
+        }
+    }
+
+    async handleIceCandidate(fromId: string, candidate: RTCIceCandidateInit) {
+        const entry = this.peers.get(fromId);
+        if (!entry) return;
+        try {
+            await entry.pc.addIceCandidate(candidate);
+        } catch (err) {
+            if (!entry.ignoreOffer) console.error("[VoiceChat] Failed to add ICE candidate:", err);
+        }
     }
 
     dispose() {
-        this.stopCapture();
         window.removeEventListener("blur", this.handleBlur);
         document.removeEventListener("visibilitychange", this.handleVisibilityChange);
-        this.playbackQueues.forEach((entry) => entry.audio?.pause());
-        this.playbackQueues.clear();
+        for (const remoteId of Array.from(this.peers.keys())) {
+            this.removePeer(remoteId);
+        }
+        this.localStream?.getTracks().forEach((t) => t.stop());
+        this.localStream = null;
+        this.localTrack = null;
     }
 }

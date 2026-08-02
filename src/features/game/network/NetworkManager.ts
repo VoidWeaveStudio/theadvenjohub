@@ -315,7 +315,9 @@ export class NetworkManager {
   public onDisconnected?: () => void;
   public onCount?: (count: number) => void;
   public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; senderFactionSymbol?: string | null; senderFactionImage?: string | null; senderIsAdmin?: boolean; senderIsFactionCreator?: boolean; message: string; timestamp: number }) => void;
-  public onVoiceClip?: (data: { senderId: string; senderNickname: string; chunk: string; mimeType: string }) => void;
+  public onVoiceOffer?: (data: { fromId: string; sdp: string }) => void;
+  public onVoiceAnswer?: (data: { fromId: string; sdp: string }) => void;
+  public onVoiceIceCandidate?: (data: { fromId: string; candidate: RTCIceCandidateInit }) => void;
   public onAuthenticated?: (data: { playerId: string; nickname: string; skinTextureUrl?: string | null }) => void;
   public onProgressLoaded?: (data: any) => void;
   public onAuthError?: (error: string) => void;
@@ -697,8 +699,14 @@ export class NetworkManager {
       case "chat":
         this.onChatMessage?.(data);
         break;
-      case "voiceClip":
-        this.onVoiceClip?.(data);
+      case "voiceOffer":
+        this.onVoiceOffer?.(data);
+        break;
+      case "voiceAnswer":
+        this.onVoiceAnswer?.(data);
+        break;
+      case "voiceIceCandidate":
+        this.onVoiceIceCandidate?.(data);
         break;
       case "nicknameChange":
         this.onOtherPlayerNicknameChange?.(data);
@@ -993,9 +1001,19 @@ export class NetworkManager {
     });
   }
 
-  sendVoiceClip(chunk: string, mimeType: string) {
+  sendVoiceOffer(targetId: string, sdp: string) {
     if (!this.authenticated) return;
-    this.send({ type: "voiceClip", chunk, mimeType });
+    this.send({ type: "voiceOffer", targetId, sdp });
+  }
+
+  sendVoiceAnswer(targetId: string, sdp: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "voiceAnswer", targetId, sdp });
+  }
+
+  sendVoiceIceCandidate(targetId: string, candidate: RTCIceCandidateInit) {
+    if (!this.authenticated) return;
+    this.send({ type: "voiceIceCandidate", targetId, candidate });
   }
 
   sendFactionCreate(ca: string) {

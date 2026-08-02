@@ -102,6 +102,7 @@ function reconcilePendingOtherPlayers(game: Game, locationId: string) {
         op.setBadges(pending.isAdmin ?? false, pending.isFactionCreator ?? false);
         op.setSkinTexture(pending.skinTextureUrl ?? null);
     }
+    game.updateOnlineCount();
 }
 
 export function registerNetworkHandlers(game: Game) {
@@ -195,6 +196,7 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onAuthenticated = (data: AuthData) => {
         game.localPlayerNetId = data.playerId;
+        game.voiceChat.setLocalId(data.playerId);
         game.onNicknameLoaded?.(data.nickname);
         game.player.applySkinTexture(data.skinTextureUrl ?? null);
         game.onMySkinChange?.(data.skinTextureUrl ?? null);
@@ -315,8 +317,14 @@ export function registerNetworkHandlers(game: Game) {
         });
     };
 
-    game.networkManager.onVoiceClip = (data) => {
-        game.voiceChat.playIncoming(data.senderId, data.chunk, data.mimeType);
+    game.networkManager.onVoiceOffer = (data) => {
+        game.voiceChat.handleOffer(data.fromId, data.sdp);
+    };
+    game.networkManager.onVoiceAnswer = (data) => {
+        game.voiceChat.handleAnswer(data.fromId, data.sdp);
+    };
+    game.networkManager.onVoiceIceCandidate = (data) => {
+        game.voiceChat.handleIceCandidate(data.fromId, data.candidate);
     };
 
     game.networkManager.onProgressLoaded = (data: ProgressData) => {

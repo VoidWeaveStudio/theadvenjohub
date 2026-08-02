@@ -379,8 +379,14 @@ export class Game {
                 this.voiceChat.onError = (message) => {
                     this.onNotification?.(`🎤 ${message}`, 3000);
                 };
-                this.voiceChat.onClipReady = (base64, mimeType) => {
-                    this.networkManager.sendVoiceClip(base64, mimeType);
+                this.voiceChat.sendOffer = (targetId, sdp) => {
+                    this.networkManager.sendVoiceOffer(targetId, sdp);
+                };
+                this.voiceChat.sendAnswer = (targetId, sdp) => {
+                    this.networkManager.sendVoiceAnswer(targetId, sdp);
+                };
+                this.voiceChat.sendIceCandidate = (targetId, candidate) => {
+                    this.networkManager.sendVoiceIceCandidate(targetId, candidate);
                 };
 
                 this.interactionSystem.onEnterLocation = async (locationId: string) => {
@@ -526,8 +532,15 @@ export class Game {
 
     public updateOnlineCount() {
         let visibleCount = 1;
-        this.otherPlayers.forEach((op) => { if (!op.isHidden()) visibleCount++; });
+        const nearbyIds = new Set<string>();
+        this.otherPlayers.forEach((op, id) => {
+            if (!op.isHidden()) {
+                visibleCount++;
+                nearbyIds.add(id);
+            }
+        });
         this.hudState.online = visibleCount;
+        this.voiceChat.syncPeers(nearbyIds);
         this.emitState(true);
     }
 
