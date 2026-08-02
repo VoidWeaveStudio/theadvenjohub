@@ -118,6 +118,11 @@ export function registerNetworkHandlers(game: Game) {
                 op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
                 op.create(currentLocation.scene, game.resourceManager);
                 game.otherPlayers.set(data.id, op);
+            } else if (!op.isCreated()) {
+                // Was previously spawned as a hidden placeholder (still in another
+                // location at the time) without ever building its mesh — build it now.
+                op.create(currentLocation.scene, game.resourceManager);
+                op.setHidden(false);
             } else {
                 currentLocation.scene.add(op.mesh);
                 currentLocation.scene.add(op.getHitbox());
@@ -218,6 +223,9 @@ export function registerNetworkHandlers(game: Game) {
             op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
             op.create(currentLocation.scene, game.resourceManager);
             game.otherPlayers.set(data.id, op);
+        } else if (!op.isCreated()) {
+            op.create(currentLocation.scene, game.resourceManager);
+            op.setHidden(false);
         } else if (op.isHidden()) {
             currentLocation.scene.add(op.mesh);
             currentLocation.scene.add(op.getHitbox());

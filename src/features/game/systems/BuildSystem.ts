@@ -21,6 +21,7 @@ export class BuildSystem extends System {
     private isMainWorldScene: boolean = false;
 
     private signs: Map<string, Sign> = new Map();
+    private pendingSigns: SignData[] = [];
     private ghost: Sign | null = null;
     private active: boolean = false;
     private armedItemId: string | null = null;
@@ -58,6 +59,11 @@ export class BuildSystem extends System {
         }
         if (this.ghost) {
             this.scene.add(this.ghost.mesh);
+        }
+        if (this.isMainWorldScene && this.pendingSigns.length > 0) {
+            const pending = this.pendingSigns;
+            this.pendingSigns = [];
+            for (const data of pending) this.spawnLocal(data);
         }
     }
 
@@ -98,7 +104,12 @@ export class BuildSystem extends System {
     }
 
     private spawnLocal(data: SignData) {
-        if (!this.isMainWorldScene) return;
+        if (!this.isMainWorldScene) {
+            if (!this.pendingSigns.some((s) => s.id === data.id)) {
+                this.pendingSigns.push(data);
+            }
+            return;
+        }
         if (this.signs.has(data.id)) return;
         const sign = new Sign(data.id, data.ownerId, data.ownerNickname, data.contentType, data.textContent, data.drawingUrl);
         sign.mesh.position.set(data.position[0], data.position[1], data.position[2]);
@@ -206,6 +217,7 @@ export class BuildSystem extends System {
         for (const id of Array.from(this.signs.keys())) {
             this.despawnLocal(id);
         }
+        this.pendingSigns = [];
         if (this.ghost) {
             this.ghost.dispose(this.scene);
             this.ghost = null;

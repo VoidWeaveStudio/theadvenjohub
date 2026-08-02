@@ -119,18 +119,18 @@ export function GameClient({ slug }: GameClientProps) {
     { id: "slot5", icon: "", name: "", equipped: false },
   ]);
 
-  const getSlotLockReason = (slotId: string): string | null => {
-    if (slotId === "rifle" && currentLocationId === "tower-main-hall") {
+  const getSlotLockReason = (slotId: string, isEquipped: boolean): string | null => {
+    if (slotId === "rifle" && currentLocationId === "tower-main-hall" && !isEquipped) {
       return "🔒 Weapons are not allowed in the Main Hall";
     }
-    if (slotId === "blueprint" && currentLocationId !== "main-world") {
+    if (slotId === "blueprint" && currentLocationId !== "main-world" && !isEquipped) {
       return "🔒 Blueprint can only be used in the open world";
     }
     return null;
   };
 
   const displayHotbarSlots = hotbarSlots.map((slot) => {
-    const lockReason = getSlotLockReason(slot.id);
+    const lockReason = getSlotLockReason(slot.id, slot.equipped);
     return lockReason ? { ...slot, locked: true, lockReason } : slot;
   });
 
@@ -138,7 +138,7 @@ export function GameClient({ slug }: GameClientProps) {
     const slot = hotbarSlots[index];
     if (!slot.icon) return;
 
-    const lockReason = getSlotLockReason(slot.id);
+    const lockReason = getSlotLockReason(slot.id, slot.equipped);
     if (lockReason) {
       notifications.addNotification(lockReason, 2500);
       return;

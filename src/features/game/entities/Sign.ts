@@ -36,9 +36,13 @@ export class Sign {
         this.mesh = new THREE.Group();
         this.mesh.userData.interactionId = `sign-${id}`;
 
+        const BOARD_Y = 1.15;
+        const BOARD_HEIGHT_3D = 0.55;
+        const boardBottom = BOARD_Y - BOARD_HEIGHT_3D / 2;
+
         const postMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, transparent: ghost, opacity: ghost ? 0.5 : 1 });
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.2, 8), postMat);
-        post.position.y = 0.6;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, boardBottom, 8), postMat);
+        post.position.y = boardBottom / 2;
         this.mesh.add(post);
 
         this.boardCanvas = document.createElement("canvas");
@@ -48,8 +52,8 @@ export class Sign {
         this.boardTexture = new THREE.CanvasTexture(this.boardCanvas);
 
         const boardMat = new THREE.MeshBasicMaterial({ map: this.boardTexture, transparent: ghost, opacity: ghost ? 0.5 : 1 });
-        const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.05), boardMat);
-        boardMesh.position.y = 1.15;
+        const boardMesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, BOARD_HEIGHT_3D, 0.05), boardMat);
+        boardMesh.position.y = BOARD_Y;
         this.mesh.add(boardMesh);
 
         if (!ghost) {

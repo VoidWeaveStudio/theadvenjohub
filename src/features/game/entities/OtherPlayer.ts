@@ -31,6 +31,7 @@ export class OtherPlayer extends Entity {
     private dead: boolean = false;
     private health: number = 100;
     private hidden: boolean = false;
+    private created: boolean = false;
 
     private hitbox: THREE.Mesh;
 
@@ -120,6 +121,11 @@ export class OtherPlayer extends Entity {
 
         scene.add(this.hitbox);
         scene.add(this.mesh);
+        this.created = true;
+    }
+
+    public isCreated(): boolean {
+        return this.created;
     }
 
     private createNameTag(name: string): THREE.Sprite {

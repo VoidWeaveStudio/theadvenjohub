@@ -2,10 +2,15 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { buildSignInMessage } from "@/core/auth/lib/signMessage";
+
+const WalletMultiButton = dynamic(
+    () => import("@solana/wallet-adapter-react-ui").then((mod) => mod.WalletMultiButton),
+    { ssr: false }
+);
 
 export default function AdminLoginPage() {
     const router = useRouter();

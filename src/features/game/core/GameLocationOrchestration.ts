@@ -25,6 +25,7 @@ export async function restoreToSavedProgress(
     } catch (error) {
         console.error("Failed to restore saved location:", error);
     } finally {
+        game.setWeaponEquipped(game.hudState.isWeaponEquipped);
         game.restoreResolver?.();
         game.restoreResolver = null;
     }
