@@ -5,6 +5,7 @@ import { db } from "@/core/database";
 import { factions, factionMembers, gameNicknames } from "@/core/database/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { buildFactionTaskExtras } from "@/core/lib/factionDetail";
+import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 
 export async function GET(
     req: NextRequest,
@@ -52,6 +53,8 @@ export async function GET(
                 tokenCa: faction.tokenCa,
                 founderWallet: faction.founderWallet,
                 createdAt: faction.createdAt,
+                promoCodePurchaseTx: faction.promoCodePurchaseTx,
+                promoCodePurchasedAt: faction.promoCodePurchasedAt,
                 ...taskExtras,
                 roster,
             },
@@ -59,5 +62,31 @@ export async function GET(
     } catch (error) {
         console.error("[admin/factions/:factionId] Error:", error);
         return NextResponse.json({ error: "fetch_failed" }, { status: 500 });
+    }
+}
+
+export async function DELETE(
+    req: NextRequest,
+    { params }: { params: Promise<{ factionId: string }> }
+) {
+    const admin = requireAdmin(req);
+    if (admin instanceof NextResponse) return admin;
+
+    try {
+        const { factionId } = await params;
+        const body = await req.json().catch(() => ({}));
+
+        const sigError = verifyAdminAction(req, body, "deleteFaction", factionId);
+        if (sigError) return sigError;
+
+        const [deleted] = await db.delete(factions).where(eq(factions.id, factionId)).returning();
+        if (!deleted) {
+            return NextResponse.json({ error: "faction_not_found" }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("[admin/factions/:factionId DELETE] Error:", error);
+        return NextResponse.json({ error: "delete_failed" }, { status: 500 });
     }
 }

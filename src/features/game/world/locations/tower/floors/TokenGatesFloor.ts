@@ -2,348 +2,367 @@
 import * as THREE from "three";
 import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";
-import { CollisionGrid } from "../../../CollisionGrid";
-import { GATE_REGISTRY } from "../../token-gates/GateRegistry";
+import { createNpcModel, NpcHandle } from "../../../../entities/npcModel";
+import { createNpcNameTag } from "../../../../entities/npcNameTag";
+import { createCoinMesh } from "./basement/utils/meshFactory";
+import { tokenTextureCache } from "../../../../utils/TokenTextureCache";
+import type { FactionGateData } from "../../../../network/NetworkManager";
 
-interface GateGlowInfo {
-    light: THREE.PointLight;
-    panel: THREE.Mesh;
-    baseIntensity: number;
-    phase: number;
+const HALL_HALF_WIDTH = 50;
+const HALL_HALF_LENGTH = 35;
+const GATE_SPACING = 10;
+const GATE_SLOTS_PER_SIDE = 5;
+const MC_REFRESH_MS = 30000;
+
+let sharedPillarGeometry: THREE.BoxGeometry | null = null;
+let sharedLintelGeometry: THREE.BoxGeometry | null = null;
+let sharedPillarMaterial: THREE.MeshStandardMaterial | null = null;
+
+function getPillarGeometry(): THREE.BoxGeometry {
+    if (!sharedPillarGeometry) sharedPillarGeometry = new THREE.BoxGeometry(1.4, 9, 1.4);
+    return sharedPillarGeometry;
+}
+function getLintelGeometry(): THREE.BoxGeometry {
+    if (!sharedLintelGeometry) sharedLintelGeometry = new THREE.BoxGeometry(7.5, 1.3, 1.4);
+    return sharedLintelGeometry;
+}
+function getPillarMaterial(): THREE.MeshStandardMaterial {
+    if (!sharedPillarMaterial) {
+        sharedPillarMaterial = new THREE.MeshStandardMaterial({ color: 0x8a6d4a, roughness: 0.85, metalness: 0.05 });
+    }
+    return sharedPillarMaterial;
+}
+
+interface GateInstance {
+    data: FactionGateData;
+    group: THREE.Group;
+    coin: THREE.Group;
+    nameSprite: THREE.Sprite;
+    mcSprite: THREE.Sprite | null;
+}
+
+function formatMC(value: number): string {
+    if (value > 1e9) return (value / 1e9).toFixed(1) + "B";
+    if (value > 1e6) return (value / 1e6).toFixed(1) + "M";
+    if (value > 1e3) return (value / 1e3).toFixed(1) + "K";
+    return value.toFixed(0);
 }
 
 export class TokenGatesFloor extends TowerFloor {
-    private hallCrystal!: THREE.Group;
-    private gateCoins: Map<string, THREE.Group> = new Map();
-    private gateGlows: GateGlowInfo[] = [];
-
-    private readonly CANYON_HALF_LENGTH = 100;
-    private readonly CANYON_HALF_WIDTH = 40;
+    private stewardNpc!: NpcHandle;
+    private stewardTime = 0;
+    private gates: Map<string, GateInstance> = new Map();
+    private occupiedSlots: Set<number> = new Set();
     private exitZone!: THREE.Box3;
+    private mcInterval: ReturnType<typeof setInterval> | null = null;
 
     constructor() {
         super('tower-token-gates', 'Token Gates');
-        this.collisionGrid = new CollisionGrid(300);
     }
 
-    create(resourceManager: ResourceManager): void {
-        const skyColor = 0x87CEEB;
-        const groundColor = 0xC2B280;
-        this.scene.add(new THREE.HemisphereLight(skyColor, groundColor, 0.8));
+    create(rm: ResourceManager): void {
+        const skyColor = 0x87ceeb;
+        const groundColor = 0xc2b280;
+        this.scene.add(new THREE.HemisphereLight(skyColor, groundColor, 0.85));
         this.scene.background = new THREE.Color(skyColor);
 
-        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-        sun.position.set(100, 200, 100);
+        const sun = new THREE.DirectionalLight(0xfff1d0, 1.25);
+        sun.position.set(80, 120, 60);
+        sun.target.position.set(0, 0, 0);
         sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
-        sun.shadow.camera.left = -150;
-        sun.shadow.camera.right = 150;
-        sun.shadow.camera.top = 150;
-        sun.shadow.camera.bottom = -150;
+        sun.shadow.camera.left = -HALL_HALF_WIDTH;
+        sun.shadow.camera.right = HALL_HALF_WIDTH;
+        sun.shadow.camera.top = HALL_HALF_LENGTH;
+        sun.shadow.camera.bottom = -HALL_HALF_LENGTH;
         sun.shadow.camera.near = 10;
-        sun.shadow.camera.far = 500;
+        sun.shadow.camera.far = 300;
         this.scene.add(sun);
+        this.scene.add(sun.target);
 
-        this.scene.fog = new THREE.FogExp2(0xE6D5B8, 0.005);
+        this.scene.fog = new THREE.FogExp2(0xe6d5b8, 0.004);
 
-        const floorMat = new THREE.MeshStandardMaterial({ color: 0xC2B280, roughness: 1.0, metalness: 0.0 });
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(this.CANYON_HALF_WIDTH * 2, this.CANYON_HALF_LENGTH * 2, 32, 64), floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.y = 0;
-        floor.receiveShadow = true;
-        this.scene.add(floor);
-
-        this.collisionGrid.insert(new THREE.Box3(
-            new THREE.Vector3(-this.CANYON_HALF_WIDTH, -0.5, -this.CANYON_HALF_LENGTH),
-            new THREE.Vector3(this.CANYON_HALF_WIDTH, -0.1, this.CANYON_HALF_LENGTH)
-        ));
-
-        this.createWalls();
-        this.createGatesAlongWalls();
-        this.createHallCrystal();
+        this.buildFloor();
+        this.buildWalls();
+        this.buildSteward(rm);
+        this.createCentralCrystal();
 
         this.exitZone = new THREE.Box3(
-            new THREE.Vector3(-15, 0, this.CANYON_HALF_LENGTH - 15),
-            new THREE.Vector3(15, 20, this.CANYON_HALF_LENGTH + 5)
+            new THREE.Vector3(-14, 0, HALL_HALF_LENGTH - 8),
+            new THREE.Vector3(14, 20, HALL_HALF_LENGTH + 8)
         );
+
+        this.mcInterval = setInterval(() => this.refreshAllMarketCaps(), MC_REFRESH_MS);
     }
 
-    private createWalls() {
-        const sides: Array<-1 | 1> = [-1, 1];
-        const segmentDepth = 5;
-        const segments = Math.ceil((this.CANYON_HALF_LENGTH * 2) / segmentDepth);
-        const baseHeight = 30;
-        const EXIT_START = 70;
+    private buildFloor() {
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0xc2b280, roughness: 1.0, metalness: 0.0 });
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(HALL_HALF_WIDTH * 2, HALL_HALF_LENGTH * 2, 24, 24), floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+    }
 
-        sides.forEach((side) => {
-            const group = new THREE.Group();
-
-            for (let i = 0; i < segments; i++) {
-                const z = -this.CANYON_HALF_LENGTH + i * segmentDepth + segmentDepth / 2;
-
-                if (z > EXIT_START) continue;
-
-                const height = baseHeight + (Math.random() * 10 - 4);
-                const jitter = Math.random() * 2.2;
-                const thickness = 4 + Math.random() * 3;
-
-                const widthFactor = z > 40 ? THREE.MathUtils.lerp(1, 0.4, (z - 40) / 30) : 1;
-                const dynamicWidth = this.CANYON_HALF_WIDTH * widthFactor;
-
-                const mat = new THREE.MeshStandardMaterial({
-                    color: new THREE.Color(0xC2B280).lerp(new THREE.Color(0x8B7355), Math.random()),
-                    roughness: 1.0,
-                    metalness: 0.0,
-                });
-
-                const chunk = new THREE.Mesh(
-                    new THREE.BoxGeometry(thickness, height, segmentDepth),
-                    mat
-                );
-
-                const xBase = side * (dynamicWidth + thickness / 2);
-                chunk.position.set(xBase - side * jitter, height / 2, z);
-                chunk.castShadow = true;
-                chunk.receiveShadow = true;
-                group.add(chunk);
-
-                const wallMinX = side === -1 ? xBase - thickness - 1 : xBase - 1;
-                const wallMaxX = side === -1 ? xBase + 1 : xBase + thickness + 1;
-
-                this.collisionGrid.insert(new THREE.Box3(
-                    new THREE.Vector3(wallMinX, 0, z - segmentDepth / 2),
-                    new THREE.Vector3(wallMaxX, height, z + segmentDepth / 2)
-                ));
-            }
-            this.scene.add(group);
-        });
-
-        const backWallGroup = new THREE.Group();
-        const backWall = new THREE.Mesh(
-            new THREE.BoxGeometry(this.CANYON_HALF_WIDTH * 2 + 10, 40, 5),
-            new THREE.MeshStandardMaterial({ color: 0x8B7355, roughness: 1.0 })
-        );
-        backWall.position.set(0, 20, -this.CANYON_HALF_LENGTH - 2.5);
+    private buildWalls() {
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xb59a6b, roughness: 0.95, metalness: 0.0 });
+        const backWall = new THREE.Mesh(new THREE.BoxGeometry(HALL_HALF_WIDTH * 2 + 6, 26, 3), wallMat);
+        backWall.position.set(0, 13, -HALL_HALF_LENGTH - 1.5);
         backWall.castShadow = true;
         backWall.receiveShadow = true;
-        backWallGroup.add(backWall);
-        this.scene.add(backWallGroup);
+        this.scene.add(backWall);
+        this.collisionGrid.insert(new THREE.Box3().setFromObject(backWall));
+
+        const sideDefs: Array<-1 | 1> = [-1, 1];
+        sideDefs.forEach((side) => {
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(3, 26, HALL_HALF_LENGTH * 2 + 6), wallMat);
+            wall.position.set(side * (HALL_HALF_WIDTH + 1.5), 13, 0);
+            wall.castShadow = true;
+            wall.receiveShadow = true;
+            this.scene.add(wall);
+            this.collisionGrid.insert(new THREE.Box3().setFromObject(wall));
+        });
+    }
+
+    private buildSteward(rm: ResourceManager) {
+        const x = -10;
+        const z = -HALL_HALF_LENGTH + 10;
+
+        const steward = createNpcModel(rm, 0x6b4a2f, (headPos) => {
+            const hood = new THREE.Mesh(
+                new THREE.ConeGeometry(0.32, 0.42, 12),
+                new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.8 })
+            );
+            hood.position.set(headPos.x, headPos.y + 0.32, headPos.z);
+
+            const marker = new THREE.Mesh(
+                new THREE.OctahedronGeometry(0.18, 0),
+                new THREE.MeshStandardMaterial({ color: 0xffd699, emissive: 0xe8a33d, emissiveIntensity: 5 })
+            );
+            marker.position.set(headPos.x, headPos.y + 0.9, headPos.z);
+
+            const glow = new THREE.PointLight(0xe8a33d, 1.4, 6);
+            glow.position.set(headPos.x, headPos.y - 0.2, headPos.z + 0.3);
+
+            return [hood, marker, glow];
+        });
+        steward.group.position.set(x, 0, z);
+        steward.group.userData.interactionId = "gate-steward";
+        steward.group.add(createNpcNameTag("Corwin", "#E8A33D"));
+        this.scene.add(steward.group);
+        this.stewardNpc = steward;
 
         this.collisionGrid.insert(new THREE.Box3(
-            new THREE.Vector3(-this.CANYON_HALF_WIDTH - 5, 0, -this.CANYON_HALF_LENGTH - 5),
-            new THREE.Vector3(this.CANYON_HALF_WIDTH + 5, 40, -this.CANYON_HALF_LENGTH)
+            new THREE.Vector3(x - 0.5, 0, z - 0.5),
+            new THREE.Vector3(x + 0.5, 2.5, z + 0.5)
         ));
     }
 
-    private createGatesAlongWalls() {
-        const gatesCount = 39;
-        const usableLength = 130;
-        const startZ = -this.CANYON_HALF_LENGTH + 10;
-        const spacing = usableLength / (gatesCount / 2);
+    private slotPosition(index: number): { x: number; z: number; rotY: number } {
+        const perSide = GATE_SLOTS_PER_SIDE;
+        const side = index < perSide ? -1 : 1;
+        const localIndex = index % perSide;
+        const startZ = -((perSide - 1) * GATE_SPACING) / 2;
+        const z = startZ + localIndex * GATE_SPACING;
+        const x = side * (HALL_HALF_WIDTH - 4);
+        const rotY = side === -1 ? -Math.PI / 2 : Math.PI / 2;
+        return { x, z, rotY };
+    }
 
-        for (let i = 0; i < gatesCount; i++) {
-            const config = GATE_REGISTRY[i];
-            if (!config) continue;
+    private nextFreeSlot(): number {
+        const maxSlots = GATE_SLOTS_PER_SIDE * 2;
+        for (let i = 0; i < maxSlots; i++) {
+            if (!this.occupiedSlots.has(i)) return i;
+        }
+        return this.gates.size % maxSlots;
+    }
 
-            const side = i % 2 === 0 ? -1 : 1;
-            const index = Math.floor(i / 2);
-            const z = startZ + index * spacing;
+    public handleFactionGatesState(list: FactionGateData[]) {
+        const incomingIds = new Set(list.map((g) => g.factionId));
 
-            const widthFactor = z > 40 ? THREE.MathUtils.lerp(1, 0.4, (z - 40) / 30) : 1;
-            const dynamicWidth = this.CANYON_HALF_WIDTH * widthFactor;
+        for (const [factionId, instance] of Array.from(this.gates.entries())) {
+            if (!incomingIds.has(factionId)) {
+                this.removeGate(factionId, instance);
+            }
+        }
 
-            const x = side * (dynamicWidth - 3);
-            const rotation = side === -1 ? Math.PI / 2 : -Math.PI / 2;
-
-            this.createGateVisuals(config, x, z, rotation);
-            this.createGateCoin(config, x, z);
-            this.createGateGlow(config, x, z, rotation);
-
-            this.addPortal({
-                id: config.id,
-                position: new THREE.Vector3(x, 0, z),
-                radius: 4,
-                targetLocationId: config.targetLocationId,
-                targetSpawnPoint: new THREE.Vector3(0, 0, -40),
-                mesh: this.scene.children[this.scene.children.length - 1]
-            });
+        for (const data of list) {
+            if (!this.gates.has(data.factionId)) {
+                this.spawnGate(data);
+            }
         }
     }
 
-    private createGateVisuals(config: any, x: number, z: number, rotation: number) {
+    public addLocalGate(data: FactionGateData) {
+        if (this.gates.has(data.factionId)) return;
+        this.spawnGate(data);
+    }
+
+    public getFactionGateInfo(factionId: string): FactionGateData | undefined {
+        return this.gates.get(factionId)?.data;
+    }
+
+    private spawnGate(data: FactionGateData) {
+        const slot = this.nextFreeSlot();
+        this.occupiedSlots.add(slot);
+        const { x, z, rotY } = this.slotPosition(slot);
+
         const group = new THREE.Group();
         group.position.set(x, 0, z);
-        group.rotation.y = rotation;
-        group.userData.interactionId = config.id;
+        group.rotation.y = rotY;
+        group.userData.interactionId = `faction-gate-${data.factionId}`;
+        group.userData.factionName = data.factionName;
 
-        const pillarGeo = new THREE.BoxGeometry(2, 8, 2);
-        const pillarMat = new THREE.MeshStandardMaterial({ color: 0x654321, roughness: 1.0 });
-
-        const leftPillar = new THREE.Mesh(pillarGeo, pillarMat);
-        leftPillar.position.set(-3, 4, 0);
+        const pillarMat = getPillarMaterial();
+        const leftPillar = new THREE.Mesh(getPillarGeometry(), pillarMat);
+        leftPillar.position.set(-3, 4.5, 0);
         leftPillar.castShadow = true;
-
-        const rightPillar = new THREE.Mesh(pillarGeo, pillarMat);
-        rightPillar.position.set(3, 4, 0);
+        const rightPillar = new THREE.Mesh(getPillarGeometry(), pillarMat);
+        rightPillar.position.set(3, 4.5, 0);
         rightPillar.castShadow = true;
+        const lintel = new THREE.Mesh(getLintelGeometry(), pillarMat);
+        lintel.position.set(0, 9.3, 0);
+        lintel.castShadow = true;
+        group.add(leftPillar, rightPillar, lintel);
 
-        const topGeo = new THREE.BoxGeometry(8, 1.5, 2);
-        const topMesh = new THREE.Mesh(topGeo, pillarMat);
-        topMesh.position.set(0, 8.5, 0);
-        topMesh.castShadow = true;
-
-        group.add(leftPillar, rightPillar, topMesh);
-        this.scene.add(group);
-    }
-
-    private createGateCoin(config: any, x: number, z: number) {
-        const group = new THREE.Group();
-        group.position.set(x, 7, z);
-
-        const coinGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 32);
-        const coinMat = new THREE.MeshStandardMaterial({
-            color: 0xffd700, emissive: 0x332200, emissiveIntensity: 0.5, metalness: 1.0, roughness: 0.3
-        });
-        const coin = new THREE.Mesh(coinGeo, coinMat);
-        coin.rotation.x = Math.PI / 2;
+        const coin = createCoinMesh(new THREE.Texture(), 1.1, false, false, "gold");
+        coin.position.set(0, 11, 0);
         group.add(coin);
 
-        const glowGeo = new THREE.SphereGeometry(1.6, 16, 16);
-        const glowMat = new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
-        const glow = new THREE.Mesh(glowGeo, glowMat);
-        group.add(glow);
+        const nameSprite = this.createTextSprite(data.factionName, "#E5E7EB", 46);
+        nameSprite.position.set(0, 13, 0);
+        group.add(nameSprite);
 
-        group.userData = { isGateCoin: true, ca: config.ca, gateId: config.id };
         this.scene.add(group);
-        this.gateCoins.set(config.id, group);
+
+        const instance: GateInstance = { data, group, coin, nameSprite, mcSprite: null };
+        this.gates.set(data.factionId, instance);
+
+        if (data.image) {
+            const url = data.image.startsWith("data:") ? data.image : `/api/image-proxy?url=${encodeURIComponent(data.image)}`;
+            tokenTextureCache.load(url, (tex) => {
+                coin.traverse((child: THREE.Object3D) => {
+                    if (child instanceof THREE.Mesh) {
+                        const mats = Array.isArray(child.material) ? child.material : [child.material];
+                        mats.forEach((m: any) => {
+                            if (m.map !== undefined && m.emissiveMap !== undefined) {
+                                m.map = tex;
+                                m.emissiveMap = tex;
+                                m.needsUpdate = true;
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
+        this.refreshMarketCap(instance);
+
+        const box = new THREE.Box3().setFromObject(group);
+        this.collisionGrid.insert(box);
     }
 
-    private createGateGlow(config: any, x: number, z: number, rotation: number) {
-        const dirX = Math.cos(rotation);
-        const dirZ = Math.sin(rotation);
-
-        const panel = new THREE.Mesh(
-            new THREE.PlaneGeometry(5.2, 7.5),
-            new THREE.MeshBasicMaterial({
-                color: 0xffd39a,
-                transparent: true,
-                opacity: 0.28,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-            })
-        );
-        panel.position.set(x + dirX * 1.4, 4.2, z + dirZ * 1.4);
-        panel.rotation.y = rotation + Math.PI / 2;
-        this.scene.add(panel);
-
-        const light = new THREE.PointLight(0xffb870, 2.2, 16, 2);
-        light.position.set(x, 4, z);
-        this.scene.add(light);
-
-        this.gateGlows.push({ light, panel, baseIntensity: 2.2, phase: Math.random() * Math.PI * 2 });
+    private removeGate(factionId: string, instance: GateInstance) {
+        this.scene.remove(instance.group);
+        instance.group.traverse((obj) => {
+            const mesh = obj as THREE.Mesh;
+            if ((mesh as any).isMesh) {
+                const geo = mesh.geometry;
+                if (geo && geo !== sharedPillarGeometry && geo !== sharedLintelGeometry) geo.dispose();
+                const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                mats.forEach((m) => { if (m && m !== sharedPillarMaterial) (m as THREE.Material).dispose(); });
+            }
+            if (obj instanceof THREE.Sprite) {
+                (obj.material.map as THREE.Texture | null)?.dispose();
+                obj.material.dispose();
+            }
+        });
+        this.gates.delete(factionId);
     }
 
-    private createHallCrystal() {
-        const group = new THREE.Group();
-        const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8, 1), new THREE.MeshStandardMaterial({ color: 0x66ccff, emissive: 0x3399ff, emissiveIntensity: 2 }));
-        const shell = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 1), new THREE.MeshPhysicalMaterial({ color: 0x99ddff, transmission: 1, opacity: 0.6, transparent: true, roughness: 0, thickness: 0.5 }));
-        const light = new THREE.PointLight(0x66ccff, 9, 45);
-        light.position.set(0, 1.5, 0);
-        group.add(core, shell, light);
+    private async refreshAllMarketCaps() {
+        await Promise.all(Array.from(this.gates.values()).map((instance) => this.refreshMarketCap(instance)));
+    }
 
-        group.position.set(0, 1.5, -this.CANYON_HALF_LENGTH + 15);
-        group.userData.interactionId = "tower-crystal";
-        this.scene.add(group);
-        this.hallCrystal = group;
+    private async refreshMarketCap(instance: GateInstance) {
+        if (!instance.data.tokenCa) return;
+        try {
+            const res = await fetch(`/api/token-by-ca?ca=${instance.data.tokenCa}`);
+            const info = await res.json();
+            const mc = info?.mc || 0;
 
-        this.collisionGrid.insert(new THREE.Box3(
-            new THREE.Vector3(-1, 0, -1),
-            new THREE.Vector3(1, 3, 1)
-        ).translate(group.position));
+            if (instance.mcSprite) {
+                instance.group.remove(instance.mcSprite);
+                (instance.mcSprite.material.map as THREE.Texture | null)?.dispose();
+                instance.mcSprite.material.dispose();
+            }
+            const sprite = this.createTextSprite(`MC: ${formatMC(mc)}`, "#FFD166", 40);
+            sprite.position.set(0, 11.9, 0);
+            instance.group.add(sprite);
+            instance.mcSprite = sprite;
+        } catch {
+        }
+    }
+
+    private createTextSprite(text: string, color: string, fontSize: number): THREE.Sprite {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 96;
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = color;
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = "rgba(0,0,0,0.6)";
+        ctx.shadowBlur = 6;
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
+        const sprite = new THREE.Sprite(mat);
+        sprite.scale.set(4, 0.75, 1);
+        sprite.renderOrder = 999;
+        return sprite;
     }
 
     update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean) {
         super.update(playerPosition, delta, isEPressed);
 
-        if (this.hallCrystal) {
-            const t = performance.now() * 0.002;
-            this.hallCrystal.rotation.y += delta * 0.6;
-            this.hallCrystal.position.y = 1.5 + Math.sin(t) * 0.2;
+        if (this.stewardNpc) {
+            this.stewardTime += delta;
+            this.stewardNpc.group.rotation.y = Math.sin(this.stewardTime * 0.4) * 0.3;
+            this.stewardNpc.update(delta);
         }
 
-        this.gateCoins.forEach((coinGroup) => {
-            coinGroup.rotation.y += delta * 1.5;
-            coinGroup.position.y = 7 + Math.sin(performance.now() * 0.003 + coinGroup.position.x) * 0.3;
-        });
-
-        const now = performance.now() * 0.005;
-        this.gateGlows.forEach((glow) => {
-            const pulse = Math.sin(now * 0.6 + glow.phase) * 0.15;
-            glow.light.intensity = glow.baseIntensity + pulse;
-            (glow.panel.material as THREE.MeshBasicMaterial).opacity = 0.28 + pulse * 0.05;
-        });
+        const t = performance.now() * 0.001;
+        let i = 0;
+        for (const instance of this.gates.values()) {
+            instance.coin.rotation.y += delta * 1.2;
+            instance.coin.position.y = 11 + Math.sin(t * 1.5 + i) * 0.2;
+            i++;
+        }
 
         if (this.exitZone.containsPoint(playerPosition)) {
             this.pendingTeleport = 'open-world-canyon';
         }
     }
 
-    getSpawnPoint(): THREE.Vector3 {
-        const crystalPos = this.hallCrystal.position;
-        const radius = 8;
-
-        for (let i = 0; i < 15; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const x = crystalPos.x + Math.cos(angle) * radius;
-            const z = crystalPos.z + Math.sin(angle) * radius;
-
-            const playerBox = new THREE.Box3(
-                new THREE.Vector3(x - 0.5, 0.1, z - 0.5),
-                new THREE.Vector3(x + 0.5, 2.0, z + 0.5)
-            );
-
-            const hasCollision = typeof (this.collisionGrid as any).collides === 'function'
-                ? (this.collisionGrid as any).collides(playerBox)
-                : false;
-
-            if (!hasCollision) {
-                return new THREE.Vector3(x, 2, z);
-            }
-        }
-
-        return new THREE.Vector3(crystalPos.x, 2, crystalPos.z + 10);
-    }
-
     public override getInteractables(): THREE.Object3D[] {
-        const interactables = [this.hallCrystal];
-        this.gateCoins.forEach(coin => interactables.push(coin));
+        const interactables = [...super.getInteractables(), this.stewardNpc.group];
+        for (const instance of this.gates.values()) interactables.push(instance.group);
         return interactables;
     }
 
     dispose() {
-        if (this.hallCrystal) {
-            this.hallCrystal.traverse((c: any) => { if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); } });
-            this.scene.remove(this.hallCrystal);
-        }
-        this.gateCoins.forEach(coin => {
-            coin.traverse((c: any) => { if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); } });
-            this.scene.remove(coin);
-        });
-        this.gateCoins.clear();
-        this.gateGlows = [];
+        if (this.mcInterval) clearInterval(this.mcInterval);
 
-        this.scene.traverse((obj) => {
-            const mesh = obj as THREE.Mesh;
-            if ((mesh as any).isMesh) {
-                mesh.geometry.dispose();
-                if (Array.isArray(mesh.material)) {
-                    mesh.material.forEach((m: THREE.Material) => m.dispose());
-                } else if (mesh.material) {
-                    (mesh.material as THREE.Material).dispose();
-                }
-            }
-        });
+        if (this.stewardNpc) {
+            this.stewardNpc.group.traverse((c: any) => { if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); } });
+            this.scene.remove(this.stewardNpc.group);
+        }
+
+        for (const [factionId, instance] of Array.from(this.gates.entries())) {
+            this.removeGate(factionId, instance);
+        }
 
         super.dispose();
     }

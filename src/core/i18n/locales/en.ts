@@ -784,6 +784,14 @@ export const en: Translations = {
   "errors.withdrawFailed": "Withdraw action failed",
   "errors.blockFailed": "Block action failed",
   "insufficientBalance": "Insufficient balance",
+  "promoCode.joinFactionHint": "Have a faction promo code? Redeem it to join their faction.",
+  "promoCode.placeholder": "Have a promo code?",
+  "promoCode.redeem": "Redeem",
+  "promoCode.loginHint": "Log in to redeem a promo code",
+  "promoCode.invalidCode": "Invalid or unknown promo code.",
+  "promoCode.insufficientBalance": "You don't hold this faction's token.",
+  "promoCode.balanceCheckFailed": "Couldn't verify your token balance, try again.",
+  "promoCode.redeemFailed": "Failed to redeem code.",
 };
 
 export default en;

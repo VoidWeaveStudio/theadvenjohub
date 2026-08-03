@@ -86,6 +86,14 @@ export type SignData = {
   createdAt: string | number;
 };
 
+export type FactionGateData = {
+  factionId: string;
+  factionName: string;
+  symbol: string | null;
+  image: string | null;
+  tokenCa: string | null;
+};
+
 export type QuestStatus = "not_started" | "active" | "ready_to_turn_in" | "completed";
 
 export type QuestInfoData = {
@@ -371,6 +379,7 @@ export class NetworkManager {
   public onLootState?: (loot: LootDropData[]) => void;
   public onLootSpawn?: (loot: LootDropData) => void;
   public onLootDespawn?: (id: string) => void;
+  public onFactionGatesState?: (gates: FactionGateData[]) => void;
   public onSignState?: (signs: SignData[]) => void;
   public onSignSpawn?: (sign: SignData) => void;
   public onSignContentSet?: (data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) => void;
@@ -643,6 +652,11 @@ export class NetworkManager {
       case "lootState":
         if (Array.isArray(data.loot)) {
           this.onLootState?.(data.loot);
+        }
+        break;
+      case "factionGatesState":
+        if (Array.isArray(data.gates)) {
+          this.onFactionGatesState?.(data.gates);
         }
         break;
       case "lootSpawn":
@@ -1015,11 +1029,6 @@ export class NetworkManager {
   sendVoiceIceCandidate(targetId: string, candidate: RTCIceCandidateInit) {
     if (!this.authenticated) return;
     this.send({ type: "voiceIceCandidate", targetId, candidate });
-  }
-
-  sendFactionCreate(ca: string) {
-    if (!this.authenticated) return;
-    this.send({ type: "factionCreate", ca });
   }
 
   sendFactionJoin(factionId: string) {

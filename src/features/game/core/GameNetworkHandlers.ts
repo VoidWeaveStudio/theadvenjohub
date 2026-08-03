@@ -4,6 +4,7 @@ import type { Game, GameSession } from "./Game";
 import { PlayerNetData } from "../network/NetworkManager";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
+import { TokenGatesFloor } from "../world/locations/tower/floors/TokenGatesFloor";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
 
@@ -456,6 +457,13 @@ export function registerNetworkHandlers(game: Game) {
         game.lootSystem.handleLootSpawn(data);
     };
 
+    game.networkManager.onFactionGatesState = (gates) => {
+        const location = game.locationManager.getCurrentLocation();
+        if (location instanceof TokenGatesFloor) {
+            location.handleFactionGatesState(gates);
+        }
+    };
+
     game.networkManager.onLootDespawn = (id) => {
         game.lootSystem.handleLootDespawn(id);
     };
@@ -561,21 +569,25 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onFactionCreated = (faction) => {
+        game.interactionSystem.myFactionIds.add(faction.id);
         game.onFactionCreated?.(faction);
         game.onNotification?.(`🚩 Faction "${faction.name}" founded!`, 3000);
     };
 
     game.networkManager.onFactionJoined = (faction) => {
+        game.interactionSystem.myFactionIds.add(faction.id);
         game.onFactionJoined?.(faction);
         game.onNotification?.(`🚩 Joined faction "${faction.name}"`, 2500);
     };
 
     game.networkManager.onFactionLeft = (factionId) => {
+        game.interactionSystem.myFactionIds.delete(factionId);
         game.onFactionLeft?.(factionId);
         game.onNotification?.("🚩 Left faction", 2000);
     };
 
     game.networkManager.onFactionMyListResult = (factions) => {
+        game.interactionSystem.myFactionIds = new Set(factions.map((f) => f.id));
         game.onFactionMyListResult?.(factions);
     };
 

@@ -37,6 +37,7 @@ export interface GameCallbacks {
     onOpenVendorUI?: () => void;
     onOpenSolaUI?: () => void;
     onOpenAlfredoUI?: () => void;
+    onOpenGateStewardUI?: () => void;
     onOpenCanyonMapUI?: () => void;
     onEquippedToolChange?: (tool: "weapon" | "blueprint" | null) => void;
     onOpenSignEditorUI?: (signId: string) => void;

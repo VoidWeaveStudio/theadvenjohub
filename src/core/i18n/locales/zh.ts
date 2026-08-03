@@ -789,6 +789,14 @@ export const zh: Translations = {
   "errors.withdrawFailed": "提取操作失败",
   "errors.blockFailed": "锁定操作失败",
   "insufficientBalance": "余额不足",
+  "promoCode.joinFactionHint": "拥有阵营促销码？兑换后即可加入该阵营。",
+  "promoCode.placeholder": "有促销码吗？",
+  "promoCode.redeem": "兑换",
+  "promoCode.loginHint": "登录后即可兑换促销码",
+  "promoCode.invalidCode": "促销码无效或不存在。",
+  "promoCode.insufficientBalance": "你未持有该阵营的代币。",
+  "promoCode.balanceCheckFailed": "无法验证代币余额，请重试。",
+  "promoCode.redeemFailed": "兑换促销码失败。",
 };
 
 export default zh;

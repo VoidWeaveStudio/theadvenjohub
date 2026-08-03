@@ -3,7 +3,6 @@ import * as THREE from "three";
 import { Location } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";
 import { CollisionGrid } from "../../CollisionGrid";
-import { getGateConfig } from "./GateRegistry";
 
 const SPAWN_POINT = new THREE.Vector3(0, 2, -40);
 const CRYSTAL_POSITION = new THREE.Vector3(0, 1.5, 44);
@@ -31,23 +30,19 @@ function hashString(str: string): number {
 export class TokenCanyon extends Location {
     private canyonCrystal!: THREE.Group;
     private sunLight!: THREE.DirectionalLight;
-    private gateId: string;
     public collisionGrid: CollisionGrid;
     public maxPlayerRadius = 140;
 
-    constructor(locationId: string, gateId: string) {
-        const config = getGateConfig(gateId);
-        super(locationId, config?.name || 'Open World Canyon');
-        this.gateId = gateId;
+    constructor() {
+        super('open-world-canyon', 'Open World Canyon');
         this.collisionGrid = new CollisionGrid(250);
     }
 
     create(resourceManager: ResourceManager): void {
-        const config = getGateConfig(this.gateId);
-        const isCustom = config?.id === 'token-gate-01' || this.gateId === 'open-world-canyon';
-        const rand = mulberry32(hashString(this.gateId));
+        const isCustom = true;
+        const rand = mulberry32(hashString(this.id));
 
-        const hue = isCustom ? 8 : 34 + (hashString(this.gateId) % 18);
+        const hue = isCustom ? 8 : 34 + (hashString(this.id) % 18);
         const wallBaseColor = new THREE.Color().setHSL(hue / 360, 0.55, isCustom ? 0.32 : 0.42);
         const wallAccentColor = new THREE.Color().setHSL(hue / 360, 0.5, isCustom ? 0.22 : 0.3);
         const sandColor = new THREE.Color().setHSL((hue + 6) / 360, 0.5, 0.55);

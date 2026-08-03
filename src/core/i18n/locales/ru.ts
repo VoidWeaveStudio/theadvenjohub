@@ -789,6 +789,14 @@ export const ru: Translations = {
   "errors.withdrawFailed": "Не удалось вывести токены",
   "errors.blockFailed": "Не удалось заблокировать токены",
   "insufficientBalance": "Недостаточно средств",
+  "promoCode.joinFactionHint": "Есть промокод фракции? Активируйте его, чтобы вступить в их фракцию.",
+  "promoCode.placeholder": "Есть промокод?",
+  "promoCode.redeem": "Активировать",
+  "promoCode.loginHint": "Войдите, чтобы активировать промокод",
+  "promoCode.invalidCode": "Неверный или несуществующий промокод.",
+  "promoCode.insufficientBalance": "У вас нет токена этой фракции.",
+  "promoCode.balanceCheckFailed": "Не удалось проверить баланс токена, попробуйте ещё раз.",
+  "promoCode.redeemFailed": "Не удалось активировать код.",
 };
 
 export default ru;

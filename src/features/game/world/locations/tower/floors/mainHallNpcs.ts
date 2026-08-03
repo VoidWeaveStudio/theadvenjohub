@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { CollisionGrid } from "../../../CollisionGrid";
 import { ResourceManager } from "../../../../core/ResourceManager";
 import { createNpcModel, NpcHandle } from "../../../../entities/npcModel";
+import { createNpcNameTag } from "../../../../entities/npcNameTag";
 
 export function createVendorNPC(scene: THREE.Scene, collisionGrid: CollisionGrid, rm: ResourceManager): NpcHandle {
     const STALL_Z = -36;
@@ -46,6 +47,7 @@ export function createVendorNPC(scene: THREE.Scene, collisionGrid: CollisionGrid
     });
     vendorNpc.group.position.set(0, 0, STALL_Z - 0.6);
     vendorNpc.group.userData.interactionId = "token-vendor";
+    vendorNpc.group.add(createNpcNameTag("Tony", "#ffcc66"));
     scene.add(vendorNpc.group);
 
     collisionGrid.insert(new THREE.Box3(
@@ -80,6 +82,7 @@ export function createSolaNPC(scene: THREE.Scene, collisionGrid: CollisionGrid, 
     });
     solaNpc.group.position.set(x, 0, z);
     solaNpc.group.userData.interactionId = "quest-giver-sola";
+    solaNpc.group.add(createNpcNameTag("Sola", "#66ffb3"));
     scene.add(solaNpc.group);
 
     collisionGrid.insert(new THREE.Box3(
@@ -122,6 +125,7 @@ export function createAlfredoNPC(scene: THREE.Scene, collisionGrid: CollisionGri
     });
     alfredoNpc.group.position.set(x, 0, z);
     alfredoNpc.group.userData.interactionId = "npc-alfredo";
+    alfredoNpc.group.add(createNpcNameTag("Alfredo", "#66ccff"));
     scene.add(alfredoNpc.group);
 
     collisionGrid.insert(new THREE.Box3(
@@ -157,6 +161,7 @@ export function createFactionBrokerNPC(scene: THREE.Scene, collisionGrid: Collis
     });
     factionBrokerNpc.group.position.set(x, 0, z);
     factionBrokerNpc.group.userData.interactionId = "faction-broker";
+    factionBrokerNpc.group.add(createNpcNameTag("Alaric", "#a855f7"));
     scene.add(factionBrokerNpc.group);
 
     collisionGrid.insert(new THREE.Box3(

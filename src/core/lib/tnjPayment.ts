@@ -2,7 +2,7 @@
 import { Connection, PublicKey, ParsedTransactionWithMeta } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { db } from "@/core/database";
-import { gameLicenses, marketplacePurchases, factions } from "@/core/database/schema";
+import { gameLicenses, marketplacePurchases, factions, factionGates } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
@@ -141,20 +141,26 @@ export async function verifyTnjTransferToTreasury(
 export type SignatureUse =
   | { kind: "license"; id: string }
   | { kind: "purchase"; id: string }
-  | { kind: "faction_promo"; id: string };
+  | { kind: "faction_promo"; id: string }
+  | { kind: "faction_creation"; id: string }
+  | { kind: "faction_gate"; id: string };
 
 // Cross-table anti-replay check. A single tx signature must only ever redeem
-// ONE purchase, across all three tables that can consume one — without this,
+// ONE purchase, across all tables that can consume one — without this,
 // the same payment could be replayed as e.g. both a game license and a
 // faction promo-code unlock.
 export async function findExistingSignatureUse(signature: string): Promise<SignatureUse | null> {
-  const [lic, purch, fact] = await Promise.all([
+  const [lic, purch, factPromo, factCreation, factGate] = await Promise.all([
     db.query.gameLicenses.findFirst({ where: eq(gameLicenses.txSignature, signature) }),
     db.query.marketplacePurchases.findFirst({ where: eq(marketplacePurchases.txSignature, signature) }),
     db.query.factions.findFirst({ where: eq(factions.promoCodePurchaseTx, signature) }),
+    db.query.factions.findFirst({ where: eq(factions.creationTx, signature) }),
+    db.query.factionGates.findFirst({ where: eq(factionGates.purchaseTx, signature) }),
   ]);
   if (lic) return { kind: "license", id: lic.id };
   if (purch) return { kind: "purchase", id: purch.id };
-  if (fact) return { kind: "faction_promo", id: fact.id };
+  if (factPromo) return { kind: "faction_promo", id: factPromo.id };
+  if (factCreation) return { kind: "faction_creation", id: factCreation.id };
+  if (factGate) return { kind: "faction_gate", id: factGate.id };
   return null;
 }

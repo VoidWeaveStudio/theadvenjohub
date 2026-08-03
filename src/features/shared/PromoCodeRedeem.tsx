@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { Sparkles } from "lucide-react";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { LoginButton } from "@/core/auth/components/LoginButton";
 import { useLanguage } from "@/core/i18n/LanguageContext";
@@ -79,21 +80,30 @@ export function PromoCodeRedeem({ gameId, onSuccess }: PromoCodeRedeemProps) {
 
   return (
     <form onSubmit={handleRedeem} className="space-y-2">
-      <div className="flex gap-2">
+      <div className="h-11 flex items-center gap-2 pl-3 pr-1.5 rounded-lg border border-border bg-[rgba(255,255,255,0.03)] focus-within:border-primary/50 transition-colors">
+        <Sparkles className="w-4 h-4 text-primary shrink-0" />
         <input
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           maxLength={20}
           placeholder={t("promoCode.placeholder") || "Have a promo code?"}
-          className="flex-1 bg-[rgba(255,255,255,0.04)] px-3 py-2 rounded-lg text-sm border border-border outline-none focus:border-primary/50"
+          className="min-w-0 flex-1 h-full bg-transparent text-sm outline-none placeholder:text-text-muted"
           disabled={loading}
         />
-        <button type="submit" disabled={loading || !code.trim()} className="btn-secondary px-4 py-2 text-sm disabled:opacity-50">
-          {loading ? "..." : (t("promoCode.redeem") || "Redeem")}
+        <button
+          type="submit"
+          disabled={loading || !code.trim()}
+          className="btn-secondary h-8 px-3.5 py-0 inline-flex items-center justify-center text-xs shrink-0 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {loading ? <span className="animate-spin inline-block">⟳</span> : (t("promoCode.redeem") || "Redeem")}
         </button>
       </div>
-      {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+      {error && (
+        <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2.5 py-1.5" role="alert">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

@@ -791,6 +791,14 @@ export const ja: Translations = {
   "errors.withdrawFailed": "出金操作に失敗",
   "errors.blockFailed": "ロック操作に失敗",
   "insufficientBalance": "残高不足",
+  "promoCode.joinFactionHint": "陣営のプロモコードをお持ちですか？使用するとその陣営に参加できます。",
+  "promoCode.placeholder": "プロモコードをお持ちですか？",
+  "promoCode.redeem": "使用する",
+  "promoCode.loginHint": "プロモコードを使用するにはログインしてください",
+  "promoCode.invalidCode": "無効または存在しないプロモコードです。",
+  "promoCode.insufficientBalance": "この陣営のトークンを保有していません。",
+  "promoCode.balanceCheckFailed": "トークン残高を確認できませんでした。もう一度お試しください。",
+  "promoCode.redeemFailed": "プロモコードの使用に失敗しました。",
 };
 
 export default ja;

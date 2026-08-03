@@ -4,7 +4,6 @@ import { System } from "./System";
 import { Player } from "../entities/Player";
 import { InputManager } from "../core/InputManager";
 import { SafeZone } from "../world/SafeZone";
-import { getGateConfig } from "../world/locations/token-gates/GateRegistry";
 
 interface TokenInfo {
     name: string;
@@ -35,12 +34,14 @@ export class InteractionSystem extends System {
     public onOpenCanyonMap?: () => void;
     public onOpenFactionBroker?: () => void;
     public onOpenAlfredo?: () => void;
+    public onOpenGateSteward?: () => void;
     public onCanyonReturn?: () => void;
     public onOpenTokenUI?: (token: any) => void;
     public onEnterLocation?: (locationId: string) => void;
     public onOpenSignEditor?: (signId: string) => void;
     public onOpenSignViewer?: (signId: string) => void;
     public localUserId: string = "";
+    public myFactionIds: Set<string> = new Set();
     public isBlueprintActive: boolean = false;
 
     public setScene(scene: THREE.Scene) {
@@ -88,25 +89,21 @@ export class InteractionSystem extends System {
         if (nearest) {
             const id = nearest.obj.userData.interactionId;
 
-            if (id?.startsWith("token-gate-") || id === "gate-open-world") {
-                const config = getGateConfig(id);
-                if (config) {
-                    if (config.ca) {
-                        this.onPrompt?.(`[E] View ${config.name} Token & Enter`);
-                        if (isEJustPressed === true) {
-                            this.onOpenTokenUI?.({ ca: config.ca, name: config.name, symbol: "TKN" });
-                            setTimeout(() => {
-                                if (this.onEnterLocation) {
-                                    this.onEnterLocation(config.targetLocationId);
-                                }
-                            }, 500);
-                        }
-                    } else {
-                        this.onPrompt?.(`[E] Enter ${config.name}`);
-                        if (isEJustPressed === true && this.onEnterLocation) {
-                            this.onEnterLocation(config.targetLocationId);
-                        }
+            if (id?.startsWith("faction-gate-")) {
+                const factionId = id.slice("faction-gate-".length);
+                const factionName = (nearest.obj.userData.factionName as string | undefined) ?? "Faction";
+                if (this.myFactionIds.has(factionId)) {
+                    this.onPrompt?.(`[E] Enter ${factionName} Gate`);
+                    if (isEJustPressed === true) {
+                        this.onEnterLocation?.(`faction-gate-${factionId}`);
                     }
+                } else {
+                    this.onPrompt?.(`${factionName} Gate — members only`);
+                }
+            } else if (id === "gate-steward") {
+                this.onPrompt?.("[E] Talk to Corwin");
+                if (isEJustPressed === true) {
+                    this.onOpenGateSteward?.();
                 }
             } else if (id?.startsWith("column-")) {
                 this.onPrompt?.("[E] View Token Info");
@@ -149,7 +146,7 @@ export class InteractionSystem extends System {
                     this.onOpenSola?.();
                 }
             } else if (id === "faction-broker") {
-                this.onPrompt?.("[E] Manage Factions");
+                this.onPrompt?.("[E] Talk to Alaric");
                 if (isEJustPressed === true) {
                     this.onOpenFactionBroker?.();
                 }

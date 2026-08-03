@@ -3,6 +3,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { AdminFactionDetailModal } from "./AdminFactionDetailModal";
+import { AdminCreateFactionModal } from "./AdminCreateFactionModal";
 import { AdminTableRef } from "./AdminTableRef";
 
 interface AdminFaction {
@@ -29,6 +30,7 @@ export const AdminFactionsTable = forwardRef<AdminTableRef>(function AdminFactio
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(true);
     const [selectedFactionId, setSelectedFactionId] = useState<string | null>(null);
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
 
     const loadFactions = async (q: string) => {
         setLoading(true);
@@ -56,6 +58,10 @@ export const AdminFactionsTable = forwardRef<AdminTableRef>(function AdminFactio
         loadFactions(query);
     };
 
+    const handleDeleted = (factionId: string) => {
+        setFactions((prev) => prev.filter((f) => f.id !== factionId));
+    };
+
     return (
         <div className="space-y-4">
             <form onSubmit={handleSearch} className="flex gap-2">
@@ -67,6 +73,9 @@ export const AdminFactionsTable = forwardRef<AdminTableRef>(function AdminFactio
                     className="flex-1 bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none"
                 />
                 <button type="submit" className="btn-secondary px-4 py-2 text-sm">Search</button>
+                <button type="button" onClick={() => setIsCreateOpen(true)} className="btn-primary px-4 py-2 text-sm flex-shrink-0">
+                    + Create Faction
+                </button>
             </form>
 
             {loading ? (
@@ -104,7 +113,12 @@ export const AdminFactionsTable = forwardRef<AdminTableRef>(function AdminFactio
                 </div>
             )}
 
-            <AdminFactionDetailModal factionId={selectedFactionId} onClose={() => setSelectedFactionId(null)} />
+            <AdminFactionDetailModal factionId={selectedFactionId} onClose={() => setSelectedFactionId(null)} onDeleted={handleDeleted} />
+            <AdminCreateFactionModal
+                isOpen={isCreateOpen}
+                onClose={() => setIsCreateOpen(false)}
+                onCreated={() => loadFactions(query)}
+            />
         </div>
     );
 });

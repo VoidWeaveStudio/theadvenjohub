@@ -17,6 +17,9 @@ import { BuildSystem } from "../systems/BuildSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
 import { LocationManager } from "../world/LocationManager";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
+import { EventsHall } from "../world/locations/tower/floors/EventsHall";
+import { TokenGatesFloor } from "../world/locations/tower/floors/TokenGatesFloor";
+import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { computeDayTime, DayNightConfig } from "../utils/dayNightCycle";
 import { applyLocationMovementConfig, configureLocationSpecifics, syncMainWorldEntry } from "./GameLocationTransition";
@@ -138,6 +141,26 @@ export class Game {
         await this.changeLocation(floorId).catch(() => {
             this.onNotification?.("⚠️ Failed to travel to this floor", 2000);
         });
+    }
+
+    public async enterEventsLocation(factionId: string, factionName: string) {
+        this.closeFloorSelector();
+        await this.changeLocation('tower-events', { factionId, factionName }).catch(() => {
+            this.onNotification?.("⚠️ Failed to travel to Events", 2000);
+        });
+    }
+
+    public notifyGatePurchased(faction: { id: string; name: string; symbol: string | null; image: string | null; tokenCa: string | null }) {
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof TokenGatesFloor) {
+            location.addLocalGate({
+                factionId: faction.id,
+                factionName: faction.name,
+                symbol: faction.symbol,
+                image: faction.image,
+                tokenCa: faction.tokenCa,
+            });
+        }
     }
 
     constructor(canvas: HTMLCanvasElement, slug: string, session: GameSession) {
@@ -338,6 +361,10 @@ export class Game {
                     this.onOpenAlfredoUI?.();
                 };
 
+                this.interactionSystem.onOpenGateSteward = () => {
+                    this.onOpenGateStewardUI?.();
+                };
+
                 this.interactionSystem.localUserId = this.session.userId;
                 this.interactionSystem.onOpenSignEditor = (signId) => {
                     this.onOpenSignEditorUI?.(signId);
@@ -423,7 +450,7 @@ export class Game {
 
     public async changeLocation(
         targetLocationId: string,
-        options?: { position?: number[]; rotation?: number; silent?: boolean }
+        options?: { position?: number[]; rotation?: number; silent?: boolean; factionId?: string; factionName?: string }
     ) {
         if (this.isChangingLocation) return;
         this.isChangingLocation = true;
@@ -512,8 +539,20 @@ export class Game {
                 this.player.mesh.rotation.y = options.rotation;
             }
 
+            if (newLocation instanceof EventsHall) {
+                newLocation.setFactionContext(options?.factionId ?? "", options?.factionName ?? "");
+            }
+
+            if (newLocation instanceof FactionGateRoom) {
+                const info = previousLocation instanceof TokenGatesFloor
+                    ? previousLocation.getFactionGateInfo(newLocation.factionId)
+                    : undefined;
+                newLocation.setFactionInfo(info?.factionName ?? "Faction", info?.image ?? null, info?.symbol ?? null);
+            }
+
             if (!options?.silent) {
-                this.onNotification?.(`📍 Teleported to ${newLocation.name}`, 2000);
+                const enteredAs = options?.factionName ? ` as ${options.factionName}` : "";
+                this.onNotification?.(`📍 Teleported to ${newLocation.name}${enteredAs}`, 2000);
             }
             this.onLocationChange?.(newLocation.id);
 
@@ -797,10 +836,6 @@ export class Game {
 
     enterCanyonDungeon() {
         this.networkManager.sendCanyonEnterDungeon();
-    }
-
-    createFaction(ca: string) {
-        this.networkManager.sendFactionCreate(ca);
     }
 
     joinFaction(factionId: string) {

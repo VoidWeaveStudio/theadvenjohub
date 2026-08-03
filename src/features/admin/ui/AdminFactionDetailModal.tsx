@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAdminSignature } from "../lib/useAdminSignature";
 
 interface FactionDetail {
     id: string;
@@ -14,6 +15,9 @@ interface FactionDetail {
     founderWallet: string;
     verifiedCreatorWallet: string | null;
     createdAt: string;
+    promoCode: string | null;
+    promoCodePurchaseTx: string | null;
+    promoCodePurchasedAt: string | null;
     level: number;
     levelProgressAsh: number;
     xpForNextLevel: number;
@@ -47,6 +51,7 @@ interface FactionDetail {
 interface AdminFactionDetailModalProps {
     factionId: string | null;
     onClose: () => void;
+    onDeleted: (factionId: string) => void;
 }
 
 function truncateWallet(wallet: string): string {
@@ -59,9 +64,13 @@ function formatDate(iso: string | null): string {
     return new Date(iso).toLocaleString();
 }
 
-export function AdminFactionDetailModal({ factionId, onClose }: AdminFactionDetailModalProps) {
+export function AdminFactionDetailModal({ factionId, onClose, onDeleted }: AdminFactionDetailModalProps) {
     const [faction, setFaction] = useState<FactionDetail | null>(null);
     const [loading, setLoading] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [granting, setGranting] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const { signedFetch } = useAdminSignature();
 
     useEffect(() => {
         if (!factionId) {
@@ -69,6 +78,7 @@ export function AdminFactionDetailModal({ factionId, onClose }: AdminFactionDeta
             return;
         }
         setLoading(true);
+        setActionError(null);
         fetch(`/api/admin/factions/${factionId}`, { credentials: "include" })
             .then((r) => r.json())
             .then((data) => setFaction(data.faction || null))
@@ -76,6 +86,45 @@ export function AdminFactionDetailModal({ factionId, onClose }: AdminFactionDeta
     }, [factionId]);
 
     if (!factionId) return null;
+
+    const grantPromoCode = async () => {
+        setActionError(null);
+        setGranting(true);
+        try {
+            const res = await signedFetch(`/api/admin/factions/${factionId}/promo-code`, "grantPromoCode", factionId, {});
+            const data = await res.json();
+            if (res.ok) {
+                setFaction((prev) => (prev ? { ...prev, promoCode: data.promoCode, promoCodePurchaseTx: null, promoCodePurchasedAt: new Date().toISOString() } : prev));
+            } else {
+                setActionError(data.error === "already_granted" ? "This faction already has a promo code" : "Failed to grant promo code");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        } finally {
+            setGranting(false);
+        }
+    };
+
+    const deleteFaction = async () => {
+        if (!faction) return;
+        if (!confirm(`Delete faction "${faction.name}" #${faction.number} and remove all ${faction.roster.length} members? This cannot be undone.`)) return;
+
+        setActionError(null);
+        setDeleting(true);
+        try {
+            const res = await signedFetch(`/api/admin/factions/${factionId}`, "deleteFaction", factionId, {}, "DELETE");
+            if (res.ok) {
+                onDeleted(factionId);
+                onClose();
+            } else {
+                setActionError("Failed to delete faction");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
@@ -170,6 +219,48 @@ export function AdminFactionDetailModal({ factionId, onClose }: AdminFactionDeta
                                         <span className="text-[#FFD166]">{m.contributionPoints} pts / {m.tasksContributed} tasks</span>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+
+                        <div className="border-t border-white/10 pt-4 space-y-3">
+                            {actionError && (
+                                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                                    {actionError}
+                                </p>
+                            )}
+                            <p className="text-[#6B7280] text-[11px]">
+                                Actions below require signing with your admin wallet.
+                            </p>
+
+                            <div>
+                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">PROMO CODE UPGRADE</div>
+                                {faction.promoCode ? (
+                                    <div className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.25)] rounded-lg px-3 py-2 text-xs space-y-1">
+                                        <div className="text-[#FFD166] font-bold tracking-widest">{faction.promoCode}</div>
+                                        <div className="text-[#6B7280]">
+                                            {faction.promoCodePurchaseTx ? "Purchased" : "Granted by admin"} — {formatDate(faction.promoCodePurchasedAt)}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={grantPromoCode}
+                                        disabled={granting}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {granting ? "Granting..." : "Grant Promo Code Upgrade"}
+                                    </button>
+                                )}
+                            </div>
+
+                            <div>
+                                <div className="text-red-400 text-xs font-bold tracking-wider mb-2">DANGER ZONE</div>
+                                <button
+                                    onClick={deleteFaction}
+                                    disabled={deleting}
+                                    className="btn-secondary px-3 py-1.5 text-xs text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {deleting ? "Deleting..." : "Delete Faction"}
+                                </button>
                             </div>
                         </div>
                     </>

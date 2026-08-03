@@ -13,16 +13,18 @@ import { Spinner } from "@/core/ui/Spinner";
 import { apiPost } from "@/core/api/client";
 import { DeathScreen } from "./ui/DeathScreen";
 import { FloorSelector } from "./ui/FloorSelector";
+import { EventsFactionPicker } from "./ui/EventsFactionPicker";
 import { TokenPanel } from "./ui/TokenPanel";
 import { Inventory } from "./ui/Inventory";
 import { VendorPanel } from "./ui/VendorPanel";
 import { SolaPanel } from "./ui/SolaPanel";
 import { AlfredoPanel } from "./ui/AlfredoPanel";
+import { GateStewardPanel, GateFactionResult } from "./ui/GateStewardPanel";
 import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
 import { getCsrfToken } from "@/core/lib/clientUtils";
 import { QuestTracker } from "./ui/QuestTracker";
 import { CanyonMapPanel } from "./ui/CanyonMapPanel";
-import { CreateFactionModal } from "./ui/CreateFactionModal";
+import { AlaricPanel } from "./ui/AlaricPanel";
 import { FactionsWindow } from "./ui/FactionsWindow";
 import { SocialWindow, SocialTab } from "./ui/SocialWindow";
 import { ShopWindow } from "./ui/ShopWindow";
@@ -76,10 +78,12 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
   const [currentLocationId, setCurrentLocationId] = useState("tower-main-hall");
+  const [isEventsPickerOpen, setIsEventsPickerOpen] = useState(false);
 
   const [isVendorOpen, setIsVendorOpen] = useState(false);
   const [isSolaOpen, setIsSolaOpen] = useState(false);
   const [isAlfredoOpen, setIsAlfredoOpen] = useState(false);
+  const [isGateStewardOpen, setIsGateStewardOpen] = useState(false);
   const [isPersonalizationOpen, setIsPersonalizationOpen] = useState(false);
   const [mySkinUrl, setMySkinUrl] = useState<string | null>(null);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
@@ -95,6 +99,7 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
   const [isCreateFactionModalOpen, setIsCreateFactionModalOpen] = useState(false);
+  const [factionPanelSkipIntro, setFactionPanelSkipIntro] = useState(false);
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>("friends");
 
   const hud = useHudState();
@@ -242,6 +247,11 @@ export function GameClient({ slug }: GameClientProps) {
           setIsAlfredoOpen(true);
           document.exitPointerLock();
         };
+        game.onOpenGateStewardUI = () => {
+          if (cancelled) return;
+          setIsGateStewardOpen(true);
+          document.exitPointerLock();
+        };
         game.onOpenSignEditorUI = (signId) => {
           if (cancelled) return;
           setSignEditorId(signId);
@@ -273,6 +283,7 @@ export function GameClient({ slug }: GameClientProps) {
         game.onCanyonMap = (data) => { if (!cancelled) canyonMap.handleCanyonMap(data); };
         game.onOpenFactionBrokerUI = () => {
           if (cancelled) return;
+          setFactionPanelSkipIntro(false);
           setIsCreateFactionModalOpen(true);
           document.exitPointerLock();
         };
@@ -406,6 +417,10 @@ export function GameClient({ slug }: GameClientProps) {
           setIsAlfredoOpen(false);
           return;
         }
+        if (isGateStewardOpen) {
+          setIsGateStewardOpen(false);
+          return;
+        }
         if (signEditorId !== null) {
           setSignEditorId(null);
           return;
@@ -426,6 +441,10 @@ export function GameClient({ slug }: GameClientProps) {
           setIsCreateFactionModalOpen(false);
           return;
         }
+        if (isEventsPickerOpen) {
+          setIsEventsPickerOpen(false);
+          return;
+        }
         if (activeTopWindow !== null) {
           setActiveTopWindow(null);
           return;
@@ -440,7 +459,7 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -488,7 +507,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, hud.hudState.equippedTool]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, hud.hudState.equippedTool]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -584,7 +603,22 @@ export function GameClient({ slug }: GameClientProps) {
   };
 
   const handleSelectFloor = (floorId: string) => {
+    if (floorId === "tower-events") {
+      setShowFloorSelector(false);
+      gameRef.current?.closeFloorSelector();
+      if (factionState.myFactions.length === 0) {
+        notifications.addNotification("⚠️ Join a faction first to enter Events", 2500);
+        return;
+      }
+      setIsEventsPickerOpen(true);
+      return;
+    }
     gameRef.current?.selectFloor(floorId);
+  };
+
+  const handleEnterEvents = (factionId: string, factionName: string) => {
+    setIsEventsPickerOpen(false);
+    gameRef.current?.enterEventsLocation(factionId, factionName);
   };
 
   if (authError) {
@@ -692,10 +726,13 @@ export function GameClient({ slug }: GameClientProps) {
         getNicknameMenuActions={getNicknameMenuActions}
       />
 
-      <CreateFactionModal
+      <AlaricPanel
         isOpen={isCreateFactionModalOpen}
         onClose={() => setIsCreateFactionModalOpen(false)}
-        onCreateFaction={(ca) => gameRef.current?.createFaction(ca)}
+        myFactions={factionState.myFactions}
+        skipIntro={factionPanelSkipIntro}
+        gameSlug={slug}
+        onCreated={() => gameRef.current?.requestMyFactions()}
       />
 
       <FactionsWindow
@@ -720,6 +757,7 @@ export function GameClient({ slug }: GameClientProps) {
         onSetDisplayedFaction={(factionId) => gameRef.current?.setDisplayedFaction(factionId)}
         onOpenCreateFaction={() => {
           setActiveTopWindow(null);
+          setFactionPanelSkipIntro(true);
           setIsCreateFactionModalOpen(true);
         }}
         onRequestTaskList={() => gameRef.current?.requestFactionTaskList()}
@@ -851,6 +889,13 @@ export function GameClient({ slug }: GameClientProps) {
         currentLocationId={currentLocationId}
       />
 
+      <EventsFactionPicker
+        isOpen={isEventsPickerOpen}
+        onClose={() => setIsEventsPickerOpen(false)}
+        myFactions={factionState.myFactions}
+        onConfirm={handleEnterEvents}
+      />
+
       {inventory.activeTokenData && (
         <TokenPanel
           ca={inventory.activeTokenData.ca}
@@ -882,6 +927,12 @@ export function GameClient({ slug }: GameClientProps) {
           setIsPersonalizationOpen(true);
         }}
         onNotification={(msg, duration) => notifications.addNotification(msg, duration)}
+      />
+
+      <GateStewardPanel
+        isOpen={isGateStewardOpen}
+        onClose={() => setIsGateStewardOpen(false)}
+        onPurchased={(faction: GateFactionResult) => gameRef.current?.notifyGatePurchased(faction)}
       />
 
       <PersonalizationEditor

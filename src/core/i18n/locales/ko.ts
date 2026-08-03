@@ -788,6 +788,14 @@ export const ko: Translations = {
   "errors.withdrawFailed": "인출 작업 실패",
   "errors.blockFailed": "잠금 작업 실패",
   "insufficientBalance": "잔액 부족",
+  "promoCode.joinFactionHint": "진영 프로모 코드가 있으신가요? 사용하면 해당 진영에 가입할 수 있습니다.",
+  "promoCode.placeholder": "프로모 코드가 있으신가요?",
+  "promoCode.redeem": "사용하기",
+  "promoCode.loginHint": "프로모 코드를 사용하려면 로그인하세요",
+  "promoCode.invalidCode": "유효하지 않거나 존재하지 않는 프로모 코드입니다.",
+  "promoCode.insufficientBalance": "이 진영의 토큰을 보유하고 있지 않습니다.",
+  "promoCode.balanceCheckFailed": "토큰 잔액을 확인할 수 없습니다. 다시 시도해 주세요.",
+  "promoCode.redeemFailed": "프로모 코드 사용에 실패했습니다.",
 };
 
 export default ko;

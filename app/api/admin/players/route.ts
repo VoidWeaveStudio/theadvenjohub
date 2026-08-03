@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
 import { db } from "@/core/database";
 import { users, gameNicknames, gameLicenses, factions } from "@/core/database/schema";
-import { desc, ilike, or, inArray, sql } from "drizzle-orm";
+import { desc, eq, and, ilike, or, inArray, isNotNull, exists, sql } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     const admin = requireAdmin(req);
@@ -12,6 +12,30 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const query = searchParams.get("q")?.trim();
+
+        const nicknameSubquery = db
+            .select({ nickname: gameNicknames.nickname })
+            .from(gameNicknames)
+            .where(eq(gameNicknames.userId, users.id))
+            .orderBy(desc(gameNicknames.updatedAt))
+            .limit(1);
+
+        const ownsGameSubquery = db
+            .select({ one: sql`1` })
+            .from(gameLicenses)
+            .where(and(eq(gameLicenses.userId, users.id), eq(gameLicenses.isActive, true)));
+
+        const promoFactionSubquery = db
+            .select({ name: factions.name })
+            .from(gameLicenses)
+            .innerJoin(factions, eq(factions.id, gameLicenses.grantedViaPromoFactionId))
+            .where(and(
+                eq(gameLicenses.userId, users.id),
+                eq(gameLicenses.isActive, true),
+                isNotNull(gameLicenses.grantedViaPromoFactionId)
+            ))
+            .orderBy(desc(gameLicenses.purchasedAt))
+            .limit(1);
 
         const rows = await db
             .select({
@@ -22,14 +46,9 @@ export async function GET(req: NextRequest) {
                 isOnline: users.isOnline,
                 lastSeenAt: users.lastSeenAt,
                 createdAt: users.createdAt,
-                nickname: sql<string | null>`(SELECT ${gameNicknames.nickname} FROM ${gameNicknames} WHERE ${gameNicknames.userId} = ${users.id} ORDER BY ${gameNicknames.updatedAt} DESC LIMIT 1)`,
-                ownsGame: sql<boolean>`EXISTS (SELECT 1 FROM ${gameLicenses} WHERE ${gameLicenses.userId} = ${users.id} AND ${gameLicenses.isActive} = true)`,
-                promoFactionName: sql<string | null>`(
-                    SELECT ${factions.name} FROM ${gameLicenses}
-                    JOIN ${factions} ON ${factions.id} = ${gameLicenses.grantedViaPromoFactionId}
-                    WHERE ${gameLicenses.userId} = ${users.id} AND ${gameLicenses.isActive} = true AND ${gameLicenses.grantedViaPromoFactionId} IS NOT NULL
-                    ORDER BY ${gameLicenses.purchasedAt} DESC LIMIT 1
-                )`,
+                nickname: sql<string | null>`(${nicknameSubquery})`,
+                ownsGame: exists(ownsGameSubquery),
+                promoFactionName: sql<string | null>`(${promoFactionSubquery})`,
             })
             .from(users)
             .where(query ? or(

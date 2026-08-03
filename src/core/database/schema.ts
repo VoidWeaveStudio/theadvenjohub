@@ -377,6 +377,7 @@ export const factions = pgTable("factions", {
   promoCode: varchar("promo_code", { length: 20 }).unique(),
   promoCodePurchaseTx: varchar("promo_code_purchase_tx", { length: 88 }).unique(),
   promoCodePurchasedAt: timestamp("promo_code_purchased_at"),
+  creationTx: varchar("creation_tx", { length: 88 }).unique(),
 }, (table) => [
   uniqueIndex("idx_factions_game_name").on(table.gameId, table.name),
   index("idx_factions_token_ca").on(table.tokenCa),
@@ -414,6 +415,13 @@ export const factionTaskLog = pgTable("faction_task_log", {
 }, (table) => [
   index("idx_faction_task_log_faction").on(table.factionId),
 ]);
+
+export const factionGates = pgTable("faction_gates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  factionId: uuid("faction_id").notNull().unique().references(() => factions.id, { onDelete: "cascade" }),
+  purchaseTx: varchar("purchase_tx", { length: 88 }).notNull().unique(),
+  purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
+});
 
 export const friendships = pgTable("friendships", {
   id: uuid("id").primaryKey().defaultRandom(),

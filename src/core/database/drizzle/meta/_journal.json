@@ -120,6 +120,20 @@
       "when": 1785705014276,
       "tag": "0021_rename_tanjo_shooter_title",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785719334597,
+      "tag": "0022_worthless_black_tom",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785733204520,
+      "tag": "0023_nasty_ben_grimm",
+      "breakpoints": true
     }
   ]
 }

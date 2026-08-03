@@ -15,7 +15,7 @@ interface FloorSelectorProps {
 
 // Percentages measured against the crystal portals painted into background.webp.
 const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
-    'tower-main-hall': { x: 66.4, y: 38.1 },
+    'tower-events': { x: 66.4, y: 38.1 },
     'tower-first-floor': { x: 21.2, y: 59.1 },
     'tower-token-gates': { x: 75.5, y: 61.0 },
     'tower-basement': { x: 49.2, y: 67.9 },
@@ -23,7 +23,7 @@ const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
 };
 
 const NODE_ICONS: Record<string, string> = {
-    'tower-main-hall': '/locations/main-hall.webp',
+    'tower-events': '/locations/main-hall.webp',
     'tower-first-floor': '/locations/canyon.webp',
     'tower-token-gates': '/locations/token-gates.webp',
     'tower-basement': '/locations/crypto-universe.webp',
@@ -31,7 +31,7 @@ const NODE_ICONS: Record<string, string> = {
 };
 
 const NODE_GLOW: Record<string, string> = {
-    'tower-main-hall': 'radial-gradient(circle, rgba(79,209,255,0.6) 0%, rgba(79,209,255,0) 70%)',
+    'tower-events': 'radial-gradient(circle, rgba(79,209,255,0.6) 0%, rgba(79,209,255,0) 70%)',
     'tower-first-floor': 'radial-gradient(circle, rgba(255,159,28,0.6) 0%, rgba(255,159,28,0) 70%)',
     'tower-token-gates': 'radial-gradient(circle, rgba(74,222,128,0.6) 0%, rgba(74,222,128,0) 70%)',
     'tower-basement': 'radial-gradient(circle, rgba(168,85,247,0.6) 0%, rgba(168,85,247,0) 70%)',
@@ -39,7 +39,7 @@ const NODE_GLOW: Record<string, string> = {
 };
 
 const NODE_DELAY: Record<string, number> = {
-    'tower-main-hall': 0,
+    'tower-events': 0,
     'tower-first-floor': 0.45,
     'tower-token-gates': 0.9,
     'tower-basement': 1.35,

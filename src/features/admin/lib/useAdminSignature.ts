@@ -29,12 +29,12 @@ export function useAdminSignature() {
         return { wallet: publicKey.toBase58(), signature, timestamp };
     }
 
-    async function signedFetch(url: string, action: string, target: string, extraBody: Record<string, unknown> = {}) {
+    async function signedFetch(url: string, action: string, target: string, extraBody: Record<string, unknown> = {}, method: string = "PATCH") {
         const sig = await signAction(action, target);
         const csrfToken = getCsrfToken();
 
         return fetch(url, {
-            method: "PATCH",
+            method,
             credentials: "include",
             headers: {
                 "Content-Type": "application/json",
