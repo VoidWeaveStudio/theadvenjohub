@@ -483,15 +483,7 @@ export class Game {
             previousLocation.scene.remove(this.cameraController.yawObject);
             newLocation.scene.add(this.cameraController.yawObject);
 
-            // Anyone visible to us belonged to the location we're leaving —
-            // none of them are automatically relevant to where we're going.
-            // Detach and hide them here; the server's own notifyLocationTransition
-            // (triggered by sendLocationChange below) will tell us who's
-            // actually in the new location via fresh playerJoinLocation
-            // messages, which reveal-or-recreate as needed. Moving their
-            // meshes into the new scene instead (as this used to do) dragged
-            // players who never left the old location along as permanent,
-            // non-interactive ghosts.
+     
             this.otherPlayers.forEach((op) => {
                 if (!op.isHidden()) {
                     previousLocation.scene.remove(op.mesh);
@@ -956,6 +948,30 @@ export class Game {
 
     inviteToFaction(toWallet: string, factionId: string) {
         this.networkManager.sendFactionInvite(toWallet, factionId);
+    }
+
+    sendTradeInvite(toWallet: string) {
+        this.networkManager.sendTradeInvite(toWallet);
+    }
+
+    respondToTradeInvite(tradeId: string, accept: boolean) {
+        this.networkManager.sendTradeInviteRespond(tradeId, accept);
+    }
+
+    setTradeOffer(tradeId: string, itemId: string | null, priceTnj: number | null) {
+        this.networkManager.sendTradeSetOffer(tradeId, itemId, priceTnj);
+    }
+
+    setTradeReady(tradeId: string, ready: boolean) {
+        this.networkManager.sendTradeSetReady(tradeId, ready);
+    }
+
+    submitTradePayment(tradeId: string, signature: string) {
+        this.networkManager.sendTradeSubmitPayment(tradeId, signature);
+    }
+
+    cancelTrade(tradeId: string) {
+        this.networkManager.sendTradeCancel(tradeId);
     }
 
     getInventory(): InventoryEntry[] {

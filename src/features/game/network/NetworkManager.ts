@@ -123,6 +123,36 @@ export type InventoryEntry = {
   quantity: number;
 };
 
+export type TradePhase =
+  | "pending_accept"
+  | "negotiating"
+  | "awaiting_payment"
+  | "settling"
+  | "completed"
+  | "failed"
+  | "declined"
+  | "cancelled"
+  | "expired";
+
+export type TradeParticipant = {
+  userId: string;
+  wallet: string;
+  nickname: string | null;
+  ready: boolean;
+};
+
+export type TradeSessionData = {
+  tradeId: string;
+  phase: TradePhase;
+  sellerId: string | null;
+  itemId: string | null;
+  itemName: string | null;
+  priceTnj: number | null;
+  participants: TradeParticipant[];
+  reason?: string;
+  critical?: boolean;
+};
+
 export interface GameSession {
   gameToken: string;
   serverUrl: string;
@@ -446,6 +476,10 @@ export class NetworkManager {
   public onPrivateMessageError?: (data: { code: string; toWallet: string }) => void;
   public onFactionChatMessage?: (data: { id: string; factionId: string; sender: string; senderWallet?: string; senderFactionSymbol?: string | null; senderFactionImage?: string | null; senderIsAdmin?: boolean; senderIsFactionCreator?: boolean; message: string; timestamp: number }) => void;
   public onFactionInviteSent?: (toWallet: string) => void;
+
+  public onTradeSession?: (data: TradeSessionData) => void;
+  public onTradeInviteReceived?: (data: { tradeId: string; fromWallet: string; fromNickname: string }) => void;
+  public onTradeInviteError?: (data: { code: string; toWallet: string }) => void;
 
   setSessionRefresher(fn: () => Promise<GameSession | null>) {
     this.refreshSession = fn;
@@ -866,6 +900,15 @@ export class NetworkManager {
       case "factionInviteSent":
         this.onFactionInviteSent?.(data.toWallet);
         break;
+      case "tradeSession":
+        this.onTradeSession?.(data);
+        break;
+      case "tradeInviteReceived":
+        this.onTradeInviteReceived?.(data);
+        break;
+      case "tradeInviteError":
+        this.onTradeInviteError?.(data);
+        break;
     }
   }
 
@@ -1184,6 +1227,36 @@ export class NetworkManager {
   sendFactionInvite(toWallet: string, factionId: string) {
     if (!this.authenticated) return;
     this.send({ type: "factionInvite", toWallet, factionId });
+  }
+
+  sendTradeInvite(toWallet: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "tradeInvite", toWallet });
+  }
+
+  sendTradeInviteRespond(tradeId: string, accept: boolean) {
+    if (!this.authenticated) return;
+    this.send({ type: "tradeInviteRespond", tradeId, accept });
+  }
+
+  sendTradeSetOffer(tradeId: string, itemId: string | null, priceTnj: number | null) {
+    if (!this.authenticated) return;
+    this.send({ type: "tradeSetOffer", tradeId, itemId, priceTnj });
+  }
+
+  sendTradeSetReady(tradeId: string, ready: boolean) {
+    if (!this.authenticated) return;
+    this.send({ type: "tradeSetReady", tradeId, ready });
+  }
+
+  sendTradeSubmitPayment(tradeId: string, signature: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "tradeSubmitPayment", tradeId, signature });
+  }
+
+  sendTradeCancel(tradeId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "tradeCancel", tradeId });
   }
 
   sendLocationChange(locationId: string) {

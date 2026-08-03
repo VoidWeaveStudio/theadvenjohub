@@ -79,14 +79,7 @@ interface LocalRespawnData {
     locationId?: string;
 }
 
-// When a playerJoin/init arrives for someone not in our current (client-side)
-// location, we stash their data on a hidden placeholder instead of building
-// them — this commonly happens right after connecting, since the client
-// always bootstraps into tower-main-hall before restoring to the saved
-// location, so join broadcasts for that saved location arrive "too early".
-// Once our own location actually catches up, build any placeholders whose
-// stashed location now matches instead of leaving them permanently invisible
-// and non-interactable.
+
 function reconcilePendingOtherPlayers(game: Game, locationId: string) {
     const currentLocation = game.locationManager.getCurrentLocation();
     if (!currentLocation) return;
@@ -143,8 +136,7 @@ export function registerNetworkHandlers(game: Game) {
                 op.create(currentLocation.scene, game.resourceManager);
                 game.otherPlayers.set(data.id, op);
             } else if (!op.isCreated()) {
-                // Was previously spawned as a hidden placeholder (still in another
-                // location at the time) without ever building its mesh — build it now.
+            
                 op.create(currentLocation.scene, game.resourceManager);
                 op.setHidden(false);
             } else {
@@ -242,11 +234,7 @@ export function registerNetworkHandlers(game: Game) {
                 game.otherPlayers.set(data.id, hiddenOp);
                 game.updateOnlineCount();
             }
-            // Not in our current location (typically: we're still on the bootstrap
-            // location and haven't restored to our saved one yet). Remember the
-            // latest data so that once our location actually catches up to theirs,
-            // reconcilePendingOtherPlayers can build them in properly instead of
-            // leaving a permanently invisible, non-interactable placeholder.
+   
             if (!hiddenOp.isCreated()) {
                 hiddenOp.setPendingJoinData(data);
             }
@@ -744,5 +732,17 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onFactionInviteSent = (toWallet) => {
         game.onFactionInviteSent?.(toWallet);
         game.onNotification?.('✉️ Faction invite sent', 2500);
+    };
+
+    game.networkManager.onTradeSession = (data) => {
+        game.onTradeSession?.(data);
+    };
+
+    game.networkManager.onTradeInviteReceived = (data) => {
+        game.onTradeInviteReceived?.(data);
+    };
+
+    game.networkManager.onTradeInviteError = (data) => {
+        game.onTradeInviteError?.(data);
     };
 }

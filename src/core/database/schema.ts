@@ -423,6 +423,33 @@ export const factionGates = pgTable("faction_gates", {
   purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
 });
 
+// P2P item trades between players. A row only ever exists for a resolved
+// payment attempt (completed or failed) — in-progress negotiation (offer,
+// ready checkboxes) lives only in game-server memory and never reaches here
+// if no payment was ever submitted.
+export const trades = pgTable("trades", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  sellerId: uuid("seller_id").notNull().references(() => users.id),
+  sellerWallet: varchar("seller_wallet", { length: 44 }).notNull(),
+  buyerId: uuid("buyer_id").notNull().references(() => users.id),
+  buyerWallet: varchar("buyer_wallet", { length: 44 }).notNull(),
+  itemId: varchar("item_id", { length: 50 }).notNull(),
+  itemName: varchar("item_name", { length: 100 }).notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  priceTnj: bigint("price_tnj", { mode: "number" }).notNull(),
+  txSignature: varchar("tx_signature", { length: 88 }).notNull().unique(),
+  status: varchar("status", { length: 20 }).notNull(),
+  failureReason: text("failure_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_trades_game").on(table.gameId),
+  index("idx_trades_seller").on(table.sellerId),
+  index("idx_trades_buyer").on(table.buyerId),
+  index("idx_trades_tx").on(table.txSignature),
+  index("idx_trades_created").on(table.createdAt),
+]);
+
 export const friendships = pgTable("friendships", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id),
@@ -515,6 +542,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   purchases: many(marketplacePurchases),
   boughtItems: many(marketplaceTransactions, { relationName: "buyer" }),
   soldItems: many(marketplaceTransactions, { relationName: "seller" }),
+  tradesSold: many(trades, { relationName: "trade_seller" }),
+  tradesBought: many(trades, { relationName: "trade_buyer" }),
   forumPosts: many(forumPosts),
   forumComments: many(forumComments),
   reviews: many(gameReviews),
@@ -542,6 +571,11 @@ export const gamesRelations = relations(games, ({ many, one }) => ({
 export const gameLicensesRelations = relations(gameLicenses, ({ one }) => ({
   user: one(users, { fields: [gameLicenses.userId], references: [users.id] }),
   game: one(games, { fields: [gameLicenses.gameId], references: [games.id] }),
+}));
+
+export const tradesRelations = relations(trades, ({ one }) => ({
+  seller: one(users, { fields: [trades.sellerId], references: [users.id], relationName: "trade_seller" }),
+  buyer: one(users, { fields: [trades.buyerId], references: [users.id], relationName: "trade_buyer" }),
 }));
 
 export const marketplaceLotsRelations = relations(marketplaceLots, ({ one, many }) => ({

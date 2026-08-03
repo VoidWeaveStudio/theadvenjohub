@@ -3,16 +3,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Users, Mail as MailIcon, User, UserX } from "lucide-react";
+import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FriendsTab } from "./FriendsTab";
 import { MailTab } from "./MailTab";
 import { AccountTab } from "./AccountTab";
 import { BlockedTab } from "./BlockedTab";
+import { TradeHistoryTab } from "./TradeHistoryTab";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
 import { FriendEntry, FriendRequestEntry, MailEntry, PlayerProfileData, QuestInfoData, BlockedEntry } from "../network/NetworkManager";
 
-export type SocialTab = "friends" | "mail" | "account" | "blocked";
+export type SocialTab = "friends" | "mail" | "account" | "blocked" | "trades";
 
 interface SocialWindowProps {
     isOpen: boolean;
@@ -111,6 +112,7 @@ export function SocialWindow({
                 { id: "friends", label: "Friends", icon: <Users className="w-3.5 h-3.5" />, badge: incomingRequests.length > 0 },
                 { id: "mail", label: "Mail", icon: <MailIcon className="w-3.5 h-3.5" />, badge: unreadMailCount > 0 },
                 { id: "blocked", label: "Blocked", icon: <UserX className="w-3.5 h-3.5" /> },
+                { id: "trades", label: "Trades", icon: <ArrowLeftRight className="w-3.5 h-3.5" /> },
                 { id: "account", label: "Account", icon: <User className="w-3.5 h-3.5" /> },
             ]}
             activeTab={activeTab}
@@ -150,6 +152,8 @@ export function SocialWindow({
                     onMarkMailRead={onMarkMailRead}
                 />
             )}
+
+            {activeTab === "trades" && <TradeHistoryTab />}
 
             {activeTab === "account" && (
                 <AccountTab

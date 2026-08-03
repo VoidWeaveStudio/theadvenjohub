@@ -1,0 +1,376 @@
+// src/features/game/ui/TradeWindow.tsx
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
+import { X, ArrowLeftRight, Package, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { TradeSessionData } from "../network/NetworkManager";
+import { PLACEABLE_ITEMS } from "../data/placeableItems";
+import { TradeItemPicker } from "./TradeItemPicker";
+import { CopyableText } from "./shell/CopyableText";
+import { SoundManager } from "../core/SoundManager";
+
+const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+
+const TERMINAL_PHASES = new Set(["completed", "failed", "declined", "cancelled", "expired"]);
+
+function truncateWallet(wallet: string) {
+    return wallet.length > 10 ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}` : wallet;
+}
+
+async function getTokenBalance(connection: Connection, ata: PublicKey): Promise<bigint> {
+    const accountInfo = await connection.getAccountInfo(ata, "confirmed");
+    if (!accountInfo) throw new Error("Token account not found");
+    const data = accountInfo.data;
+    if (data.length < 72) throw new Error("Invalid token account data");
+    return (
+        BigInt(data[64]) |
+        (BigInt(data[65]) << 8n) |
+        (BigInt(data[66]) << 16n) |
+        (BigInt(data[67]) << 24n) |
+        (BigInt(data[68]) << 32n) |
+        (BigInt(data[69]) << 40n) |
+        (BigInt(data[70]) << 48n) |
+        (BigInt(data[71]) << 56n)
+    );
+}
+
+type PayState = false | "connecting" | "signing" | "confirming";
+
+function PayButton({
+    tradeId,
+    sellerWallet,
+    priceTnj,
+    onSubmitPayment,
+}: {
+    tradeId: string;
+    sellerWallet: string;
+    priceTnj: number;
+    onSubmitPayment: (tradeId: string, signature: string) => void;
+}) {
+    const { publicKey, connected, wallet } = useWallet();
+    const [state, setState] = useState<PayState>(false);
+    const [error, setError] = useState<string | null>(null);
+    const isProcessingRef = useRef(false);
+
+    const handlePay = useCallback(async () => {
+        if (!publicKey || !connected || !wallet?.adapter) {
+            setError("Connect your wallet first");
+            return;
+        }
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
+        setError(null);
+        setState("connecting");
+
+        try {
+            const configRes = await fetch("/api/marketplace/config");
+            if (!configRes.ok) throw new Error("Failed to load config");
+            const config = await configRes.json();
+
+            const connection = new Connection(config.publicRpc, "confirmed");
+            const mintPubkey = new PublicKey(config.tokenMint);
+            const sellerPubkey = new PublicKey(sellerWallet);
+            const decimals = parseInt(config.decimals || "6");
+            const userPubkey = publicKey;
+            const tokenProgramId = TOKEN_2022_PROGRAM_ID;
+
+            const userATA = await getAssociatedTokenAddress(mintPubkey, userPubkey, false, tokenProgramId);
+            const sellerATA = await getAssociatedTokenAddress(mintPubkey, sellerPubkey, true, tokenProgramId);
+
+            const balance = await getTokenBalance(connection, userATA);
+            const amountToSend = BigInt(priceTnj) * BigInt(10 ** decimals);
+            if (balance < amountToSend) {
+                throw new Error(`Insufficient balance. You have ${Number(balance) / 10 ** decimals} TNJ, need ${priceTnj} TNJ`);
+            }
+
+            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+            const transferInstruction = createTransferInstruction(userATA, sellerATA, userPubkey, amountToSend, [], tokenProgramId);
+            const tx = new Transaction({ feePayer: userPubkey, recentBlockhash: blockhash }).add(transferInstruction);
+
+            const walletAdapter = wallet.adapter as any;
+            if (typeof walletAdapter.signTransaction !== "function") {
+                throw new Error("This wallet doesn't support transaction signing");
+            }
+
+            setState("signing");
+            let signedTx;
+            try {
+                signedTx = await walletAdapter.signTransaction(tx);
+            } catch (signError: any) {
+                if (signError.code === 4001 || signError.message?.includes("rejected")) {
+                    throw new Error("Transaction rejected");
+                }
+                throw signError;
+            }
+
+            setState("confirming");
+            const signature = await connection.sendRawTransaction(signedTx.serialize(), {
+                skipPreflight: false,
+                preflightCommitment: "confirmed",
+            });
+
+            try {
+                await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+            } catch (confirmErr: any) {
+                console.warn("[Trade] Confirmation timeout, relying on backend verification:", confirmErr.message);
+            }
+
+            onSubmitPayment(tradeId, signature);
+        } catch (err: any) {
+            console.error("[Trade] Payment error:", err);
+            setError(err.message?.includes("rejected") ? "Transaction rejected" : err.message || "Payment failed");
+        } finally {
+            isProcessingRef.current = false;
+            setState(false);
+        }
+    }, [publicKey, connected, wallet, tradeId, sellerWallet, priceTnj, onSubmitPayment]);
+
+    if (!publicKey || !connected) {
+        return <p className="text-[#8B8F98] text-xs text-center">Connect your wallet to pay</p>;
+    }
+
+    const label =
+        state === "connecting" ? "Preparing..." :
+        state === "signing" ? "Sign in wallet..." :
+        state === "confirming" ? "Confirming..." :
+        `Pay ${priceTnj.toLocaleString("en-US")} TNJ`;
+
+    return (
+        <div className="space-y-1.5">
+            <button
+                onClick={handlePay}
+                disabled={!!state}
+                className="w-full bg-gradient-to-r from-[#4ADE80] to-[#22C55E] disabled:opacity-50 disabled:cursor-not-allowed text-[rgba(12,12,14,0.9)] font-bold px-4 py-2.5 rounded-[8px] transition-all flex items-center justify-center gap-2"
+            >
+                {!!state && <Loader2 className="w-4 h-4 animate-spin" />}
+                {label}
+            </button>
+            {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+        </div>
+    );
+}
+
+interface TradeWindowProps {
+    session: TradeSessionData | null;
+    myUserId: string;
+    placeables: Record<string, number>;
+    onSetOffer: (tradeId: string, itemId: string | null, priceTnj: number | null) => void;
+    onSetReady: (tradeId: string, ready: boolean) => void;
+    onSubmitPayment: (tradeId: string, signature: string) => void;
+    onCancel: (tradeId: string) => void;
+    onDismiss: () => void;
+}
+
+export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetReady, onSubmitPayment, onCancel, onDismiss }: TradeWindowProps) {
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+    const [priceInput, setPriceInput] = useState("");
+
+    const wasOpenRef = useRef(false);
+    useEffect(() => {
+        const isOpen = !!session;
+        if (isOpen && !wasOpenRef.current) {
+            SoundManager.getInstance().play("modal-open");
+        }
+        wasOpenRef.current = isOpen;
+    }, [session]);
+
+    useEffect(() => {
+        if (!session || !TERMINAL_PHASES.has(session.phase)) return;
+        const timer = setTimeout(() => onDismiss(), 2500);
+        return () => clearTimeout(timer);
+    }, [session, onDismiss]);
+
+    useEffect(() => {
+        setPendingItemId(null);
+        setPriceInput("");
+    }, [session?.tradeId]);
+
+    if (!session) return null;
+
+    const me = session.participants.find((p) => p.userId === myUserId);
+    const them = session.participants.find((p) => p.userId !== myUserId);
+    const isSeller = session.sellerId === myUserId;
+    const isBuyer = session.sellerId !== null && session.sellerId !== myUserId;
+    const isNegotiating = session.phase === "negotiating";
+    const canOffer = isNegotiating && (session.sellerId === null || isSeller);
+    const isTerminal = TERMINAL_PHASES.has(session.phase);
+
+    const pendingItem = pendingItemId ? PLACEABLE_ITEMS.find((i) => i.id === pendingItemId) : null;
+
+    const handleClose = () => {
+        if (isTerminal) {
+            onDismiss();
+        } else if (session.phase !== "settling") {
+            onCancel(session.tradeId);
+        }
+    };
+
+    const confirmPendingOffer = () => {
+        const price = Number.parseInt(priceInput, 10);
+        if (!pendingItemId || !Number.isInteger(price) || price <= 0) return;
+        onSetOffer(session.tradeId, pendingItemId, price);
+        setPendingItemId(null);
+        setPriceInput("");
+    };
+
+    const phaseLabel: Record<string, string> = {
+        pending_accept: "Waiting for confirmation…",
+        negotiating: "Negotiating",
+        awaiting_payment: "Both ready — awaiting payment",
+        settling: "Processing payment…",
+        completed: "Trade completed",
+        failed: "Trade failed",
+        declined: "Trade declined",
+        cancelled: "Trade cancelled",
+        expired: "Trade expired",
+    };
+
+    return (
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-4">
+            <div className="flex items-center justify-between w-full max-w-2xl">
+                <div className="flex items-center gap-2">
+                    <ArrowLeftRight className="w-5 h-5 text-[#4FD1FF]" />
+                    <h2 className="text-xl font-black text-[#E5E7EB]">Trade</h2>
+                    <span className="text-xs text-[#8B8F98] font-semibold ml-2">{phaseLabel[session.phase] ?? session.phase}</span>
+                </div>
+                <button
+                    onClick={handleClose}
+                    disabled={session.phase === "settling"}
+                    className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                    <X className="w-5 h-5" />
+                </button>
+            </div>
+
+            {isTerminal && (
+                <div className="w-full max-w-2xl flex items-center justify-center gap-2 py-2">
+                    {session.phase === "completed" ? (
+                        <CheckCircle2 className="w-5 h-5 text-[#4ADE80]" />
+                    ) : (
+                        <XCircle className="w-5 h-5 text-red-400" />
+                    )}
+                    <span className="text-[#E5E7EB] font-bold">{phaseLabel[session.phase]}</span>
+                </div>
+            )}
+
+            {session.phase !== "pending_accept" && them && (
+                <div className="flex gap-4 w-full max-w-2xl">
+                    {[me, them].map((p, idx) => (
+                        <div
+                            key={p?.userId ?? idx}
+                            className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-4 shadow-2xl"
+                        >
+                            <div className="text-[#8B8F98] text-[10px] font-bold tracking-wider mb-2">{idx === 0 ? "YOU" : "THEM"}</div>
+                            <div className="text-[#E5E7EB] font-bold mb-1 truncate">{p?.nickname ?? "..."}</div>
+                            {p && <CopyableText value={p.wallet} display={truncateWallet(p.wallet)} className="text-[11px] text-[#6B7280]" />}
+                            <label className="flex items-center gap-2 mt-3 text-sm text-[#C9CDD3]">
+                                <input
+                                    type="checkbox"
+                                    checked={p?.ready ?? false}
+                                    disabled={idx !== 0 || !isNegotiating || !session.itemId}
+                                    onChange={(e) => onSetReady(session.tradeId, e.target.checked)}
+                                    className="w-4 h-4 accent-[#4FD1FF]"
+                                />
+                                Ready
+                            </label>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {session.phase !== "pending_accept" && (
+                <div className="w-full max-w-2xl bg-[rgba(20,16,8,0.92)] border-2 border-[#FFD166]/50 rounded-[16px] p-4 shadow-[0_0_35px_rgba(255,209,102,0.15)]">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Package className="w-4 h-4 text-[#FFD166]" />
+                        <span className="text-[#FFD166] text-xs font-bold tracking-wider">ITEM FOR SALE</span>
+                    </div>
+
+                    {pendingItem ? (
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">{pendingItem.icon}</span>
+                            <span className="flex-1 text-[#E5E7EB] font-bold">{pendingItem.name}</span>
+                            <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={priceInput}
+                                onChange={(e) => setPriceInput(e.target.value)}
+                                placeholder="Price in TNJ"
+                                className="w-32 bg-black/40 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-[#E5E7EB]"
+                            />
+                            <button
+                                onClick={confirmPendingOffer}
+                                disabled={!Number.isInteger(Number.parseInt(priceInput, 10)) || Number.parseInt(priceInput, 10) <= 0}
+                                className="bg-[#4FD1FF] disabled:opacity-40 text-[rgba(12,12,14,0.9)] font-bold px-3 py-1.5 rounded-lg text-sm"
+                            >
+                                Confirm
+                            </button>
+                            <button
+                                onClick={() => { setPendingItemId(null); setPriceInput(""); }}
+                                className="bg-transparent border-0 text-[#8B8F98] hover:text-[#E5E7EB] text-sm"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    ) : session.itemId ? (
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">{PLACEABLE_ITEMS.find((i) => i.id === session.itemId)?.icon ?? "📦"}</span>
+                            <span className="flex-1 text-[#E5E7EB] font-bold">{session.itemName}</span>
+                            <span className="text-[#FFD166] font-bold">{session.priceTnj?.toLocaleString("en-US")} TNJ</span>
+                            {canOffer && (
+                                <button
+                                    onClick={() => onSetOffer(session.tradeId, null, null)}
+                                    className="bg-transparent border-0 text-[#8B8F98] hover:text-red-400 text-sm"
+                                >
+                                    Remove
+                                </button>
+                            )}
+                        </div>
+                    ) : canOffer ? (
+                        <button
+                            onClick={() => setIsPickerOpen(true)}
+                            className="w-full bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,209,102,0.12)] border border-dashed border-[#FFD166]/40 rounded-lg py-3 text-[#FFD166] text-sm font-bold transition-colors"
+                        >
+                            + Add item to sell
+                        </button>
+                    ) : (
+                        <p className="text-[#6B7280] text-sm text-center py-2">Waiting for the other player to offer an item…</p>
+                    )}
+                </div>
+            )}
+
+            {session.phase === "awaiting_payment" && isBuyer && session.priceTnj !== null && (
+                <div className="w-full max-w-2xl">
+                    <PayButton
+                        tradeId={session.tradeId}
+                        sellerWallet={them?.wallet ?? ""}
+                        priceTnj={session.priceTnj}
+                        onSubmitPayment={onSubmitPayment}
+                    />
+                </div>
+            )}
+            {session.phase === "awaiting_payment" && isSeller && (
+                <p className="text-[#8B8F98] text-xs text-center">Waiting for the buyer to send payment…</p>
+            )}
+            {session.phase === "settling" && (
+                <div className="flex items-center gap-2 text-[#8B8F98] text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Verifying payment on-chain…
+                </div>
+            )}
+            {session.phase === "pending_accept" && (
+                <p className="text-[#8B8F98] text-sm text-center">Waiting for {them?.nickname ?? "the other player"} to accept your trade request…</p>
+            )}
+
+            <TradeItemPicker
+                isOpen={isPickerOpen}
+                onClose={() => setIsPickerOpen(false)}
+                placeables={placeables}
+                onSelect={(itemId) => setPendingItemId(itemId)}
+            />
+        </div>
+    );
+}

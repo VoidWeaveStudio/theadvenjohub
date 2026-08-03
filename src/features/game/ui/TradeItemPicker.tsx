@@ -1,33 +1,33 @@
-// src/features/game/ui/PlaceableMenu.tsx
+// src/features/game/ui/TradeItemPicker.tsx
 "use client";
 
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
 
-interface PlaceableMenuProps {
+interface TradeItemPickerProps {
     isOpen: boolean;
     onClose: () => void;
     placeables: Record<string, number>;
     onSelect: (itemId: string) => void;
 }
 
-export function PlaceableMenu({ isOpen, onClose, placeables, onSelect }: PlaceableMenuProps) {
+export function TradeItemPicker({ isOpen, onClose, placeables, onSelect }: TradeItemPickerProps) {
     if (!isOpen) return null;
 
-    const owned = PLACEABLE_ITEMS.filter((item) => item.placeable !== false && (placeables[item.id] || 0) > 0);
+    const owned = PLACEABLE_ITEMS.filter((item) => item.tradeable && (placeables[item.id] || 0) > 0);
 
     return (
         <div
-            className="absolute inset-0 z-40 flex items-center justify-center pointer-events-auto"
+            className="absolute inset-0 z-[60] flex items-center justify-center pointer-events-auto"
             onClick={onClose}
         >
             <div
                 className="w-full max-w-xs bg-[rgba(12,14,16,0.95)] border-2 border-[#4FD1FF]/40 rounded-[16px] p-4 shadow-[0_0_35px_rgba(79,209,255,0.15)]"
                 onClick={(e) => e.stopPropagation()}
             >
-                <h3 className="text-[#E5E7EB] text-sm font-black mb-3 tracking-wide">BLUEPRINTS</h3>
+                <h3 className="text-[#E5E7EB] text-sm font-black mb-3 tracking-wide">CHOOSE ITEM TO SELL</h3>
                 {owned.length === 0 ? (
                     <p className="text-[#6B7280] text-xs text-center py-4">
-                        You don't own anything to place yet. Buy items from the Shop.
+                        You don't own any tradeable items yet. Buy some from the Shop.
                     </p>
                 ) : (
                     <div className="space-y-1.5">

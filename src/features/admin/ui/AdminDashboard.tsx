@@ -7,10 +7,11 @@ import { AdminPlayersTable } from "./AdminPlayersTable";
 import { AdminFactionsTable } from "./AdminFactionsTable";
 import { AdminSupportTable } from "./AdminSupportTable";
 import { AdminChatTable } from "./AdminChatTable";
+import { AdminTradeHistoryTable } from "./AdminTradeHistoryTable";
 import { AdminMaintenanceToggle } from "./AdminMaintenanceToggle";
 import { AdminTableRef } from "./AdminTableRef";
 
-type AdminTab = "players" | "factions" | "support" | "chat";
+type AdminTab = "players" | "factions" | "support" | "chat" | "trades";
 
 export function AdminDashboard() {
     const [tab, setTab] = useState<AdminTab>("players");
@@ -19,6 +20,7 @@ export function AdminDashboard() {
     const factionsRef = useRef<AdminTableRef>(null);
     const supportRef = useRef<AdminTableRef>(null);
     const chatRef = useRef<AdminTableRef>(null);
+    const tradesRef = useRef<AdminTableRef>(null);
     const maintenanceRef = useRef<AdminTableRef>(null);
 
     const tabs: { id: AdminTab; label: string }[] = [
@@ -26,11 +28,12 @@ export function AdminDashboard() {
         { id: "factions", label: "Factions" },
         { id: "support", label: "Support" },
         { id: "chat", label: "Chat" },
+        { id: "trades", label: "Trade History" },
     ];
 
     const handleRefresh = () => {
         maintenanceRef.current?.refresh();
-        const activeRef = { players: playersRef, factions: factionsRef, support: supportRef, chat: chatRef }[tab];
+        const activeRef = { players: playersRef, factions: factionsRef, support: supportRef, chat: chatRef, trades: tradesRef }[tab];
         activeRef.current?.refresh();
     };
 
@@ -64,6 +67,7 @@ export function AdminDashboard() {
             {tab === "factions" && <AdminFactionsTable ref={factionsRef} />}
             {tab === "support" && <AdminSupportTable ref={supportRef} />}
             {tab === "chat" && <AdminChatTable ref={chatRef} />}
+            {tab === "trades" && <AdminTradeHistoryTable ref={tradesRef} />}
         </div>
     );
 }

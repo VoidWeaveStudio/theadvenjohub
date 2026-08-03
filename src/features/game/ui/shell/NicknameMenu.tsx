@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Info, MessageCircle, Flag, Ban, UserPlus } from "lucide-react";
+import { Info, MessageCircle, Flag, Ban, UserPlus, ArrowLeftRight } from "lucide-react";
 
 export interface NicknameMenuActions {
     isBlocked?: boolean;
@@ -13,6 +13,7 @@ export interface NicknameMenuActions {
     onReport: () => void;
     onToggleBlock: () => void;
     onInviteToFaction?: () => void;
+    onTrade?: () => void;
 }
 
 interface NicknameMenuProps extends NicknameMenuActions {
@@ -28,6 +29,7 @@ export function NicknameMenu({
     onReport,
     onToggleBlock,
     onInviteToFaction,
+    onTrade,
     children,
     className,
 }: NicknameMenuProps) {
@@ -112,6 +114,14 @@ export function NicknameMenu({
                     >
                         <Ban className="w-4 h-4 text-red-400 flex-shrink-0" /> {isBlocked ? "Unmute" : "Mute"}
                     </button>
+                    {onTrade && (
+                        <button
+                            onClick={() => run(onTrade)}
+                            className="bg-transparent border-0 rounded-none w-full flex items-center gap-2 px-3 py-2 text-sm text-[#E5E7EB] hover:bg-white/5 transition-colors"
+                        >
+                            <ArrowLeftRight className="w-4 h-4 text-[#4FD1FF] flex-shrink-0" /> Trade
+                        </button>
+                    )}
                     {canInviteToFaction && onInviteToFaction && (
                         <button
                             onClick={() => run(onInviteToFaction)}

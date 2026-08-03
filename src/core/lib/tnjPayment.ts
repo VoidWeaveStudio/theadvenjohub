@@ -2,7 +2,7 @@
 import { Connection, PublicKey, ParsedTransactionWithMeta } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { db } from "@/core/database";
-import { gameLicenses, marketplacePurchases, factions, factionGates } from "@/core/database/schema";
+import { gameLicenses, marketplacePurchases, factions, factionGates, trades } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
@@ -13,25 +13,26 @@ export interface TnjPaymentVerifyParams {
   expectedSigner: string;
 }
 
+export interface TnjTransferVerifyParams extends TnjPaymentVerifyParams {
+  expectedRecipient: string;
+}
+
 export type TnjPaymentVerifyResult =
   | { ok: true; tx: ParsedTransactionWithMeta }
   | { ok: false; error: string; status: number; details?: unknown };
 
-// Extracted from app/api/purchase/verify/route.ts so the same fragile on-chain
-// parsing (retry, postTokenBalances/innerInstructions fallback, signer check)
-// isn't duplicated for every new TNJ-gated feature.
-export async function verifyTnjTransferToTreasury(
-  params: TnjPaymentVerifyParams
-): Promise<TnjPaymentVerifyResult> {
-  const { signature, expectedAmountTnj, expectedSigner } = params;
 
-  const treasuryWallet = process.env.TREASURY_WALLET_ADDRESS?.trim();
+export async function verifyTnjTransfer(
+  params: TnjTransferVerifyParams
+): Promise<TnjPaymentVerifyResult> {
+  const { signature, expectedAmountTnj, expectedSigner, expectedRecipient } = params;
+
   const tokenMint = process.env.TNJ_TOKEN_MINT_ADDRESS?.trim();
   const rpcUrl = process.env.SOLANA_RPC_PRIVATE?.trim() || "https://mainnet.helius-rpc.com";
   const decimals = Number.parseInt(process.env.TNJ_DECIMALS || "6", 10);
 
-  if (!treasuryWallet || !tokenMint) {
-    console.error("[tnjPayment] Missing env config:", { treasuryWallet, tokenMint });
+  if (!expectedRecipient || !tokenMint) {
+    console.error("[tnjPayment] Missing config:", { expectedRecipient, tokenMint });
     return { ok: false, error: "server_config_error", status: 500 };
   }
 
@@ -46,7 +47,6 @@ export async function verifyTnjTransferToTreasury(
       });
       if (tx) break;
     } catch {
-      // retry
     }
     await new Promise((res) => setTimeout(res, 1000 * Math.min(2 ** attempt, 8)));
   }
@@ -68,12 +68,12 @@ export async function verifyTnjTransferToTreasury(
   if (tx.meta?.postTokenBalances) {
     for (const tb of tx.meta.postTokenBalances) {
       const isCorrectMint = tb.mint === tokenMint;
-      const isTreasuryOwner = tb.owner === treasuryWallet;
+      const isRecipientOwner = tb.owner === expectedRecipient;
 
-      if (isCorrectMint && isTreasuryOwner) {
+      if (isCorrectMint && isRecipientOwner) {
         const postAmount = BigInt(tb.uiTokenAmount?.amount || "0");
         const preTB = tx.meta?.preTokenBalances?.find((p: any) =>
-          p.mint === tokenMint && p.owner === treasuryWallet
+          p.mint === tokenMint && p.owner === expectedRecipient
         );
         const preAmount = preTB ? BigInt(preTB.uiTokenAmount?.amount || "0") : 0n;
         const received = postAmount - preAmount;
@@ -100,14 +100,14 @@ export async function verifyTnjTransferToTreasury(
             const destination = parsed.info.destination;
 
             if (transferMint === tokenMint && transferAmount >= expectedAmount) {
-              const expectedTreasuryATA = await getAssociatedTokenAddress(
+              const expectedRecipientATA = await getAssociatedTokenAddress(
                 new PublicKey(tokenMint),
-                new PublicKey(treasuryWallet),
+                new PublicKey(expectedRecipient),
                 undefined,
                 programId === TOKEN_2022_PROGRAM_ID.toString() ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID
               );
 
-              if (destination === expectedTreasuryATA.toString()) {
+              if (destination === expectedRecipientATA.toString()) {
                 transferFound = true;
                 break;
               }
@@ -122,7 +122,7 @@ export async function verifyTnjTransferToTreasury(
   if (!transferFound) {
     return {
       ok: false, error: "transfer_verification_failed", status: 400,
-      details: { expected: expectedAmount.toString(), hint: "Send tokens to treasury ATA (not wallet directly). Check mint matches." },
+      details: { expected: expectedAmount.toString(), hint: "Send tokens to the recipient's ATA (not wallet directly). Check mint matches." },
     };
   }
 
@@ -138,29 +138,41 @@ export async function verifyTnjTransferToTreasury(
   return { ok: true, tx };
 }
 
+
+export async function verifyTnjTransferToTreasury(
+  params: TnjPaymentVerifyParams
+): Promise<TnjPaymentVerifyResult> {
+  const treasuryWallet = process.env.TREASURY_WALLET_ADDRESS?.trim();
+  if (!treasuryWallet) {
+    console.error("[tnjPayment] Missing env config: TREASURY_WALLET_ADDRESS");
+    return { ok: false, error: "server_config_error", status: 500 };
+  }
+  return verifyTnjTransfer({ ...params, expectedRecipient: treasuryWallet });
+}
+
 export type SignatureUse =
   | { kind: "license"; id: string }
   | { kind: "purchase"; id: string }
   | { kind: "faction_promo"; id: string }
   | { kind: "faction_creation"; id: string }
-  | { kind: "faction_gate"; id: string };
+  | { kind: "faction_gate"; id: string }
+  | { kind: "trade"; id: string };
 
-// Cross-table anti-replay check. A single tx signature must only ever redeem
-// ONE purchase, across all tables that can consume one — without this,
-// the same payment could be replayed as e.g. both a game license and a
-// faction promo-code unlock.
+
 export async function findExistingSignatureUse(signature: string): Promise<SignatureUse | null> {
-  const [lic, purch, factPromo, factCreation, factGate] = await Promise.all([
+  const [lic, purch, factPromo, factCreation, factGate, trade] = await Promise.all([
     db.query.gameLicenses.findFirst({ where: eq(gameLicenses.txSignature, signature) }),
     db.query.marketplacePurchases.findFirst({ where: eq(marketplacePurchases.txSignature, signature) }),
     db.query.factions.findFirst({ where: eq(factions.promoCodePurchaseTx, signature) }),
     db.query.factions.findFirst({ where: eq(factions.creationTx, signature) }),
     db.query.factionGates.findFirst({ where: eq(factionGates.purchaseTx, signature) }),
+    db.query.trades.findFirst({ where: eq(trades.txSignature, signature) }),
   ]);
   if (lic) return { kind: "license", id: lic.id };
   if (purch) return { kind: "purchase", id: purch.id };
   if (factPromo) return { kind: "faction_promo", id: factPromo.id };
   if (factCreation) return { kind: "faction_creation", id: factCreation.id };
   if (factGate) return { kind: "faction_gate", id: factGate.id };
+  if (trade) return { kind: "trade", id: trade.id };
   return null;
 }

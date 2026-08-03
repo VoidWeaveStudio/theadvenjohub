@@ -36,7 +36,10 @@ import { SignViewerModal, SignViewData } from "./ui/SignViewerModal";
 import { PlaceableMenu } from "./ui/PlaceableMenu";
 import { PlayerProfileCard } from "./ui/PlayerProfileCard";
 import { FactionInvitePicker } from "./ui/FactionInvitePicker";
+import { TradeWindow } from "./ui/TradeWindow";
+import { TradeInvitePopup } from "./ui/TradeInvitePopup";
 import { NicknameMenuActions } from "./ui/shell/NicknameMenu";
+import { TradeSessionData } from "./network/NetworkManager";
 import { useHudState } from "./ui/hooks/useHudState";
 import { useQuestState, SOLA_QUEST_ID } from "./ui/hooks/useQuestState";
 import { useInventoryState } from "./ui/hooks/useInventoryState";
@@ -115,6 +118,9 @@ export function GameClient({ slug }: GameClientProps) {
   const socialState = useSocialState();
 
   const [factionInviteTarget, setFactionInviteTarget] = useState<{ wallet: string; nickname: string } | null>(null);
+
+  const [tradeSession, setTradeSession] = useState<TradeSessionData | null>(null);
+  const [pendingTradeInvite, setPendingTradeInvite] = useState<{ tradeId: string; fromWallet: string; fromNickname: string } | null>(null);
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
@@ -329,6 +335,37 @@ export function GameClient({ slug }: GameClientProps) {
           else notifications.addNotification('⚠️ Message could not be delivered', 2500);
         };
         game.onFactionChatMessage = (message) => { if (!cancelled) chat.handleFactionChatMessage(message); };
+        game.onTradeSession = (data) => {
+          if (cancelled) return;
+          setTradeSession(data);
+          if (data.phase === 'completed') {
+            notifications.addNotification(`✅ Trade completed: ${data.itemName ?? 'item'}`, 3000);
+          } else if (data.phase === 'failed') {
+            notifications.addNotification(
+              data.critical ? '⚠️ Payment sent but the trade failed to record — contact support with your tx signature' : '❌ Trade failed',
+              3500
+            );
+          } else if (data.phase === 'declined') {
+            notifications.addNotification('Trade declined', 2200);
+          } else if (data.phase === 'cancelled') {
+            notifications.addNotification('Trade cancelled', 2200);
+          } else if (data.phase === 'expired') {
+            notifications.addNotification('Trade expired', 2200);
+          }
+        };
+        game.onTradeInviteReceived = (data) => { if (!cancelled) setPendingTradeInvite(data); };
+        game.onTradeInviteError = (data) => {
+          if (cancelled) return;
+          const messages: Record<string, string> = {
+            offline: '⚠️ Player is offline',
+            self: "⚠️ You can't trade with yourself",
+            already_active: '⚠️ You already have an active trade',
+            target_busy: '⚠️ That player is already trading with someone',
+            blocked: '⚠️ Unable to trade with this player',
+            rate_limited: '⚠️ Please wait before sending another trade invite',
+          };
+          notifications.addNotification(messages[data.code] || '⚠️ Could not start trade', 2500);
+        };
         game.onDamageEvent = (event) => { if (!cancelled) hud.handleDamageEvent(event); };
         game.onDeathStateChange = (dead, killer) => { if (!cancelled) hud.handleDeathStateChange(dead, killer); };
         game.onAuthError = (error) => {
@@ -421,6 +458,15 @@ export function GameClient({ slug }: GameClientProps) {
           setIsGateStewardOpen(false);
           return;
         }
+        if (tradeSession && tradeSession.phase !== 'settling') {
+          gameRef.current?.cancelTrade(tradeSession.tradeId);
+          return;
+        }
+        if (pendingTradeInvite) {
+          gameRef.current?.respondToTradeInvite(pendingTradeInvite.tradeId, false);
+          setPendingTradeInvite(null);
+          return;
+        }
         if (signEditorId !== null) {
           setSignEditorId(null);
           return;
@@ -459,7 +505,7 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen || tradeSession !== null || pendingTradeInvite !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -507,7 +553,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, hud.hudState.equippedTool]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -590,6 +636,7 @@ export function GameClient({ slug }: GameClientProps) {
         }
       },
       onInviteToFaction: () => setFactionInviteTarget({ wallet, nickname }),
+      onTrade: () => gameRef.current?.sendTradeInvite(wallet),
     };
   };
 
@@ -773,6 +820,25 @@ export function GameClient({ slug }: GameClientProps) {
         onInvite={(factionId) => {
           if (factionInviteTarget) gameRef.current?.inviteToFaction(factionInviteTarget.wallet, factionId);
         }}
+      />
+
+      <TradeInvitePopup
+        invite={pendingTradeInvite}
+        onRespond={(accept) => {
+          if (pendingTradeInvite) gameRef.current?.respondToTradeInvite(pendingTradeInvite.tradeId, accept);
+          setPendingTradeInvite(null);
+        }}
+      />
+
+      <TradeWindow
+        session={tradeSession}
+        myUserId={gameRef.current?.session.userId ?? ""}
+        placeables={inventory.placeables}
+        onSetOffer={(tradeId, itemId, priceTnj) => gameRef.current?.setTradeOffer(tradeId, itemId, priceTnj)}
+        onSetReady={(tradeId, ready) => gameRef.current?.setTradeReady(tradeId, ready)}
+        onSubmitPayment={(tradeId, signature) => gameRef.current?.submitTradePayment(tradeId, signature)}
+        onCancel={(tradeId) => gameRef.current?.cancelTrade(tradeId)}
+        onDismiss={() => setTradeSession(null)}
       />
 
       <SocialWindow

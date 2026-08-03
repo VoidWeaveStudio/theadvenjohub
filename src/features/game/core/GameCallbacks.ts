@@ -15,6 +15,7 @@ import {
     FriendRequestEntry,
     MailEntry,
     BlockedEntry,
+    TradeSessionData,
 } from "../network/NetworkManager";
 import type { HUDState, DamageEvent } from "./Game";
 
@@ -96,4 +97,7 @@ export interface GameCallbacks {
     onFactionChatMessage?: (data: ChatMessage & { factionId: string }) => void;
     onFactionInviteSent?: (toWallet: string) => void;
     onMySkinChange?: (url: string | null) => void;
+    onTradeSession?: (data: TradeSessionData) => void;
+    onTradeInviteReceived?: (data: { tradeId: string; fromWallet: string; fromNickname: string }) => void;
+    onTradeInviteError?: (data: { code: string; toWallet: string }) => void;
 }

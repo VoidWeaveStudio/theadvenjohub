@@ -134,6 +134,20 @@
       "when": 1785733204520,
       "tag": "0023_nasty_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785791645505,
+      "tag": "0024_open_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785791934522,
+      "tag": "0025_polite_slayback",
+      "breakpoints": true
     }
   ]
 }
