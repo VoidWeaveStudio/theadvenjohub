@@ -3,10 +3,13 @@ import { Connection, PublicKey, TransactionError } from "@solana/web3.js";
 import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 const getRpcUrl = () => {
-  if (typeof window === "undefined") {
-    return process.env.SOLANA_RPC_PRIVATE || "https://mainnet.helius-rpc.com";
+  const rpcUrl = typeof window === "undefined"
+    ? process.env.SOLANA_RPC_PRIVATE
+    : process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+  if (!rpcUrl) {
+    throw new Error("Solana RPC URL is not configured");
   }
-  return "https://mainnet.helius-rpc.com";
+  return rpcUrl;
 };
 
 export class SolanaVerificationError extends Error {

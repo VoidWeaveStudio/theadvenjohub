@@ -1,7 +1,6 @@
 // src/core/providers/SolanaProviders.tsx
 "use client";
 
-import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { 
@@ -17,18 +16,19 @@ import {
   CloverWalletAdapter,
   CoinhubWalletAdapter,
 } from "@solana/wallet-adapter-wallets";
-import { clusterApiUrl } from "@solana/web3.js";
 import { useMemo, useCallback } from "react";
 import { AuthProvider } from "@/core/auth/AuthProvider";
 import { OKXWalletAdapter } from "@/core/wallets/OKXWalletAdapter";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function SolanaProviders({ children }: { children: React.ReactNode }) {
-  const network = WalletAdapterNetwork.Mainnet;
-
   const endpoint = useMemo(() => {
-    return process.env.NEXT_PUBLIC_SOLANA_RPC || clusterApiUrl(network);
-  }, [network]);
+    const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
+    if (!rpcUrl) {
+      throw new Error("NEXT_PUBLIC_SOLANA_RPC_URL is not set");
+    }
+    return rpcUrl;
+  }, []);
 
   const wallets = useMemo(() => [
     new PhantomWalletAdapter(),

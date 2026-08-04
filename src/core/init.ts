@@ -13,6 +13,10 @@ if (!process.env.CSRF_SECRET || process.env.CSRF_SECRET.length < 32) {
   throw new Error("CSRF_SECRET must be set and at least 32 characters long");
 }
 
+if (!process.env.NEXT_PUBLIC_SOLANA_RPC_URL) {
+  throw new Error("NEXT_PUBLIC_SOLANA_RPC_URL must be set (client RPC calls must not fall back to the public Solana endpoint)");
+}
+
 if (typeof window === "undefined" && process.env.NODE_ENV !== "production") {
   testConnection().then((ok) => {
     if (!ok) {

@@ -17,11 +17,17 @@ export async function GET(req: Request) {
     );
   }
 
+  const publicRpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim();
+  if (!publicRpc) {
+    console.error("[marketplace/config] NEXT_PUBLIC_SOLANA_RPC_URL is not set");
+    return NextResponse.json({ error: "rpc_not_configured" }, { status: 500 });
+  }
+
   const config = {
     treasuryWallet: process.env.NEXT_PUBLIC_TREASURY_WALLET_ADDRESS?.trim(),
     tokenMint: process.env.NEXT_PUBLIC_TNJ_TOKEN_MINT_ADDRESS?.trim(),
     decimals: process.env.NEXT_PUBLIC_TNJ_DECIMALS?.trim() || "6",
-    publicRpc: process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() || "https://api.mainnet-beta.solana.com",
+    publicRpc,
   };
 
   return NextResponse.json(config, {
