@@ -31,9 +31,11 @@ interface GateStewardPanelProps {
     isOpen: boolean;
     onClose: () => void;
     onPurchased: (faction: GateFactionResult) => void;
+    onTeleport: (faction: GateFactionResult) => void;
 }
 
 type PayState = false | "connecting" | "signing" | "confirming";
+type StewardTab = "purchase" | "find";
 
 function mapPurchaseError(code: string): string {
     switch (code) {
@@ -49,15 +51,26 @@ function mapPurchaseError(code: string): string {
     }
 }
 
-export function GateStewardPanel({ isOpen, onClose, onPurchased }: GateStewardPanelProps) {
+function mapLookupError(message: string): string {
+    return message === "invalid_ca" ? "That doesn't look like a valid contract address." : "Lookup failed, try again.";
+}
+
+export function GateStewardPanel({ isOpen, onClose, onPurchased, onTeleport }: GateStewardPanelProps) {
     const { publicKey, connected, wallet } = useWallet();
     const { isAuthorized } = useAuth();
+
+    const [activeTab, setActiveTab] = useState<StewardTab>("purchase");
 
     const [ca, setCa] = useState("");
     const [searching, setSearching] = useState(false);
     const [result, setResult] = useState<LookupResult | null>(null);
     const [payState, setPayState] = useState<PayState>(false);
     const [error, setError] = useState<string | null>(null);
+
+    const [findCa, setFindCa] = useState("");
+    const [findSearching, setFindSearching] = useState(false);
+    const [findResult, setFindResult] = useState<LookupResult | null>(null);
+    const [findError, setFindError] = useState<string | null>(null);
 
     const wasOpenRef = useRef(false);
     const isProcessingRef = useRef(false);
@@ -71,9 +84,13 @@ export function GateStewardPanel({ isOpen, onClose, onPurchased }: GateStewardPa
 
     useEffect(() => {
         if (!isOpen) {
+            setActiveTab("purchase");
             setCa("");
             setResult(null);
             setError(null);
+            setFindCa("");
+            setFindResult(null);
+            setFindError(null);
         }
     }, [isOpen]);
 
@@ -89,10 +106,34 @@ export function GateStewardPanel({ isOpen, onClose, onPurchased }: GateStewardPa
             if (!res.ok) throw new Error(data.error || "lookup_failed");
             setResult(data);
         } catch (err: any) {
-            setError(err.message === "invalid_ca" ? "That doesn't look like a valid contract address." : "Lookup failed, try again.");
+            setError(mapLookupError(err.message));
         } finally {
             setSearching(false);
         }
+    };
+
+    const handleFindLookup = async () => {
+        const trimmed = findCa.trim();
+        if (trimmed.length < 32 || findSearching) return;
+        setFindSearching(true);
+        setFindError(null);
+        setFindResult(null);
+        try {
+            const res = await fetch(`/api/faction/gate/lookup?ca=${encodeURIComponent(trimmed)}`, { credentials: "include" });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "lookup_failed");
+            setFindResult(data);
+        } catch (err: any) {
+            setFindError(mapLookupError(err.message));
+        } finally {
+            setFindSearching(false);
+        }
+    };
+
+    const handleTeleport = () => {
+        if (!findResult?.faction || !findResult.hasGate) return;
+        onTeleport(findResult.faction);
+        onClose();
     };
 
     const handlePurchase = useCallback(async () => {
@@ -204,66 +245,146 @@ export function GateStewardPanel({ isOpen, onClose, onPurchased }: GateStewardPa
                     </button>
                 </div>
 
-                <p className="text-[#8B8F98] text-sm mb-4">
-                    Paste a token's contract address — I'll tell you if that faction already has a gate here.
-                </p>
-
-                <div className="flex gap-2 mb-3">
-                    <input
-                        type="text"
-                        value={ca}
-                        onChange={(e) => setCa(e.target.value.slice(0, 64))}
-                        placeholder="Token contract address..."
-                        autoFocus
-                        className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
-                    />
+                <div className="flex gap-1 mb-4 bg-black/30 rounded-lg p-1">
                     <button
-                        onClick={handleLookup}
-                        disabled={ca.trim().length < 32 || searching}
-                        className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => setActiveTab("purchase")}
+                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "purchase" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        {searching ? "..." : "Look Up"}
+                        Buy a Gate
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("find")}
+                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "find" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
+                    >
+                        Find a Gate
                     </button>
                 </div>
 
-                {result && (
-                    result.faction ? (
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
-                                {result.faction.image ? (
-                                    <img src={result.faction.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                                ) : (
-                                    <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
-                                )}
-                                <div className="text-[#E5E7EB] font-bold text-sm">
-                                    {result.faction.name} {result.faction.symbol && <span className="text-[#8B8F98]">${result.faction.symbol}</span>}
-                                </div>
-                            </div>
+                {activeTab === "purchase" && (
+                    <>
+                        <p className="text-[#8B8F98] text-sm mb-4">
+                            Paste a token's contract address — I'll tell you if that faction already has a gate here.
+                        </p>
 
-                            {result.hasGate ? (
-                                <p className="text-[#4ADE80] text-sm">This faction already has a gate here.</p>
-                            ) : result.canPurchase ? (
-                                <button
-                                    onClick={handlePurchase}
-                                    disabled={!!payState}
-                                    className="btn-primary px-4 py-2 text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                    {payState && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {payButtonLabel}
-                                </button>
-                            ) : (
-                                <p className="text-[#FFD166] text-sm">No gate yet — only this faction's founder or verified creator can buy one.</p>
-                            )}
+                        <div className="flex gap-2 mb-3">
+                            <input
+                                type="text"
+                                value={ca}
+                                onChange={(e) => setCa(e.target.value.slice(0, 64))}
+                                placeholder="Token contract address..."
+                                autoFocus
+                                className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
+                            />
+                            <button
+                                onClick={handleLookup}
+                                disabled={ca.trim().length < 32 || searching}
+                                className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {searching ? "..." : "Look Up"}
+                            </button>
                         </div>
-                    ) : (
-                        <p className="text-[#8B8F98] text-sm">No faction is using that token yet.</p>
-                    )
+
+                        {result && (
+                            result.faction ? (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
+                                        {result.faction.image ? (
+                                            <img src={result.faction.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
+                                        )}
+                                        <div className="text-[#E5E7EB] font-bold text-sm">
+                                            {result.faction.name} {result.faction.symbol && <span className="text-[#8B8F98]">${result.faction.symbol}</span>}
+                                        </div>
+                                    </div>
+
+                                    {result.hasGate ? (
+                                        <p className="text-[#4ADE80] text-sm">This faction already has a gate here.</p>
+                                    ) : result.canPurchase ? (
+                                        <button
+                                            onClick={handlePurchase}
+                                            disabled={!!payState}
+                                            className="btn-primary px-4 py-2 text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            {payState && <Loader2 className="w-4 h-4 animate-spin" />}
+                                            {payButtonLabel}
+                                        </button>
+                                    ) : (
+                                        <p className="text-[#FFD166] text-sm">No gate yet — only this faction's founder or verified creator can buy one.</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-[#8B8F98] text-sm">No faction is using that token yet.</p>
+                            )
+                        )}
+
+                        {error && (
+                            <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
+                                {error}
+                            </p>
+                        )}
+                    </>
                 )}
 
-                {error && (
-                    <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
-                        {error}
-                    </p>
+                {activeTab === "find" && (
+                    <>
+                        <p className="text-[#8B8F98] text-sm mb-4">
+                            Know a faction's token already? I'll walk you straight to their gate.
+                        </p>
+
+                        <div className="flex gap-2 mb-3">
+                            <input
+                                type="text"
+                                value={findCa}
+                                onChange={(e) => setFindCa(e.target.value.slice(0, 64))}
+                                placeholder="Token contract address..."
+                                className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
+                            />
+                            <button
+                                onClick={handleFindLookup}
+                                disabled={findCa.trim().length < 32 || findSearching}
+                                className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {findSearching ? "..." : "Search"}
+                            </button>
+                        </div>
+
+                        {findResult && (
+                            findResult.faction ? (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
+                                        {findResult.faction.image ? (
+                                            <img src={findResult.faction.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
+                                        )}
+                                        <div className="text-[#E5E7EB] font-bold text-sm">
+                                            {findResult.faction.name} {findResult.faction.symbol && <span className="text-[#8B8F98]">${findResult.faction.symbol}</span>}
+                                        </div>
+                                    </div>
+
+                                    {findResult.hasGate ? (
+                                        <button
+                                            onClick={handleTeleport}
+                                            className="btn-primary px-4 py-2 text-sm w-full"
+                                        >
+                                            Teleport to their Gate
+                                        </button>
+                                    ) : (
+                                        <p className="text-[#FFD166] text-sm">This faction doesn't have a gate here yet.</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-[#8B8F98] text-sm">No faction is using that token yet.</p>
+                            )
+                        )}
+
+                        {findError && (
+                            <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
+                                {findError}
+                            </p>
+                        )}
+                    </>
                 )}
             </div>
         </div>

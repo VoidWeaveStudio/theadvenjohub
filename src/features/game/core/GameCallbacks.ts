@@ -49,6 +49,14 @@ export interface GameCallbacks {
         textContent: string | null;
         drawingUrl: string | null;
     }) => void;
+    onOpenItemEditorUI?: (itemId: string) => void;
+    onOpenItemViewerUI?: (item: {
+        id: string;
+        ownerNickname: string;
+        contentType: "text" | "draw" | null;
+        textContent: string | null;
+        drawingUrl: string | null;
+    }) => void;
     onInventoryChange?: (inventory: InventoryEntry[], ash: number, placeables: Record<string, number>) => void;
     onSellResult?: (data: { address: string; quantitySold: number; ashEarned: number; marketCap: number }) => void;
     onQuestInfo?: (data: QuestInfoData) => void;

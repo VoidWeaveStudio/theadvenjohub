@@ -98,6 +98,8 @@ export function GameClient({ slug }: GameClientProps) {
   const [isVoiceCapturing, setIsVoiceCapturing] = useState(false);
   const [signEditorId, setSignEditorId] = useState<string | null>(null);
   const [viewingSign, setViewingSign] = useState<SignViewData | null>(null);
+  const [itemEditorId, setItemEditorId] = useState<string | null>(null);
+  const [viewingItem, setViewingItem] = useState<SignViewData | null>(null);
   const [isPlaceableMenuOpen, setIsPlaceableMenuOpen] = useState(false);
 
   const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
@@ -130,12 +132,15 @@ export function GameClient({ slug }: GameClientProps) {
     { id: "slot5", icon: "", name: "", equipped: false },
   ]);
 
+  const isInOwnFactionRoom = currentLocationId.startsWith("faction-gate-") &&
+    factionState.myFactions.some((f) => f.id === currentLocationId.slice("faction-gate-".length));
+
   const getSlotLockReason = (slotId: string, isEquipped: boolean): string | null => {
     if (slotId === "rifle" && currentLocationId === "tower-main-hall" && !isEquipped) {
       return "🔒 Weapons are not allowed in the Main Hall";
     }
-    if (slotId === "blueprint" && currentLocationId !== "main-world" && !isEquipped) {
-      return "🔒 Blueprint can only be used in the open world";
+    if (slotId === "blueprint" && currentLocationId !== "main-world" && !isInOwnFactionRoom && !isEquipped) {
+      return "🔒 Blueprint can only be used in the open world or your faction's room";
     }
     return null;
   };
@@ -266,6 +271,16 @@ export function GameClient({ slug }: GameClientProps) {
         game.onOpenSignViewerUI = (sign) => {
           if (cancelled) return;
           setViewingSign(sign);
+          document.exitPointerLock();
+        };
+        game.onOpenItemEditorUI = (itemId) => {
+          if (cancelled) return;
+          setItemEditorId(itemId);
+          document.exitPointerLock();
+        };
+        game.onOpenItemViewerUI = (item) => {
+          if (cancelled) return;
+          setViewingItem(item);
           document.exitPointerLock();
         };
         game.onEquippedToolChange = (tool) => {
@@ -505,7 +520,7 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen || tradeSession !== null || pendingTradeInvite !== null) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || itemEditorId !== null || viewingItem !== null || isPlaceableMenuOpen || tradeSession !== null || pendingTradeInvite !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -553,7 +568,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, itemEditorId, viewingItem, isPlaceableMenuOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -610,6 +625,30 @@ export function GameClient({ slug }: GameClientProps) {
 
     const data: { url: string } = await res.json();
     await gameRef.current?.setSignDrawingUrl(signId, data.url);
+  };
+
+  const handleItemSaveText = async (itemId: string, text: string) => {
+    await gameRef.current?.setItemText(itemId, text);
+  };
+
+  const handleItemSaveDrawing = async (itemId: string, blob: Blob) => {
+    const formData = new FormData();
+    formData.append("file", blob, "poster.png");
+
+    const csrf = getCsrfToken();
+    const res = await fetch("/api/game/furniture/upload", {
+      method: "POST",
+      credentials: "include",
+      headers: csrf ? { "x-csrf-token": csrf } : undefined,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      throw new Error("upload_failed");
+    }
+
+    const data: { url: string } = await res.json();
+    await gameRef.current?.setItemDrawingUrl(itemId, data.url);
   };
 
   const handleSendMessage = (message: string) => {
@@ -899,11 +938,27 @@ export function GameClient({ slug }: GameClientProps) {
         sign={viewingSign}
       />
 
+      <SignEditorModal
+        isOpen={itemEditorId !== null}
+        onClose={() => setItemEditorId(null)}
+        signId={itemEditorId}
+        onSubmitText={handleItemSaveText}
+        onSubmitDraw={handleItemSaveDrawing}
+        onNotification={notifications.addNotification}
+      />
+
+      <SignViewerModal
+        isOpen={viewingItem !== null}
+        onClose={() => setViewingItem(null)}
+        sign={viewingItem}
+      />
+
       <PlaceableMenu
         isOpen={isPlaceableMenuOpen}
         onClose={() => setIsPlaceableMenuOpen(false)}
         placeables={inventory.placeables}
         onSelect={(itemId) => gameRef.current?.armPlaceable(itemId)}
+        isInOwnFactionRoom={isInOwnFactionRoom}
       />
 
       <LeaderboardsWindow
@@ -999,6 +1054,7 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={isGateStewardOpen}
         onClose={() => setIsGateStewardOpen(false)}
         onPurchased={(faction: GateFactionResult) => gameRef.current?.notifyGatePurchased(faction)}
+        onTeleport={(faction: GateFactionResult) => gameRef.current?.teleportToFactionGate(faction)}
       />
 
       <PersonalizationEditor

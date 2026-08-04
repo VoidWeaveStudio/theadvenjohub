@@ -419,9 +419,29 @@ export const factionTaskLog = pgTable("faction_task_log", {
 export const factionGates = pgTable("faction_gates", {
   id: uuid("id").primaryKey().defaultRandom(),
   factionId: uuid("faction_id").notNull().unique().references(() => factions.id, { onDelete: "cascade" }),
-  purchaseTx: varchar("purchase_tx", { length: 88 }).notNull().unique(),
+  purchaseTx: varchar("purchase_tx", { length: 88 }).unique(),
   purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
 });
+
+export const placedFurniture = pgTable("placed_furniture", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  factionId: uuid("faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  itemId: varchar("item_id", { length: 50 }).notNull(),
+  positionX: varchar("position_x", { length: 20 }).notNull(),
+  positionY: varchar("position_y", { length: 20 }).notNull(),
+  positionZ: varchar("position_z", { length: 20 }).notNull(),
+  rotation: varchar("rotation", { length: 20 }).default("0").notNull(),
+  contentType: varchar("content_type", { length: 10 }),
+  textContent: varchar("text_content", { length: 200 }),
+  drawingUrl: varchar("drawing_url", { length: 512 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  contentSetAt: timestamp("content_set_at"),
+}, (table) => [
+  index("idx_placed_furniture_faction").on(table.factionId),
+  index("idx_placed_furniture_user").on(table.userId),
+]);
 
 // P2P item trades between players. A row only ever exists for a resolved
 // payment attempt (completed or failed) — in-progress negotiation (offer,

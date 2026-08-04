@@ -148,6 +148,20 @@
       "when": 1785791934522,
       "tag": "0025_polite_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785840284492,
+      "tag": "0026_charming_crusher_hogan",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1785840449053,
+      "tag": "0027_condemned_nebula",
+      "breakpoints": true
     }
   ]
 }

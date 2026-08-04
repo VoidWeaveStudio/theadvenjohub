@@ -18,6 +18,9 @@ interface FactionDetail {
     promoCode: string | null;
     promoCodePurchaseTx: string | null;
     promoCodePurchasedAt: string | null;
+    hasGate: boolean;
+    gatePurchaseTx: string | null;
+    gatePurchasedAt: string | null;
     level: number;
     levelProgressAsh: number;
     xpForNextLevel: number;
@@ -69,6 +72,7 @@ export function AdminFactionDetailModal({ factionId, onClose, onDeleted }: Admin
     const [loading, setLoading] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [granting, setGranting] = useState(false);
+    const [grantingGate, setGrantingGate] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const { signedFetch } = useAdminSignature();
 
@@ -102,6 +106,24 @@ export function AdminFactionDetailModal({ factionId, onClose, onDeleted }: Admin
             setActionError(err.message || "Signature failed");
         } finally {
             setGranting(false);
+        }
+    };
+
+    const grantGate = async () => {
+        setActionError(null);
+        setGrantingGate(true);
+        try {
+            const res = await signedFetch(`/api/admin/factions/${factionId}/grant-gate`, "grantFactionGate", factionId, {});
+            const data = await res.json();
+            if (res.ok) {
+                setFaction((prev) => (prev ? { ...prev, hasGate: true, gatePurchaseTx: null, gatePurchasedAt: data.gate?.purchasedAt ?? new Date().toISOString() } : prev));
+            } else {
+                setActionError(data.error === "already_granted" ? "This faction already has a Token Gate" : "Failed to grant gate access");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        } finally {
+            setGrantingGate(false);
         }
     };
 
@@ -248,6 +270,26 @@ export function AdminFactionDetailModal({ factionId, onClose, onDeleted }: Admin
                                         className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {granting ? "Granting..." : "Grant Promo Code Upgrade"}
+                                    </button>
+                                )}
+                            </div>
+
+                            <div>
+                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">TOKEN GATE ACCESS</div>
+                                {faction.hasGate ? (
+                                    <div className="bg-[rgba(79,209,255,0.08)] border border-[rgba(79,209,255,0.25)] rounded-lg px-3 py-2 text-xs space-y-1">
+                                        <div className="text-[#4FD1FF] font-bold">Has private room</div>
+                                        <div className="text-[#6B7280]">
+                                            {faction.gatePurchaseTx ? "Purchased" : "Granted by admin"} — {formatDate(faction.gatePurchasedAt)}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={grantGate}
+                                        disabled={grantingGate}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {grantingGate ? "Granting..." : "Grant Free Gate Access"}
                                     </button>
                                 )}
                             </div>

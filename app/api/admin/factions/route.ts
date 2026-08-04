@@ -4,7 +4,7 @@ import { requireAdmin } from "@/core/admin/requireAdmin";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 import { db } from "@/core/database";
 import { factions, factionMembers, games, users } from "@/core/database/schema";
-import { desc, eq, ilike, sql } from "drizzle-orm";
+import { desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getTokenByCa } from "@/core/lib/dexscreener";
 
 const ADMIN_FACTION_GAME_SLUG = "tanjo-shooter";
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
                 memberCount: sql<number>`(${memberCountSubquery})`,
             })
             .from(factions)
-            .where(query ? ilike(factions.name, `%${query}%`) : undefined)
+            .where(query ? or(ilike(factions.name, `%${query}%`), eq(factions.tokenCa, query)) : undefined)
             .orderBy(desc(factions.level), desc(factions.createdAt))
             .limit(200);
 

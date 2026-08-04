@@ -86,6 +86,20 @@ export type SignData = {
   createdAt: string | number;
 };
 
+export type FurnitureData = {
+  id: string;
+  itemId: string;
+  ownerId: string;
+  ownerNickname: string;
+  factionId: string;
+  position: number[];
+  rotation: number;
+  contentType: "text" | "draw" | null;
+  textContent: string | null;
+  drawingUrl: string | null;
+  createdAt: string | number;
+};
+
 export type FactionGateData = {
   factionId: string;
   factionName: string;
@@ -414,6 +428,11 @@ export class NetworkManager {
   public onSignSpawn?: (sign: SignData) => void;
   public onSignContentSet?: (data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) => void;
   public onSignDespawn?: (id: string) => void;
+
+  public onFurnitureState?: (items: FurnitureData[]) => void;
+  public onFurnitureSpawn?: (item: FurnitureData) => void;
+  public onFurnitureContentSet?: (data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) => void;
+  public onFurnitureDespawn?: (id: string) => void;
   public onInventoryUpdate?: (data: { inventory: InventoryEntry[]; ash: number; placeables: Record<string, number> }) => void;
   public onSellResult?: (data: {
     address: string;
@@ -713,6 +732,20 @@ export class NetworkManager {
       case "signDespawn":
         this.onSignDespawn?.(data.id);
         break;
+      case "furnitureState":
+        if (Array.isArray(data.items)) {
+          this.onFurnitureState?.(data.items);
+        }
+        break;
+      case "furnitureSpawn":
+        this.onFurnitureSpawn?.(data.item);
+        break;
+      case "furnitureContentSet":
+        this.onFurnitureContentSet?.(data);
+        break;
+      case "furnitureDespawn":
+        this.onFurnitureDespawn?.(data.id);
+        break;
       case "inventoryUpdate":
         if (Array.isArray(data.inventory)) {
           this.onInventoryUpdate?.({ inventory: data.inventory, ash: data.ash ?? 0, placeables: data.placeables ?? {} });
@@ -1008,6 +1041,26 @@ export class NetworkManager {
   sendSignSetDrawingUrl(id: string, url: string) {
     if (!this.authenticated) return;
     this.send({ type: "signSetDrawingUrl", id, url });
+  }
+
+  sendItemPlace(itemId: string, position: number[], rotation: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "itemPlace", itemId, position, rotation });
+  }
+
+  sendItemRemove(id: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "itemRemove", id });
+  }
+
+  sendItemSetText(id: string, text: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "itemSetText", id, text });
+  }
+
+  sendItemSetDrawingUrl(id: string, url: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "itemSetDrawingUrl", id, url });
   }
 
   sendQuestInteract(questId: string) {

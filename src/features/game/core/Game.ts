@@ -150,6 +150,17 @@ export class Game {
         });
     }
 
+    public async teleportToFactionGate(faction: { id: string; name: string; symbol: string | null; image: string | null }) {
+        await this.changeLocation(`faction-gate-${faction.id}`, {
+            factionId: faction.id,
+            factionName: faction.name,
+            factionSymbol: faction.symbol,
+            factionImage: faction.image,
+        }).catch(() => {
+            this.onNotification?.("⚠️ Failed to teleport to this gate", 2000);
+        });
+    }
+
     public notifyGatePurchased(faction: { id: string; name: string; symbol: string | null; image: string | null; tokenCa: string | null }) {
         const location = this.locationManager.getCurrentLocation();
         if (location instanceof TokenGatesFloor) {
@@ -282,9 +293,17 @@ export class Game {
                     return 0;
                 };
 
+                const getWallSnap = (x: number, z: number) => {
+                    const currentLoc = this.locationManager.getCurrentLocation();
+                    if (currentLoc instanceof FactionGateRoom) {
+                        return currentLoc.getWallSnap(x, z);
+                    }
+                    return null;
+                };
+
                 this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
                 this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight);
-                this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId);
+                this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId, getWallSnap);
                 this.buildSystem.onNotification = (msg, duration) => {
                     this.onNotification?.(msg, duration);
                 };
@@ -381,6 +400,24 @@ export class Game {
                         });
                     }
                 };
+                this.interactionSystem.onOpenItemEditor = (itemId) => {
+                    this.onOpenItemEditorUI?.(itemId);
+                };
+                this.interactionSystem.onOpenItemViewer = (itemId) => {
+                    const item = this.buildSystem.getFurniture(itemId);
+                    if (item) {
+                        this.onOpenItemViewerUI?.({
+                            id: item.id,
+                            ownerNickname: item.ownerNickname ?? "",
+                            contentType: item.contentType ?? null,
+                            textContent: item.textContent ?? null,
+                            drawingUrl: item.drawingUrl ?? null,
+                        });
+                    }
+                };
+                this.interactionSystem.onToggleFurnitureDoor = (itemId) => {
+                    this.buildSystem.toggleFurnitureOpen(itemId);
+                };
 
                 this.networkManager.onSignState = (signs) => {
                     this.buildSystem.handleSignState(signs);
@@ -394,6 +431,20 @@ export class Game {
                 };
                 this.networkManager.onSignDespawn = (id) => {
                     this.buildSystem.handleSignDespawn(id);
+                };
+
+                this.networkManager.onFurnitureState = (items) => {
+                    this.buildSystem.handleFurnitureState(items);
+                };
+                this.networkManager.onFurnitureSpawn = (item) => {
+                    this.buildSystem.handleFurnitureSpawn(item);
+                };
+                this.networkManager.onFurnitureContentSet = (data) => {
+                    this.buildSystem.handleFurnitureContentSet(data);
+                    this.resolvePendingSignSave(data.id);
+                };
+                this.networkManager.onFurnitureDespawn = (id) => {
+                    this.buildSystem.handleFurnitureDespawn(id);
                 };
 
                 this.interactionSystem.onCanyonReturn = () => {
@@ -450,7 +501,10 @@ export class Game {
 
     public async changeLocation(
         targetLocationId: string,
-        options?: { position?: number[]; rotation?: number; silent?: boolean; factionId?: string; factionName?: string }
+        options?: {
+            position?: number[]; rotation?: number; silent?: boolean; factionId?: string; factionName?: string;
+            factionSymbol?: string | null; factionImage?: string | null;
+        }
     ) {
         if (this.isChangingLocation) return;
         this.isChangingLocation = true;
@@ -518,7 +572,7 @@ export class Game {
             applyLocationMovementConfig(this, newLocation);
             configureLocationSpecifics(this, newLocation);
 
-            if (newLocation.id !== 'main-world' && this.hudState.equippedTool === 'blueprint') {
+            if (newLocation.id !== 'main-world' && !this.isOwnFactionRoom(newLocation) && this.hudState.equippedTool === 'blueprint') {
                 this.setBlueprintEquipped(false);
             }
 
@@ -536,10 +590,19 @@ export class Game {
             }
 
             if (newLocation instanceof FactionGateRoom) {
-                const info = previousLocation instanceof TokenGatesFloor
-                    ? previousLocation.getFactionGateInfo(newLocation.factionId)
-                    : undefined;
-                newLocation.setFactionInfo(info?.factionName ?? "Faction", info?.image ?? null, info?.symbol ?? null);
+                // Prefer explicit options (from the steward's search-and-teleport, which
+                // already has the full faction record from the lookup API) over
+                // getFactionGateInfo — that lookup only knows about gates *currently
+                // displayed* in one of the hall's fixed slots, so a faction whose gate
+                // isn't presently shown there would otherwise resolve to nothing.
+                if (options?.factionName !== undefined) {
+                    newLocation.setFactionInfo(options.factionName, options.factionImage ?? null, options.factionSymbol ?? null);
+                } else {
+                    const info = previousLocation instanceof TokenGatesFloor
+                        ? previousLocation.getFactionGateInfo(newLocation.factionId)
+                        : undefined;
+                    newLocation.setFactionInfo(info?.factionName ?? "Faction", info?.image ?? null, info?.symbol ?? null);
+                }
             }
 
             if (!options?.silent) {
@@ -717,9 +780,13 @@ export class Game {
         this.emitState(true);
     }
 
+    private isOwnFactionRoom(location: { id: string } | null | undefined): boolean {
+        return location instanceof FactionGateRoom && this.interactionSystem.myFactionIds.has(location.factionId);
+    }
+
     setBlueprintEquipped(equipped: boolean) {
         const currentLocation = this.locationManager.getCurrentLocation();
-        const finalEquipped = currentLocation?.id === 'main-world' ? equipped : false;
+        const finalEquipped = (currentLocation?.id === 'main-world' || this.isOwnFactionRoom(currentLocation)) ? equipped : false;
 
         if (finalEquipped && this.hudState.equippedTool !== 'blueprint') {
             this.onNotification?.("📐 Press Q to choose what to place", 3000);
@@ -769,6 +836,18 @@ export class Game {
 
     setSignDrawingUrl(signId: string, url: string): Promise<void> {
         return this.awaitSignSave(signId, () => this.networkManager.sendSignSetDrawingUrl(signId, url));
+    }
+
+    setItemText(itemId: string, text: string): Promise<void> {
+        return this.awaitSignSave(itemId, () => this.networkManager.sendItemSetText(itemId, text));
+    }
+
+    setItemDrawingUrl(itemId: string, url: string): Promise<void> {
+        return this.awaitSignSave(itemId, () => this.networkManager.sendItemSetDrawingUrl(itemId, url));
+    }
+
+    toggleFurnitureDoor(id: string) {
+        this.buildSystem.toggleFurnitureOpen(id);
     }
 
     private awaitSignSave(signId: string, send: () => void): Promise<void> {

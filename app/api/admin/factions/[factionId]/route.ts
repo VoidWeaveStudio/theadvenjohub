@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
 import { db } from "@/core/database";
-import { factions, factionMembers, gameNicknames } from "@/core/database/schema";
+import { factions, factionMembers, factionGates, gameNicknames } from "@/core/database/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { buildFactionTaskExtras } from "@/core/lib/factionDetail";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
@@ -21,6 +21,8 @@ export async function GET(
         if (!faction) {
             return NextResponse.json({ error: "faction_not_found" }, { status: 404 });
         }
+
+        const gate = await db.query.factionGates.findFirst({ where: eq(factionGates.factionId, factionId) });
 
         const roster = await db
             .select({
@@ -55,6 +57,9 @@ export async function GET(
                 createdAt: faction.createdAt,
                 promoCodePurchaseTx: faction.promoCodePurchaseTx,
                 promoCodePurchasedAt: faction.promoCodePurchasedAt,
+                hasGate: !!gate,
+                gatePurchaseTx: gate?.purchaseTx ?? null,
+                gatePurchasedAt: gate?.purchasedAt ?? null,
                 ...taskExtras,
                 roster,
             },

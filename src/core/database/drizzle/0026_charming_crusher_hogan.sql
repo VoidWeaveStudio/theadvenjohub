@@ -1,0 +1,1 @@
+ALTER TABLE "faction_gates" ALTER COLUMN "purchase_tx" DROP NOT NULL;

@@ -26,6 +26,30 @@ export class FactionGateRoom extends TowerFloor {
         this.refreshBanner();
     }
 
+    public getWallSnap(x: number, z: number): { x: number; y: number; z: number; rotation: number } {
+        const inset = 0.12;
+        const margin = 1.2;
+        const clampRange = ROOM_HALF - margin;
+        const mountY = 2.1;
+
+        const distToNorth = Math.abs(z - -ROOM_HALF);
+        const distToSouth = Math.abs(z - ROOM_HALF);
+        const distToWest = Math.abs(x - -ROOM_HALF);
+        const distToEast = Math.abs(x - ROOM_HALF);
+        const minDist = Math.min(distToNorth, distToSouth, distToWest, distToEast);
+
+        if (minDist === distToNorth) {
+            return { x: THREE.MathUtils.clamp(x, -clampRange, clampRange), y: mountY, z: -ROOM_HALF + inset, rotation: 0 };
+        }
+        if (minDist === distToSouth) {
+            return { x: THREE.MathUtils.clamp(x, -clampRange, clampRange), y: mountY, z: ROOM_HALF - inset, rotation: Math.PI };
+        }
+        if (minDist === distToWest) {
+            return { x: -ROOM_HALF + inset, y: mountY, z: THREE.MathUtils.clamp(z, -clampRange, clampRange), rotation: Math.PI / 2 };
+        }
+        return { x: ROOM_HALF - inset, y: mountY, z: THREE.MathUtils.clamp(z, -clampRange, clampRange), rotation: -Math.PI / 2 };
+    }
+
     create(_rm: ResourceManager): void {
         const bgColor = 0x14161c;
         this.scene.background = new THREE.Color(bgColor);

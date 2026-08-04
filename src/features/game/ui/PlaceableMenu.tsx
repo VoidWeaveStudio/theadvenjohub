@@ -8,12 +8,20 @@ interface PlaceableMenuProps {
     onClose: () => void;
     placeables: Record<string, number>;
     onSelect: (itemId: string) => void;
+    isInOwnFactionRoom: boolean;
 }
 
-export function PlaceableMenu({ isOpen, onClose, placeables, onSelect }: PlaceableMenuProps) {
+export function PlaceableMenu({ isOpen, onClose, placeables, onSelect, isInOwnFactionRoom }: PlaceableMenuProps) {
     if (!isOpen) return null;
 
-    const owned = PLACEABLE_ITEMS.filter((item) => item.placeable !== false && (placeables[item.id] || 0) > 0);
+    const available = PLACEABLE_ITEMS.filter((item) => {
+        if (item.placeable === false) return false;
+        const scope = item.placementScope ?? "main-world";
+        if (scope === "own-faction-room" && !isInOwnFactionRoom) return false;
+        if (scope === "main-world" && isInOwnFactionRoom) return false;
+        if (item.price === 0) return true;
+        return (placeables[item.id] || 0) > 0;
+    });
 
     return (
         <div
@@ -25,13 +33,15 @@ export function PlaceableMenu({ isOpen, onClose, placeables, onSelect }: Placeab
                 onClick={(e) => e.stopPropagation()}
             >
                 <h3 className="text-[#E5E7EB] text-sm font-black mb-3 tracking-wide">BLUEPRINTS</h3>
-                {owned.length === 0 ? (
+                {available.length === 0 ? (
                     <p className="text-[#6B7280] text-xs text-center py-4">
-                        You don't own anything to place yet. Buy items from the Shop.
+                        {isInOwnFactionRoom
+                            ? "Nothing to place here yet."
+                            : "You don't own anything to place yet. Buy items from the Shop."}
                     </p>
                 ) : (
                     <div className="space-y-1.5">
-                        {owned.map((item) => (
+                        {available.map((item) => (
                             <button
                                 key={item.id}
                                 onClick={() => {
@@ -42,7 +52,9 @@ export function PlaceableMenu({ isOpen, onClose, placeables, onSelect }: Placeab
                             >
                                 <span className="text-xl">{item.icon}</span>
                                 <span className="flex-1 text-[#E5E7EB] text-sm font-bold">{item.name}</span>
-                                <span className="text-[#8B8F98] text-xs">x{placeables[item.id]}</span>
+                                <span className="text-[#8B8F98] text-xs">
+                                    {item.price === 0 ? "Free" : `x${placeables[item.id] || 0}`}
+                                </span>
                             </button>
                         ))}
                     </div>
