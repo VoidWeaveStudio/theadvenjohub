@@ -13,7 +13,6 @@ interface FloorSelectorProps {
     currentLocationId: string;
 }
 
-// Percentages measured against the crystal portals painted into background.webp.
 const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
     'tower-events': { x: 66.4, y: 38.1 },
     'tower-first-floor': { x: 21.2, y: 59.1 },

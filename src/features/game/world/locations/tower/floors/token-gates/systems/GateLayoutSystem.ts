@@ -40,8 +40,7 @@ function getColumnPlinthGeometry(): THREE.CylinderGeometry {
     return sharedColumnPlinthGeometry;
 }
 function getArchGeometry(): THREE.TorusGeometry {
-    // arc = PI sweeps the ring from local +X through +Y to -X — a dome shape
-    // sitting above the X axis, with no extra rotation needed (see plan notes).
+    
     if (!sharedArchGeometry) sharedArchGeometry = new THREE.TorusGeometry(ARCH_RADIUS, 0.38, 10, 28, Math.PI);
     return sharedArchGeometry;
 }

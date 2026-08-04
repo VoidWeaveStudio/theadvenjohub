@@ -107,7 +107,7 @@ export class CoinFeedSystem {
     startBackgroundTasks() {
         const start = () => {
             this.startupHandle = null;
-            if (this.disposed) return; // floor was torn down before this fired
+            if (this.disposed) return;  
             this.startMemeCoinPoller();
             this.startCoinSpawner();
             this.startQueueClearer();

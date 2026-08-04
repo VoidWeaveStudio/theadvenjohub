@@ -55,7 +55,7 @@ export function setupBasementSky(
         let nTex = nebulaTexture;
 
         const trySetup = () => {
-            if (isDisposed()) return; // floor was torn down before the lazy assets finished loading
+            if (isDisposed()) return;
 
             if (!cData) cData = rm.getModel("cosmos");
             if (!nTex) nTex = rm.getTexture("nebula-sky");
@@ -99,7 +99,7 @@ export function setupBasementFloor(floor: Basement, rm: ResourceManager, isDispo
 
     if (!floorColor) {
         rm.onTextureLoaded("floor-color", () => {
-            if (isDisposed()) return; // floor already torn down; floorMat has since been disposed
+            if (isDisposed()) return;
             const tex = rm.getTexture("floor-color");
             if (!tex) return;
             tex.repeat.set(20, 20);

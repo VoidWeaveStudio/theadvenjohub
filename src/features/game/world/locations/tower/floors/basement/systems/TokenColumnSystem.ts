@@ -57,10 +57,7 @@ export class TokenColumnSystem {
         return column;
     }
 
-    // The "column" model is lazy-loaded (ResourceManager.loadLazy) and may not be
-    // ready yet when the player reaches the basement. Rather than being stuck with
-    // the fallback cylinder forever, swap in the real pedestal once it finishes
-    // loading — same pattern BasementEnvironmentSystem uses for the cosmos model.
+
     private upgradePendingPedestals(rm: ResourceManager) {
         const still: { group: THREE.Group; fallback: THREE.Mesh }[] = [];
 

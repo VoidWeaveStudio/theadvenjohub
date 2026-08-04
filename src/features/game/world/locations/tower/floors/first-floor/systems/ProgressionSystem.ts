@@ -22,10 +22,7 @@ export class ProgressionSystem {
         this.floor.inHub = false;
         this.floor.segment = info.segment;
         this.floor.current = this.floor.segmentBuilder.buildSegment(info.segment);
-        // buildSegment() only builds the far/exit gate — the entrance is left
-        // open because normal progression seals it lazily as the player walks
-        // through (see sealBehindAndPromote). Jumping straight into a segment
-        // skips that walk-through trigger, so seal the entrance up front here.
+
         this.floor.segmentBuilder.buildGateWallInto(this.floor.current, segmentStartZ(info.segment));
         this.floor.segmentBuilder.rebuildCollisionGrid();
 

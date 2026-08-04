@@ -120,7 +120,7 @@ export class MainWorld extends Location {
     this.vegetation.createDecorationsByChunks(rm);
 
     rm.onModelLoaded("tree", () => {
-      if (this.disposed) return; // world was torn down before this lazy asset finished loading
+      if (this.disposed) return;
       this.vegetation.prepareAssets(rm);
       this.vegetation.createVegetationByChunks(rm);
       this.buildCollisionGrid();
