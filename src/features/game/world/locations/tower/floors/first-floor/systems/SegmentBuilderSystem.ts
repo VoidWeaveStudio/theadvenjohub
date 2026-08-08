@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { CANYON_START_Z, FLOOR_HALF_WIDTH, SEGMENT_LENGTH, pathOffsetX, halfWidthAt, segmentStartZ } from "../utils/canyonMath";
 import { getArrowGeometry, getArrowMaterial, getCanyonFloorMaterial, getCanyonRockMaterial, isCachedGeometry, isCachedMaterial } from "../utils/canyonMaterials";
+import { CanyonBiome, biomeForSegment } from "../utils/canyonBiomes";
 import type { FirstFloor } from "../FirstFloor";
 import { createNpcModel, NpcHandle, isSharedNpcGeometry } from "../../../../../../entities/npcModel";
 import type { ResourceManager } from "../../../../../../core/ResourceManager";
@@ -22,6 +23,8 @@ export interface SegmentContent {
 }
 
 export class SegmentBuilderSystem {
+    private activeBiome: CanyonBiome = biomeForSegment(1);
+
     constructor(private floor: FirstFloor) { }
 
     buildHub(resourceManager: ResourceManager): SegmentContent {
@@ -43,7 +46,8 @@ export class SegmentBuilderSystem {
         return content;
     }
 
-    buildSegment(segment: number): SegmentContent {
+    buildSegment(segment: number, biome: CanyonBiome = biomeForSegment(segment)): SegmentContent {
+        this.activeBiome = biome;
         const content: SegmentContent = {
             group: new THREE.Group(),
             colliders: [],
@@ -59,9 +63,81 @@ export class SegmentBuilderSystem {
         this.buildCorridorWalls(content, startZ, endZ);
         this.buildReturnTeleporter(content, startZ + 15);
         this.buildArrowIndicator(content, startZ + 30, false);
+        this.buildBiomeProps(content, startZ, endZ);
         content.farGate = this.buildGateWallInto(content, endZ);
 
         return content;
+    }
+
+    private buildBiomeProps(content: SegmentContent, startZ: number, endZ: number) {
+        const biome = this.activeBiome;
+        const accent = new THREE.Color(biome.accent);
+        const count = 46;
+
+        const trunkMat = new THREE.MeshStandardMaterial({ color: biome.groundColor, roughness: 0.9 });
+        const accentMat = new THREE.MeshStandardMaterial({
+            color: accent,
+            emissive: accent,
+            emissiveIntensity: biome.propStyle === "cactus" ? 0.15 : 1.5,
+            roughness: 0.5,
+        });
+
+        for (let i = 0; i < count; i++) {
+            const z = startZ + 40 + Math.random() * (endZ - startZ - 80);
+            const centerX = pathOffsetX(z);
+            const side = Math.random() < 0.5 ? -1 : 1;
+            const x = centerX + side * (12 + Math.random() * (halfWidthAt(z) - 16));
+            const prop = new THREE.Group();
+            prop.position.set(x, 0, z);
+            prop.rotation.y = Math.random() * Math.PI * 2;
+
+            if (biome.propStyle === "cactus") {
+                const h = 3 + Math.random() * 3;
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, h, 8), accentMat);
+                body.position.y = h / 2;
+                body.castShadow = true;
+                prop.add(body);
+                const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, h * 0.45, 8), accentMat);
+                arm.position.set(0.6, h * 0.65, 0);
+                arm.rotation.z = -0.6;
+                prop.add(arm);
+            } else if (biome.propStyle === "ember") {
+                const h = 2 + Math.random() * 4;
+                const spire = new THREE.Mesh(new THREE.ConeGeometry(0.9, h, 7), trunkMat);
+                spire.position.y = h / 2;
+                spire.castShadow = true;
+                prop.add(spire);
+                const coal = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 0), accentMat);
+                coal.position.y = h * 0.15;
+                prop.add(coal);
+            } else if (biome.propStyle === "ice") {
+                const h = 3 + Math.random() * 5;
+                const shard = new THREE.Mesh(new THREE.ConeGeometry(0.7, h, 6), accentMat);
+                shard.position.y = h / 2;
+                shard.rotation.z = (Math.random() - 0.5) * 0.35;
+                shard.castShadow = true;
+                prop.add(shard);
+            } else if (biome.propStyle === "mushroom") {
+                const h = 1.5 + Math.random() * 2.5;
+                const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, h, 8), trunkMat);
+                stalk.position.y = h / 2;
+                prop.add(stalk);
+                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.95, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), accentMat);
+                cap.position.y = h;
+                cap.scale.y = 0.62;
+                cap.castShadow = true;
+                prop.add(cap);
+            } else {
+                const h = 2.5 + Math.random() * 4.5;
+                const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.8, 0), accentMat);
+                shard.scale.set(0.5, h / 1.6, 0.5);
+                shard.position.y = h / 2;
+                shard.rotation.z = (Math.random() - 0.5) * 0.6;
+                prop.add(shard);
+            }
+
+            content.group.add(prop);
+        }
     }
 
     buildArrowIndicator(content: SegmentContent, z: number, visible: boolean) {
@@ -81,7 +157,7 @@ export class SegmentBuilderSystem {
         floorGeo.rotateX(-Math.PI / 2);
         floorGeo.translate(0, 0, startZ + length / 2);
 
-        const floor = new THREE.Mesh(floorGeo, getCanyonFloorMaterial());
+        const floor = new THREE.Mesh(floorGeo, getCanyonFloorMaterial(this.activeBiome));
         floor.receiveShadow = true;
         content.group.add(floor);
 
@@ -92,7 +168,7 @@ export class SegmentBuilderSystem {
     }
 
     buildCorridorWalls(content: SegmentContent, startZ: number, endZ: number) {
-        const mat = getCanyonRockMaterial();
+        const mat = getCanyonRockMaterial(this.activeBiome);
         const sides: Array<-1 | 1> = [-1, 1];
         const chunkDepth = 20;
         const chunkCount = Math.ceil((endZ - startZ) / chunkDepth);
@@ -162,7 +238,7 @@ export class SegmentBuilderSystem {
     buildDeadEnd(content: SegmentContent, z: number) {
         const centerX = pathOffsetX(z);
         const halfWidth = halfWidthAt(z);
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(halfWidth * 2 + 10, 40, 8), getCanyonRockMaterial());
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(halfWidth * 2 + 10, 40, 8), getCanyonRockMaterial(this.activeBiome));
         wall.position.set(centerX, 20, z - 4);
         wall.castShadow = true;
         wall.receiveShadow = true;
@@ -248,7 +324,7 @@ export class SegmentBuilderSystem {
     }
 
     buildGateWallInto(content: SegmentContent, z: number): GateWall {
-        const mat = getCanyonRockMaterial();
+        const mat = getCanyonRockMaterial(this.activeBiome);
         const centerX = pathOffsetX(z);
         const halfWidth = halfWidthAt(z);
         const width = halfWidth * 2 + 10;

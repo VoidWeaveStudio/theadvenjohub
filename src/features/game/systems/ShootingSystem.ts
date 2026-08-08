@@ -24,6 +24,8 @@ interface BoxHit {
 }
 
 export class ShootingSystem extends System {
+    public onShotFired?: () => void;
+
     public onHitPlayer?: () => void;
 
     private weaponEquipped: boolean = true;
@@ -220,6 +222,8 @@ export class ShootingSystem extends System {
             : cameraPos.clone().add(cameraDir.clone().multiplyScalar(300));
 
         const bulletDir = finalHitPoint.clone().sub(muzzlePos).normalize();
+
+        this.onShotFired?.();
 
         this.network.sendShoot({
             origin: muzzlePos.toArray(),

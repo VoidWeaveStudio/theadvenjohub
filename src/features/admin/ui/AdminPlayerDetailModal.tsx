@@ -26,6 +26,11 @@ interface PlayerDetail {
     };
     ash: number;
     skinTextureUrl: string | null;
+    cosmetics: {
+        equippedSkin: { id: string; name: string } | null;
+        equippedAccessory: { id: string; name: string } | null;
+        owned: { id: string; name: string; slot: string; purchasedAt: string }[];
+    } | null;
     placeables: Record<string, number>;
     locationId: string | null;
     inventory: { slot: number; itemId: string; quantity: number }[];
@@ -341,6 +346,32 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                             >
                                                 ✕
                                             </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">SKINS &amp; ACCESSORIES</div>
+                            <div className="grid grid-cols-2 gap-1.5 mb-2">
+                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
+                                    <div className="text-[#6B7280]">Equipped skin</div>
+                                    <div className="text-white font-bold">{player.cosmetics?.equippedSkin?.name || "—"}</div>
+                                </div>
+                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
+                                    <div className="text-[#6B7280]">Equipped accessory</div>
+                                    <div className="text-white font-bold">{player.cosmetics?.equippedAccessory?.name || "—"}</div>
+                                </div>
+                            </div>
+                            {!player.cosmetics || player.cosmetics.owned.length === 0 ? (
+                                <p className="text-[#6B7280] text-xs">None owned.</p>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {player.cosmetics.owned.map((item) => (
+                                        <div key={item.id} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white flex items-center justify-between gap-2">
+                                            <span className="truncate">{item.name}</span>
+                                            <span className="text-[#6B7280] text-[10px] uppercase flex-shrink-0">{item.slot}</span>
                                         </div>
                                     ))}
                                 </div>

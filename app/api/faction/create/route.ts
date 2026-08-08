@@ -10,6 +10,8 @@ import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/li
 import { getTokenByCa } from "@/core/lib/dexscreener";
 import { getTokenBalance } from "@/core/blockchain";
 import { getFactionRank } from "@/core/lib/factionRank";
+import { loadPrice, payableTnjFor } from "@/core/lib/shopPricing";
+import { TNJ_QUOTE_TOLERANCE } from "@/core/lib/tnjPricing";
 
 export const FACTION_CREATION_PRICE_TNJ = 1_000_000;
 
@@ -135,9 +137,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "insufficient_token_balance" }, { status: 403, headers: formatRateLimitHeaders(rl) });
     }
 
+    const configuredPrice = await loadPrice(game.id, "faction_creation");
+    const requiredTnj = configuredPrice ? await payableTnjFor(configuredPrice) : null;
+    if (configuredPrice && configuredPrice.enabled === false) {
+      return NextResponse.json({ error: "not_for_sale" }, { status: 403, headers: formatRateLimitHeaders(rl) });
+    }
+    if (requiredTnj === null) {
+      return NextResponse.json({ error: "price_unavailable" }, { status: 503, headers: formatRateLimitHeaders(rl) });
+    }
+
     const verifyResult = await verifyTnjTransferToTreasury({
       signature,
-      expectedAmountTnj: FACTION_CREATION_PRICE_TNJ,
+      expectedAmountTnj: Math.max(1, Math.floor(requiredTnj * (1 - TNJ_QUOTE_TOLERANCE))),
       expectedSigner: user.wallet,
     });
     if (!verifyResult.ok) {

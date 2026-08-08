@@ -1,16 +1,20 @@
 // src/features/game/world/locations/tower/floors/first-floor/utils/canyonMaterials.ts
 import * as THREE from "three";
+import { CanyonBiome, CANYON_BIOMES_BY_KEY } from "./canyonBiomes";
 
-let rockTextureCache: THREE.Texture | null = null;
-export function getCanyonRockTexture(): THREE.Texture {
-    if (rockTextureCache) return rockTextureCache;
+const DEFAULT_BIOME = CANYON_BIOMES_BY_KEY.get("slime_valley")!;
+
+const rockTextureCache = new Map<string, THREE.Texture>();
+export function getCanyonRockTexture(biome: CanyonBiome = DEFAULT_BIOME): THREE.Texture {
+    const cached = rockTextureCache.get(biome.key);
+    if (cached) return cached;
 
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 256;
     const ctx = canvas.getContext("2d")!;
 
-    ctx.fillStyle = "#B79868";
+    ctx.fillStyle = biome.rockBase;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -25,14 +29,14 @@ export function getCanyonRockTexture(): THREE.Texture {
         const r = 3 + Math.random() * 9;
         const lighter = Math.random() > 0.5;
         ctx.fillStyle = lighter
-            ? `rgba(255,240,210,${0.03 + Math.random() * 0.05})`
-            : `rgba(60,40,20,${0.03 + Math.random() * 0.06})`;
+            ? `${biome.rockLight}${0.03 + Math.random() * 0.05})`
+            : `${biome.rockDark}${0.03 + Math.random() * 0.06})`;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    ctx.strokeStyle = "rgba(70,48,26,0.3)";
+    ctx.strokeStyle = biome.rockVein;
     ctx.lineWidth = 1;
     for (let i = 0; i < 22; i++) {
         let x = Math.random() * canvas.width;
@@ -51,41 +55,44 @@ export function getCanyonRockTexture(): THREE.Texture {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.colorSpace = THREE.SRGBColorSpace;
-    rockTextureCache = texture;
+    rockTextureCache.set(biome.key, texture);
     return texture;
 }
 
-let rockMaterialCache: THREE.MeshStandardMaterial | null = null;
-export function getCanyonRockMaterial(): THREE.MeshStandardMaterial {
-    if (rockMaterialCache) return rockMaterialCache;
-    const texture = getCanyonRockTexture();
+const rockMaterialCache = new Map<string, THREE.MeshStandardMaterial>();
+export function getCanyonRockMaterial(biome: CanyonBiome = DEFAULT_BIOME): THREE.MeshStandardMaterial {
+    const cached = rockMaterialCache.get(biome.key);
+    if (cached) return cached;
+    const texture = getCanyonRockTexture(biome);
     texture.repeat.set(3, 3);
-    rockMaterialCache = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.97, metalness: 0.0 });
-    return rockMaterialCache;
+    const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.97, metalness: 0.0 });
+    rockMaterialCache.set(biome.key, material);
+    return material;
 }
 
-let floorTextureCache: THREE.Texture | null = null;
-export function getCanyonFloorTexture(): THREE.Texture {
-    if (floorTextureCache) return floorTextureCache;
+const floorTextureCache = new Map<string, THREE.Texture>();
+export function getCanyonFloorTexture(biome: CanyonBiome = DEFAULT_BIOME): THREE.Texture {
+    const cached = floorTextureCache.get(biome.key);
+    if (cached) return cached;
 
     const canvas = document.createElement("canvas");
     canvas.width = 512;
     canvas.height = 512;
     const ctx = canvas.getContext("2d")!;
 
-    ctx.fillStyle = "#C7A165";
+    ctx.fillStyle = biome.rockBase;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     for (let i = 0; i < 500; i++) {
         const x = Math.random() * canvas.width;
         const y = Math.random() * canvas.height;
-        ctx.fillStyle = `rgba(120,80,40,${0.03 + Math.random() * 0.06})`;
+        ctx.fillStyle = `${biome.rockDark}${0.03 + Math.random() * 0.06})`;
         ctx.beginPath();
         ctx.arc(x, y, 2 + Math.random() * 6, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    ctx.strokeStyle = "rgba(94,62,32,0.45)";
+    ctx.strokeStyle = biome.rockVein;
     ctx.lineWidth = 3;
     for (let i = 0; i < 4; i++) {
         let x = Math.random() * canvas.width;
@@ -102,17 +109,19 @@ export function getCanyonFloorTexture(): THREE.Texture {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.colorSpace = THREE.SRGBColorSpace;
-    floorTextureCache = texture;
+    floorTextureCache.set(biome.key, texture);
     return texture;
 }
 
-let floorMaterialCache: THREE.MeshStandardMaterial | null = null;
-export function getCanyonFloorMaterial(): THREE.MeshStandardMaterial {
-    if (floorMaterialCache) return floorMaterialCache;
-    const texture = getCanyonFloorTexture();
+const floorMaterialCache = new Map<string, THREE.MeshStandardMaterial>();
+export function getCanyonFloorMaterial(biome: CanyonBiome = DEFAULT_BIOME): THREE.MeshStandardMaterial {
+    const cached = floorMaterialCache.get(biome.key);
+    if (cached) return cached;
+    const texture = getCanyonFloorTexture(biome);
     texture.repeat.set(8, 50);
-    floorMaterialCache = new THREE.MeshStandardMaterial({ map: texture, roughness: 1.0, metalness: 0.0 });
-    return floorMaterialCache;
+    const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 1.0, metalness: 0.0 });
+    floorMaterialCache.set(biome.key, material);
+    return material;
 }
 
 let arrowGeometryCache: THREE.ShapeGeometry | null = null;
@@ -145,7 +154,9 @@ export function getArrowMaterial(): THREE.MeshBasicMaterial {
 }
 
 export function isCachedMaterial(mat: THREE.Material): boolean {
-    return mat === rockMaterialCache || mat === floorMaterialCache || mat === arrowMaterialCache;
+    for (const cached of rockMaterialCache.values()) if (cached === mat) return true;
+    for (const cached of floorMaterialCache.values()) if (cached === mat) return true;
+    return mat === arrowMaterialCache;
 }
 
 export function isCachedGeometry(geo: THREE.BufferGeometry): boolean {

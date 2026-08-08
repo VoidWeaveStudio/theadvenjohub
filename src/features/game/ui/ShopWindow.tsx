@@ -6,17 +6,20 @@ import Image from "next/image";
 import { Gem, Minus, Plus } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
+import { useShopPrices } from "./hooks/useShopPrices";
 
 interface ShopWindowProps {
     isOpen: boolean;
+    gameSlug: string;
     onClose: () => void;
     ash: number;
     placeables: Record<string, number>;
     onBuyItem: (itemId: string, quantity: number) => void;
 }
 
-export function ShopWindow({ isOpen, onClose, ash, placeables, onBuyItem }: ShopWindowProps) {
+export function ShopWindow({ isOpen, gameSlug, onClose, ash, placeables, onBuyItem }: ShopWindowProps) {
     const [quantities, setQuantities] = useState<Record<string, number>>({});
+    const livePrices = useShopPrices(gameSlug, isOpen);
 
     return (
         <WindowFrame
@@ -40,7 +43,10 @@ export function ShopWindow({ isOpen, onClose, ash, placeables, onBuyItem }: Shop
             </div>
 
             <div className="space-y-2">
-                {PLACEABLE_ITEMS.map((item) => {
+                {PLACEABLE_ITEMS.map((definition) => {
+                    const live = livePrices.get(definition.id);
+                    if (live && live.enabled === false) return null;
+                    const item = { ...definition, price: live && live.currency === "ash" ? live.priceAsh : definition.price };
                     const owned = placeables[item.id] || 0;
                     const capRemaining = Math.max(0, item.maxOwned - owned);
                     const affordable = item.price > 0 ? Math.floor(ash / item.price) : 0;

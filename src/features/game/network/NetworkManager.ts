@@ -1,4 +1,7 @@
 // src/features/game/network/NetworkManager.ts
+import { EmoteKey, isEmoteKey } from "../data/emotes";
+import { CosmeticId, normalizeLoadout } from "../data/cosmetics";
+
 export type PlayerNetData = {
   id: string;
   nickname: string;
@@ -18,6 +21,14 @@ export type PlayerNetData = {
   isAdmin?: boolean;
   isFactionCreator?: boolean;
   skinTextureUrl?: string | null;
+  cosmeticSkinId?: string | null;
+  cosmeticAccessoryId?: string | null;
+};
+
+export type CosmeticStateData = {
+  owned: CosmeticId[];
+  skinId: CosmeticId | null;
+  accessoryId: CosmeticId | null;
 };
 
 export type DayNightSyncData = {
@@ -41,6 +52,7 @@ export type CanyonSegmentData = {
   maxSegmentReached: number;
   cleared: boolean;
   name: string;
+  biome?: string;
 };
 
 export type CanyonClearedData = {
@@ -48,6 +60,7 @@ export type CanyonClearedData = {
   segment: number;
   maxSegmentReached: number;
   name: string;
+  biome?: string;
 };
 
 export type CanyonMapData = {
@@ -199,6 +212,55 @@ export type FactionTaskLogEntry = {
   rewardWallet: string;
   rewardNickname: string | null;
   completedAt: string;
+};
+
+export type FactionQuestType = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+export type FactionQuestEntry = {
+  id: string;
+  factionId: string;
+  factionName: string;
+  factionSymbol: string | null;
+  factionImage: string | null;
+  factionTokenCa: string | null;
+  questType: string;
+  targetUrl: string;
+  rewardAsh: number;
+  slotsTotal: number;
+  slotsClaimed: number;
+  slotsRemaining: number;
+  isOwnQuest: boolean;
+  completedByMe: boolean;
+  createdAt: string;
+};
+
+export type FactionQuestManaged = {
+  id: string;
+  questType: string;
+  targetUrl: string;
+  rewardAsh: number;
+  slotsTotal: number;
+  slotsClaimed: number;
+  slotsRemaining: number;
+  bankAsh: number;
+  paidOutAsh: number;
+  bankRemainingAsh: number;
+  listingFeeAsh: number;
+  status: string;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export type FactionQuestManageData = {
+  factionId: string;
+  canManage: boolean;
+  questTypes: FactionQuestType[];
+  listingFeeAsh: number;
+  quests: FactionQuestManaged[];
 };
 
 export type FactionSummary = {
@@ -364,6 +426,10 @@ export class NetworkManager {
   public onPlayerJoin?: (data: PlayerNetData) => void;
   public onPlayerLeave?: (playerId: string) => void;
   public onPlayerUpdate?: (data: PlayerNetData) => void;
+  public onRemoteEmote?: (data: { playerId: string; key: EmoteKey }) => void;
+  public onCosmeticState?: (data: CosmeticStateData) => void;
+  public onSpawnProtection?: (data: { untilMs: number; durationMs: number }) => void;
+  public onCosmeticUpdate?: (data: { playerId: string; skinId: CosmeticId | null; accessoryId: CosmeticId | null }) => void;
   public onShoot?: (data: { id: string; origin: number[]; direction: number[] }) => void;
   public onDisconnected?: () => void;
   public onCount?: (count: number) => void;
@@ -465,6 +531,10 @@ export class NetworkManager {
   public onFactionTaskCompleted?: (data: { taskKey: string; label: string; rewardAsh: number; rewardNickname: string | null }) => void;
   public onFactionCreatorClaimResult?: (data: { isCreator: boolean; faction: FactionSummary }) => void;
   public onFactionCreatorVerified?: (faction: FactionSummary) => void;
+  public onFactionQuestListResult?: (quests: FactionQuestEntry[]) => void;
+  public onFactionQuestManageListResult?: (data: FactionQuestManageData) => void;
+  public onFactionQuestCreated?: (data: { quest: FactionQuestManaged & { factionId: string }; chargedAsh: number }) => void;
+  public onFactionQuestClaimed?: (data: { questId: string; rewardAsh: number; slotsClaimed: number; slotsTotal: number; status: string }) => void;
 
   public onMailReceived?: (data: { mailId: string; senderNickname: string; subject: string }) => void;
   public onFriendRequestReceived?: (friend: FriendRequestEntry) => void;
@@ -648,6 +718,29 @@ export class NetworkManager {
           locationId: data.locationId || 'main-world',
         });
         break;
+      case "emote":
+        if (isEmoteKey(data.key)) this.onRemoteEmote?.({ playerId: data.playerId, key: data.key });
+        break;
+      case "spawnProtection":
+        this.onSpawnProtection?.({
+          untilMs: typeof data.untilMs === "number" ? data.untilMs : 0,
+          durationMs: typeof data.durationMs === "number" ? data.durationMs : 0,
+        });
+        break;
+      case "cosmeticState": {
+        const loadout = normalizeLoadout(data.skinId, data.accessoryId);
+        this.onCosmeticState?.({
+          owned: Array.isArray(data.owned) ? data.owned : [],
+          skinId: loadout.skinId,
+          accessoryId: loadout.accessoryId,
+        });
+        break;
+      }
+      case "cosmeticUpdate": {
+        const loadout = normalizeLoadout(data.skinId, data.accessoryId);
+        this.onCosmeticUpdate?.({ playerId: data.playerId, ...loadout });
+        break;
+      }
       case "playerLeave":
         this.onPlayerLeave?.(data.playerId);
         break;
@@ -856,6 +949,24 @@ export class NetworkManager {
         break;
       case "factionCreatorVerified":
         this.onFactionCreatorVerified?.(data.faction);
+        break;
+      case "factionQuestListResult":
+        this.onFactionQuestListResult?.(Array.isArray(data.quests) ? data.quests : []);
+        break;
+      case "factionQuestManageListResult":
+        this.onFactionQuestManageListResult?.({
+          factionId: data.factionId,
+          canManage: !!data.canManage,
+          questTypes: Array.isArray(data.questTypes) ? data.questTypes : [],
+          listingFeeAsh: typeof data.listingFeeAsh === "number" ? data.listingFeeAsh : 0,
+          quests: Array.isArray(data.quests) ? data.quests : [],
+        });
+        break;
+      case "factionQuestCreated":
+        this.onFactionQuestCreated?.({ quest: data.quest, chargedAsh: data.chargedAsh });
+        break;
+      case "factionQuestClaimed":
+        this.onFactionQuestClaimed?.(data);
         break;
       case "friendRequestSent":
         this.onFriendRequestSent?.(data.friend, data.status);
@@ -1192,6 +1303,26 @@ export class NetworkManager {
     this.send({ type: "factionClaimCreator", factionId });
   }
 
+  sendFactionQuestListRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "factionQuestListRequest" });
+  }
+
+  sendFactionQuestManageListRequest(factionId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionQuestManageListRequest", factionId });
+  }
+
+  sendFactionQuestCreate(factionId: string, targetUrl: string, slotsTotal: number, rewardAsh: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionQuestCreate", factionId, targetUrl, slotsTotal, rewardAsh });
+  }
+
+  sendFactionQuestClaim(questId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "factionQuestClaim", questId });
+  }
+
   sendFriendRequest(walletOrNickname: { wallet?: string; nickname?: string }) {
     if (!this.authenticated) return;
     this.send({ type: "friendRequestSend", wallet: walletOrNickname.wallet, nickname: walletOrNickname.nickname });
@@ -1240,6 +1371,26 @@ export class NetworkManager {
   sendRespawnRequest() {
     if (!this.authenticated) return;
     this.send({ type: "respawnRequest" });
+  }
+
+  sendEmote(key: EmoteKey) {
+    if (!this.authenticated) return;
+    this.send({ type: "emote", key });
+  }
+
+  sendCosmeticListRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "cosmeticListRequest" });
+  }
+
+  sendCosmeticBuy(itemId: CosmeticId) {
+    if (!this.authenticated) return;
+    this.send({ type: "cosmeticBuy", itemId });
+  }
+
+  sendCosmeticEquip(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
+    if (!this.authenticated) return;
+    this.send({ type: "cosmeticEquip", skinId, accessoryId });
   }
 
   requestTokenInfo(ca: string) {

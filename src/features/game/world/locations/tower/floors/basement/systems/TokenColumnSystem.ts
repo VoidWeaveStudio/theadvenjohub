@@ -14,15 +14,38 @@ interface TokenColumn {
 }
 
 export class TokenColumnSystem {
-    private columnTokens: (string | null)[] = [
-        "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump", "J8PSdNP3QewKq2Z1JJJFDMaqF7KcaiJhR7gbr5KZpump", "CFPkPq1eYPR8GLzEo59wUbbMioX4bshaTQiSGzTSpump",
-        "B4ptaVsUe6YbtBwAS38WFeweSrVNfQLCcj9JRrtjU8vn", "Ge87EtsjwRQbHaqQmKRno69RFTwh9bfSsm99XNxTpump", "4MrsXQzaosYNyFd4wKDvgnC5xRtRqgXRrijFTGj9pump", "BTUu1KQ1rhcmtMVGLm7unFbCR4CU6RCwxhTtK2xUpump", "CWZ6BsdnjkDVTGkmL6bGbJXXig6ceef12KvyGQW14cMt", null, null
-    ];
+    private columnTokens: (string | null)[] = new Array(10).fill(null);
     public columns: TokenColumn[] = [];
     private columnUpdateInterval: NodeJS.Timeout | null = null;
     private pendingPedestalUpgrades: { group: THREE.Group; fallback: THREE.Mesh }[] = [];
 
     constructor(private floor: Basement) { }
+
+    public async syncFromServer(gameSlug: string) {
+        try {
+            const res = await fetch(`/api/game/basement-columns?gameSlug=${encodeURIComponent(gameSlug)}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!Array.isArray(data?.columns)) return;
+            this.applyColumnTokens(data.columns);
+        } catch {
+            return;
+        }
+    }
+
+    public applyColumnTokens(next: (string | null)[]) {
+        for (let i = 0; i < this.columns.length; i++) {
+            const ca = typeof next[i] === "string" && next[i]!.length > 0 ? next[i]! : null;
+            const col = this.columns[i];
+            if (col.ca === ca) continue;
+            col.ca = ca;
+            col.group.userData.ca = ca;
+            col.group.userData.tokenInfo = ca
+                ? { name: "Loading...", symbol: "...", mc: 0 }
+                : { name: "Empty Pedestal", symbol: "N/A", mc: 0 };
+            this.updateColumn(col);
+        }
+    }
 
     private attachPedestalModel(group: THREE.Group, columnData: { scene: THREE.Group }): number {
         const pedestal = columnData.scene;

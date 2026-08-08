@@ -3,17 +3,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight } from "lucide-react";
+import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight, Shirt } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FriendsTab } from "./FriendsTab";
 import { MailTab } from "./MailTab";
 import { AccountTab } from "./AccountTab";
 import { BlockedTab } from "./BlockedTab";
 import { TradeHistoryTab } from "./TradeHistoryTab";
+import { AppearanceTab } from "./AppearanceTab";
+import { CosmeticId } from "../data/cosmetics";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
-import { FriendEntry, FriendRequestEntry, MailEntry, PlayerProfileData, QuestInfoData, BlockedEntry } from "../network/NetworkManager";
+import { FriendEntry, FriendRequestEntry, MailEntry, PlayerProfileData, QuestInfoData, BlockedEntry, CosmeticStateData } from "../network/NetworkManager";
 
-export type SocialTab = "friends" | "mail" | "account" | "blocked" | "trades";
+export type SocialTab = "friends" | "mail" | "account" | "appearance" | "blocked" | "trades";
 
 interface SocialWindowProps {
     isOpen: boolean;
@@ -44,6 +46,10 @@ interface SocialWindowProps {
     onRequestMailInbox: () => void;
     onSendMail: (recipient: { wallet?: string; nickname?: string }, subject: string, body: string) => void;
     onMarkMailRead: (mailId: string) => void;
+
+    cosmetics: CosmeticStateData;
+    onRequestCosmetics: () => void;
+    onEquipCosmetics: (skinId: CosmeticId | null, accessoryId: CosmeticId | null) => void;
 
     blocked: BlockedEntry[];
     onRequestBlockedList: () => void;
@@ -77,6 +83,9 @@ export function SocialWindow({
     onRequestMailInbox,
     onSendMail,
     onMarkMailRead,
+    cosmetics,
+    onRequestCosmetics,
+    onEquipCosmetics,
     blocked,
     onRequestBlockedList,
     onUnblockUser,
@@ -113,6 +122,7 @@ export function SocialWindow({
                 { id: "mail", label: "Mail", icon: <MailIcon className="w-3.5 h-3.5" />, badge: unreadMailCount > 0 },
                 { id: "blocked", label: "Blocked", icon: <UserX className="w-3.5 h-3.5" /> },
                 { id: "trades", label: "Trades", icon: <ArrowLeftRight className="w-3.5 h-3.5" /> },
+                { id: "appearance", label: "Appearance", icon: <Shirt className="w-3.5 h-3.5" /> },
                 { id: "account", label: "Account", icon: <User className="w-3.5 h-3.5" /> },
             ]}
             activeTab={activeTab}
@@ -154,6 +164,14 @@ export function SocialWindow({
             )}
 
             {activeTab === "trades" && <TradeHistoryTab />}
+
+            {activeTab === "appearance" && (
+                <AppearanceTab
+                    cosmetics={cosmetics}
+                    onRequestCosmetics={onRequestCosmetics}
+                    onEquip={onEquipCosmetics}
+                />
+            )}
 
             {activeTab === "account" && (
                 <AccountTab

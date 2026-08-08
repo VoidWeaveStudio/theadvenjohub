@@ -15,6 +15,12 @@ import { EnemySystem } from "../systems/EnemySystem";
 import { LootSystem } from "../systems/LootSystem";
 import { BuildSystem } from "../systems/BuildSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
+import { EmoteSystem } from "../systems/EmoteSystem";
+import { CandleEmoteSystem } from "../systems/CandleEmoteSystem";
+import { disposeEmoteAssets } from "../entities/emoteSprites";
+import { disposeSkinTextures } from "../entities/characterSkinTexture";
+import { EmoteKey, isBodyEmote } from "../data/emotes";
+import { CosmeticId } from "../data/cosmetics";
 import { LocationManager } from "../world/LocationManager";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
 import { EventsHall } from "../world/locations/tower/floors/EventsHall";
@@ -77,6 +83,8 @@ export class Game {
 
     public readonly shootingSystem: ShootingSystem;
     private safeZoneSystem: SafeZoneSystem;
+    public readonly emoteSystem: EmoteSystem = new EmoteSystem();
+    public readonly candleSystem: CandleEmoteSystem = new CandleEmoteSystem();
     public readonly interactionSystem: InteractionSystem;
     private networkSystem: NetworkSystem;
     public readonly enemySystem: EnemySystem;
@@ -89,6 +97,8 @@ export class Game {
     public placeables: Record<string, number> = {};
     private pendingSignSave: { signId: string; resolve: () => void; reject: (err: Error) => void } | null = null;
 
+    public spawnProtectionUntil: number = 0;
+    private lastProtectionSecond: number = -1;
     public isDead: boolean = false;
     public killerName: string | null = null;
 
@@ -304,6 +314,7 @@ export class Game {
                 this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
                 this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight);
                 this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId, getWallSnap);
+                this.shootingSystem.onShotFired = () => this.notifyLocalShot();
                 this.buildSystem.onNotification = (msg, duration) => {
                     this.onNotification?.(msg, duration);
                 };
@@ -516,6 +527,10 @@ export class Game {
             if (this.disposed) return;
 
             const previousLocation = this.locationManager.getCurrentLocation();
+            if (!previousLocation || previousLocation.id === targetLocationId) {
+                this.onLoadStateChange?.(false);
+                return;
+            }
 
             this.enemySystem.clear();
             this.lootSystem.clear();
@@ -523,7 +538,7 @@ export class Game {
 
             const newLocation = await this.locationManager.loadLocation(targetLocationId);
             if (this.disposed) return;
-            if (!newLocation || !previousLocation || newLocation === previousLocation) {
+            if (!newLocation || newLocation === previousLocation) {
                 this.onLoadStateChange?.(false);
                 return;
             }
@@ -538,6 +553,9 @@ export class Game {
             newLocation.scene.add(this.cameraController.yawObject);
 
      
+            this.emoteSystem.clear();
+            this.candleSystem.clear();
+            this.player.setMovementLocked(false);
             this.otherPlayers.forEach((op) => {
                 if (!op.isHidden()) {
                     previousLocation.scene.remove(op.mesh);
@@ -576,9 +594,14 @@ export class Game {
                 this.setBlueprintEquipped(false);
             }
 
-            const spawnPoint = options?.position
-                ? new THREE.Vector3(options.position[0], options.position[1], options.position[2])
-                : newLocation.getSpawnPoint();
+            let spawnPoint = newLocation.getSpawnPoint();
+            if (options?.position) {
+                const requested = new THREE.Vector3(options.position[0], options.position[1], options.position[2]);
+                const limit = newLocation.maxPlayerRadius ?? 9999;
+                if (Math.hypot(requested.x, requested.z) <= limit) {
+                    spawnPoint = requested;
+                }
+            }
             this.player.teleportTo(spawnPoint);
             this.cameraController.yawObject.position.copy(spawnPoint);
             if (options?.rotation !== undefined) {
@@ -732,7 +755,10 @@ export class Game {
                 await this.changeLocation(targetId);
             }
 
+            this.updateSpawnProtection();
+            this.updateCandleEmote(delta);
             this.networkSystem.update(delta);
+            this.emoteSystem.update(delta);
             this.otherPlayers.forEach((op) => op.update(delta));
 
             this.networkManager.sendPlayerUpdate({
@@ -761,6 +787,12 @@ export class Game {
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
     };
+
+    public notifyLocalShot() {
+        if (this.spawnProtectionUntil <= 0) return;
+        this.spawnProtectionUntil = 0;
+        this.updateSpawnProtection();
+    }
 
     setWeaponEquipped(equipped: boolean) {
         const currentLocation = this.locationManager.getCurrentLocation();
@@ -909,6 +941,78 @@ export class Game {
         this.networkManager.sendCanyonEnterDungeon();
     }
 
+    requestCosmetics() {
+        this.networkManager.sendCosmeticListRequest();
+    }
+
+    buyCosmetic(itemId: CosmeticId) {
+        this.networkManager.sendCosmeticBuy(itemId);
+    }
+
+    equipCosmetics(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
+        this.networkManager.sendCosmeticEquip(skinId, accessoryId);
+    }
+
+    setSpawnProtection(untilMs: number) {
+        this.spawnProtectionUntil = untilMs;
+        this.lastProtectionSecond = -1;
+        if (untilMs <= Date.now()) {
+            this.onSpawnProtectionChange?.(0);
+        }
+    }
+
+    public isSpawnProtected(): boolean {
+        return this.spawnProtectionUntil > Date.now();
+    }
+
+    private updateSpawnProtection() {
+        const remaining = Math.max(0, this.spawnProtectionUntil - Date.now());
+        const seconds = Math.ceil(remaining / 1000);
+        if (seconds === this.lastProtectionSecond) return;
+        this.lastProtectionSecond = seconds;
+        this.onSpawnProtectionChange?.(seconds);
+        this.player.setInvulnerableVisual(remaining > 0);
+    }
+
+    playEmote(key: EmoteKey) {
+        if (isBodyEmote(key)) {
+            const scene = this.locationManager.getCurrentLocation()?.scene;
+            if (!scene) return;
+            if (this.candleSystem.isBusy(this.player.id)) return;
+            this.candleSystem.start(this.player.id, {
+                mesh: this.player.mesh,
+                playPose: (name) => this.player.playPose(name),
+            }, scene);
+            this.player.setMovementLocked(true);
+        } else {
+            this.emoteSystem.play(this.player.id, key, this.player.mesh);
+        }
+        this.networkManager.sendEmote(key);
+    }
+
+    public startRemoteBodyEmote(playerId: string, mesh: THREE.Object3D, playPose: (name: string | null) => void) {
+        const scene = this.locationManager.getCurrentLocation()?.scene;
+        if (!scene) return;
+        this.candleSystem.start(playerId, { mesh, playPose }, scene);
+    }
+
+    private updateCandleEmote(delta: number) {
+        this.candleSystem.update(delta);
+
+        this.otherPlayers.forEach((op, id) => {
+            if (!this.candleSystem.isDowned(id)) return;
+            if (!op.isMoving()) return;
+            this.candleSystem.stop(id);
+        });
+
+        if (!this.candleSystem.isBusy(this.player.id)) return;
+        if (!this.candleSystem.isDowned(this.player.id)) return;
+        if (!this.player.hasMovementInput()) return;
+
+        this.player.setMovementLocked(false);
+        this.candleSystem.stop(this.player.id);
+    }
+
     joinFaction(factionId: string) {
         this.networkManager.sendFactionJoin(factionId);
     }
@@ -959,6 +1063,22 @@ export class Game {
 
     claimFactionCreator(factionId: string) {
         this.networkManager.sendFactionClaimCreator(factionId);
+    }
+
+    requestFactionQuestList() {
+        this.networkManager.sendFactionQuestListRequest();
+    }
+
+    requestFactionQuestManageList(factionId: string) {
+        this.networkManager.sendFactionQuestManageListRequest(factionId);
+    }
+
+    createFactionQuest(factionId: string, targetUrl: string, slotsTotal: number, rewardAsh: number) {
+        this.networkManager.sendFactionQuestCreate(factionId, targetUrl, slotsTotal, rewardAsh);
+    }
+
+    claimFactionQuest(questId: string) {
+        this.networkManager.sendFactionQuestClaim(questId);
     }
 
     sendFriendRequest(target: { wallet?: string; nickname?: string }) {
@@ -1092,6 +1212,10 @@ export class Game {
         }
 
         this.otherPlayers.clear();
+        this.emoteSystem.clear();
+        this.candleSystem.clear();
+        disposeEmoteAssets();
+        disposeSkinTextures();
         this.locationManager.dispose();
         this.renderer.dispose();
     }

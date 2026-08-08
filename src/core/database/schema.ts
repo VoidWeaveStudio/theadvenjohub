@@ -423,6 +423,88 @@ export const factionGates = pgTable("faction_gates", {
   purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
 });
 
+export const gameCosmetics = pgTable("game_cosmetics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  itemId: varchar("item_id", { length: 40 }).notNull(),
+  pricePaidAsh: integer("price_paid_ash").default(0).notNull(),
+  purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_cosmetics_user_game_item").on(table.userId, table.gameId, table.itemId),
+  index("idx_game_cosmetics_user_game").on(table.userId, table.gameId),
+]);
+
+export const gameCosmeticLoadouts = pgTable("game_cosmetic_loadouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  skinId: varchar("skin_id", { length: 40 }),
+  accessoryId: varchar("accessory_id", { length: 40 }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_cosmetic_loadouts_user_game").on(table.userId, table.gameId),
+]);
+
+export const shopItemPrices = pgTable("shop_item_prices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  itemId: varchar("item_id", { length: 60 }).notNull(),
+  currency: varchar("currency", { length: 10 }).default("ash").notNull(),
+  priceAsh: integer("price_ash").default(0).notNull(),
+  priceTnj: integer("price_tnj").default(0).notNull(),
+  priceUsdCents: integer("price_usd_cents").default(0).notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_shop_item_prices_game_item").on(table.gameId, table.itemId),
+]);
+
+export const basementColumns = pgTable("basement_columns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  slot: integer("slot").notNull(),
+  tokenCa: varchar("token_ca", { length: 64 }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_basement_columns_game_slot").on(table.gameId, table.slot),
+]);
+
+export const factionQuests = pgTable("faction_quests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  factionId: uuid("faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  createdByUserId: uuid("created_by_user_id").notNull().references(() => users.id),
+  createdByWallet: varchar("created_by_wallet", { length: 44 }).notNull(),
+  questType: varchar("quest_type", { length: 30 }).default("x_post_view").notNull(),
+  targetUrl: varchar("target_url", { length: 512 }).notNull(),
+  rewardAsh: integer("reward_ash").notNull(),
+  slotsTotal: integer("slots_total").notNull(),
+  slotsClaimed: integer("slots_claimed").default(0).notNull(),
+  bankAsh: integer("bank_ash").notNull(),
+  paidOutAsh: integer("paid_out_ash").default(0).notNull(),
+  listingFeeAsh: integer("listing_fee_ash").default(0).notNull(),
+  status: varchar("status", { length: 20 }).default("active").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("idx_faction_quests_game_status").on(table.gameId, table.status),
+  index("idx_faction_quests_faction").on(table.factionId),
+]);
+
+export const factionQuestCompletions = pgTable("faction_quest_completions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  questId: uuid("quest_id").notNull().references(() => factionQuests.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  rewardAsh: integer("reward_ash").notNull(),
+  completedAt: timestamp("completed_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_faction_quest_completions_quest_user").on(table.questId, table.userId),
+  index("idx_faction_quest_completions_user").on(table.userId),
+]);
+
 export const placedFurniture = pgTable("placed_furniture", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id),
@@ -720,6 +802,7 @@ export const factionsRelations = relations(factions, ({ one, many }) => ({
   verifiedCreator: one(users, { fields: [factions.verifiedCreatorUserId], references: [users.id] }),
   members: many(factionMembers),
   taskLog: many(factionTaskLog),
+  quests: many(factionQuests),
 }));
 
 export const factionMembersRelations = relations(factionMembers, ({ one }) => ({
@@ -731,6 +814,36 @@ export const factionMembersRelations = relations(factionMembers, ({ one }) => ({
 export const factionTaskLogRelations = relations(factionTaskLog, ({ one }) => ({
   faction: one(factions, { fields: [factionTaskLog.factionId], references: [factions.id] }),
   rewardUser: one(users, { fields: [factionTaskLog.rewardUserId], references: [users.id] }),
+}));
+
+export const gameCosmeticsRelations = relations(gameCosmetics, ({ one }) => ({
+  user: one(users, { fields: [gameCosmetics.userId], references: [users.id] }),
+  game: one(games, { fields: [gameCosmetics.gameId], references: [games.id] }),
+}));
+
+export const gameCosmeticLoadoutsRelations = relations(gameCosmeticLoadouts, ({ one }) => ({
+  user: one(users, { fields: [gameCosmeticLoadouts.userId], references: [users.id] }),
+  game: one(games, { fields: [gameCosmeticLoadouts.gameId], references: [games.id] }),
+}));
+
+export const shopItemPricesRelations = relations(shopItemPrices, ({ one }) => ({
+  game: one(games, { fields: [shopItemPrices.gameId], references: [games.id] }),
+}));
+
+export const basementColumnsRelations = relations(basementColumns, ({ one }) => ({
+  game: one(games, { fields: [basementColumns.gameId], references: [games.id] }),
+}));
+
+export const factionQuestsRelations = relations(factionQuests, ({ one, many }) => ({
+  faction: one(factions, { fields: [factionQuests.factionId], references: [factions.id] }),
+  game: one(games, { fields: [factionQuests.gameId], references: [games.id] }),
+  createdBy: one(users, { fields: [factionQuests.createdByUserId], references: [users.id] }),
+  completions: many(factionQuestCompletions),
+}));
+
+export const factionQuestCompletionsRelations = relations(factionQuestCompletions, ({ one }) => ({
+  quest: one(factionQuests, { fields: [factionQuestCompletions.questId], references: [factionQuests.id] }),
+  user: one(users, { fields: [factionQuestCompletions.userId], references: [users.id] }),
 }));
 
 export const friendshipsRelations = relations(friendships, ({ one }) => ({

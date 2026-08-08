@@ -13,9 +13,12 @@ import {
     userAchievements,
     gameLicenses,
     games,
+    gameCosmetics,
+    gameCosmeticLoadouts,
 } from "@/core/database/schema";
 import { eq, desc } from "drizzle-orm";
 import { ACHIEVEMENTS_BY_KEY } from "@/core/lib/achievements";
+import { COSMETICS_BY_ID, normalizeLoadout } from "@/features/game/data/cosmetics";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 
 export async function GET(
@@ -101,6 +104,31 @@ export async function GET(
             })
             .filter((a): a is NonNullable<typeof a> => a !== null);
 
+        const ownedCosmetics = await db
+            .select({ itemId: gameCosmetics.itemId, purchasedAt: gameCosmetics.purchasedAt })
+            .from(gameCosmetics)
+            .where(eq(gameCosmetics.userId, userId));
+
+        const loadoutRow = await db.query.gameCosmeticLoadouts.findFirst({
+            where: eq(gameCosmeticLoadouts.userId, userId),
+        });
+        const loadout = normalizeLoadout(loadoutRow?.skinId, loadoutRow?.accessoryId);
+
+        const cosmetics = {
+            equippedSkin: loadout.skinId
+                ? { id: loadout.skinId, name: COSMETICS_BY_ID.get(loadout.skinId)?.name ?? loadout.skinId }
+                : null,
+            equippedAccessory: loadout.accessoryId
+                ? { id: loadout.accessoryId, name: COSMETICS_BY_ID.get(loadout.accessoryId)?.name ?? loadout.accessoryId }
+                : null,
+            owned: ownedCosmetics.map((c) => ({
+                id: c.itemId,
+                name: COSMETICS_BY_ID.get(c.itemId as any)?.name ?? c.itemId,
+                slot: COSMETICS_BY_ID.get(c.itemId as any)?.slot ?? "unknown",
+                purchasedAt: c.purchasedAt,
+            })),
+        };
+
         return NextResponse.json({
             player: {
                 id: user.id,
@@ -123,6 +151,7 @@ export async function GET(
                 },
                 ash,
                 skinTextureUrl,
+                cosmetics,
                 placeables,
                 locationId: progress?.locationId ?? null,
                 inventory: inventory.map((i) => ({ slot: i.slot, itemId: i.itemId, quantity: i.quantity })),

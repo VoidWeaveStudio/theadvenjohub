@@ -25,7 +25,12 @@ import { getCsrfToken } from "@/core/lib/clientUtils";
 import { QuestTracker } from "./ui/QuestTracker";
 import { CanyonMapPanel } from "./ui/CanyonMapPanel";
 import { AlaricPanel } from "./ui/AlaricPanel";
+import { EmoteWheel } from "./ui/EmoteWheel";
+import { EmoteKey } from "./data/emotes";
+import { CosmeticId } from "./data/cosmetics";
+import { useCosmeticState } from "./ui/hooks/useCosmeticState";
 import { FactionsWindow } from "./ui/FactionsWindow";
+import { QuestsWindow } from "./ui/QuestsWindow";
 import { SocialWindow, SocialTab } from "./ui/SocialWindow";
 import { ShopWindow } from "./ui/ShopWindow";
 import { LeaderboardsWindow } from "./ui/LeaderboardsWindow";
@@ -48,6 +53,7 @@ import { usePrivateMessagesState } from "./ui/hooks/usePrivateMessagesState";
 import { useNotifications } from "./ui/hooks/useNotifications";
 import { useCanyonMapState } from "./ui/hooks/useCanyonMapState";
 import { useFactionState } from "./ui/hooks/useFactionState";
+import { useFactionQuestState } from "./ui/hooks/useFactionQuestState";
 import { useLeaderboardState } from "./ui/hooks/useLeaderboardState";
 import { useProfileState } from "./ui/hooks/useProfileState";
 import { useSocialState } from "./ui/hooks/useSocialState";
@@ -101,6 +107,8 @@ export function GameClient({ slug }: GameClientProps) {
   const [itemEditorId, setItemEditorId] = useState<string | null>(null);
   const [viewingItem, setViewingItem] = useState<SignViewData | null>(null);
   const [isPlaceableMenuOpen, setIsPlaceableMenuOpen] = useState(false);
+  const [isEmoteWheelOpen, setIsEmoteWheelOpen] = useState(false);
+  const [spawnProtectionSeconds, setSpawnProtectionSeconds] = useState(0);
 
   const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
   const [isCreateFactionModalOpen, setIsCreateFactionModalOpen] = useState(false);
@@ -115,6 +123,8 @@ export function GameClient({ slug }: GameClientProps) {
   const notifications = useNotifications();
   const canyonMap = useCanyonMapState();
   const factionState = useFactionState();
+  const factionQuestState = useFactionQuestState();
+  const cosmeticState = useCosmeticState();
   const profileState = useProfileState();
   const leaderboardState = useLeaderboardState();
   const socialState = useSocialState();
@@ -127,7 +137,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
     { id: "blueprint", icon: "📐", name: "Blueprint", equipped: false },
-    { id: "slot3", icon: "", name: "", equipped: false },
+    { id: "emotes", icon: "emote", name: "Emotes", equipped: false },
     { id: "slot4", icon: "", name: "", equipped: false },
     { id: "slot5", icon: "", name: "", equipped: false },
   ]);
@@ -164,6 +174,9 @@ export function GameClient({ slug }: GameClientProps) {
       gameRef.current?.setWeaponEquipped(!slot.equipped);
     } else if (slot.id === "blueprint") {
       gameRef.current?.setBlueprintEquipped(!slot.equipped);
+    } else if (slot.id === "emotes") {
+      setIsEmoteWheelOpen(true);
+      document.exitPointerLock();
     }
   };
 
@@ -320,6 +333,12 @@ export function GameClient({ slug }: GameClientProps) {
         game.onFactionTaskAccepted = (f) => { if (!cancelled) factionState.handleFactionTaskAccepted(f); };
         game.onFactionCreatorClaimResult = (data) => { if (!cancelled) factionState.handleFactionCreatorClaimResult(data); };
         game.onFactionCreatorVerified = (f) => { if (!cancelled) factionState.handleFactionCreatorVerified(f); };
+        game.onFactionQuestListResult = (quests) => { if (!cancelled) factionQuestState.handleFactionQuestListResult(quests); };
+        game.onFactionQuestManageListResult = (data) => { if (!cancelled) factionQuestState.handleFactionQuestManageListResult(data); };
+        game.onFactionQuestCreated = (data) => { if (!cancelled) factionQuestState.handleFactionQuestCreated(data); };
+        game.onFactionQuestClaimed = (data) => { if (!cancelled) factionQuestState.handleFactionQuestClaimed(data); };
+        game.onCosmeticState = (data) => { if (!cancelled) cosmeticState.handleCosmeticState(data); };
+        game.onSpawnProtectionChange = (seconds) => { if (!cancelled) setSpawnProtectionSeconds(seconds); };
         game.onSelfProfile = (p) => { if (!cancelled) profileState.handleSelfProfile(p); };
         game.onViewedProfile = (p) => { if (!cancelled) profileState.handleViewedProfile(p); };
         game.onLeaderboardResult = (results) => { if (!cancelled) leaderboardState.handlePlayerLeaderboardResult(results); };
@@ -490,6 +509,10 @@ export function GameClient({ slug }: GameClientProps) {
           setViewingSign(null);
           return;
         }
+        if (isEmoteWheelOpen) {
+          setIsEmoteWheelOpen(false);
+          return;
+        }
         if (isPlaceableMenuOpen) {
           setIsPlaceableMenuOpen(false);
           return;
@@ -520,7 +543,7 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || itemEditorId !== null || viewingItem !== null || isPlaceableMenuOpen || tradeSession !== null || pendingTradeInvite !== null) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || itemEditorId !== null || viewingItem !== null || isPlaceableMenuOpen || isEmoteWheelOpen || tradeSession !== null || pendingTradeInvite !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -568,7 +591,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, itemEditorId, viewingItem, isPlaceableMenuOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, itemEditorId, viewingItem, isPlaceableMenuOpen, isEmoteWheelOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -768,6 +791,7 @@ export function GameClient({ slug }: GameClientProps) {
         isPointerLocked={isPointerLocked}
         isHitMark={hud.isHitMark}
         isTalking={isVoiceCapturing}
+        spawnProtectionSeconds={spawnProtectionSeconds}
       />
       <TopMenu
         active={activeTopWindow}
@@ -780,6 +804,15 @@ export function GameClient({ slug }: GameClientProps) {
       />
       <Notifications notifications={notifications.notifications} onRemove={notifications.removeNotification} />
       <QuestTracker quest={quest.questTracker} />
+      <EmoteWheel
+        isOpen={isEmoteWheelOpen}
+        onClose={() => setIsEmoteWheelOpen(false)}
+        onSelect={(key: EmoteKey) => {
+          gameRef.current?.playEmote(key);
+          setIsEmoteWheelOpen(false);
+          canvasRef.current?.requestPointerLock().catch(() => { });
+        }}
+      />
       <Inventory
         items={inventory.inventory}
         ash={inventory.ash}
@@ -825,6 +858,8 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={activeTopWindow === "factions"}
         onClose={() => setActiveTopWindow(null)}
         myWallet={gameRef.current?.session.wallet ?? ""}
+        gameSlug={slug}
+        ash={inventory.ash}
         myFactions={factionState.myFactions}
         selectedFactionId={factionState.selectedFactionId}
         setSelectedFactionId={factionState.setSelectedFactionId}
@@ -833,6 +868,7 @@ export function GameClient({ slug }: GameClientProps) {
         browseResults={factionState.browseResults}
         factionLeaderboard={leaderboardState.factionLeaderboard}
         taskDefinitions={factionState.taskDefinitions}
+        questManageData={factionQuestState.manageData}
         onRequestMyFactions={() => gameRef.current?.requestMyFactions()}
         onViewFaction={(factionId) => gameRef.current?.requestFactionInfo(factionId)}
         onSearchFactions={(ca, name) => gameRef.current?.searchFactions(ca, name)}
@@ -841,15 +877,23 @@ export function GameClient({ slug }: GameClientProps) {
         onJoinFaction={(factionId) => gameRef.current?.joinFaction(factionId)}
         onLeaveFaction={(factionId) => gameRef.current?.leaveFaction(factionId)}
         onSetDisplayedFaction={(factionId) => gameRef.current?.setDisplayedFaction(factionId)}
-        onOpenCreateFaction={() => {
-          setActiveTopWindow(null);
-          setFactionPanelSkipIntro(true);
-          setIsCreateFactionModalOpen(true);
-        }}
         onRequestTaskList={() => gameRef.current?.requestFactionTaskList()}
         onAcceptTask={(factionId, taskKey) => gameRef.current?.acceptFactionTask(factionId, taskKey)}
         onClaimCreator={(factionId) => gameRef.current?.claimFactionCreator(factionId)}
+        onRequestQuestManageList={(factionId) => gameRef.current?.requestFactionQuestManageList(factionId)}
+        onCreateQuest={(factionId, targetUrl, slotsTotal, rewardAsh) =>
+          gameRef.current?.createFactionQuest(factionId, targetUrl, slotsTotal, rewardAsh)
+        }
         getNicknameMenuActions={getNicknameMenuActions}
+      />
+
+      <QuestsWindow
+        isOpen={activeTopWindow === "quests"}
+        onClose={() => setActiveTopWindow(null)}
+        quests={factionQuestState.questBoard}
+        ash={inventory.ash}
+        onRequestQuests={() => gameRef.current?.requestFactionQuestList()}
+        onClaimQuest={(questId) => gameRef.current?.claimFactionQuest(questId)}
       />
 
       <FactionInvitePicker
@@ -909,6 +953,9 @@ export function GameClient({ slug }: GameClientProps) {
         onRequestMailInbox={() => gameRef.current?.requestMailInbox()}
         onSendMail={(recipient, subject, body) => gameRef.current?.sendMail(recipient, subject, body)}
         onMarkMailRead={(mailId) => gameRef.current?.markMailRead(mailId)}
+        cosmetics={cosmeticState.cosmetics}
+        onRequestCosmetics={() => gameRef.current?.requestCosmetics()}
+        onEquipCosmetics={(skinId, accessoryId) => gameRef.current?.equipCosmetics(skinId, accessoryId)}
         blocked={socialState.blocked}
         onRequestBlockedList={() => gameRef.current?.requestBlockedList()}
         onUnblockUser={(blockedUserId) => gameRef.current?.unblockPlayer(blockedUserId)}
@@ -917,6 +964,7 @@ export function GameClient({ slug }: GameClientProps) {
 
       <ShopWindow
         isOpen={activeTopWindow === "shop"}
+        gameSlug={slug}
         onClose={() => setActiveTopWindow(null)}
         ash={inventory.ash}
         placeables={inventory.placeables}
@@ -1047,7 +1095,11 @@ export function GameClient({ slug }: GameClientProps) {
           setIsAlfredoOpen(false);
           setIsPersonalizationOpen(true);
         }}
-        onNotification={(msg, duration) => notifications.addNotification(msg, duration)}
+        gameSlug={slug}
+        ash={inventory.ash}
+        cosmetics={cosmeticState.cosmetics}
+        onRequestCosmetics={() => gameRef.current?.requestCosmetics()}
+        onBuyCosmetic={(itemId: CosmeticId) => gameRef.current?.buyCosmetic(itemId)}
       />
 
       <GateStewardPanel

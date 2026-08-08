@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FactionDetail, FactionSummary } from "../../network/NetworkManager";
 
-export type FactionsTab = "members" | "upgrades" | "tasks" | "search" | "leaderboard";
-const OWN_FACTION_TABS: FactionsTab[] = ["members", "upgrades", "tasks"];
+export type FactionsTab = "my" | "members" | "upgrades" | "tasks" | "quests" | "search" | "leaderboard" | "create";
+export const FACTION_DETAIL_TABS: FactionsTab[] = ["members", "upgrades", "tasks", "quests"];
 
 interface UseFactionsViewStateArgs {
     isOpen: boolean;
@@ -34,7 +34,7 @@ export function useFactionsViewState({
     onBrowseFactions,
     onRequestFactionLeaderboard,
 }: UseFactionsViewStateArgs) {
-    const [activeTab, setActiveTabState] = useState<FactionsTab>("members");
+    const [activeTab, setActiveTabState] = useState<FactionsTab>("my");
     const [searchQuery, setSearchQuery] = useState("");
     const [viewingFactionId, setViewingFactionId] = useState<string | null>(null);
 
@@ -42,22 +42,20 @@ export function useFactionsViewState({
 
     useEffect(() => {
         if (!isOpen) return;
-        if (OWN_FACTION_TABS.includes(activeTab)) onRequestMyFactions();
+        if (activeTab === "my" || FACTION_DETAIL_TABS.includes(activeTab)) onRequestMyFactions();
         if (activeTab === "search") onBrowseFactions();
         if (activeTab === "leaderboard") onRequestFactionLeaderboard();
     }, [isOpen, activeTab]);
 
-
     useEffect(() => {
-        if (!isOpen || !OWN_FACTION_TABS.includes(activeTab)) return;
+        if (!isOpen || !FACTION_DETAIL_TABS.includes(activeTab)) return;
         if (selectedFactionId && myFactions.some((f) => f.id === selectedFactionId)) return;
-        if (myFactions.length === 1) {
-            setSelectedFactionId(myFactions[0].id);
-        }
+        setSelectedFactionId(null);
+        setActiveTabState("my");
     }, [isOpen, activeTab, myFactions, selectedFactionId]);
 
     useEffect(() => {
-        if (!isOpen || !OWN_FACTION_TABS.includes(activeTab) || !selectedFactionId) return;
+        if (!isOpen || !FACTION_DETAIL_TABS.includes(activeTab) || !selectedFactionId) return;
         if (!viewedFaction || viewedFaction.id !== selectedFactionId) {
             onViewFaction(selectedFactionId);
         }
@@ -88,13 +86,27 @@ export function useFactionsViewState({
         setViewingFactionId(null);
     };
 
+    const openFactionDetail = (factionId: string) => {
+        setSelectedFactionId(factionId);
+        setActiveTabState("members");
+        setViewingFactionId(null);
+    };
+
+    const closeFactionDetail = () => {
+        setSelectedFactionId(null);
+        setActiveTabState("my");
+        setViewingFactionId(null);
+    };
+
     const displayedResults = searchQuery.trim().length > 0 ? searchResults : browseResults;
-    const isViewingOwnDetail = OWN_FACTION_TABS.includes(activeTab) && !!selectedFactionId && !!viewedFaction && viewedFaction.id === selectedFactionId;
-    const isViewingSearchedDetail = !OWN_FACTION_TABS.includes(activeTab) && !!viewingFactionId && !!viewedFaction && viewedFaction.id === viewingFactionId;
+    const isViewingOwnDetail = FACTION_DETAIL_TABS.includes(activeTab) && !!selectedFactionId && !!viewedFaction && viewedFaction.id === selectedFactionId;
+    const isViewingSearchedDetail = !FACTION_DETAIL_TABS.includes(activeTab) && !!viewingFactionId && !!viewedFaction && viewedFaction.id === viewingFactionId;
 
     return {
         activeTab,
         setActiveTab,
+        openFactionDetail,
+        closeFactionDetail,
         searchQuery,
         setSearchQuery,
         viewingFactionId,

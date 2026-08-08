@@ -4,11 +4,27 @@ import * as THREE from "three";
 const TYPE_BASE_SCALE: Record<string, number> = {
     slime: 1,
     slime_boss: 3,
+    husk: 1.15,
+    husk_boss: 3.4,
+    frostling: 0.9,
+    frost_boss: 3.6,
+    sporeling: 1.25,
+    spore_boss: 4,
+    voidling: 1.05,
+    void_boss: 4.2,
 };
 
 const TYPE_COLOR: Record<string, number> = {
     slime: 0x33cc55,
     slime_boss: 0x8b2fc9,
+    husk: 0xd4541f,
+    husk_boss: 0xff7a2f,
+    frostling: 0x7fd8ff,
+    frost_boss: 0x3aa0e0,
+    sporeling: 0xb072d6,
+    spore_boss: 0x7a3fa8,
+    voidling: 0x2b2b3d,
+    void_boss: 0xff2d78,
 };
 
 export class Enemy {

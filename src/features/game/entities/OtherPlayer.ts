@@ -5,6 +5,8 @@ import { ResourceManager } from "../core/ResourceManager";
 import { CharacterAnimator } from "./CharacterAnimator";
 import { RIFLE_GRIP_QUATERNION, RIFLE_GRIP_OFFSET } from "./Weapon";
 import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
+import { CosmeticRig } from "./CosmeticRig";
+import { CosmeticId } from "../data/cosmetics";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl, disposePaintableMaterial } from "./characterPaint";
 import type { PlayerNetData } from "../network/NetworkManager";
 
@@ -40,6 +42,8 @@ export class OtherPlayer extends Entity {
     private weaponMesh: THREE.Group | null = null;
     private weaponEquipped: boolean = true;
     private paintableMaterial: THREE.Material | null = null;
+    private cosmeticRig: CosmeticRig | null = null;
+    private posedAnimation: string | null = null;
 
     private animator = new CharacterAnimator();
 
@@ -81,6 +85,7 @@ export class OtherPlayer extends Entity {
 
         const paintableMesh = findPaintableMesh(data.scene);
         this.paintableMaterial = paintableMesh ? clonePaintableMaterial(paintableMesh) : null;
+        this.cosmeticRig = new CosmeticRig(data.scene, this.paintableMaterial);
 
         this.headBone = findBoneLast(data.scene, (name) => name.includes('head') && !name.endsWith('_end'));
         this.hipsBone = findBoneFirst(data.scene, (name) =>
@@ -323,7 +328,9 @@ export class OtherPlayer extends Entity {
             this.headBone.quaternion.slerp(headQuat, Math.min(1, delta * 12));
         }
 
-        if (this.targetState === 'jump') {
+        if (this.posedAnimation) {
+            this.animator.play(this.posedAnimation, false);
+        } else if (this.targetState === 'jump') {
             this.animator.play('jump', this.weaponEquipped);
         } else if (this.targetState === 'sprint') {
             this.animator.play('run', this.weaponEquipped);
@@ -369,7 +376,21 @@ export class OtherPlayer extends Entity {
         }
     }
 
+    public isMoving(): boolean {
+        return this.targetState !== 'idle';
+    }
+
+    public playPose(name: string | null) {
+        this.posedAnimation = name;
+        if (name) this.animator.play(name, false);
+    }
+
+    applyCosmetics(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
+        this.cosmeticRig?.apply(skinId, accessoryId);
+    }
+
     dispose(scene: THREE.Scene) {
+        this.cosmeticRig?.dispose();
         super.dispose(scene);
         scene.remove(this.hitbox);
         this.hitbox.geometry.dispose();

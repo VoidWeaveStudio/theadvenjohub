@@ -7,6 +7,7 @@ import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFlo
 import { TokenGatesFloor } from "../world/locations/tower/floors/TokenGatesFloor";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
+import { isBodyEmote } from "../data/emotes";
 
 interface PlayerLeaveLocationData {
     playerId: string;
@@ -19,7 +20,6 @@ interface AuthData {
     nickname: string;
     skinTextureUrl?: string | null;
 }
-
 
 interface PlayerUpdateData {
     id: string;
@@ -79,7 +79,6 @@ interface LocalRespawnData {
     locationId?: string;
 }
 
-
 function reconcilePendingOtherPlayers(game: Game, locationId: string) {
     const currentLocation = game.locationManager.getCurrentLocation();
     if (!currentLocation) return;
@@ -96,6 +95,7 @@ function reconcilePendingOtherPlayers(game: Game, locationId: string) {
         op.updateFromNetwork(pending);
         op.setBadges(pending.isAdmin ?? false, pending.isFactionCreator ?? false);
         op.setSkinTexture(pending.skinTextureUrl ?? null);
+        op.applyCosmetics((pending.cosmeticSkinId ?? null) as any, (pending.cosmeticAccessoryId ?? null) as any);
     }
     game.updateOnlineCount();
 }
@@ -148,6 +148,7 @@ export function registerNetworkHandlers(game: Game) {
             op.updateFromNetwork(data);
             op.setBadges(data.isAdmin ?? false, data.isFactionCreator ?? false);
             op.setSkinTexture(data.skinTextureUrl ?? null);
+            op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
             game.updateOnlineCount();
             game.onChatMessage?.({
                 id: `system-${Date.now()}`, sender: "System",
@@ -194,7 +195,6 @@ export function registerNetworkHandlers(game: Game) {
         game.onNicknameLoaded?.(data.nickname);
         game.player.applySkinTexture(data.skinTextureUrl ?? null);
         game.onMySkinChange?.(data.skinTextureUrl ?? null);
-
 
         game.requestMyFactions();
         game.requestMailInbox();
@@ -257,6 +257,7 @@ export function registerNetworkHandlers(game: Game) {
         op.updateFromNetwork(data);
         op.setBadges(data.isAdmin ?? false, data.isFactionCreator ?? false);
         op.setSkinTexture(data.skinTextureUrl ?? null);
+        op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
         game.updateOnlineCount();
         game.onChatMessage?.({
             id: `system-${Date.now()}`, sender: "System",
@@ -275,9 +276,34 @@ export function registerNetworkHandlers(game: Game) {
             });
             const currentLocation = game.locationManager.getCurrentLocation();
             if (currentLocation) op.dispose(currentLocation.scene);
+            game.emoteSystem.stop(playerId);
+            game.candleSystem.stop(playerId);
             game.otherPlayers.delete(playerId);
             game.shootingSystem.unregisterOtherPlayer(playerId);
             game.updateOnlineCount();
+        }
+    };
+
+    game.networkManager.onSpawnProtection = ({ untilMs }) => {
+        game.setSpawnProtection(untilMs);
+    };
+
+    game.networkManager.onCosmeticState = (data) => {
+        game.player.applyCosmetics(data.skinId, data.accessoryId);
+        game.onCosmeticState?.(data);
+    };
+
+    game.networkManager.onCosmeticUpdate = ({ playerId, skinId, accessoryId }) => {
+        game.otherPlayers.get(playerId)?.applyCosmetics(skinId, accessoryId);
+    };
+
+    game.networkManager.onRemoteEmote = ({ playerId, key }) => {
+        const op = game.otherPlayers.get(playerId);
+        if (!op || op.isHidden()) return;
+        if (isBodyEmote(key)) {
+            game.startRemoteBodyEmote(playerId, op.mesh, (name) => op.playPose(name));
+        } else {
+            game.emoteSystem.play(playerId, key, op.mesh);
         }
     };
 
@@ -632,6 +658,24 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onFactionCreatorVerified = (faction) => {
         game.onFactionCreatorVerified?.(faction);
+    };
+
+    game.networkManager.onFactionQuestListResult = (quests) => {
+        game.onFactionQuestListResult?.(quests);
+    };
+
+    game.networkManager.onFactionQuestManageListResult = (data) => {
+        game.onFactionQuestManageListResult?.(data);
+    };
+
+    game.networkManager.onFactionQuestCreated = (data) => {
+        game.onFactionQuestCreated?.(data);
+        game.onNotification?.(`📣 Quest published — ${data.chargedAsh} Ash locked in the quest bank`, 3500);
+    };
+
+    game.networkManager.onFactionQuestClaimed = (data) => {
+        game.onFactionQuestClaimed?.(data);
+        game.onNotification?.(`✅ Quest reward claimed — +${data.rewardAsh} Ash`, 3000);
     };
 
     game.networkManager.onFriendRequestSent = (friend, status) => {

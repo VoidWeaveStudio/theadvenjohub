@@ -10,6 +10,8 @@ import { HeightProvider } from "../world/Location";
 import { CharacterAnimator } from "./CharacterAnimator";
 import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 import { SoundManager } from "../core/SoundManager";
+import { CosmeticRig } from "./CosmeticRig";
+import { CosmeticId } from "../data/cosmetics";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl } from "./characterPaint";
 
 export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
@@ -52,6 +54,10 @@ export class Player extends Entity {
 
     private dead: boolean = false;
     private paintableMaterial: THREE.Material | null = null;
+    private cosmeticRig: CosmeticRig | null = null;
+    private shield: THREE.Mesh | null = null;
+    private posedAnimation: string | null = null;
+    private movementLocked: boolean = false;
 
     private static readonly _moveDir = new THREE.Vector3();
     private static readonly _step = new THREE.Vector3();
@@ -96,6 +102,7 @@ export class Player extends Entity {
 
         const paintableMesh = findPaintableMesh(data.scene);
         this.paintableMaterial = paintableMesh ? clonePaintableMaterial(paintableMesh) : null;
+        this.cosmeticRig = new CosmeticRig(data.scene, this.paintableMaterial);
 
         this.rightHand = findBoneFirst(data.scene, (name) =>
             name === 'handr' || name === 'hand.r' ||
@@ -145,6 +152,33 @@ export class Player extends Entity {
     setWeaponVisible(visible: boolean) {
         this.weapon.mesh.visible = visible;
         this.weaponEquipped = visible;
+    }
+
+    setInvulnerableVisual(active: boolean) {
+        if (active && !this.shield) {
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x6fe0ff,
+                transparent: true,
+                opacity: 0.22,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+            });
+            this.shield = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 16), material);
+            this.shield.position.y = 0.95;
+            this.shield.scale.set(1, 1.25, 1);
+            this.mesh.add(this.shield);
+            return;
+        }
+        if (!active && this.shield) {
+            this.shield.removeFromParent();
+            this.shield.geometry.dispose();
+            (this.shield.material as THREE.Material).dispose();
+            this.shield = null;
+        }
+    }
+
+    applyCosmetics(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
+        this.cosmeticRig?.apply(skinId, accessoryId);
     }
 
     applySkinTexture(url: string | null) {
@@ -201,11 +235,38 @@ export class Player extends Entity {
         return Math.max(terrainHeight, platformHeight);
     }
 
+    public playPose(name: string | null) {
+        this.posedAnimation = name;
+        if (name) {
+            this.animator.play(name, false);
+        }
+    }
+
+    public setMovementLocked(locked: boolean) {
+        this.movementLocked = locked;
+    }
+
+    public hasMovementInput(): boolean {
+        if (!this.inputManager) return false;
+        return this.inputManager.isKeyPressed("KeyW")
+            || this.inputManager.isKeyPressed("KeyA")
+            || this.inputManager.isKeyPressed("KeyS")
+            || this.inputManager.isKeyPressed("KeyD")
+            || this.inputManager.isKeyPressed("Space");
+    }
+
     update(delta: number, isInteracting: boolean = false) {
         if (!this.inputManager || !this.camera) return;
 
         if (this.dead) {
             this.animator.update(delta);
+            return;
+        }
+
+        if (this.movementLocked) {
+            if (this.posedAnimation) this.animator.play(this.posedAnimation, false);
+            this.animator.update(delta);
+            this.mesh.position.y = this.baseY;
             return;
         }
 
@@ -315,7 +376,9 @@ export class Player extends Entity {
 
         const isFiring = this.isShooting && this.weaponEquipped;
 
-        if (!this.isGrounded) {
+        if (this.posedAnimation) {
+            this.animator.play(this.posedAnimation, false);
+        } else if (!this.isGrounded) {
             this.animator.play('jump', this.weaponEquipped);
         } else if (moved) {
             const moveKey = isSprinting && !this.isShooting ? 'run' : 'walk';

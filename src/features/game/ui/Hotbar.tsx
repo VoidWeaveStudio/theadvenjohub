@@ -1,7 +1,7 @@
 // src/features/game/ui/Hotbar.tsx
 "use client";
 
-import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack, Lock } from "lucide-react";
+import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack, Lock, Smile } from "lucide-react";
 
 interface HotbarSlot {
     id: string;
@@ -26,6 +26,7 @@ const iconMap: Record<string, React.ReactNode> = {
     'apple': <Apple className="w-8 h-8" />,
     'box': <Box className="w-8 h-8" />,
     'backpack': <Backpack className="w-8 h-8" />,
+    'emote': <Smile className="w-8 h-8" />,
 };
 
 export function Hotbar({ slots, onSlotClick }: HotbarProps) {

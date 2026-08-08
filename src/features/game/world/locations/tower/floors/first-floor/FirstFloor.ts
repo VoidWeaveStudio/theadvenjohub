@@ -4,11 +4,13 @@ import { TowerFloor } from "../../TowerFloor";
 import { ResourceManager } from "../../../../../core/ResourceManager";
 import { CollisionGrid } from "../../../../CollisionGrid";
 import { segmentStartZ, pathOffsetX } from "./utils/canyonMath";
+import { CanyonBiome, biomeForSegment, biomeFromKey } from "./utils/canyonBiomes";
 import { SegmentBuilderSystem, SegmentContent } from "./systems/SegmentBuilderSystem";
 import { GateAnimationSystem } from "./systems/GateAnimationSystem";
 import { ProgressionSystem } from "./systems/ProgressionSystem";
 
 export interface CanyonSegmentInfo {
+    biome?: string;
     segment: number;
     maxSegmentReached: number;
     cleared: boolean;
@@ -16,6 +18,7 @@ export interface CanyonSegmentInfo {
 }
 
 export interface CanyonClearedInfo {
+    biome?: string;
     clearedSegment: number;
     segment: number;
     maxSegmentReached: number;
@@ -37,6 +40,9 @@ export class FirstFloor extends TowerFloor {
 
     public segment: number = 1;
     public inHub: boolean = true;
+    public biome: CanyonBiome = biomeForSegment(1);
+    private sun: THREE.DirectionalLight | null = null;
+    private hemi: THREE.HemisphereLight | null = null;
 
     public readonly segmentBuilder: SegmentBuilderSystem;
     public readonly gateAnimation: GateAnimationSystem;
@@ -59,7 +65,8 @@ export class FirstFloor extends TowerFloor {
         this.scene.background = new THREE.Color(0xC9A876);
         this.scene.fog = new THREE.FogExp2(0xC9A876, 0.0028);
 
-        const sun = new THREE.DirectionalLight(0xfff2d8, 1.3);
+        const sun = new THREE.DirectionalLight(this.biome.sunColor, this.biome.sunIntensity);
+        this.sun = sun;
         sun.position.set(120, 220, 80);
         sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
@@ -71,10 +78,32 @@ export class FirstFloor extends TowerFloor {
         sun.shadow.camera.far = 700;
         this.scene.add(sun);
 
-        this.scene.add(new THREE.HemisphereLight(0xE8C99A, 0x8B5A2B, 0.9));
+        this.hemi = new THREE.HemisphereLight(this.biome.hemiSky, this.biome.hemiGround, this.biome.hemiIntensity);
+        this.scene.add(this.hemi);
 
         this.hub = this.segmentBuilder.buildHub(resourceManager);
         this.segmentBuilder.rebuildCollisionGrid();
+    }
+
+    public applyBiome(key: string | undefined, segment: number): void {
+        const biome = biomeFromKey(key, segment);
+        this.biome = biome;
+
+        (this.scene.background as THREE.Color)?.setHex(biome.sky);
+        const fog = this.scene.fog as THREE.FogExp2 | null;
+        if (fog) {
+            fog.color.setHex(biome.sky);
+            fog.density = biome.fogDensity;
+        }
+        if (this.sun) {
+            this.sun.color.setHex(biome.sunColor);
+            this.sun.intensity = biome.sunIntensity;
+        }
+        if (this.hemi) {
+            this.hemi.color.setHex(biome.hemiSky);
+            this.hemi.groundColor.setHex(biome.hemiGround);
+            this.hemi.intensity = biome.hemiIntensity;
+        }
     }
 
     public applyFreshSegment(info: CanyonSegmentInfo): void {

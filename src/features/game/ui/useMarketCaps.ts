@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 export interface TokenInfo {
     mc: number | null;
+    price?: string;
     image?: string;
     name?: string;
     symbol?: string;
@@ -29,6 +30,7 @@ export function useMarketCaps(addresses: string[], enabled: boolean): Record<str
                     [address]: data
                         ? {
                             mc: data.mc || 0,
+                            price: data.price || undefined,
                             image: data.image || undefined,
                             name: data.name || undefined,
                             symbol: data.symbol || undefined,

@@ -9,6 +9,9 @@ import {
     FactionSummary,
     FactionDetail,
     FactionTaskDefinition,
+    FactionQuestEntry,
+    FactionQuestManaged,
+    FactionQuestManageData,
     PlayerProfileData,
     LeaderboardEntry,
     FriendEntry,
@@ -16,6 +19,7 @@ import {
     MailEntry,
     BlockedEntry,
     TradeSessionData,
+    CosmeticStateData,
 } from "../network/NetworkManager";
 import type { HUDState, DamageEvent } from "./Game";
 
@@ -82,6 +86,10 @@ export interface GameCallbacks {
     onFactionTaskCompleted?: (data: { taskKey: string; label: string; rewardAsh: number; rewardNickname: string | null }) => void;
     onFactionCreatorClaimResult?: (data: { isCreator: boolean; faction: FactionSummary }) => void;
     onFactionCreatorVerified?: (faction: FactionSummary) => void;
+    onFactionQuestListResult?: (quests: FactionQuestEntry[]) => void;
+    onFactionQuestManageListResult?: (data: FactionQuestManageData) => void;
+    onFactionQuestCreated?: (data: { quest: FactionQuestManaged & { factionId: string }; chargedAsh: number }) => void;
+    onFactionQuestClaimed?: (data: { questId: string; rewardAsh: number; slotsClaimed: number; slotsTotal: number; status: string }) => void;
 
     onFriendRequestSent?: (friend: FriendRequestEntry, status: string) => void;
     onFriendRequestAccepted?: (friend: FriendEntry) => void;
@@ -105,6 +113,8 @@ export interface GameCallbacks {
     onFactionChatMessage?: (data: ChatMessage & { factionId: string }) => void;
     onFactionInviteSent?: (toWallet: string) => void;
     onMySkinChange?: (url: string | null) => void;
+    onCosmeticState?: (data: CosmeticStateData) => void;
+    onSpawnProtectionChange?: (secondsLeft: number) => void;
     onTradeSession?: (data: TradeSessionData) => void;
     onTradeInviteReceived?: (data: { tradeId: string; fromWallet: string; fromNickname: string }) => void;
     onTradeInviteError?: (data: { code: string; toWallet: string }) => void;

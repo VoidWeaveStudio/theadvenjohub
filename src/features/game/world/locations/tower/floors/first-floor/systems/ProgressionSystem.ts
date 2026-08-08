@@ -1,6 +1,7 @@
 // src/features/game/world/locations/tower/floors/first-floor/systems/ProgressionSystem.ts
 import * as THREE from "three";
 import { CANYON_START_Z, SEAL_TRIGGER_MARGIN, segmentStartZ } from "../utils/canyonMath";
+import { biomeFromKey } from "../utils/canyonBiomes";
 import type { CanyonClearedInfo, CanyonHubInfo, CanyonSegmentInfo } from "../FirstFloor";
 import type { FirstFloor } from "../FirstFloor";
 
@@ -21,7 +22,8 @@ export class ProgressionSystem {
 
         this.floor.inHub = false;
         this.floor.segment = info.segment;
-        this.floor.current = this.floor.segmentBuilder.buildSegment(info.segment);
+        this.floor.applyBiome(info.biome, info.segment);
+        this.floor.current = this.floor.segmentBuilder.buildSegment(info.segment, this.floor.biome);
 
         this.floor.segmentBuilder.buildGateWallInto(this.floor.current, segmentStartZ(info.segment));
         this.floor.segmentBuilder.rebuildCollisionGrid();
@@ -54,7 +56,7 @@ export class ProgressionSystem {
         const idx = this.floor.current.colliders.indexOf(this.floor.current.farGate.collider);
         if (idx !== -1) this.floor.current.colliders.splice(idx, 1);
 
-        const next = this.floor.segmentBuilder.buildSegment(info.segment);
+        const next = this.floor.segmentBuilder.buildSegment(info.segment, biomeFromKey(info.biome, info.segment));
         this.floor.pendingNext = next;
         this.floor.thresholdZ = segmentStartZ(info.segment);
         this.floor.segmentBuilder.rebuildCollisionGrid();

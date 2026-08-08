@@ -2,16 +2,17 @@
 import { HUDState } from "../core/Game";
 import { Crosshair } from "./Crosshair";
 import { OnlineCounter } from "./OnlineCounter";
-import { Heart, Shield, Activity, Mic } from "lucide-react";
+import { Heart, Shield, Activity, Mic, ShieldCheck } from "lucide-react";
 
 interface HUDProps {
     state: HUDState;
     isPointerLocked: boolean;
     isHitMark?: boolean;
     isTalking?: boolean;
+    spawnProtectionSeconds?: number;
 }
 
-export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false }: HUDProps) {
+export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false, spawnProtectionSeconds = 0 }: HUDProps) {
     const healthPercentage = (state.health / state.maxHealth) * 100;
 
     return (
@@ -46,6 +47,20 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
             <div className="absolute top-6 right-6">
                 <OnlineCounter count={state.online} maxCount={100} />
             </div>
+
+            {spawnProtectionSeconds > 0 && (
+                <div className="absolute top-28 left-1/2 -translate-x-1/2">
+                    <div className="bg-[rgba(111,224,255,0.15)] backdrop-blur-md border border-[#6FE0FF]/40 px-5 py-2 rounded-[10px]">
+                        <div className="flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-[#6FE0FF]" />
+                            <span className="text-[#6FE0FF] text-sm font-bold tracking-wider">
+                                INVULNERABLE {spawnProtectionSeconds}s
+                            </span>
+                            <span className="text-[#6FE0FF]/60 text-xs">shoot to cancel</span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {state.inSafeZone && (
                 <div className="absolute top-40 left-1/2 -translate-x-1/2">

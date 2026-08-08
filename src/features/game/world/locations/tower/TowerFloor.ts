@@ -40,6 +40,8 @@ export abstract class TowerFloor extends Location {
         light.castShadow = true;
         light.shadow.mapSize.width = 512;
         light.shadow.mapSize.height = 512;
+        light.shadow.camera.far = 45;
+        light.shadow.camera.updateProjectionMatrix();
 
         this.centralCrystal.add(core, shell, light);
         this.centralCrystal.position.set(0, 0, 0);

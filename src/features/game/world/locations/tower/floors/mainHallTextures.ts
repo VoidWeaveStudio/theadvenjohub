@@ -1,134 +1,199 @@
 // src/features/game/world/locations/tower/floors/mainHallTextures.ts
 import * as THREE from "three";
 
-interface MarbleOptions {
-    baseColor: string;
-    mottleLight: string;
-    mottleDark: string;
-    veinColor: string;
-    veinCount: number;
-    speckleCount: number;
+function makeCanvas(size: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    return { canvas, ctx: canvas.getContext("2d")! };
 }
 
-function paintMarble(ctx: CanvasRenderingContext2D, size: number, options: MarbleOptions) {
-    ctx.fillStyle = options.baseColor;
+function toTexture(canvas: HTMLCanvasElement, repeatX: number, repeatY: number, srgb: boolean): THREE.CanvasTexture {
+    const texture = new THREE.CanvasTexture(canvas);
+    if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(repeatX, repeatY);
+    texture.anisotropy = 4;
+    return texture;
+}
+
+function paintPanelGrid(ctx: CanvasRenderingContext2D, size: number, base: string, panel: string, cells: number) {
+    ctx.fillStyle = base;
     ctx.fillRect(0, 0, size, size);
 
-    for (let i = 0; i < options.speckleCount; i++) {
-        const x = Math.random() * size;
-        const y = Math.random() * size;
-        const r = 15 + Math.random() * size * 0.12;
-        const lighter = Math.random() > 0.5;
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-        grad.addColorStop(0, lighter ? options.mottleLight : options.mottleDark);
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    ctx.strokeStyle = options.veinColor;
-    ctx.lineWidth = 1.2;
-    for (let i = 0; i < options.veinCount; i++) {
-        let x = Math.random() * size;
-        let y = Math.random() * size;
-        ctx.globalAlpha = 0.12 + Math.random() * 0.18;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        const segments = 5 + Math.floor(Math.random() * 7);
-        for (let j = 0; j < segments; j++) {
-            x += (Math.random() - 0.5) * size * 0.14;
-            y += (Math.random() - 0.5) * size * 0.14;
-            ctx.lineTo(x, y);
+    const step = size / cells;
+    for (let x = 0; x < cells; x++) {
+        for (let y = 0; y < cells; y++) {
+            ctx.globalAlpha = 0.3 + Math.random() * 0.5;
+            ctx.fillStyle = panel;
+            ctx.fillRect(x * step + 2, y * step + 2, step - 4, step - 4);
         }
-        ctx.stroke();
     }
     ctx.globalAlpha = 1;
 }
 
-function createRoughnessTexture(size: number, baseGray: number, variation: number): THREE.Texture {
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = `rgb(${baseGray},${baseGray},${baseGray})`;
-    ctx.fillRect(0, 0, size, size);
+function paintSeams(ctx: CanvasRenderingContext2D, size: number, cells: number, color: string, lineWidth: number) {
+    ctx.clearRect(0, 0, size, size);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = lineWidth * 3;
 
-    for (let i = 0; i < 120; i++) {
-        const x = Math.random() * size;
-        const y = Math.random() * size;
-        const r = 10 + Math.random() * size * 0.15;
-        const shade = baseGray + (Math.random() - 0.5) * variation;
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-        grad.addColorStop(0, `rgba(${shade},${shade},${shade},0.4)`);
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = grad;
+    const step = size / cells;
+    for (let i = 0; i <= cells; i++) {
         ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(i * step, 0);
+        ctx.lineTo(i * step, size);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i * step);
+        ctx.lineTo(size, i * step);
+        ctx.stroke();
     }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    return texture;
+    ctx.shadowBlur = 0;
 }
 
-function buildMarbleMaterial(options: MarbleOptions, canvasSize: number, repeatX: number, repeatY: number, roughnessBase: number, roughGray: number): THREE.MeshStandardMaterial {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
-    const ctx = canvas.getContext("2d")!;
-    paintMarble(ctx, canvasSize, options);
+export function createPlazaFloorMaterial(): THREE.MeshStandardMaterial {
+    const albedo = makeCanvas(512);
+    paintPanelGrid(albedo.ctx, 512, "#455166", "#586780", 8);
+    for (let i = 0; i < 90; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const r = 8 + Math.random() * 40;
+        const grad = albedo.ctx.createRadialGradient(x, y, 0, x, y, r);
+        grad.addColorStop(0, "rgba(190,215,240,0.16)");
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        albedo.ctx.fillStyle = grad;
+        albedo.ctx.beginPath();
+        albedo.ctx.arc(x, y, r, 0, Math.PI * 2);
+        albedo.ctx.fill();
+    }
 
-    const map = new THREE.CanvasTexture(canvas);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.wrapS = THREE.RepeatWrapping;
-    map.wrapT = THREE.RepeatWrapping;
-    map.repeat.set(repeatX, repeatY);
-    map.anisotropy = 4;
-
-    const roughnessMap = createRoughnessTexture(canvasSize / 2, roughGray, 40);
-    roughnessMap.repeat.set(repeatX, repeatY);
+    const seams = makeCanvas(512);
+    paintSeams(seams.ctx, 512, 8, "#8ff2ff", 2.2);
 
     return new THREE.MeshStandardMaterial({
-        map,
-        roughnessMap,
-        roughness: roughnessBase,
-        metalness: 0.08,
+        map: toTexture(albedo.canvas, 10, 10, true),
+        emissiveMap: toTexture(seams.canvas, 10, 10, true),
+        emissive: 0xffffff,
+        emissiveIntensity: 0.45,
+        roughness: 0.45,
+        metalness: 0.35,
     });
 }
 
-export function createMarbleFloorMaterial(): THREE.MeshStandardMaterial {
-    return buildMarbleMaterial({
-        baseColor: '#C9BB9E',
-        mottleLight: 'rgba(255,248,232,0.10)',
-        mottleDark: 'rgba(90,72,48,0.10)',
-        veinColor: 'rgba(120,95,60,0.5)',
-        veinCount: 48,
-        speckleCount: 70,
-    }, 512, 7, 7, 0.4, 130);
+export function createHullPanelMaterial(): THREE.MeshStandardMaterial {
+    const albedo = makeCanvas(512);
+    paintPanelGrid(albedo.ctx, 512, "#3d4c66", "#4e5f7d", 6);
+
+    albedo.ctx.strokeStyle = "rgba(200,225,255,0.16)";
+    albedo.ctx.lineWidth = 1;
+    for (let i = 0; i < 40; i++) {
+        const y = Math.random() * 512;
+        albedo.ctx.beginPath();
+        albedo.ctx.moveTo(0, y);
+        albedo.ctx.lineTo(512, y);
+        albedo.ctx.stroke();
+    }
+
+    return new THREE.MeshStandardMaterial({
+        map: toTexture(albedo.canvas, 14, 4, true),
+        roughness: 0.6,
+        metalness: 0.5,
+        side: THREE.DoubleSide,
+    });
 }
 
-export function createWallStoneMaterial(): THREE.MeshStandardMaterial {
-    return buildMarbleMaterial({
-        baseColor: '#CAC7C2',
-        mottleLight: 'rgba(255,255,250,0.06)',
-        mottleDark: 'rgba(70,66,58,0.07)',
-        veinColor: 'rgba(150,144,132,0.35)',
-        veinCount: 24,
-        speckleCount: 50,
-    }, 512, 10, 3, 0.8, 165);
+export function createFacadeMaterial(accent: string): THREE.MeshStandardMaterial {
+    const albedo = makeCanvas(512);
+    paintPanelGrid(albedo.ctx, 512, "#3a4763", "#4b5a7a", 4);
+
+    const windows = makeCanvas(512);
+    windows.ctx.clearRect(0, 0, 512, 512);
+    windows.ctx.shadowColor = accent;
+    windows.ctx.shadowBlur = 18;
+    for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 8; col++) {
+            if (Math.random() < 0.25) continue;
+            windows.ctx.globalAlpha = 0.5 + Math.random() * 0.5;
+            windows.ctx.fillStyle = accent;
+            windows.ctx.fillRect(24 + col * 60, 40 + row * 92, 34, 16);
+        }
+    }
+    windows.ctx.globalAlpha = 1;
+    windows.ctx.shadowBlur = 0;
+
+    return new THREE.MeshStandardMaterial({
+        map: toTexture(albedo.canvas, 2, 1, true),
+        emissiveMap: toTexture(windows.canvas, 2, 1, true),
+        emissive: 0xffffff,
+        emissiveIntensity: 1.1,
+        roughness: 0.55,
+        metalness: 0.45,
+    });
 }
 
-export function createPillarMarbleMaterial(): THREE.MeshStandardMaterial {
-    return buildMarbleMaterial({
-        baseColor: '#DDD9D1',
-        mottleLight: 'rgba(255,255,255,0.08)',
-        mottleDark: 'rgba(150,140,120,0.08)',
-        veinColor: 'rgba(160,150,130,0.4)',
-        veinCount: 30,
-        speckleCount: 40,
-    }, 512, 1, 6, 0.55, 170);
+export function createCityBlockMaterial(accent: string): THREE.MeshStandardMaterial {
+    const albedo = makeCanvas(512);
+    paintPanelGrid(albedo.ctx, 512, "#414e6b", "#525f80", 6);
+
+    const windows = makeCanvas(512);
+    windows.ctx.clearRect(0, 0, 512, 512);
+    windows.ctx.shadowColor = accent;
+    windows.ctx.shadowBlur = 12;
+    for (let row = 0; row < 12; row++) {
+        for (let col = 0; col < 12; col++) {
+            if (Math.random() < 0.3) continue;
+            windows.ctx.globalAlpha = 0.35 + Math.random() * 0.65;
+            windows.ctx.fillStyle = Math.random() < 0.75 ? accent : "#fff3cf";
+            windows.ctx.fillRect(14 + col * 41, 16 + row * 41, 22, 14);
+        }
+    }
+    windows.ctx.globalAlpha = 1;
+    windows.ctx.shadowBlur = 0;
+
+    return new THREE.MeshStandardMaterial({
+        map: toTexture(albedo.canvas, 2, 2, true),
+        emissiveMap: toTexture(windows.canvas, 2, 2, true),
+        emissive: 0xffffff,
+        emissiveIntensity: 1.25,
+        roughness: 0.6,
+        metalness: 0.4,
+    });
+}
+
+export function createSkyDomeMaterial(): THREE.MeshBasicMaterial {
+    const canvas = document.createElement("canvas");
+    canvas.width = 8;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d")!;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, "#0e1730");
+    grad.addColorStop(0.45, "#2b3f6d");
+    grad.addColorStop(0.78, "#5b6ea6");
+    grad.addColorStop(1, "#93a6d4");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 8, 256);
+
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    for (let i = 0; i < 60; i++) {
+        ctx.globalAlpha = 0.2 + Math.random() * 0.6;
+        ctx.fillRect(Math.random() * 8, Math.random() * 150, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    return new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, fog: false });
+}
+
+export function disposeMaterialMaps(material: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial | undefined | null) {
+    material?.map?.dispose();
+    if (material instanceof THREE.MeshStandardMaterial) {
+        material.emissiveMap?.dispose();
+        material.roughnessMap?.dispose();
+    }
 }
