@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, InventoryEntry } from "../network/NetworkManager";
+import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -24,8 +24,9 @@ import { CosmeticId } from "../data/cosmetics";
 import { LocationManager } from "../world/LocationManager";
 import { MainHall } from "../world/locations/tower/floors/MainHall";
 import { EventsHall } from "../world/locations/tower/floors/EventsHall";
-import { TokenGatesFloor } from "../world/locations/tower/floors/TokenGatesFloor";
+import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
+import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { computeDayTime, DayNightConfig } from "../utils/dayNightCycle";
 import { applyLocationMovementConfig, configureLocationSpecifics, syncMainWorldEntry } from "./GameLocationTransition";
@@ -93,6 +94,14 @@ export class Game {
     public readonly voiceChat: VoiceChatSystem;
     public readonly locationManager: LocationManager;
     public inventory: InventoryEntry[] = [];
+    public accountCount: number = 0;
+    public gateFactionIds: string[] = [];
+    public factionGates: FactionGateData[] = [];
+    public myNickname: string = "";
+    public shardState: ShardStateData | null = null;
+    private ownBubbleIndex: number | null = null;
+    private bubbleWaypointIndex: number | null = null;
+    private spawnBesideOwnBubble: boolean = false;
     public ash: number = 0;
     public placeables: Record<string, number> = {};
     private pendingSignSave: { signId: string; resolve: () => void; reject: (err: Error) => void } | null = null;
@@ -171,9 +180,78 @@ export class Game {
         });
     }
 
+    public async teleportToPersonalRoom(ownerUserId?: string) {
+        await this.changeLocation(`player-room-${ownerUserId ?? this.session.userId}`).catch(() => {
+            this.onNotification?.("⚠️ Failed to open that room", 2000);
+        });
+    }
+
+    public switchShard(instance: number) {
+        const location = this.locationManager.getCurrentLocation();
+        if (!location) return;
+        this.networkManager.sendLocationChange(location.id, instance);
+    }
+
+    public setBubbleWaypoint(index: number | null) {
+        this.bubbleWaypointIndex = index;
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof Basement) {
+            location.setWaypointIndex(index);
+        }
+    }
+
+    public getBubbleWaypoint(): number | null {
+        return this.bubbleWaypointIndex;
+    }
+
+    public setOwnBubbleIndex(index: number | null) {
+        this.ownBubbleIndex = index;
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof Basement) {
+            location.setOwnBubbleIndex(index);
+        }
+    }
+
+    public applyGalaxySpawn(location: Basement) {
+        location.setOwnBubbleIndex(this.ownBubbleIndex);
+
+        if (!this.spawnBesideOwnBubble || this.ownBubbleIndex === null) return;
+        this.spawnBesideOwnBubble = false;
+
+        const target = new THREE.Vector3();
+        location.getBubbleWorldPosition(this.ownBubbleIndex, target);
+        target.y += 4;
+        target.z += 22;
+
+        this.player.teleportTo(target);
+        this.cameraController.yawObject.position.copy(target);
+        this.networkManager.sendPlayerUpdate({
+            position: target.toArray(),
+            rotation: this.player.mesh.rotation.y,
+            pitch: this.cameraController.getPitch(),
+            state: 'idle',
+            jumping: false,
+            velocityY: 0,
+            weaponEquipped: false,
+            isShooting: false,
+        });
+    }
+
+    public getPlayerGroundPosition(): { x: number; z: number } {
+        return { x: this.player.mesh.position.x, z: this.player.mesh.position.z };
+    }
+
+    public async returnToGalaxy(nearOwnBubble: boolean) {
+        this.spawnBesideOwnBubble = nearOwnBubble && this.ownBubbleIndex !== null;
+        await this.changeLocation('tower-basement').catch(() => {
+            this.spawnBesideOwnBubble = false;
+            this.onNotification?.("⚠️ Failed to reach Token Gates", 2000);
+        });
+    }
+
     public notifyGatePurchased(faction: { id: string; name: string; symbol: string | null; image: string | null; tokenCa: string | null }) {
         const location = this.locationManager.getCurrentLocation();
-        if (location instanceof TokenGatesFloor) {
+        if (location instanceof Basement) {
             location.addLocalGate({
                 factionId: faction.id,
                 factionName: faction.name,
@@ -395,6 +473,24 @@ export class Game {
                     this.onOpenGateStewardUI?.();
                 };
 
+                this.interactionSystem.onOpenPlayerBubble = (bubbleIndex) => {
+                    this.onOpenPlayerBubbleUI?.(bubbleIndex);
+                };
+
+                this.interactionSystem.onOpenFactionBubble = (factionId) => {
+                    this.onOpenFactionBubbleUI?.(factionId);
+                };
+
+                this.interactionSystem.onOpenRoomPortal = () => {
+                    this.onOpenRoomPortalUI?.();
+                };
+
+                this.interactionSystem.onOpenRoomConsole = () => {
+                    const location = this.locationManager.getCurrentLocation();
+                    const factionId = location instanceof FactionGateRoom ? location.factionId : null;
+                    this.onOpenRoomConsoleUI?.(factionId);
+                };
+
                 this.interactionSystem.localUserId = this.session.userId;
                 this.interactionSystem.onOpenSignEditor = (signId) => {
                     this.onOpenSignEditorUI?.(signId);
@@ -548,6 +644,7 @@ export class Game {
 
             previousLocation.scene.remove(this.player.mesh);
             newLocation.scene.add(this.player.mesh);
+            this.player.moveEffectsToScene(newLocation.scene);
 
             previousLocation.scene.remove(this.cameraController.yawObject);
             newLocation.scene.add(this.cameraController.yawObject);
@@ -608,6 +705,10 @@ export class Game {
                 this.player.mesh.rotation.y = options.rotation;
             }
 
+            if (newLocation instanceof PersonalRoom) {
+                newLocation.setOwnerName(this.myNickname ? `${this.myNickname}'s Room` : "Your Room");
+            }
+
             if (newLocation instanceof EventsHall) {
                 newLocation.setFactionContext(options?.factionId ?? "", options?.factionName ?? "");
             }
@@ -621,7 +722,7 @@ export class Game {
                 if (options?.factionName !== undefined) {
                     newLocation.setFactionInfo(options.factionName, options.factionImage ?? null, options.factionSymbol ?? null);
                 } else {
-                    const info = previousLocation instanceof TokenGatesFloor
+                    const info = previousLocation instanceof Basement
                         ? previousLocation.getFactionGateInfo(newLocation.factionId)
                         : undefined;
                     newLocation.setFactionInfo(info?.factionName ?? "Faction", info?.image ?? null, info?.symbol ?? null);
@@ -759,7 +860,11 @@ export class Game {
             this.updateCandleEmote(delta);
             this.networkSystem.update(delta);
             this.emoteSystem.update(delta);
-            this.otherPlayers.forEach((op) => op.update(delta));
+            const galaxy = currentLocation instanceof Basement ? currentLocation : null;
+            this.otherPlayers.forEach((op) => {
+                if (galaxy) op.setWispMode(!galaxy.isOnPlatform(op.mesh.position));
+                op.update(delta);
+            });
 
             this.networkManager.sendPlayerUpdate({
                 position: this.player.mesh.position.toArray(),
@@ -778,6 +883,11 @@ export class Game {
         this.locationManager.render();
     };
 
+    public getViewportHeight(): number {
+        const container = this.canvas.parentElement;
+        return container?.clientHeight || window.innerHeight;
+    }
+
     private handleResize = () => {
         const container = this.canvas.parentElement;
         const width = container?.clientWidth || window.innerWidth;
@@ -786,6 +896,11 @@ export class Game {
         this.renderer.setSize(width, height, false);
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
+
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof Basement) {
+            location.setViewportHeight(height);
+        }
     };
 
     public notifyLocalShot() {
@@ -838,6 +953,7 @@ export class Game {
     }
 
     setNickname(nickname: string) {
+        this.myNickname = nickname;
         this.networkManager.setNickname(nickname);
     }
 

@@ -116,9 +116,19 @@ export type FurnitureData = {
 export type FactionGateData = {
   factionId: string;
   factionName: string;
+  number?: number | null;
   symbol: string | null;
   image: string | null;
   tokenCa: string | null;
+  roomAccess?: string | null;
+  isAdmin?: boolean;
+};
+
+export type ShardStateData = {
+  locationId: string;
+  instance: number;
+  capacity: number;
+  shards: Array<{ instance: number; count: number }>;
 };
 
 export type QuestStatus = "not_started" | "active" | "ready_to_turn_in" | "completed";
@@ -490,6 +500,9 @@ export class NetworkManager {
   public onLootSpawn?: (loot: LootDropData) => void;
   public onLootDespawn?: (id: string) => void;
   public onFactionGatesState?: (gates: FactionGateData[]) => void;
+  public onAccountCount?: (count: number) => void;
+  public onShardState?: (state: ShardStateData) => void;
+  public onShardTeleport?: (data: { position: number[]; instance: number }) => void;
   public onSignState?: (signs: SignData[]) => void;
   public onSignSpawn?: (sign: SignData) => void;
   public onSignContentSet?: (data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) => void;
@@ -800,9 +813,23 @@ export class NetworkManager {
           this.onLootState?.(data.loot);
         }
         break;
+      case "shardState":
+        this.onShardState?.({
+          locationId: data.locationId,
+          instance: data.instance,
+          capacity: data.capacity,
+          shards: Array.isArray(data.shards) ? data.shards : [],
+        });
+        break;
+      case "shardTeleport":
+        this.onShardTeleport?.({ position: data.position, instance: data.instance });
+        break;
       case "factionGatesState":
         if (Array.isArray(data.gates)) {
           this.onFactionGatesState?.(data.gates);
+        }
+        if (typeof data.accountCount === "number") {
+          this.onAccountCount?.(data.accountCount);
         }
         break;
       case "lootSpawn":
@@ -1463,9 +1490,9 @@ export class NetworkManager {
     this.send({ type: "tradeCancel", tradeId });
   }
 
-  sendLocationChange(locationId: string) {
+  sendLocationChange(locationId: string, instance?: number) {
     if (!this.authenticated) return;
-    this.send({ type: 'locationChange', locationId });
+    this.send({ type: 'locationChange', locationId, instance });
   }
 
   sendProgressSave(progressData: any) {

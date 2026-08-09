@@ -9,6 +9,7 @@ import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl, disposePaintableMaterial } from "./characterPaint";
 import type { PlayerNetData } from "../network/NetworkManager";
+import { EnergyWisp } from "./EnergyWisp";
 
 export class OtherPlayer extends Entity {
     public nickname: string;
@@ -47,6 +48,13 @@ export class OtherPlayer extends Entity {
 
     private animator = new CharacterAnimator();
 
+    private static readonly _wispVelocity = new THREE.Vector3();
+
+    private characterModel: THREE.Object3D | null = null;
+    private wisp: EnergyWisp | null = null;
+    private wispMode: boolean = false;
+    private lastWispPosition = new THREE.Vector3();
+
     constructor(
         id: string,
         nickname: string,
@@ -82,6 +90,13 @@ export class OtherPlayer extends Entity {
         scaleAndCenterModel(data.scene, 1.8, 0);
 
         this.mesh.add(data.scene);
+        this.characterModel = data.scene;
+
+        this.wisp = new EnergyWisp({ withTrail: false, withLight: false });
+        this.wisp.attach(this.mesh, null);
+        this.wisp.group.position.y = 1.0;
+        this.wisp.setActive(this.wispMode);
+        this.characterModel.visible = !this.wispMode;
 
         const paintableMesh = findPaintableMesh(data.scene);
         this.paintableMaterial = paintableMesh ? clonePaintableMaterial(paintableMesh) : null;
@@ -306,6 +321,15 @@ export class OtherPlayer extends Entity {
         }
     }
 
+    public setWispMode(active: boolean) {
+        if (this.wispMode === active) return;
+        this.wispMode = active;
+        if (active) this.lastWispPosition.copy(this.mesh.position);
+        if (this.characterModel) this.characterModel.visible = !active;
+        this.wisp?.setActive(active);
+        if (this.weaponMesh) this.weaponMesh.visible = !active && this.weaponEquipped;
+    }
+
     update(delta: number) {
         if (this.hidden) return;
         if (this.dead) {
@@ -315,6 +339,15 @@ export class OtherPlayer extends Entity {
 
         this.time += delta;
         this.mesh.position.lerp(this.targetPosition, Math.min(1, delta * 12));
+
+        if (this.wispMode && this.wisp) {
+            OtherPlayer._wispVelocity.subVectors(this.mesh.position, this.lastWispPosition);
+            const travelled = OtherPlayer._wispVelocity.length();
+            this.lastWispPosition.copy(this.mesh.position);
+            const speed = delta > 0 ? travelled / delta : 0;
+            if (delta > 0) OtherPlayer._wispVelocity.multiplyScalar(1 / delta);
+            this.wisp.update(delta, speed / 90, speed > 55, OtherPlayer._wispVelocity);
+        }
 
         this.hitbox.position.copy(this.mesh.position);
         this.hitbox.position.y += 0.9;

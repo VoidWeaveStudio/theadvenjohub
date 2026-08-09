@@ -94,9 +94,7 @@ export class ResourceManager {
       { name: "tree", url: "/models/tree.glb" },
       { name: "rock", url: "/models/rock.glb" },
       { name: "portal", url: "/models/portal.glb" },
-      { name: "portalVFX", url: "/models/portal-vfx.glb" },
       { name: "cosmos", url: "/models/cosmos.glb" },
-      { name: "column", url: "/models/column.glb" },
     ];
 
     lazyModels.forEach(({ name, url }) => {

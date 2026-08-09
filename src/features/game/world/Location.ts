@@ -16,6 +16,15 @@ export interface HeightProvider {
     getHeightAt(x: number, z: number): number;
 }
 
+export interface FlightZone {
+    center: THREE.Vector3;
+    radius: number;
+    surfaceY: number;
+    maxRadius: number;
+    minY: number;
+    maxY: number;
+}
+
 export abstract class Location {
     public readonly id: string;
     public readonly name: string;
@@ -28,6 +37,7 @@ export abstract class Location {
     public cameraCollisionGrid?: CollisionGrid;
     public terrain?: HeightProvider;
     public maxPlayerRadius?: number | null;
+    public flightZone?: FlightZone;
 
     public onOpenFloorSelector?: () => void;
 

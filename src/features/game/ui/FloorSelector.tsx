@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { X, DoorOpen } from "lucide-react";
+import { X, DoorOpen, Lock } from "lucide-react";
 import { TOWER_FLOORS } from "../world/locations/tower/TowerRegistry";
 
 interface FloorSelectorProps {
@@ -12,6 +12,8 @@ interface FloorSelectorProps {
     onSelectFloor: (floorId: string) => void;
     currentLocationId: string;
 }
+
+const LOCKED_FLOORS = new Set<string>(['tower-token-gates']);
 
 const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
     'tower-events': { x: 66.4, y: 38.1 },
@@ -82,40 +84,49 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                         if (!pos || !icon) return null;
 
                         const isCurrent = currentLocationId === floor.id;
+                        const isLocked = LOCKED_FLOORS.has(floor.id);
                         const isHovered = hoveredId === floor.id;
 
                         return (
                             <button
                                 key={floor.id}
-                                onClick={() => !isCurrent && onSelectFloor(floor.id)}
+                                onClick={() => !isCurrent && !isLocked && onSelectFloor(floor.id)}
                                 onMouseEnter={() => setHoveredId(floor.id)}
                                 onMouseLeave={() => setHoveredId((prev) => (prev === floor.id ? null : prev))}
-                                disabled={isCurrent}
-                                title={isCurrent ? "You are here" : floor.description}
-                                className={`absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 bg-transparent border-0 p-0 ${isCurrent ? "cursor-not-allowed" : "cursor-pointer"}`}
+                                disabled={isCurrent || isLocked}
+                                title={isLocked ? "Sealed — under reconstruction" : isCurrent ? "You are here" : floor.description}
+                                className={`absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 bg-transparent border-0 p-0 ${isCurrent || isLocked ? "cursor-not-allowed" : "cursor-pointer"}`}
                                 style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                             >
                                 <div
-                                    className={`portal-node relative flex items-center justify-center ${isHovered && !isCurrent ? "portal-node-hovered" : ""} ${isCurrent ? "portal-node-current" : ""}`}
+                                    className={`portal-node relative flex items-center justify-center ${isHovered && !isCurrent && !isLocked ? "portal-node-hovered" : ""} ${isCurrent ? "portal-node-current" : ""}`}
                                     style={{ animationDelay: `${NODE_DELAY[floor.id] ?? 0}s` }}
                                 >
-                                    <span className="portal-glow" style={{ background: NODE_GLOW[floor.id] }} />
+                                    {!isLocked && <span className="portal-glow" style={{ background: NODE_GLOW[floor.id] }} />}
                                     <Image
                                         src={icon}
                                         alt={floor.name}
                                         width={112}
                                         height={112}
                                         priority
-                                        className="portal-icon relative"
+                                        className={`portal-icon relative ${isLocked ? "grayscale opacity-40" : ""}`}
                                     />
+                                    {isLocked && (
+                                        <span className="absolute inset-0 flex items-center justify-center">
+                                            <Lock className="w-8 h-8 text-[#E5E7EB] drop-shadow-[0_0_6px_rgba(0,0,0,0.9)]" />
+                                        </span>
+                                    )}
                                 </div>
                                 <span
-                                    className={`text-xs font-bold px-2.5 py-1 rounded-[6px] whitespace-nowrap backdrop-blur-sm ${isCurrent ? "text-[#8B8F98] bg-[rgba(12,12,14,0.55)]" : "text-[#E5E7EB] bg-[rgba(12,12,14,0.75)]"}`}
+                                    className={`text-xs font-bold px-2.5 py-1 rounded-[6px] whitespace-nowrap backdrop-blur-sm ${isCurrent || isLocked ? "text-[#8B8F98] bg-[rgba(12,12,14,0.55)]" : "text-[#E5E7EB] bg-[rgba(12,12,14,0.75)]"}`}
                                 >
                                     {floor.name}
                                 </span>
                                 {isCurrent && (
                                     <span className="text-[10px] text-[#4ADE80] font-bold">You are here</span>
+                                )}
+                                {isLocked && !isCurrent && (
+                                    <span className="text-[10px] text-[#8B8F98] font-bold">Sealed</span>
                                 )}
                             </button>
                         );

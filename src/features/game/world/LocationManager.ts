@@ -6,6 +6,7 @@ import { MainWorld } from "./locations/main-world/MainWorld";
 import { Cave } from "./locations/Cave";
 import { ALL_LOCATIONS } from "./locations/tower/TowerRegistry";
 import { FactionGateRoom } from "./locations/tower/floors/FactionGateRoom";
+import { PersonalRoom, PERSONAL_ROOM_PREFIX } from "./locations/tower/floors/PersonalRoom";
 
 export class LocationManager {
     private locations: Map<string, Location> = new Map();
@@ -37,6 +38,8 @@ export class LocationManager {
         if (!location) {
             if (locationId.startsWith("faction-gate-")) {
                 location = new FactionGateRoom(locationId.slice("faction-gate-".length));
+            } else if (locationId.startsWith(PERSONAL_ROOM_PREFIX)) {
+                location = new PersonalRoom(locationId.slice(PERSONAL_ROOM_PREFIX.length));
             } else {
                 const factory = this.locationFactories.get(locationId);
                 if (!factory) {

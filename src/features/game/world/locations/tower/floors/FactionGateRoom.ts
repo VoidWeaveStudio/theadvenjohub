@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { TowerFloor } from "../TowerFloor";
 import { ResourceManager } from "../../../../core/ResourceManager";
 import { tokenTextureCache } from "../../../../utils/TokenTextureCache";
+import { createRoomConsole, type RoomConsole } from "./roomConsole";
 
 const ROOM_HALF = 12;
 const ROOM_HEIGHT = 8;
@@ -13,6 +14,7 @@ export class FactionGateRoom extends TowerFloor {
     private factionImage: string | null = null;
     private bannerMesh: THREE.Mesh | null = null;
     private nameSprite: THREE.Sprite | null = null;
+    private console: RoomConsole | null = null;
 
     constructor(factionId: string) {
         super(`faction-gate-${factionId}`, "Faction Gate");
@@ -78,6 +80,24 @@ export class FactionGateRoom extends TowerFloor {
         this.buildBanner();
 
         this.createCentralCrystal();
+        this.centralCrystal.userData.interactionId = "room-portal";
+
+        this.console = createRoomConsole(new THREE.Color(0x66ccff));
+        this.console.group.position.set(ROOM_HALF - 3, 0, -ROOM_HALF + 3);
+        this.console.group.rotation.y = -Math.PI / 4;
+        this.scene.add(this.console.group);
+        this.collisionGrid.insert(new THREE.Box3().setFromObject(this.console.group));
+    }
+
+    update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean) {
+        super.update(playerPosition, delta, isEPressed);
+        this.console?.update(delta);
+    }
+
+    public override getInteractables(): THREE.Object3D[] {
+        const interactables = super.getInteractables();
+        if (this.console) interactables.push(this.console.group);
+        return interactables;
     }
 
     private buildFloor() {
@@ -191,6 +211,8 @@ export class FactionGateRoom extends TowerFloor {
     }
 
     dispose() {
+        this.console?.dispose();
+        this.console = null;
         if (this.nameSprite) {
             (this.nameSprite.material as THREE.SpriteMaterial).map?.dispose();
             (this.nameSprite.material as THREE.Material).dispose();

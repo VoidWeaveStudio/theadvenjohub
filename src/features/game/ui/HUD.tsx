@@ -3,6 +3,8 @@ import { HUDState } from "../core/Game";
 import { Crosshair } from "./Crosshair";
 import { OnlineCounter } from "./OnlineCounter";
 import { Heart, Shield, Activity, Mic, ShieldCheck } from "lucide-react";
+import { ShardSwitcher } from "./ShardSwitcher";
+import type { ShardStateData } from "../network/NetworkManager";
 
 interface HUDProps {
     state: HUDState;
@@ -10,9 +12,11 @@ interface HUDProps {
     isHitMark?: boolean;
     isTalking?: boolean;
     spawnProtectionSeconds?: number;
+    shardState?: ShardStateData | null;
+    onSwitchShard?: (instance: number) => void;
 }
 
-export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false, spawnProtectionSeconds = 0 }: HUDProps) {
+export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false, spawnProtectionSeconds = 0, shardState = null, onSwitchShard }: HUDProps) {
     const healthPercentage = (state.health / state.maxHealth) * 100;
 
     return (
@@ -44,8 +48,9 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                 </div>
             </div>
 
-            <div className="absolute top-6 right-6">
+            <div className="absolute top-6 right-6 flex flex-col items-end gap-1.5">
                 <OnlineCounter count={state.online} maxCount={100} />
+                <ShardSwitcher state={shardState ?? null} onSwitch={onSwitchShard ?? (() => { })} />
             </div>
 
             {spawnProtectionSeconds > 0 && (

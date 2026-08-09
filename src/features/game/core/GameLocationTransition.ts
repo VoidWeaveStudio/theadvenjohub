@@ -12,6 +12,7 @@ export function applyLocationMovementConfig(game: Game, location: Location) {
     game.player.setCollisionGrid(location.collisionGrid!);
     game.cameraController.setCollisionGrid(location.cameraCollisionGrid ?? location.collisionGrid!);
     game.player.setMaxRadius(location.maxPlayerRadius ?? 9999);
+    game.player.setFlightZone(location.flightZone ?? null);
     game.shootingSystem.setLocation(location, location.collisionGrid ?? null);
 }
 
@@ -25,6 +26,10 @@ export function configureLocationSpecifics(game: Game, location: Location) {
         );
     } else if (location instanceof Basement) {
         location.columns.syncFromServer(game.slug);
+        location.setViewportHeight(game.getViewportHeight());
+        location.setAccountCount(game.accountCount);
+        location.setWaypointIndex(game.getBubbleWaypoint());
+        game.applyGalaxySpawn(location);
     } else if (location instanceof FirstFloor) {
         location.onInteractablesChanged = (added, removed) => {
             removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));

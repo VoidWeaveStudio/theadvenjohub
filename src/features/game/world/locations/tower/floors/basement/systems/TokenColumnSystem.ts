@@ -2,6 +2,13 @@
 import * as THREE from "three";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
 import { createCoinMesh } from "../utils/meshFactory";
+import {
+    createProceduralColumn,
+    disposeProceduralColumnAssets,
+    COIN_BASE_Y,
+    COLUMN_HEIGHT,
+    COLUMN_TOP_RADIUS,
+} from "../utils/proceduralColumn";
 import type { Basement } from "../Basement";
 
 interface TokenColumn {
@@ -17,7 +24,6 @@ export class TokenColumnSystem {
     private columnTokens: (string | null)[] = new Array(10).fill(null);
     public columns: TokenColumn[] = [];
     private columnUpdateInterval: NodeJS.Timeout | null = null;
-    private pendingPedestalUpgrades: { group: THREE.Group; fallback: THREE.Mesh }[] = [];
 
     constructor(private floor: Basement) { }
 
@@ -47,61 +53,8 @@ export class TokenColumnSystem {
         }
     }
 
-    private attachPedestalModel(group: THREE.Group, columnData: { scene: THREE.Group }): number {
-        const pedestal = columnData.scene;
-        pedestal.scale.set(1, 0.5, 1);
-
-        const box = new THREE.Box3().setFromObject(pedestal);
-        pedestal.position.y -= box.min.y;
-
-        const scaledBox = new THREE.Box3().setFromObject(pedestal);
-        const pedestalHeight = scaledBox.max.y - scaledBox.min.y;
-
-        pedestal.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh) {
-                const mesh = child as THREE.Mesh;
-                if (Array.isArray(mesh.material)) {
-                    mesh.material.forEach(m => m.needsUpdate = true);
-                } else {
-                    mesh.material.needsUpdate = true;
-                }
-            }
-        });
-        group.add(pedestal);
-        return pedestalHeight;
-    }
-
-    private createFallbackPedestal(): THREE.Mesh {
-        const column = new THREE.Mesh(
-            new THREE.CylinderGeometry(1.2, 1.5, 2, 32),
-            new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.7, metalness: 0.3 })
-        );
-        column.position.y = 1;
-        return column;
-    }
-
-
-    private upgradePendingPedestals(rm: ResourceManager) {
-        const still: { group: THREE.Group; fallback: THREE.Mesh }[] = [];
-
-        for (const { group, fallback } of this.pendingPedestalUpgrades) {
-            const columnData = rm.getModel("column");
-            if (!columnData) {
-                still.push({ group, fallback });
-                continue;
-            }
-
-            group.remove(fallback);
-            fallback.geometry.dispose();
-            (fallback.material as THREE.Material).dispose();
-            this.attachPedestalModel(group, columnData);
-        }
-
-        this.pendingPedestalUpgrades = still;
-    }
-
-    createColumns(rm: ResourceManager) {
-        const radius = 30;
+    createColumns(_rm: ResourceManager) {
+        const radius = 70;
         const count = 10;
 
         for (let i = 0; i < count; i++) {
@@ -110,25 +63,18 @@ export class TokenColumnSystem {
             const z = Math.sin(angle) * radius;
 
             const group = new THREE.Group();
-
-            const columnData = rm.getModel("column");
-            let pedestalHeight = 4;
-
-            if (columnData) {
-                pedestalHeight = this.attachPedestalModel(group, columnData);
-            } else {
-                const fallback = this.createFallbackPedestal();
-                group.add(fallback);
-                this.pendingPedestalUpgrades.push({ group, fallback });
-                pedestalHeight = 2;
-            }
+            group.add(createProceduralColumn(i));
 
             const ca = this.columnTokens[i];
             const texture = this.floor.textureCache.get("fallback")!;
 
             const coin = createCoinMesh(texture, 1.2, true, false, "silver");
+            coin.traverse((child) => {
+                const mesh = child as THREE.Mesh;
+                if (mesh.isMesh) mesh.castShadow = false;
+            });
 
-            const baseCoinY = pedestalHeight + 1.6;
+            const baseCoinY = COIN_BASE_Y;
             coin.position.set(0, baseCoinY, 0);
             coin.rotation.y = Math.atan2(-x, -z);
 
@@ -149,17 +95,12 @@ export class TokenColumnSystem {
             this.floor.scene.add(group);
             this.columns.push({ group, coin, ca, baseCoinY });
 
-            const radiusCol = 1.2;
-            const heightCol = pedestalHeight;
+            const radiusCol = COLUMN_TOP_RADIUS * 1.6;
             const collider = new THREE.Box3(
                 new THREE.Vector3(x - radiusCol, 0, z - radiusCol),
-                new THREE.Vector3(x + radiusCol, heightCol, z + radiusCol)
+                new THREE.Vector3(x + radiusCol, COLUMN_HEIGHT, z + radiusCol)
             );
             this.floor.collisionGrid.insert(collider);
-        }
-
-        if (this.pendingPedestalUpgrades.length > 0) {
-            rm.onModelLoaded("column", () => this.upgradePendingPedestals(rm));
         }
     }
 
@@ -295,18 +236,16 @@ export class TokenColumnSystem {
             clearInterval(this.columnUpdateInterval);
             this.columnUpdateInterval = null;
         }
-        this.pendingPedestalUpgrades = [];
-
         for (const col of this.columns) {
             this.floor.scene.remove(col.group);
             col.group.traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                    child.geometry.dispose();
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(m => m.dispose());
-                    } else {
-                        (child.material as THREE.Material).dispose();
-                    }
+                if (!(child instanceof THREE.Mesh)) return;
+                if (child.parent?.userData.sharedAssets) return;
+                child.geometry.dispose();
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(m => m.dispose());
+                } else {
+                    (child.material as THREE.Material).dispose();
                 }
             });
             if (col.mcText) {
@@ -318,5 +257,6 @@ export class TokenColumnSystem {
             }
         }
         this.columns = [];
+        disposeProceduralColumnAssets();
     }
 }

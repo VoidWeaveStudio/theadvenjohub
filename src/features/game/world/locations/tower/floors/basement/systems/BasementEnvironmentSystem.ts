@@ -4,6 +4,7 @@ import { ResourceManager } from "../../../../../../core/ResourceManager";
 import { createGlowTexture, createGlowSphere } from "../utils/meshFactory";
 import type { Basement } from "../Basement";
 import { setupBasementSky, setupBasementFloor, setupBasementPortals } from "./BasementSceneSetup";
+import type { ProceduralPortal } from "../utils/proceduralPortal";
 
 export class BasementEnvironmentSystem {
     public basementCrystal!: THREE.Group;
@@ -11,11 +12,8 @@ export class BasementEnvironmentSystem {
     private portalLight!: THREE.PointLight;
     private sinkGlow!: THREE.PointLight;
 
-    private portalVFX?: THREE.Group;
-    private portalMixer?: THREE.AnimationMixer;
-
-    private sinkPortal?: THREE.Group;
-    private sinkPortalMixer?: THREE.AnimationMixer;
+    private sourcePortal?: ProceduralPortal;
+    private sinkPortal?: ProceduralPortal;
 
     private skySphere?: THREE.Group;
 
@@ -29,10 +27,7 @@ export class BasementEnvironmentSystem {
         const bgColor = 0x000000;
         this.floor.scene.background = new THREE.Color(bgColor);
 
-        const globalFill = new THREE.AmbientLight(0xffffff, 0.25);
-        this.floor.scene.add(globalFill);
-
-        const hemi = new THREE.HemisphereLight(0x66aaff, 0x000000, 0.8);
+        const hemi = new THREE.HemisphereLight(0xddeeff, 0x0a0d14, 0.16);
         this.floor.scene.add(hemi);
 
         setupBasementSky(this.floor, rm, (skySphere) => {
@@ -41,48 +36,25 @@ export class BasementEnvironmentSystem {
 
         const { radius } = setupBasementFloor(this.floor, rm, () => this.disposed);
 
-        const portals = setupBasementPortals(this.floor, rm);
-        if (portals) {
-            this.portalVFX = portals.portalVFX;
-            this.portalMixer = portals.portalMixer;
-            this.sinkPortal = portals.sinkPortal;
-            this.sinkPortalMixer = portals.sinkPortalMixer;
-        }
+        const portals = setupBasementPortals(this.floor);
+        this.sourcePortal = portals.source;
+        this.sinkPortal = portals.sink;
 
-        this.portalLight = new THREE.PointLight(0xb8e4ff, 70, 110, 1.8);
-        this.portalLight.position.set(0, this.floor.HOLE_Y + 2, 0);
-        this.portalLight.castShadow = false;
+        this.portalLight = new THREE.PointLight(0xcfeaff, 1, 0, 2);
+        this.portalLight.power = 7000;
+        this.portalLight.position.set(0, this.floor.HOLE_Y - 1.5, 0);
+        this.portalLight.castShadow = true;
+        this.portalLight.shadow.mapSize.set(2048, 2048);
+        this.portalLight.shadow.bias = -0.0006;
+        this.portalLight.shadow.normalBias = 0.03;
+        this.portalLight.shadow.camera.near = 1;
+        this.portalLight.shadow.camera.far = 160;
+        this.portalLight.shadow.camera.updateProjectionMatrix();
         this.floor.scene.add(this.portalLight);
 
-        const portalGlow = new THREE.PointLight(0x4db8ff, 25, 35, 2);
-        portalGlow.position.set(0, this.floor.HOLE_Y + 0.5, 0);
-        portalGlow.castShadow = false;
-        this.floor.scene.add(portalGlow);
-
-        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-        sun.position.set(15, 30, 15);
-        sun.target.position.set(0, 0, 0);
-        sun.castShadow = true;
-        sun.shadow.mapSize.set(4096, 4096);
-        sun.shadow.radius = 4;
-        sun.shadow.bias = -0.00003;
-        sun.shadow.normalBias = 0.02;
-        sun.shadow.camera.left = -60;
-        sun.shadow.camera.right = 60;
-        sun.shadow.camera.top = 60;
-        sun.shadow.camera.bottom = -60;
-        sun.shadow.camera.near = 1;
-        sun.shadow.camera.far = 120;
-        sun.shadow.camera.updateProjectionMatrix();
-        this.floor.scene.add(sun);
-        this.floor.scene.add(sun.target);
-
-        const rimLight = new THREE.DirectionalLight(0x66ccff, 0.8);
-        rimLight.position.set(-20, 15, -20);
-        this.floor.scene.add(rimLight);
-
-        this.sinkGlow = new THREE.PointLight(0x22aaff, 120, 40, 2);
-        this.sinkGlow.position.set(0, -18, 0);
+        this.sinkGlow = new THREE.PointLight(0x22aaff, 1, 60, 2);
+        this.sinkGlow.power = 1800;
+        this.sinkGlow.position.set(0, this.floor.SINK_Y - 3, 0);
         this.sinkGlow.castShadow = false;
         this.floor.scene.add(this.sinkGlow);
 
@@ -184,21 +156,16 @@ export class BasementEnvironmentSystem {
             }
         }
 
-        if (this.portalMixer) {
-            this.portalMixer.update(delta);
-        }
-
-        if (this.sinkPortalMixer) {
-            this.sinkPortalMixer.update(delta);
-        }
+        this.sourcePortal?.update(delta);
+        this.sinkPortal?.update(delta);
 
         if (this.portalLight) {
             const t = performance.now() * 0.004;
-            this.portalLight.intensity = 70 + Math.sin(t) * 12;
+            this.portalLight.power = 7000 + Math.sin(t) * 700;
         }
 
         if (this.sinkGlow) {
-            this.sinkGlow.intensity = 120 + Math.sin(performance.now() * 0.003) * 15;
+            this.sinkGlow.power = 1800 + Math.sin(performance.now() * 0.003) * 250;
         }
 
         const dust = this.floor.scene.getObjectByName("dustParticles") as THREE.Points;
@@ -217,20 +184,8 @@ export class BasementEnvironmentSystem {
     dispose() {
         this.disposed = true;
 
-        if (this.sinkPortal) {
-            this.floor.scene.remove(this.sinkPortal);
-            this.sinkPortal.traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                    child.geometry.dispose();
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(m => m.dispose());
-                    } else {
-                        (child.material as THREE.Material).dispose();
-                    }
-                }
-            });
-        }
-
+        this.sourcePortal?.dispose();
+        this.sinkPortal?.dispose();
         this.baseGlowMaterial.dispose();
     }
 }

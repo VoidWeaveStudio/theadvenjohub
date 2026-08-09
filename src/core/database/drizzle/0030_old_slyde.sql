@@ -1,0 +1,1 @@
+ALTER TABLE "room_invites" ADD COLUMN "uses_left" integer;

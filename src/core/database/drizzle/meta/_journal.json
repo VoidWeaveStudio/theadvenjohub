@@ -162,6 +162,27 @@
       "when": 1785840449053,
       "tag": "0027_condemned_nebula",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786237454748,
+      "tag": "0028_strange_princess_powerful",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786241959559,
+      "tag": "0029_flat_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786252744639,
+      "tag": "0030_old_slyde",
+      "breakpoints": true
     }
   ]
 }

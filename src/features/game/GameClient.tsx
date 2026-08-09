@@ -20,6 +20,12 @@ import { VendorPanel } from "./ui/VendorPanel";
 import { SolaPanel } from "./ui/SolaPanel";
 import { AlfredoPanel } from "./ui/AlfredoPanel";
 import { GateStewardPanel, GateFactionResult } from "./ui/GateStewardPanel";
+import { BubbleInfoPanel } from "./ui/BubbleInfoPanel";
+import { FactionBubblePanel } from "./ui/FactionBubblePanel";
+import { RoomPortalPanel } from "./ui/RoomPortalPanel";
+import { RoomConsolePanel } from "./ui/RoomConsolePanel";
+import { BubbleMapPanel } from "./ui/BubbleMapPanel";
+import type { FactionGateData, ShardStateData } from "./network/NetworkManager";
 import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
 import { getCsrfToken } from "@/core/lib/clientUtils";
 import { QuestTracker } from "./ui/QuestTracker";
@@ -93,6 +99,18 @@ export function GameClient({ slug }: GameClientProps) {
   const [isSolaOpen, setIsSolaOpen] = useState(false);
   const [isAlfredoOpen, setIsAlfredoOpen] = useState(false);
   const [isGateStewardOpen, setIsGateStewardOpen] = useState(false);
+  const [bubbleIndex, setBubbleIndex] = useState<number | null>(null);
+  const [gateFactionIds, setGateFactionIds] = useState<string[]>([]);
+  const [factionGates, setFactionGates] = useState<FactionGateData[]>([]);
+  const [factionBubbleId, setFactionBubbleId] = useState<string | null>(null);
+  const [isRoomPortalOpen, setIsRoomPortalOpen] = useState(false);
+  const [isRoomConsoleOpen, setIsRoomConsoleOpen] = useState(false);
+  const [roomConsoleFactionId, setRoomConsoleFactionId] = useState<string | null>(null);
+  const [isBubbleMapOpen, setIsBubbleMapOpen] = useState(false);
+  const [ownBubbleIndex, setOwnBubbleIndex] = useState<number | null>(null);
+  const [bubbleWaypoint, setBubbleWaypoint] = useState<number | null>(null);
+  const [accountCount, setAccountCount] = useState(0);
+  const [shardState, setShardState] = useState<ShardStateData | null>(null);
   const [isPersonalizationOpen, setIsPersonalizationOpen] = useState(false);
   const [mySkinUrl, setMySkinUrl] = useState<string | null>(null);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
@@ -240,7 +258,14 @@ export function GameClient({ slug }: GameClientProps) {
         };
         game.onChatMessage = (message) => { if (!cancelled) chat.handleChatMessage(message); };
         game.onNicknameLoaded = (nick: string) => { if (!cancelled) chat.handleNicknameLoaded(nick); };
-        game.onLocationChange = (id: string) => { if (!cancelled) setCurrentLocationId(id); };
+        game.onLocationChange = (id: string) => {
+          if (cancelled) return;
+          setCurrentLocationId(id);
+          if (id !== "tower-basement") {
+            setShardState(null);
+            setIsBubbleMapOpen(false);
+          }
+        };
         game.onFloorSelectorToggle = (isOpen: boolean) => {
           if (cancelled) return;
           setShowFloorSelector(isOpen);
@@ -276,6 +301,47 @@ export function GameClient({ slug }: GameClientProps) {
           setIsGateStewardOpen(true);
           document.exitPointerLock();
         };
+        game.onOpenPlayerBubbleUI = (index) => {
+          if (cancelled) return;
+          setBubbleIndex(index);
+          document.exitPointerLock();
+        };
+        game.onFactionGatesChange = (gates) => {
+          if (cancelled) return;
+          setFactionGates(gates);
+          setGateFactionIds(gates.map((g) => g.factionId));
+        };
+        game.onOpenFactionBubbleUI = (factionId) => {
+          if (cancelled) return;
+          setFactionBubbleId(factionId);
+          document.exitPointerLock();
+        };
+        game.onOpenRoomPortalUI = () => {
+          if (cancelled) return;
+          setIsRoomPortalOpen(true);
+          document.exitPointerLock();
+        };
+        game.onOpenRoomConsoleUI = (consoleFactionId) => {
+          if (cancelled) return;
+          setRoomConsoleFactionId(consoleFactionId);
+          setIsRoomConsoleOpen(true);
+          document.exitPointerLock();
+        };
+        game.onAccountCountChange = (count) => {
+          if (!cancelled) setAccountCount(count);
+        };
+        game.onShardStateChange = (state) => {
+          if (!cancelled) setShardState(state);
+        };
+
+        fetch("/api/game/my-bubble", { credentials: "include" })
+          .then((res) => res.json())
+          .then((data) => {
+            if (cancelled || typeof data?.bubbleIndex !== "number") return;
+            setOwnBubbleIndex(data.bubbleIndex);
+            game.setOwnBubbleIndex(data.bubbleIndex);
+          })
+          .catch(() => { });
         game.onOpenSignEditorUI = (signId) => {
           if (cancelled) return;
           setSignEditorId(signId);
@@ -492,6 +558,26 @@ export function GameClient({ slug }: GameClientProps) {
           setIsGateStewardOpen(false);
           return;
         }
+        if (bubbleIndex !== null) {
+          setBubbleIndex(null);
+          return;
+        }
+        if (factionBubbleId !== null) {
+          setFactionBubbleId(null);
+          return;
+        }
+        if (isRoomPortalOpen) {
+          setIsRoomPortalOpen(false);
+          return;
+        }
+        if (isRoomConsoleOpen) {
+          setIsRoomConsoleOpen(false);
+          return;
+        }
+        if (isBubbleMapOpen) {
+          setIsBubbleMapOpen(false);
+          return;
+        }
         if (tradeSession && tradeSession.phase !== 'settling') {
           gameRef.current?.cancelTrade(tradeSession.tradeId);
           return;
@@ -543,7 +629,7 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || itemEditorId !== null || viewingItem !== null || isPlaceableMenuOpen || isEmoteWheelOpen || tradeSession !== null || pendingTradeInvite !== null) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || bubbleIndex !== null || factionBubbleId !== null || isRoomPortalOpen || isRoomConsoleOpen || isBubbleMapOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || itemEditorId !== null || viewingItem !== null || isPlaceableMenuOpen || isEmoteWheelOpen || tradeSession !== null || pendingTradeInvite !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -553,6 +639,18 @@ export function GameClient({ slug }: GameClientProps) {
         const activeTag = document.activeElement?.tagName;
         if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
         inventory.setIsInventoryOpen((prev) => {
+          const next = !prev;
+          if (next) document.exitPointerLock();
+          return next;
+        });
+        return;
+      }
+
+      if (e.code === "KeyM" && !showFloorSelector) {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+        if (currentLocationId !== "tower-basement") return;
+        setIsBubbleMapOpen((prev) => {
           const next = !prev;
           if (next) document.exitPointerLock();
           return next;
@@ -591,7 +689,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, itemEditorId, viewingItem, isPlaceableMenuOpen, isEmoteWheelOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, itemEditorId, viewingItem, isPlaceableMenuOpen, isEmoteWheelOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -792,6 +890,8 @@ export function GameClient({ slug }: GameClientProps) {
         isHitMark={hud.isHitMark}
         isTalking={isVoiceCapturing}
         spawnProtectionSeconds={spawnProtectionSeconds}
+        shardState={shardState}
+        onSwitchShard={(instance) => gameRef.current?.switchShard(instance)}
       />
       <TopMenu
         active={activeTopWindow}
@@ -1107,6 +1207,65 @@ export function GameClient({ slug }: GameClientProps) {
         onClose={() => setIsGateStewardOpen(false)}
         onPurchased={(faction: GateFactionResult) => gameRef.current?.notifyGatePurchased(faction)}
         onTeleport={(faction: GateFactionResult) => gameRef.current?.teleportToFactionGate(faction)}
+        myFactions={factionState.myFactions}
+        gateFactionIds={gateFactionIds}
+        onEnterPersonalRoom={() => gameRef.current?.teleportToPersonalRoom()}
+      />
+
+      <BubbleInfoPanel
+        bubbleIndex={bubbleIndex}
+        onClose={() => setBubbleIndex(null)}
+        onEnterRoom={(ownerUserId) => gameRef.current?.teleportToPersonalRoom(ownerUserId)}
+        onSetWaypoint={(index) => {
+          setBubbleWaypoint(index);
+          gameRef.current?.setBubbleWaypoint(index);
+        }}
+      />
+
+      <FactionBubblePanel
+        faction={factionGates.find((g) => g.factionId === factionBubbleId) ?? null}
+        isMember={factionBubbleId !== null && factionState.myFactions.some((f) => f.id === factionBubbleId)}
+        onClose={() => setFactionBubbleId(null)}
+        onEnter={(factionId) => {
+          const faction = factionState.myFactions.find((f) => f.id === factionId);
+          const gate = factionGates.find((g) => g.factionId === factionId);
+          gameRef.current?.teleportToFactionGate({
+            id: factionId,
+            name: faction?.name ?? gate?.factionName ?? "Faction",
+            symbol: faction?.symbol ?? gate?.symbol ?? null,
+            image: faction?.image ?? gate?.image ?? null,
+          });
+        }}
+      />
+
+      <RoomConsolePanel
+        isOpen={isRoomConsoleOpen}
+        factionId={roomConsoleFactionId}
+        onClose={() => setIsRoomConsoleOpen(false)}
+        onNotification={(msg, duration) => notifications.addNotification(msg, duration)}
+      />
+
+      <RoomPortalPanel
+        isOpen={isRoomPortalOpen}
+        onClose={() => setIsRoomPortalOpen(false)}
+        onGoToOwnBubble={() => gameRef.current?.returnToGalaxy(true)}
+        onGoToKeeper={() => gameRef.current?.returnToGalaxy(false)}
+        onGoToMainHall={() => gameRef.current?.changeLocation("tower-main-hall")}
+      />
+
+      <BubbleMapPanel
+        isOpen={isBubbleMapOpen}
+        onClose={() => setIsBubbleMapOpen(false)}
+        accountCount={accountCount}
+        ownBubbleIndex={ownBubbleIndex}
+        waypointIndex={bubbleWaypoint}
+        factions={factionGates}
+        myFactionIds={factionState.myFactions.map((f) => f.id)}
+        getPlayerPosition={() => gameRef.current?.getPlayerGroundPosition() ?? null}
+        onSetWaypoint={(index) => {
+          setBubbleWaypoint(index);
+          gameRef.current?.setBubbleWaypoint(index);
+        }}
       />
 
       <PersonalizationEditor

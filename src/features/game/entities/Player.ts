@@ -6,13 +6,14 @@ import { ResourceManager } from "../core/ResourceManager";
 import { CameraController } from "../core/CameraController";
 import { Weapon } from "./Weapon";
 import { CollisionGrid } from "../world/CollisionGrid";
-import { HeightProvider } from "../world/Location";
+import { HeightProvider, FlightZone } from "../world/Location";
 import { CharacterAnimator } from "./CharacterAnimator";
 import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 import { SoundManager } from "../core/SoundManager";
 import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl } from "./characterPaint";
+import { EnergyWisp } from "./EnergyWisp";
 
 export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
@@ -59,7 +60,21 @@ export class Player extends Entity {
     private posedAnimation: string | null = null;
     private movementLocked: boolean = false;
 
+    private flightMode: boolean = false;
+    private flightVelocity = new THREE.Vector3();
+    private flightZone: FlightZone | null = null;
+    private characterModel: THREE.Object3D | null = null;
+    private wisp: EnergyWisp | null = null;
+    private readonly FLIGHT_LANDING_BAND = 25;
+    private readonly FLIGHT_SPEED = 42;
+    private readonly FLIGHT_BOOST = 2.1;
+    private readonly FLIGHT_ACCEL = 5.5;
+    private readonly FLIGHT_DAMPING = 2.6;
+
     private static readonly _moveDir = new THREE.Vector3();
+    private static readonly _flightForward = new THREE.Vector3();
+    private static readonly _flightRight = new THREE.Vector3();
+    private static readonly _flightWish = new THREE.Vector3();
     private static readonly _step = new THREE.Vector3();
     private static readonly _nextPos = new THREE.Vector3();
     private static readonly _checkPos = new THREE.Vector3();
@@ -82,6 +97,48 @@ export class Player extends Entity {
         this.maxRadius = radius;
     }
 
+    public setFlightZone(zone: FlightZone | null) {
+        this.flightZone = zone;
+        if (!zone && this.flightMode) this.setFlightMode(false);
+    }
+
+    private setFlightMode(enabled: boolean) {
+        if (this.flightMode === enabled) return;
+
+        this.flightMode = enabled;
+        this.flightVelocity.set(0, 0, 0);
+
+        if (enabled) {
+            this.velocityY = 0;
+            this.isGrounded = false;
+            this.baseY = this.mesh.position.y;
+        } else {
+            this.mesh.rotation.x = 0;
+            this.mesh.rotation.z = 0;
+            this.baseY = this.mesh.position.y;
+            this.isGrounded = false;
+        }
+
+        if (this.characterModel) this.characterModel.visible = !enabled;
+        this.wisp?.setActive(enabled);
+    }
+
+    public isFlying(): boolean {
+        return this.flightMode;
+    }
+
+    public moveEffectsToScene(scene: THREE.Scene) {
+        this.wisp?.moveTrailToScene(scene);
+    }
+
+    private horizontalDistanceToZone(): number {
+        if (!this.flightZone) return 0;
+        return Math.hypot(
+            this.mesh.position.x - this.flightZone.center.x,
+            this.mesh.position.z - this.flightZone.center.z
+        );
+    }
+
     public setMovementBounds(min: THREE.Vector3 | null, max: THREE.Vector3 | null) {
         if (min && max) {
             this.bounds = { min, max };
@@ -99,6 +156,16 @@ export class Player extends Entity {
         scaleAndCenterModel(data.scene, 1.8, 0);
 
         this.mesh.add(data.scene);
+        this.characterModel = data.scene;
+
+        data.scene.traverse((child) => {
+            const mesh = child as THREE.Mesh;
+            if (mesh.isMesh) mesh.castShadow = true;
+        });
+
+        this.wisp = new EnergyWisp({ withTrail: true, withLight: true });
+        this.wisp.attach(this.mesh, scene);
+        this.wisp.group.position.y = 1.0;
 
         const paintableMesh = findPaintableMesh(data.scene);
         this.paintableMaterial = paintableMesh ? clonePaintableMaterial(paintableMesh) : null;
@@ -206,6 +273,7 @@ export class Player extends Entity {
 
     public teleportTo(position: THREE.Vector3) {
         this.mesh.position.copy(position);
+        this.flightVelocity.set(0, 0, 0);
         this.velocityY = 0;
         this.isGrounded = true;
         this.jumpCooldown = 0;
@@ -267,6 +335,12 @@ export class Player extends Entity {
             if (this.posedAnimation) this.animator.play(this.posedAnimation, false);
             this.animator.update(delta);
             this.mesh.position.y = this.baseY;
+            return;
+        }
+
+        if (this.flightMode) {
+            this.updateFlight(delta);
+            this.checkLanding();
             return;
         }
 
@@ -408,6 +482,7 @@ export class Player extends Entity {
 
         this.mesh.position.y = this.baseY + bobOffset;
 
+        this.checkTakeoff();
         this.updateHeadRotation();
 
         if (this.hips) {
@@ -418,6 +493,102 @@ export class Player extends Entity {
         }
 
         this.animator.update(delta);
+    }
+
+    private checkTakeoff() {
+        if (!this.flightZone || this.flightMode) return;
+        if (this.horizontalDistanceToZone() > this.flightZone.radius) {
+            this.setFlightMode(true);
+        }
+    }
+
+    private checkLanding() {
+        if (!this.flightZone || !this.flightMode) return;
+        const zone = this.flightZone;
+        if (this.horizontalDistanceToZone() > zone.radius - 1.5) return;
+        if (this.mesh.position.y > zone.surfaceY + this.FLIGHT_LANDING_BAND) return;
+        if (this.mesh.position.y < zone.surfaceY - this.FLIGHT_LANDING_BAND) return;
+
+        this.setFlightMode(false);
+        this.velocityY = Math.min(0, this.flightVelocity.y);
+    }
+
+    private updateFlight(delta: number) {
+        this.time += delta;
+
+        const yaw = this.camera.getYaw();
+        const pitch = this.camera.getPitch();
+        const cosPitch = Math.cos(pitch);
+
+        const forward = Player._flightForward.set(
+            -cosPitch * Math.sin(yaw),
+            Math.sin(pitch),
+            -cosPitch * Math.cos(yaw)
+        );
+        const right = Player._flightRight.set(Math.cos(yaw), 0, -Math.sin(yaw));
+
+        const wish = Player._flightWish.set(0, 0, 0);
+        if (this.inputManager.isKeyPressed("KeyW")) wish.add(forward);
+        if (this.inputManager.isKeyPressed("KeyS")) wish.sub(forward);
+        if (this.inputManager.isKeyPressed("KeyD")) wish.add(right);
+        if (this.inputManager.isKeyPressed("KeyA")) wish.sub(right);
+        if (this.inputManager.isKeyPressed("Space")) wish.y += 1;
+        if (this.inputManager.isKeyPressed("KeyC") || this.inputManager.isKeyPressed("ControlLeft")) wish.y -= 1;
+
+        const boosting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
+        const targetSpeed = this.FLIGHT_SPEED * (boosting ? this.FLIGHT_BOOST : 1);
+
+        if (wish.lengthSq() > 0) {
+            wish.normalize().multiplyScalar(targetSpeed);
+            this.flightVelocity.lerp(wish, Math.min(1, this.FLIGHT_ACCEL * delta));
+        } else {
+            this.flightVelocity.multiplyScalar(Math.max(0, 1 - this.FLIGHT_DAMPING * delta));
+        }
+
+        this.mesh.position.addScaledVector(this.flightVelocity, delta);
+        this.applyFlightBounds();
+        this.baseY = this.mesh.position.y;
+
+        const horizontalSpeed = Math.hypot(this.flightVelocity.x, this.flightVelocity.z);
+        if (horizontalSpeed > 0.6) {
+            this.rotateToAngle(Math.atan2(this.flightVelocity.x, this.flightVelocity.z), delta);
+        }
+
+        const targetTilt = THREE.MathUtils.clamp(horizontalSpeed / (this.FLIGHT_SPEED * this.FLIGHT_BOOST), 0, 1) * 0.5;
+        this.mesh.rotation.x += (targetTilt - this.mesh.rotation.x) * Math.min(1, 4 * delta);
+
+        this.wisp?.update(
+            delta,
+            this.flightVelocity.length() / (this.FLIGHT_SPEED * this.FLIGHT_BOOST),
+            boosting,
+            this.flightVelocity
+        );
+
+        this.animator.play('idle', this.weaponEquipped);
+        this.animator.update(delta);
+    }
+
+    private applyFlightBounds() {
+        if (!this.flightZone) return;
+        const { maxRadius, minY, maxY } = this.flightZone;
+        const pos = this.mesh.position;
+
+        const dist = Math.hypot(pos.x, pos.z);
+        if (dist > maxRadius) {
+            const scale = maxRadius / dist;
+            pos.x *= scale;
+            pos.z *= scale;
+            this.flightVelocity.x *= 0.2;
+            this.flightVelocity.z *= 0.2;
+        }
+
+        if (pos.y > maxY) {
+            pos.y = maxY;
+            this.flightVelocity.y = Math.min(0, this.flightVelocity.y);
+        } else if (pos.y < minY) {
+            pos.y = minY;
+            this.flightVelocity.y = Math.max(0, this.flightVelocity.y);
+        }
     }
 
     private getCameraLookAngle(): number {
@@ -435,6 +606,12 @@ export class Player extends Entity {
     }
 
     public getState(): PlayerState {
+        if (this.flightMode) {
+            const speed = this.flightVelocity.length();
+            if (speed > this.FLIGHT_SPEED * 1.2) return 'sprint';
+            return speed > 1 ? 'walk' : 'idle';
+        }
+
         const isMoving =
             !!this.inputManager?.isKeyPressed("KeyW") ||
             !!this.inputManager?.isKeyPressed("KeyS") ||
@@ -450,7 +627,7 @@ export class Player extends Entity {
     }
 
     public isJumping(): boolean {
-        return !this.isGrounded;
+        return !this.flightMode && !this.isGrounded;
     }
 
     public getVelocityY(): number {

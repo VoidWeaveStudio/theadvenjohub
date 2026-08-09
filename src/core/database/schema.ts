@@ -17,6 +17,7 @@ import { relations, sql } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
+  number: serial("number").unique(),
   wallet: varchar("wallet", { length: 44 }).notNull().unique(),
   isBanned: boolean("is_banned").default(false).notNull(),
   bannedAt: timestamp("banned_at"),
@@ -373,6 +374,7 @@ export const factions = pgTable("factions", {
   activeTaskAcceptedByUserId: uuid("active_task_accepted_by_user_id").references(() => users.id),
   level: integer("level").default(1).notNull(),
   levelProgressAsh: integer("level_progress_ash").default(0).notNull(),
+  roomAccess: varchar("room_access", { length: 12 }).default("members").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   promoCode: varchar("promo_code", { length: 20 }).unique(),
   promoCodePurchaseTx: varchar("promo_code_purchase_tx", { length: 88 }).unique(),
@@ -503,6 +505,28 @@ export const factionQuestCompletions = pgTable("faction_quest_completions", {
 }, (table) => [
   uniqueIndex("idx_faction_quest_completions_quest_user").on(table.questId, table.userId),
   index("idx_faction_quest_completions_user").on(table.userId),
+]);
+
+export const personalRooms = pgTable("personal_rooms", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  access: varchar("access", { length: 12 }).default("public").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_personal_rooms_user_game").on(table.userId, table.gameId),
+]);
+
+export const roomInvites = pgTable("room_invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerType: varchar("owner_type", { length: 10 }).notNull(),
+  ownerId: uuid("owner_id").notNull(),
+  invitedUserId: uuid("invited_user_id").notNull().references(() => users.id),
+  usesLeft: integer("uses_left"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_room_invites_unique").on(table.ownerType, table.ownerId, table.invitedUserId),
+  index("idx_room_invites_user").on(table.invitedUserId),
 ]);
 
 export const placedFurniture = pgTable("placed_furniture", {

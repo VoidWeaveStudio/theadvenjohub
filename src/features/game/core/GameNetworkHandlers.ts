@@ -4,7 +4,7 @@ import type { Game, GameSession } from "./Game";
 import { PlayerNetData } from "../network/NetworkManager";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
-import { TokenGatesFloor } from "../world/locations/tower/floors/TokenGatesFloor";
+import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
 import { isBodyEmote } from "../data/emotes";
@@ -472,9 +472,34 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onFactionGatesState = (gates) => {
+        game.gateFactionIds = gates.map((g) => g.factionId);
+        game.factionGates = gates;
+        game.onFactionGatesChange?.(gates);
+
         const location = game.locationManager.getCurrentLocation();
-        if (location instanceof TokenGatesFloor) {
+        if (location instanceof Basement) {
             location.handleFactionGatesState(gates);
+        }
+    };
+
+    game.networkManager.onShardState = (state) => {
+        game.shardState = state;
+        game.onShardStateChange?.(state);
+    };
+
+    game.networkManager.onShardTeleport = ({ position }) => {
+        const target = new THREE.Vector3(position[0], position[1], position[2]);
+        game.player.teleportTo(target);
+        game.cameraController.yawObject.position.copy(target);
+        game.otherPlayers.forEach((op) => op.setHidden(true));
+    };
+
+    game.networkManager.onAccountCount = (count) => {
+        game.accountCount = count;
+        game.onAccountCountChange?.(count);
+        const location = game.locationManager.getCurrentLocation();
+        if (location instanceof Basement) {
+            location.setAccountCount(count);
         }
     };
 

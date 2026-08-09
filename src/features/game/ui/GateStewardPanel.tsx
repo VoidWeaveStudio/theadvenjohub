@@ -9,6 +9,7 @@ import { DoorOpen, Loader2 } from "lucide-react";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { getCsrfToken } from "@/core/lib/clientUtils";
 import { SoundManager } from "../core/SoundManager";
+import { ROOM_ACCESS_LABELS, ROOM_ACCESS_VALUES, type RoomAccess } from "@/core/lib/roomAccess";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 const GATE_PRICE_TNJ = 1_000_000;
@@ -27,15 +28,51 @@ interface LookupResult {
     canPurchase: boolean;
 }
 
+export interface StewardFaction {
+    id: string;
+    name: string;
+    symbol: string | null;
+    image: string | null;
+    tokenCa?: string | null;
+}
+
 interface GateStewardPanelProps {
     isOpen: boolean;
     onClose: () => void;
     onPurchased: (faction: GateFactionResult) => void;
     onTeleport: (faction: GateFactionResult) => void;
+    myFactions: StewardFaction[];
+    gateFactionIds: string[];
+    onEnterPersonalRoom: () => void;
 }
 
 type PayState = false | "connecting" | "signing" | "confirming";
-type StewardTab = "purchase" | "find";
+type StewardTab = "rooms" | "access" | "purchase" | "find";
+
+interface RoomAccessState {
+    personalAccess: RoomAccess;
+    factions: Array<{ id: string; name: string; access: RoomAccess; canManage: boolean }>;
+}
+
+function AccessPicker({ value, busy, onChange }: { value: RoomAccess; busy: boolean; onChange: (access: RoomAccess) => void }) {
+    return (
+        <div className="grid grid-cols-2 gap-1.5">
+            {ROOM_ACCESS_VALUES.map((access) => (
+                <button
+                    key={access}
+                    onClick={() => onChange(access)}
+                    disabled={busy}
+                    className={`px-2.5 py-1.5 rounded-md text-xs font-bold text-left transition-colors disabled:opacity-50 ${value === access
+                        ? "bg-[#E8A33D]/20 text-[#E8A33D] border border-[#E8A33D]/40"
+                        : "bg-white/5 text-[#8B8F98] border border-white/10 hover:text-[#E5E7EB]"
+                        }`}
+                >
+                    {ROOM_ACCESS_LABELS[access]}
+                </button>
+            ))}
+        </div>
+    );
+}
 
 function mapPurchaseError(code: string): string {
     switch (code) {
@@ -55,11 +92,21 @@ function mapLookupError(message: string): string {
     return message === "invalid_ca" ? "That doesn't look like a valid contract address." : "Lookup failed, try again.";
 }
 
-export function GateStewardPanel({ isOpen, onClose, onPurchased, onTeleport }: GateStewardPanelProps) {
+export function GateStewardPanel({
+    isOpen,
+    onClose,
+    onPurchased,
+    onTeleport,
+    myFactions,
+    gateFactionIds,
+    onEnterPersonalRoom,
+}: GateStewardPanelProps) {
     const { publicKey, connected, wallet } = useWallet();
     const { isAuthorized } = useAuth();
 
-    const [activeTab, setActiveTab] = useState<StewardTab>("purchase");
+    const [activeTab, setActiveTab] = useState<StewardTab>("rooms");
+    const [roomAccess, setRoomAccess] = useState<RoomAccessState | null>(null);
+    const [savingAccess, setSavingAccess] = useState<string | null>(null);
 
     const [ca, setCa] = useState("");
     const [searching, setSearching] = useState(false);
@@ -84,7 +131,7 @@ export function GateStewardPanel({ isOpen, onClose, onPurchased, onTeleport }: G
 
     useEffect(() => {
         if (!isOpen) {
-            setActiveTab("purchase");
+            setActiveTab("rooms");
             setCa("");
             setResult(null);
             setError(null);
@@ -93,6 +140,53 @@ export function GateStewardPanel({ isOpen, onClose, onPurchased, onTeleport }: G
             setFindError(null);
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || activeTab !== "access" || roomAccess) return;
+
+        let cancelled = false;
+        fetch("/api/game/room-access", { credentials: "include" })
+            .then((res) => res.json())
+            .then((data) => {
+                if (cancelled || data.error) return;
+                setRoomAccess(data);
+            })
+            .catch(() => { });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, activeTab, roomAccess]);
+
+    const saveAccess = async (scope: "personal" | "faction", access: RoomAccess, factionId?: string) => {
+        const key = scope === "personal" ? "personal" : factionId!;
+        setSavingAccess(key);
+        try {
+            const csrfToken = getCsrfToken();
+            const res = await fetch("/api/game/room-access", {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+                },
+                body: JSON.stringify({ scope, access, factionId }),
+            });
+            if (!res.ok) throw new Error("save_failed");
+
+            setRoomAccess((prev) => {
+                if (!prev) return prev;
+                if (scope === "personal") return { ...prev, personalAccess: access };
+                return {
+                    ...prev,
+                    factions: prev.factions.map((f) => (f.id === factionId ? { ...f, access } : f)),
+                };
+            });
+        } catch {
+        } finally {
+            setSavingAccess(null);
+        }
+    };
 
     const handleLookup = async () => {
         const trimmed = ca.trim();
@@ -238,7 +332,7 @@ export function GateStewardPanel({ isOpen, onClose, onPurchased, onTeleport }: G
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <DoorOpen className="w-5 h-5 text-[#E8A33D]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">Corwin</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">The Keeper</h2>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         ✕
@@ -246,6 +340,18 @@ export function GateStewardPanel({ isOpen, onClose, onPurchased, onTeleport }: G
                 </div>
 
                 <div className="flex gap-1 mb-4 bg-black/30 rounded-lg p-1">
+                    <button
+                        onClick={() => setActiveTab("access")}
+                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "access" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
+                    >
+                        Access
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("rooms")}
+                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "rooms" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
+                    >
+                        Rooms
+                    </button>
                     <button
                         onClick={() => setActiveTab("purchase")}
                         className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "purchase" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
@@ -259,6 +365,102 @@ export function GateStewardPanel({ isOpen, onClose, onPurchased, onTeleport }: G
                         Find a Gate
                     </button>
                 </div>
+
+                {activeTab === "access" && (
+                    <>
+                        <p className="text-[#8B8F98] text-sm mb-4">
+                            Decide who may drift into your rooms.
+                        </p>
+
+                        {!roomAccess ? (
+                            <div className="flex items-center gap-2 text-[#8B8F98] text-sm">
+                                <Loader2 className="w-4 h-4 animate-spin" /> Reading the ledger...
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div>
+                                    <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">My room</div>
+                                    <AccessPicker
+                                        value={roomAccess.personalAccess}
+                                        busy={savingAccess === "personal"}
+                                        onChange={(access) => saveAccess("personal", access)}
+                                    />
+                                </div>
+
+                                {roomAccess.factions.filter((f) => f.canManage).map((faction) => (
+                                    <div key={faction.id}>
+                                        <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2 truncate">{faction.name}</div>
+                                        <AccessPicker
+                                            value={faction.access}
+                                            busy={savingAccess === faction.id}
+                                            onChange={(access) => saveAccess("faction", access, faction.id)}
+                                        />
+                                    </div>
+                                ))}
+
+                                {roomAccess.factions.filter((f) => f.canManage).length === 0 && (
+                                    <p className="text-[#8B8F98] text-sm">You don't manage any faction rooms.</p>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {activeTab === "rooms" && (
+                    <>
+                        <p className="text-[#8B8F98] text-sm mb-4">
+                            I can pull you through to any room you belong to.
+                        </p>
+
+                        <button
+                            onClick={() => { onEnterPersonalRoom(); onClose(); }}
+                            className="btn-primary px-4 py-2 text-sm w-full mb-4"
+                        >
+                            Enter my room
+                        </button>
+
+                        <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">Faction rooms</div>
+
+                        {myFactions.length === 0 ? (
+                            <p className="text-[#8B8F98] text-sm">You don't belong to any faction yet.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {myFactions.map((faction) => {
+                                    const hasRoom = gateFactionIds.includes(faction.id);
+                                    return (
+                                        <div key={faction.id} className="flex items-center gap-3 bg-white/5 rounded-lg p-2.5">
+                                            {faction.image ? (
+                                                <img src={faction.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-[#E5E7EB] font-bold text-sm truncate">{faction.name}</div>
+                                                {!hasRoom && <div className="text-[#8B8F98] text-xs">No room yet</div>}
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    onTeleport({
+                                                        id: faction.id,
+                                                        name: faction.name,
+                                                        symbol: faction.symbol,
+                                                        image: faction.image,
+                                                        tokenCa: faction.tokenCa ?? null,
+                                                    });
+                                                    onClose();
+                                                }}
+                                                disabled={!hasRoom}
+                                                className="btn-secondary px-3 py-1.5 text-xs flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                Enter
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </>
+                )}
 
                 {activeTab === "purchase" && (
                     <>

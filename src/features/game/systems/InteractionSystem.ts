@@ -26,6 +26,8 @@ export class InteractionSystem extends System {
 
     private interactionRadius: number = 5;
 
+    private static readonly _worldPos = new THREE.Vector3();
+
     public onNotification?: (msg: string, duration?: number) => void;
     public onPrompt?: (text: string | null) => void;
     public onCrystalInteract?: () => void;
@@ -35,6 +37,10 @@ export class InteractionSystem extends System {
     public onOpenFactionBroker?: () => void;
     public onOpenAlfredo?: () => void;
     public onOpenGateSteward?: () => void;
+    public onOpenPlayerBubble?: (bubbleIndex: number) => void;
+    public onOpenFactionBubble?: (factionId: string) => void;
+    public onOpenRoomPortal?: () => void;
+    public onOpenRoomConsole?: () => void;
     public onCanyonReturn?: () => void;
     public onOpenTokenUI?: (token: any) => void;
     public onEnterLocation?: (locationId: string) => void;
@@ -83,8 +89,9 @@ export class InteractionSystem extends System {
         let nearest: { obj: THREE.Object3D; dist: number } | null = null;
 
         for (const obj of this.interactableObjects) {
-            const d = playerPos.distanceTo(obj.position);
-            if (d < this.interactionRadius && (!nearest || d < nearest.dist)) {
+            const d = playerPos.distanceTo(obj.getWorldPosition(InteractionSystem._worldPos));
+            const radius = (obj.userData.interactionRadius as number | undefined) ?? this.interactionRadius;
+            if (d < radius && (!nearest || d < nearest.dist)) {
                 nearest = { obj, dist: d };
             }
         }
@@ -95,18 +102,30 @@ export class InteractionSystem extends System {
             if (id?.startsWith("faction-gate-")) {
                 const factionId = id.slice("faction-gate-".length);
                 const factionName = (nearest.obj.userData.factionName as string | undefined) ?? "Faction";
-                if (this.myFactionIds.has(factionId)) {
-                    this.onPrompt?.(`[E] Enter ${factionName} Gate`);
-                    if (isEJustPressed === true) {
-                        this.onEnterLocation?.(`faction-gate-${factionId}`);
-                    }
-                } else {
-                    this.onPrompt?.(`${factionName} Gate — members only`);
+                this.onPrompt?.(`[E] Inspect ${factionName}`);
+                if (isEJustPressed === true) {
+                    this.onOpenFactionBubble?.(factionId);
+                }
+            } else if (id === "room-console") {
+                this.onPrompt?.("[E] Room controls");
+                if (isEJustPressed === true) {
+                    this.onOpenRoomConsole?.();
+                }
+            } else if (id === "room-portal") {
+                this.onPrompt?.("[E] Use the portal");
+                if (isEJustPressed === true) {
+                    this.onOpenRoomPortal?.();
                 }
             } else if (id === "gate-steward") {
-                this.onPrompt?.("[E] Talk to Corwin");
+                this.onPrompt?.("[E] Speak to the Keeper");
                 if (isEJustPressed === true) {
                     this.onOpenGateSteward?.();
+                }
+            } else if (id?.startsWith("player-bubble-")) {
+                const bubbleIndex = Number(id.slice("player-bubble-".length));
+                this.onPrompt?.("[E] Inspect bubble");
+                if (isEJustPressed === true && Number.isFinite(bubbleIndex)) {
+                    this.onOpenPlayerBubble?.(bubbleIndex);
                 }
             } else if (id?.startsWith("column-")) {
                 this.onPrompt?.("[E] View Token Info");

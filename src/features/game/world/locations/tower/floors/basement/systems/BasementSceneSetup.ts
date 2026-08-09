@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { EquirectangularReflectionMapping } from "three";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
 import type { Basement } from "../Basement";
+import { createProceduralPortal, type ProceduralPortal } from "../utils/proceduralPortal";
 
 export function setupBasementSky(
     floor: Basement,
@@ -15,7 +16,7 @@ export function setupBasementSky(
 
     const setupSky = (data: any, tex: THREE.Texture) => {
         const skySphere = data.scene as THREE.Group;
-        skySphere.scale.set(100, 100, 100);
+        skySphere.scale.set(3600, 3600, 3600);
         skySphere.position.set(0, 0, 0);
         skySphere.renderOrder = -1000;
 
@@ -41,7 +42,7 @@ export function setupBasementSky(
 
         tex.mapping = EquirectangularReflectionMapping;
         floor.scene.environment = tex;
-        (floor.scene as any).environmentIntensity = 5.0;
+        (floor.scene as any).environmentIntensity = 0.35;
 
         onReady(skySphere);
     };
@@ -128,7 +129,7 @@ export function setupBasementFloor(floor: Basement, rm: ResourceManager, isDispo
         });
     }
 
-    const radius = 40;
+    const radius = 90;
     const holeRadius = 3.6;
 
     const outerFloor = new THREE.Mesh(
@@ -196,80 +197,30 @@ export function setupBasementFloor(floor: Basement, rm: ResourceManager, isDispo
 }
 
 export interface BasementPortals {
-    portalVFX: THREE.Group;
-    portalMixer?: THREE.AnimationMixer;
-    sinkPortal: THREE.Group;
-    sinkPortalMixer?: THREE.AnimationMixer;
+    source: ProceduralPortal;
+    sink: ProceduralPortal;
 }
 
-export function setupBasementPortals(floor: Basement, rm: ResourceManager): BasementPortals | null {
-    const portalData = rm.getModel("portalVFX");
-    if (!portalData) return null;
-
-    const portalVFX = portalData.scene;
-    portalVFX.scale.set(7.5, 7.5, 7.5);
-    portalVFX.position.set(0, floor.HOLE_Y + 0.05, 0);
-    portalVFX.rotation.x = -Math.PI / 2;
-    floor.scene.add(portalVFX);
-
-    portalVFX.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            const oldMat = mesh.material as THREE.MeshStandardMaterial;
-            const newMat = new THREE.MeshBasicMaterial({
-                map: oldMat.map || null,
-                color: oldMat.color.clone(),
-                transparent: true,
-                opacity: oldMat.opacity,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                side: THREE.DoubleSide
-            });
-            mesh.material = newMat;
-            mesh.castShadow = false;
-            mesh.receiveShadow = false;
-        }
+export function setupBasementPortals(floor: Basement): BasementPortals {
+    const source = createProceduralPortal({
+        radius: 5.4,
+        inner: 0xd8f4ff,
+        outer: 0x1f6bd8,
+        ringColor: 0x8fd8ff,
+        facing: "down",
     });
+    source.group.position.set(0, floor.HOLE_Y, 0);
+    floor.scene.add(source.group);
 
-    let portalMixer: THREE.AnimationMixer | undefined;
-    if (portalData.animations.length > 0) {
-        portalMixer = new THREE.AnimationMixer(portalVFX);
-        portalData.animations.forEach((clip) => {
-            portalMixer!.clipAction(clip).play();
-        });
-    }
-
-    const sinkPortal = portalData.scene.clone(true) as THREE.Group;
-    sinkPortal.scale.set(7.5, 7.5, 7.5);
-    sinkPortal.position.set(0, floor.SINK_Y, 0);
-    sinkPortal.rotation.x = Math.PI / 2;
-    floor.scene.add(sinkPortal);
-
-    sinkPortal.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            const oldMat = mesh.material as THREE.MeshStandardMaterial;
-            mesh.material = new THREE.MeshBasicMaterial({
-                map: oldMat.map || null,
-                color: oldMat.color.clone(),
-                transparent: true,
-                opacity: oldMat.opacity,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                side: THREE.DoubleSide
-            });
-            mesh.castShadow = false;
-            mesh.receiveShadow = false;
-        }
+    const sink = createProceduralPortal({
+        radius: 3.6,
+        inner: 0x6ce0ff,
+        outer: 0x0b2a5a,
+        ringColor: 0x3aa8ff,
+        facing: "up",
     });
+    sink.group.position.set(0, floor.SINK_Y, 0);
+    floor.scene.add(sink.group);
 
-    let sinkPortalMixer: THREE.AnimationMixer | undefined;
-    if (portalData.animations.length > 0) {
-        sinkPortalMixer = new THREE.AnimationMixer(sinkPortal);
-        portalData.animations.forEach((clip) => {
-            sinkPortalMixer!.clipAction(clip).play();
-        });
-    }
-
-    return { portalVFX, portalMixer, sinkPortal, sinkPortalMixer };
+    return { source, sink };
 }

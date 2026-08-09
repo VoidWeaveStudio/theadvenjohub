@@ -20,6 +20,8 @@ import {
     BlockedEntry,
     TradeSessionData,
     CosmeticStateData,
+    FactionGateData,
+    ShardStateData,
 } from "../network/NetworkManager";
 import type { HUDState, DamageEvent } from "./Game";
 
@@ -43,6 +45,13 @@ export interface GameCallbacks {
     onOpenSolaUI?: () => void;
     onOpenAlfredoUI?: () => void;
     onOpenGateStewardUI?: () => void;
+    onOpenPlayerBubbleUI?: (bubbleIndex: number) => void;
+    onOpenFactionBubbleUI?: (factionId: string) => void;
+    onOpenRoomPortalUI?: () => void;
+    onOpenRoomConsoleUI?: (factionId: string | null) => void;
+    onFactionGatesChange?: (gates: FactionGateData[]) => void;
+    onAccountCountChange?: (count: number) => void;
+    onShardStateChange?: (state: ShardStateData) => void;
     onOpenCanyonMapUI?: () => void;
     onEquippedToolChange?: (tool: "weapon" | "blueprint" | null) => void;
     onOpenSignEditorUI?: (signId: string) => void;
