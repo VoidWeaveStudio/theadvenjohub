@@ -1,7 +1,7 @@
 // src/features/game/ui/Inventory.tsx
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Backpack, X, Sparkles } from "lucide-react";
 import { InventoryGrid, InventoryGridItem } from "./InventoryGrid";
 import { useMarketCaps } from "./useMarketCaps";
@@ -19,6 +19,7 @@ interface InventoryProps {
 export function Inventory({ items, ash, isOpen, onClose }: InventoryProps) {
     const marketCaps = useMarketCaps(items.map((i) => i.address), isOpen);
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
+    const [pinnedAddress, setPinnedAddress] = useState<string | null>(null);
     const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleHoverChange = useCallback((item: InventoryGridItem | null) => {
@@ -45,16 +46,38 @@ export function Inventory({ items, ash, isOpen, onClose }: InventoryProps) {
         setHovered(null);
     }, [cancelClear]);
 
-    const hoveredDisplay = useMemo(() => {
-        if (!hovered) return null;
-        const info = marketCaps[hovered.address];
+    const handleSlotClick = useCallback((item: InventoryGridItem) => {
+        setPinnedAddress((prev) => (prev === item.address ? null : item.address));
+        setHovered(item);
+    }, []);
+
+    useEffect(() => {
+        if (!isOpen) setPinnedAddress(null);
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (pinnedAddress && !items.some((i) => i.address === pinnedAddress)) {
+            setPinnedAddress(null);
+        }
+    }, [items, pinnedAddress]);
+
+    const pinnedItem = useMemo(
+        () => (pinnedAddress ? items.find((i) => i.address === pinnedAddress) ?? null : null),
+        [items, pinnedAddress]
+    );
+
+    const active = pinnedItem ?? hovered;
+
+    const activeDisplay = useMemo(() => {
+        if (!active) return null;
+        const info = marketCaps[active.address];
         return {
-            address: hovered.address,
-            image: info?.image || hovered.image,
-            name: info?.name || hovered.name,
-            symbol: info?.symbol || hovered.symbol,
+            address: active.address,
+            image: info?.image || active.image,
+            name: info?.name || active.name,
+            symbol: info?.symbol || active.symbol,
         };
-    }, [hovered, marketCaps]);
+    }, [active, marketCaps]);
 
     if (!isOpen) return null;
 
@@ -71,7 +94,13 @@ export function Inventory({ items, ash, isOpen, onClose }: InventoryProps) {
                     </button>
                 </div>
 
-                <InventoryGrid items={items} onHoverChange={handleHoverChange} />
+                <InventoryGrid
+                    items={items}
+                    interactive
+                    selectedAddress={pinnedAddress}
+                    onSlotClick={handleSlotClick}
+                    onHoverChange={handleHoverChange}
+                />
 
                 <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -80,13 +109,19 @@ export function Inventory({ items, ash, isOpen, onClose }: InventoryProps) {
                     </div>
                     <span className="text-[#FFD166] text-lg font-bold">{ash}</span>
                 </div>
+
+                <div className="mt-2 text-[#6B7280] text-[10px]">
+                    Click a coin to pin its details, click it again to unpin.
+                </div>
             </div>
 
             <TokenHoverModal
-                token={hoveredDisplay}
-                marketCap={hovered ? marketCaps[hovered.address]?.mc : undefined}
+                token={activeDisplay}
+                marketCap={active ? marketCaps[active.address]?.mc : undefined}
+                pinned={pinnedItem !== null}
+                onUnpin={() => setPinnedAddress(null)}
                 onMouseEnter={cancelClear}
-                onMouseLeave={clearNow}
+                onMouseLeave={pinnedItem ? undefined : clearNow}
             />
         </div>
     );

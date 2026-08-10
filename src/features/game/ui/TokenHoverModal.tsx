@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Pin, X } from "lucide-react";
 import { formatMC } from "../utils/formatMC";
 
 export interface HoveredToken {
@@ -15,11 +15,13 @@ export interface HoveredToken {
 interface TokenHoverModalProps {
     token: HoveredToken | null;
     marketCap?: number | null;
+    pinned?: boolean;
+    onUnpin?: () => void;
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
 }
 
-export function TokenHoverModal({ token, marketCap, onMouseEnter, onMouseLeave }: TokenHoverModalProps) {
+export function TokenHoverModal({ token, marketCap, pinned, onUnpin, onMouseEnter, onMouseLeave }: TokenHoverModalProps) {
     const [copied, setCopied] = useState(false);
 
     if (!token) return null;
@@ -35,10 +37,25 @@ export function TokenHoverModal({ token, marketCap, onMouseEnter, onMouseLeave }
     return (
         <div className="fixed inset-0 flex items-center justify-center z-[200] pointer-events-none font-oxanium">
             <div
-                className="bg-[rgba(12,12,14,0.97)] border border-[rgba(255,255,255,0.15)] rounded-[16px] p-6 shadow-2xl flex flex-col items-center gap-3 w-[320px] pointer-events-auto"
+                className={`bg-[rgba(12,12,14,0.97)] border rounded-[16px] p-6 shadow-2xl flex flex-col items-center gap-3 w-[320px] pointer-events-auto ${pinned ? "border-[#4FD1FF]/60" : "border-[rgba(255,255,255,0.15)]"}`}
                 onMouseEnter={onMouseEnter}
                 onMouseLeave={onMouseLeave}
             >
+                {pinned && (
+                    <div className="w-full flex items-center justify-between -mt-2">
+                        <span className="flex items-center gap-1.5 text-[#4FD1FF] text-[10px] font-bold tracking-wider">
+                            <Pin className="w-3 h-3" /> PINNED
+                        </span>
+                        <button
+                            onClick={onUnpin}
+                            title="Unpin"
+                            className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
+
                 <img
                     src={token.image || "/fallback-token.png"}
                     alt={token.symbol || token.name}

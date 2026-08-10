@@ -11,7 +11,7 @@ async function resolveGame(slug: string | null) {
     if (slug) {
         return db.query.games.findFirst({ where: eq(games.slug, slug) });
     }
-    return db.query.games.findFirst();
+    return db.query.games.findFirst({ orderBy: asc(games.createdAt) });
 }
 
 export async function GET(req: NextRequest) {

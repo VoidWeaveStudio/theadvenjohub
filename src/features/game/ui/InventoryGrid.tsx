@@ -14,6 +14,7 @@ interface InventoryGridProps {
     slotCount?: number;
     columns?: number;
     stagedQuantities?: Record<string, number>;
+    selectedAddress?: string | null;
     interactive?: boolean;
     onSlotClick?: (item: InventoryGridItem) => void;
     onSlotRightClick?: (item: InventoryGridItem) => void;
@@ -26,6 +27,7 @@ export function InventoryGrid({
     slotCount = 128,
     columns = 8,
     stagedQuantities = {},
+    selectedAddress = null,
     interactive = false,
     onSlotClick,
     onSlotRightClick,
@@ -60,12 +62,13 @@ export function InventoryGrid({
                 }
 
                 const staged = stagedQuantities[item.address] || 0;
+                const selected = selectedAddress === item.address;
 
                 return (
                     <div
                         key={item.address}
                         className={`relative aspect-square rounded-[6px] border overflow-hidden ${interactive ? "cursor-pointer" : "cursor-default"
-                            } ${staged > 0
+                            } ${staged > 0 || selected
                                 ? "border-[#4FD1FF] shadow-[0_0_0_1px_rgba(79,209,255,0.5)]"
                                 : "border-[rgba(255,255,255,0.15)] hover:border-[rgba(255,255,255,0.3)]"
                             } bg-[rgba(255,255,255,0.04)]`}

@@ -13,16 +13,63 @@ import { SoundManager } from "../core/SoundManager";
 interface VendorPanelProps {
     isOpen: boolean;
     inventory: InventoryGridItem[];
+    lastSellResult?: { address: string; at: number } | null;
     onClose: () => void;
     onSell: (address: string, quantity: number) => void;
 }
 
-export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelProps) {
+const PENDING_TIMEOUT = 12000;
+const SELL_SEND_SPACING = 70;
+
+export function VendorPanel({ isOpen, inventory, lastSellResult, onClose, onSell }: VendorPanelProps) {
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
+    const [pending, setPending] = useState<Record<string, number>>({});
     const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const marketCaps = useMarketCaps(inventory.map((i) => i.address), isOpen);
     const cart = useVendorCart(inventory, marketCaps);
+
+    useEffect(() => {
+        if (!lastSellResult) return;
+        setPending((prev) => {
+            if (!prev[lastSellResult.address]) return prev;
+            const next = { ...prev };
+            delete next[lastSellResult.address];
+            return next;
+        });
+    }, [lastSellResult]);
+
+    useEffect(() => {
+        if (Object.keys(pending).length === 0) return;
+        const timer = setTimeout(() => setPending({}), PENDING_TIMEOUT);
+        return () => clearTimeout(timer);
+    }, [pending]);
+
+    const sellTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+    useEffect(() => () => {
+        sellTimers.current.forEach(clearTimeout);
+        sellTimers.current = [];
+    }, []);
+
+    const clearCartRef = useRef(cart.clearCart);
+    clearCartRef.current = cart.clearCart;
+
+    useEffect(() => {
+        if (isOpen) return;
+        setPending({});
+        clearCartRef.current();
+    }, [isOpen]);
+
+    const availableInventory = useMemo(
+        () => inventory
+            .map((item) => ({
+                ...item,
+                quantity: item.quantity - (cart.sellStaged[item.address] ?? 0) - (pending[item.address] ?? 0),
+            }))
+            .filter((item) => item.quantity > 0),
+        [inventory, cart.sellStaged, pending]
+    );
 
     const handleHoverChange = useCallback((item: InventoryGridItem | null) => {
         if (clearTimer.current) {
@@ -71,9 +118,26 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
 
     const handleConfirm = () => {
         if (cart.cartOrigin !== "sell") return;
-        for (const [address, entry] of cart.cartEntries) {
-            onSell(address, entry.qty);
-        }
+
+        const staged = cart.cartEntries.filter(([, entry]) => entry.origin === "sell");
+        if (staged.length === 0) return;
+
+        setPending((prev) => {
+            const next = { ...prev };
+            for (const [address, entry] of staged) {
+                next[address] = (next[address] ?? 0) + entry.qty;
+            }
+            return next;
+        });
+
+        staged.forEach(([address, entry], index) => {
+            if (index === 0) {
+                onSell(address, entry.qty);
+                return;
+            }
+            sellTimers.current.push(setTimeout(() => onSell(address, entry.qty), index * SELL_SEND_SPACING));
+        });
+
         cart.clearCart();
     };
 
@@ -144,6 +208,12 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
                         />
                     </div>
 
+                    {Object.keys(pending).length > 0 && (
+                        <div className="text-[#7FE6CF] text-[10px] font-semibold mb-1">
+                            Selling… waiting for the vendor to settle up.
+                        </div>
+                    )}
+
                     <div className="pt-3 mt-3 border-t border-[rgba(255,209,102,0.2)]">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-[#8B8F98] text-xs font-bold tracking-wider">
@@ -168,14 +238,17 @@ export function VendorPanel({ isOpen, inventory, onClose, onSell }: VendorPanelP
                 <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
                     <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">YOUR INVENTORY</div>
                     <InventoryGrid
-                        items={inventory}
+                        items={availableInventory}
                         columns={6}
-                        stagedQuantities={cart.sellStaged}
                         interactive
                         onSlotClick={(item) => cart.handleSlotClick(item, "sell")}
                         onSlotRightClick={(item) => cart.removeFromCart(item.address)}
                         onHoverChange={handleHoverChange}
-                        emptyMessage="You have nothing to sell."
+                        emptyMessage={
+                            cart.cartEntries.length > 0
+                                ? "Everything you own is staged in the exchange."
+                                : "You have nothing to sell."
+                        }
                     />
                 </div>
             </div>

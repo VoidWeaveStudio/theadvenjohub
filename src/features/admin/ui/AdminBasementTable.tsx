@@ -78,8 +78,10 @@ export const AdminBasementTable = forwardRef<AdminTableRef>(function AdminBaseme
     return (
         <div className="space-y-3">
             <div className="text-[#8B8F98] text-sm">
-                Token shown on each Basement pedestal{gameName ? ` in ${gameName}` : ""}. Leave a field empty and save to make
-                the pedestal empty. Players see the change the next time they enter the Basement.
+                Token shown on each Basement pedestal in{" "}
+                <span className="text-[#E5E7EB] font-bold">{gameName ?? "—"}</span>
+                {gameSlug ? <span className="text-[#6B7280] font-mono"> ({gameSlug})</span> : null}. Leave a field empty and
+                save to make the pedestal empty. Players in the Basement pick the change up within 30 seconds.
             </div>
 
             {error && (

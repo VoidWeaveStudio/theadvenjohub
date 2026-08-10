@@ -76,7 +76,6 @@ export class Player extends Entity {
     private static readonly _flightRight = new THREE.Vector3();
     private static readonly _flightWish = new THREE.Vector3();
     private static readonly _step = new THREE.Vector3();
-    private static readonly _nextPos = new THREE.Vector3();
     private static readonly _checkPos = new THREE.Vector3();
     private static readonly _surfacePos = new THREE.Vector3();
     private static readonly _UP = new THREE.Vector3(0, 1, 0);
@@ -284,6 +283,32 @@ export class Player extends Entity {
         }
     }
 
+    private collidesAt(x: number, z: number): boolean {
+        if (!this.collisionGrid) return false;
+
+        const centerY = this.baseY + Player.HALF_HEIGHT;
+        return this.collisionGrid.checkCollisionHorizontal(
+            Player._checkPos.set(x, centerY, z),
+            Player._playerSize
+        );
+    }
+
+    private outOfBounds(x: number, z: number): boolean {
+        if (this.maxRadius !== null && x * x + z * z > this.maxRadius * this.maxRadius) return true;
+
+        if (this.bounds) {
+            if (x < this.bounds.min.x || x > this.bounds.max.x) return true;
+            if (z < this.bounds.min.z || z > this.bounds.max.z) return true;
+        }
+
+        return false;
+    }
+
+    private canMoveTo(x: number, z: number, trapped: boolean): boolean {
+        if (this.outOfBounds(x, z)) return false;
+        return trapped || !this.collidesAt(x, z);
+    }
+
     private getSurfaceHeight(x: number, z: number): number {
         const terrainHeight = this.terrain?.getHeightAt(x, z, this.baseY) || 0;
         let platformHeight = -Infinity;
@@ -397,37 +422,29 @@ export class Player extends Entity {
             this.rotateToAngle(targetAngle, delta);
 
             const step = Player._step.copy(moveDir).multiplyScalar(currentSpeed * delta);
-            const nextPos = Player._nextPos.copy(this.mesh.position).add(step);
+            const fromX = this.mesh.position.x;
+            const fromZ = this.mesh.position.z;
+            const targetX = fromX + step.x;
+            const targetZ = fromZ + step.z;
+            const trapped = this.collidesAt(fromX, fromZ);
 
-            let blocked = false;
-            if (this.collisionGrid) {
-                const centerY = this.baseY + Player.HALF_HEIGHT;
-                const checkPos = Player._checkPos.set(nextPos.x, centerY, nextPos.z);
-                blocked = this.collisionGrid.checkCollisionHorizontal(checkPos, Player._playerSize);
+            let nextX = fromX;
+            let nextZ = fromZ;
+
+            if (this.canMoveTo(targetX, targetZ, trapped)) {
+                nextX = targetX;
+                nextZ = targetZ;
+            } else {
+                if (step.x !== 0 && this.canMoveTo(targetX, fromZ, trapped)) nextX = targetX;
+                if (step.z !== 0 && this.canMoveTo(nextX, targetZ, trapped)) nextZ = targetZ;
             }
 
-            if (!blocked) {
-                if (this.maxRadius !== null) {
-                    const distSq = nextPos.x * nextPos.x + nextPos.z * nextPos.z;
-                    if (distSq > this.maxRadius * this.maxRadius) {
-                        blocked = true;
-                    }
-                }
-
-                if (!blocked && this.bounds) {
-                    if (nextPos.x < this.bounds.min.x || nextPos.x > this.bounds.max.x ||
-                        nextPos.z < this.bounds.min.z || nextPos.z > this.bounds.max.z) {
-                        blocked = true;
-                    }
-                }
-            }
-
-            if (!blocked) {
-                this.mesh.position.x = nextPos.x;
-                this.mesh.position.z = nextPos.z;
+            if (nextX !== fromX || nextZ !== fromZ) {
+                this.mesh.position.x = nextX;
+                this.mesh.position.z = nextZ;
 
                 if (this.isGrounded) {
-                    const surfaceHeight = this.getSurfaceHeight(nextPos.x, nextPos.z);
+                    const surfaceHeight = this.getSurfaceHeight(nextX, nextZ);
 
                     const STEP_UP_HEIGHT = CollisionGrid.STEP_UP_HEIGHT;
                     const heightDiff = surfaceHeight - this.baseY;

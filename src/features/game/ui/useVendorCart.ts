@@ -53,10 +53,12 @@ export function useVendorCart(inventory: InventoryGridItem[], marketCaps: Record
     const cartOrigin: CartOrigin | null = cartEntries[0]?.[1].origin ?? null;
     const cartFull = cartEntries.length >= MAX_CART_SLOTS;
 
+    const ownedOf = (address: string) => inventory.find((i) => i.address === address)?.quantity ?? 0;
+
     const openPicker = (item: InventoryGridItem, origin: CartOrigin) => {
         setPickItem(item);
         setPickOrigin(origin);
-        setPickQuantity(cart[item.address]?.qty || 1);
+        setPickQuantity(Math.min(cart[item.address]?.qty || 1, item.quantity));
     };
 
     const handleSlotClick = (item: InventoryGridItem, origin: CartOrigin) => {
@@ -72,11 +74,16 @@ export function useVendorCart(inventory: InventoryGridItem[], marketCaps: Record
             }
             if (cartEntries.length >= MAX_CART_SLOTS) return;
         }
-        if (item.quantity <= 1) {
+
+        const available = origin === "sell" ? ownedOf(item.address) : item.quantity;
+        if (available <= 0) return;
+
+        if (available <= 1) {
             setCart((prev) => (prev[item.address] ? prev : { ...prev, [item.address]: { qty: 1, origin } }));
             return;
         }
-        openPicker(item, origin);
+
+        openPicker({ ...item, quantity: available }, origin);
     };
 
     const removeFromCart = (address: string) => {

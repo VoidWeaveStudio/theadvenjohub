@@ -99,6 +99,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [isEventsPickerOpen, setIsEventsPickerOpen] = useState(false);
 
   const [isVendorOpen, setIsVendorOpen] = useState(false);
+  const [lastSellResult, setLastSellResult] = useState<{ address: string; at: number } | null>(null);
   const [isSolaOpen, setIsSolaOpen] = useState(false);
   const [isAlfredoOpen, setIsAlfredoOpen] = useState(false);
   const [isGateStewardOpen, setIsGateStewardOpen] = useState(false);
@@ -355,6 +356,10 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           setSignEditorId(signId);
           document.exitPointerLock();
+        };
+        game.onSellResult = (data) => {
+          if (cancelled) return;
+          setLastSellResult({ address: data.address, at: Date.now() });
         };
         game.onOpenPosterPaintUI = (pieceKey) => {
           if (cancelled) return;
@@ -1145,6 +1150,7 @@ export function GameClient({ slug }: GameClientProps) {
       <VendorPanel
         isOpen={isVendorOpen}
         inventory={inventory.inventory}
+        lastSellResult={lastSellResult}
         onClose={() => setIsVendorOpen(false)}
         onSell={(address, quantity) => gameRef.current?.sellToken(address, quantity)}
       />

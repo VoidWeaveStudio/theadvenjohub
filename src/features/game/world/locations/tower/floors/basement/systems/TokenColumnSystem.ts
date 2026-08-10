@@ -30,12 +30,23 @@ export class TokenColumnSystem {
     public columns: TokenColumn[] = [];
     private field: ColumnField | null = null;
     private columnUpdateInterval: NodeJS.Timeout | null = null;
+    private gameSlug: string | null = null;
 
     constructor(private floor: Basement) { }
 
     public async syncFromServer(gameSlug: string) {
+        this.gameSlug = gameSlug;
+        await this.refreshAssignments();
+    }
+
+    private async refreshAssignments() {
+        if (!this.gameSlug) return;
+
         try {
-            const res = await fetch(`/api/game/basement-columns?gameSlug=${encodeURIComponent(gameSlug)}`);
+            const res = await fetch(
+                `/api/game/basement-columns?gameSlug=${encodeURIComponent(this.gameSlug)}`,
+                { cache: "no-store" }
+            );
             if (!res.ok) return;
             const data = await res.json();
             if (!Array.isArray(data?.columns)) return;
@@ -50,12 +61,55 @@ export class TokenColumnSystem {
             const ca = typeof next[i] === "string" && next[i]!.length > 0 ? next[i]! : null;
             const col = this.columns[i];
             if (col.ca === ca) continue;
+
             col.ca = ca;
             col.group.userData.ca = ca;
             col.group.userData.tokenInfo = ca
                 ? { name: "Loading...", symbol: "...", mc: 0 }
                 : { name: "Empty Pedestal", symbol: "N/A", mc: 0 };
-            this.updateColumn(col);
+
+            this.clearColumnVisuals(col);
+            if (ca) this.updateColumn(col);
+        }
+    }
+
+    private applyCoinTexture(col: TokenColumn, texture: THREE.Texture) {
+        col.coin.traverse((child) => {
+            if (!(child instanceof THREE.Mesh)) return;
+
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((mat: any) => {
+                if (!mat?.userData?.perCoin) return;
+                mat.map = texture;
+                mat.emissiveMap = texture;
+                mat.needsUpdate = true;
+            });
+        });
+    }
+
+    private setColumnLabel(col: TokenColumn, text: string | null) {
+        if (col.mcText) {
+            col.group.remove(col.mcText);
+            (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
+            (col.mcText.material as THREE.Material).dispose();
+            col.mcText = undefined;
+        }
+
+        if (!text) return;
+
+        const sprite = this.createTextSprite(text);
+        sprite.position.y = col.baseCoinY + 3.4;
+        col.group.add(sprite);
+        col.mcText = sprite;
+    }
+
+    private clearColumnVisuals(col: TokenColumn) {
+        this.setColumnLabel(col, null);
+        this.applyCoinTexture(col, this.floor.textureCache.get("fallback")!);
+
+        if (col.texture) {
+            col.texture.dispose();
+            col.texture = undefined;
         }
     }
 
@@ -120,35 +174,39 @@ export class TokenColumnSystem {
     }
 
     private async updateColumn(col: TokenColumn) {
-        if (!col.ca) return;
+        const ca = col.ca;
+        if (!ca) return;
 
         try {
-            const res = await fetch(`/api/token-by-ca?ca=${col.ca}`);
-            const data = await res.json();
+            const res = await fetch(`/api/token-by-ca?ca=${encodeURIComponent(ca)}`, { cache: "no-store" });
+            const data = res.ok ? await res.json() : null;
 
-            if (!data || !data.image) return;
+            if (col.ca !== ca) return;
+
+            if (!data) {
+                this.setColumnLabel(col, "Unknown token");
+                col.group.userData.tokenInfo = { name: "Unknown token", symbol: "?", mc: 0 };
+                return;
+            }
+
+            this.setColumnLabel(col, `MC: ${this.formatMC(data.mc || 0)}`);
+            col.group.userData.tokenInfo = data;
+
+            if (!data.image) return;
 
             this.floor.textureLoader.load(
                 `/api/image-proxy?url=${encodeURIComponent(data.image)}`,
                 (tex) => {
+                    if (col.ca !== ca) {
+                        tex.dispose();
+                        return;
+                    }
+
                     tex.colorSpace = THREE.SRGBColorSpace;
                     this.floor.applyTextureFilters(tex);
+                    this.applyCoinTexture(col, tex);
 
-                    col.coin.traverse((child) => {
-                        if (child instanceof THREE.Mesh) {
-                            const materials = Array.isArray(child.material)
-                                ? child.material
-                                : [child.material];
-
-                            materials.forEach((mat: any) => {
-                                if (!mat?.userData?.perCoin) return;
-                                mat.map = tex;
-                                mat.emissiveMap = tex;
-                                mat.needsUpdate = true;
-                            });
-                        }
-                    });
-
+                    col.texture?.dispose();
                     col.texture = tex;
                 },
                 undefined,
@@ -156,28 +214,17 @@ export class TokenColumnSystem {
                     console.warn(`[Basement] Column texture load failed: ${data.image}`);
                 }
             );
-
-            if (col.mcText) {
-                col.group.remove(col.mcText);
-                (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
-                (col.mcText.material as THREE.Material).dispose();
-            }
-
-            const sprite = this.createTextSprite(`MC: ${this.formatMC(data.mc || 0)}`);
-            sprite.position.y = col.baseCoinY + 3.4;
-            col.group.add(sprite);
-            col.mcText = sprite;
-
-            col.group.userData.tokenInfo = data;
-
         } catch (e) {
-            console.warn(`[Basement] Failed to update column ${col.ca}`, e);
+            console.warn(`[Basement] Failed to update column ${ca}`, e);
         }
     }
 
     startUpdater() {
         this.updateColumnsOnce();
-        this.columnUpdateInterval = setInterval(() => this.updateColumnsOnce(), 30000);
+        this.columnUpdateInterval = setInterval(async () => {
+            await this.refreshAssignments();
+            await this.updateColumnsOnce();
+        }, 30000);
     }
 
     private createTextSprite(text: string): THREE.Sprite {
