@@ -1,15 +1,20 @@
 // src/features/game/world/locations/tower/floors/basement/systems/TokenColumnSystem.ts
 import * as THREE from "three";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
-import { createCoinMesh } from "../utils/meshFactory";
+import { createCoinMesh, disposeCoinMesh } from "../utils/meshFactory";
 import {
-    createProceduralColumn,
-    disposeProceduralColumnAssets,
+    createColumnField,
     COIN_BASE_Y,
     COLUMN_HEIGHT,
     COLUMN_TOP_RADIUS,
+    type ColumnField,
+    type ColumnPlacement,
 } from "../utils/proceduralColumn";
 import type { Basement } from "../Basement";
+
+const COLUMN_COLLIDER_SCALE = 1.9;
+const COLUMN_RING_RADIUS = 70;
+const COLUMN_COUNT = 10;
 
 interface TokenColumn {
     group: THREE.Group;
@@ -21,8 +26,9 @@ interface TokenColumn {
 }
 
 export class TokenColumnSystem {
-    private columnTokens: (string | null)[] = new Array(10).fill(null);
+    private columnTokens: (string | null)[] = new Array(COLUMN_COUNT).fill(null);
     public columns: TokenColumn[] = [];
+    private field: ColumnField | null = null;
     private columnUpdateInterval: NodeJS.Timeout | null = null;
 
     constructor(private floor: Basement) { }
@@ -54,17 +60,22 @@ export class TokenColumnSystem {
     }
 
     createColumns(_rm: ResourceManager) {
-        const radius = 70;
-        const count = 10;
+        const placements: ColumnPlacement[] = [];
+        for (let i = 0; i < COLUMN_COUNT; i++) {
+            const angle = (i / COLUMN_COUNT) * Math.PI * 2;
+            placements.push({
+                x: Math.cos(angle) * COLUMN_RING_RADIUS,
+                z: Math.sin(angle) * COLUMN_RING_RADIUS,
+                seed: i,
+            });
+        }
 
-        for (let i = 0; i < count; i++) {
-            const angle = (i / count) * Math.PI * 2;
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
+        this.field = createColumnField(placements);
+        this.floor.scene.add(this.field.group);
 
+        for (let i = 0; i < COLUMN_COUNT; i++) {
+            const { x, z } = placements[i];
             const group = new THREE.Group();
-            group.add(createProceduralColumn(i));
-
             const ca = this.columnTokens[i];
             const texture = this.floor.textureCache.get("fallback")!;
 
@@ -95,7 +106,7 @@ export class TokenColumnSystem {
             this.floor.scene.add(group);
             this.columns.push({ group, coin, ca, baseCoinY });
 
-            const radiusCol = COLUMN_TOP_RADIUS * 1.6;
+            const radiusCol = COLUMN_TOP_RADIUS * COLUMN_COLLIDER_SCALE;
             const collider = new THREE.Box3(
                 new THREE.Vector3(x - radiusCol, 0, z - radiusCol),
                 new THREE.Vector3(x + radiusCol, COLUMN_HEIGHT, z + radiusCol)
@@ -130,11 +141,10 @@ export class TokenColumnSystem {
                                 : [child.material];
 
                             materials.forEach((mat: any) => {
-                                if (mat.map !== undefined && mat.emissiveMap !== undefined) {
-                                    mat.map = tex;
-                                    mat.emissiveMap = tex;
-                                    mat.needsUpdate = true;
-                                }
+                                if (!mat?.userData?.perCoin) return;
+                                mat.map = tex;
+                                mat.emissiveMap = tex;
+                                mat.needsUpdate = true;
                             });
                         }
                     });
@@ -211,6 +221,7 @@ export class TokenColumnSystem {
 
     update(delta: number) {
         const time = performance.now() * 0.001;
+        this.field?.update(time);
 
         for (let i = 0; i < this.columns.length; i++) {
             const col = this.columns[i];
@@ -238,16 +249,7 @@ export class TokenColumnSystem {
         }
         for (const col of this.columns) {
             this.floor.scene.remove(col.group);
-            col.group.traverse((child) => {
-                if (!(child instanceof THREE.Mesh)) return;
-                if (child.parent?.userData.sharedAssets) return;
-                child.geometry.dispose();
-                if (Array.isArray(child.material)) {
-                    child.material.forEach(m => m.dispose());
-                } else {
-                    (child.material as THREE.Material).dispose();
-                }
-            });
+            disposeCoinMesh(col.coin);
             if (col.mcText) {
                 (col.mcText.material as THREE.SpriteMaterial).map?.dispose();
                 (col.mcText.material as THREE.Material).dispose();
@@ -257,6 +259,7 @@ export class TokenColumnSystem {
             }
         }
         this.columns = [];
-        disposeProceduralColumnAssets();
+        this.field?.dispose();
+        this.field = null;
     }
 }

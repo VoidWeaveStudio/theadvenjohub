@@ -6,11 +6,13 @@ import { Map as MapIcon, X } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import {
     GALAXY,
+    ORBIT_OMEGA,
     galaxyOrbitTime,
     playerBubbleOrbit,
     factionBubbleOrbit,
     orbitPosition,
     hashString,
+    hashInt,
 } from "../world/locations/tower/floors/token-gates/galaxy/GalaxyLayout";
 import type { FactionGateData } from "../network/NetworkManager";
 
@@ -28,9 +30,56 @@ interface BubbleMapPanelProps {
 
 const REDRAW_MS = 400;
 const MAX_DRAWN_BUBBLES = 12000;
+const DUST_POINTS = 1600;
+const STAR_POINTS = 320;
+const ARM_COUNT = 2;
+const ARM_TWIST = 0.0022;
+const MIN_BUBBLE_PX = 0.7;
 
 function THREE_CLAMP(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
+}
+
+interface DustMote {
+    radius: number;
+    phase: number;
+    size: number;
+    color: string;
+}
+
+function buildDust(): DustMote[] {
+    const motes: DustMote[] = [];
+
+    for (let i = 0; i < DUST_POINTS; i++) {
+        const h1 = hashInt(i * 2654435761) / 4294967296;
+        const h2 = hashInt(i * 40503 + 991) / 4294967296;
+        const h3 = hashInt(i * 92837111 + 5) / 4294967296;
+
+        const radius = GALAXY.coreBubbleRadius * 1.6 + Math.pow(h1, 0.65) * (GALAXY.maxRadius * 0.85);
+        const spread = 1.1 + (1 - Math.min(1, radius / GALAXY.maxRadius)) * 1.5;
+        const arm = Math.floor(h2 * ARM_COUNT);
+        const offset = (h2 * ARM_COUNT - arm - 0.5) * spread;
+
+        motes.push({
+            radius,
+            phase: (arm / ARM_COUNT) * Math.PI * 2 + radius * ARM_TWIST + offset,
+            size: 0.6 + h3 * 1.7,
+            color: `hsla(${Math.round(208 + h2 * 72)}, 75%, ${Math.round(52 + h1 * 24)}%, ${(0.10 + h3 * 0.22).toFixed(2)})`,
+        });
+    }
+
+    return motes;
+}
+
+function drawStarfield(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    for (let i = 0; i < STAR_POINTS; i++) {
+        const h1 = hashInt(i * 7919 + 1) / 4294967296;
+        const h2 = hashInt(i * 104729 + 13) / 4294967296;
+        const h3 = hashInt(i * 15485863 + 7) / 4294967296;
+
+        ctx.fillStyle = `rgba(190, 220, 255, ${(0.12 + h3 * 0.4).toFixed(2)})`;
+        ctx.fillRect(h1 * width, h2 * height, 1 + (h3 > 0.85 ? 1 : 0), 1 + (h3 > 0.85 ? 1 : 0));
+    }
 }
 
 interface MappedFaction {
@@ -52,6 +101,8 @@ export function BubbleMapPanel({
     onSetWaypoint,
 }: BubbleMapPanelProps) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const dustRef = useRef<DustMote[] | null>(null);
+    if (!dustRef.current) dustRef.current = buildDust();
     const scaleRef = useRef(1);
     const centerRef = useRef({ x: 0, y: 0 });
     const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -91,7 +142,31 @@ export function BubbleMapPanel({
         ctx.fillStyle = "#05030f";
         ctx.fillRect(0, 0, width, height);
 
-        ctx.strokeStyle = "rgba(120,160,255,0.10)";
+        drawStarfield(ctx, width, height);
+
+        const coreGlowRadius = GALAXY.coreBubbleRadius * 9 * scale;
+        if (coreGlowRadius > 2) {
+            const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreGlowRadius);
+            glow.addColorStop(0, "rgba(255,186,110,0.30)");
+            glow.addColorStop(0.35, "rgba(120,110,220,0.14)");
+            glow.addColorStop(1, "rgba(40,30,90,0)");
+            ctx.fillStyle = glow;
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        const spin = ORBIT_OMEGA * time;
+        for (const mote of dustRef.current ?? []) {
+            const angle = mote.phase + spin;
+            const px = cx + Math.cos(angle) * mote.radius * scale;
+            const py = cy + Math.sin(angle) * mote.radius * scale;
+            if (px < -8 || py < -8 || px > width + 8 || py > height + 8) continue;
+
+            const size = Math.max(1, mote.size * Math.sqrt(zoom));
+            ctx.fillStyle = mote.color;
+            ctx.fillRect(px - size * 0.5, py - size * 0.5, size, size);
+        }
+
+        ctx.strokeStyle = "rgba(120,160,255,0.08)";
         ctx.lineWidth = 1;
         for (let r = GALAXY.playerRingStart; r < GALAXY.maxRadius; r += 400) {
             ctx.beginPath();
@@ -101,12 +176,40 @@ export function BubbleMapPanel({
 
         const total = Math.min(accountCount, MAX_DRAWN_BUBBLES);
         const step = accountCount > MAX_DRAWN_BUBBLES ? Math.ceil(accountCount / MAX_DRAWN_BUBBLES) : 1;
+        const bubblePx = Math.max(MIN_BUBBLE_PX, GALAXY.playerBubbleRadius * scale);
+        const drawAsDisc = bubblePx > 1.4;
 
-        ctx.fillStyle = "rgba(120,200,255,0.55)";
+        ctx.fillStyle = "rgba(120,200,255,0.6)";
         for (let i = 0; i < accountCount; i += step) {
             orbitPosition(playerBubbleOrbit(i), time, scratch);
-            ctx.fillRect(cx + scratch.x * scale - 0.75, cy + scratch.z * scale - 0.75, 1.5, 1.5);
+            const px = cx + scratch.x * scale;
+            const py = cy + scratch.z * scale;
+            if (px < -bubblePx || py < -bubblePx || px > width + bubblePx || py > height + bubblePx) continue;
+
+            if (drawAsDisc) {
+                ctx.beginPath();
+                ctx.arc(px, py, bubblePx, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillRect(px - bubblePx, py - bubblePx, bubblePx * 2, bubblePx * 2);
+            }
             if (i / step > total) break;
+        }
+
+        if (drawAsDisc) {
+            ctx.strokeStyle = "rgba(200,240,255,0.45)";
+            ctx.lineWidth = Math.min(1.5, bubblePx * 0.3);
+            for (let i = 0; i < accountCount; i += step) {
+                orbitPosition(playerBubbleOrbit(i), time, scratch);
+                const px = cx + scratch.x * scale;
+                const py = cy + scratch.z * scale;
+                if (px < -bubblePx || py < -bubblePx || px > width + bubblePx || py > height + bubblePx) continue;
+
+                ctx.beginPath();
+                ctx.arc(px, py, bubblePx * 0.82, 0, Math.PI * 2);
+                ctx.stroke();
+                if (i / step > total) break;
+            }
         }
 
         const mapped: MappedFaction[] = [];
@@ -128,15 +231,26 @@ export function BubbleMapPanel({
             const px = cx + entry.x * scale;
             const py = cy + entry.z * scale;
             const isCore = entry.data.isAdmin;
-            const radius = isCore ? 9 : entry.isMine ? 6 : 4;
+            const worldRadius = isCore ? GALAXY.coreBubbleRadius : GALAXY.factionBubbleRadius;
+            const radius = Math.max(isCore ? 5 : 3, worldRadius * scale);
 
-            ctx.beginPath();
-            ctx.arc(px, py, radius, 0, Math.PI * 2);
-            ctx.fillStyle = isCore
+            const fill = isCore
                 ? "#FFC46B"
                 : entry.isMine
                     ? "#7FE6CF"
                     : `hsl(${hashString(entry.data.factionId) % 360}, 55%, 62%)`;
+
+            const halo = ctx.createRadialGradient(px, py, radius * 0.2, px, py, radius * 2.4);
+            halo.addColorStop(0, isCore ? "rgba(255,170,80,0.45)" : "rgba(150,210,255,0.22)");
+            halo.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = halo;
+            ctx.beginPath();
+            ctx.arc(px, py, radius * 2.4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(px, py, radius, 0, Math.PI * 2);
+            ctx.fillStyle = fill;
             ctx.fill();
 
             if (isCore || entry.isMine) {
@@ -153,6 +267,8 @@ export function BubbleMapPanel({
             }
         }
 
+        const markerRadius = Math.max(7, GALAXY.playerBubbleRadius * scale * 1.4);
+
         if (ownBubbleIndex !== null && ownBubbleIndex < accountCount) {
             orbitPosition(playerBubbleOrbit(ownBubbleIndex), time, scratch);
             const px = cx + scratch.x * scale;
@@ -160,33 +276,42 @@ export function BubbleMapPanel({
             ctx.strokeStyle = "#FFD166";
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(px, py, 7, 0, Math.PI * 2);
+            ctx.arc(px, py, markerRadius, 0, Math.PI * 2);
             ctx.stroke();
             ctx.fillStyle = "#FFD166";
             ctx.font = "bold 11px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("my bubble", px, py - 12);
+            ctx.fillText("my bubble", px, py - markerRadius - 6);
         }
 
         if (waypointIndex !== null && waypointIndex < accountCount) {
             orbitPosition(playerBubbleOrbit(waypointIndex), time, scratch);
             const px = cx + scratch.x * scale;
             const py = cy + scratch.z * scale;
+            const cross = markerRadius * 1.4;
             ctx.strokeStyle = "#7BFF9E";
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(px, py, 10, 0, Math.PI * 2);
+            ctx.arc(px, py, markerRadius, 0, Math.PI * 2);
             ctx.stroke();
             ctx.beginPath();
-            ctx.moveTo(px - 14, py);
-            ctx.lineTo(px + 14, py);
-            ctx.moveTo(px, py - 14);
-            ctx.lineTo(px, py + 14);
+            ctx.moveTo(px - cross, py);
+            ctx.lineTo(px + cross, py);
+            ctx.moveTo(px, py - cross);
+            ctx.lineTo(px, py + cross);
             ctx.stroke();
         }
 
         const platformX = cx;
         const platformY = cy;
+        const platformRadius = GALAXY.platformRadius * scale;
+        if (platformRadius > 2) {
+            ctx.strokeStyle = "rgba(127,230,207,0.55)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(platformX, platformY, platformRadius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
         ctx.fillStyle = "#7FE6CF";
         ctx.beginPath();
         ctx.moveTo(platformX, platformY - 8);
@@ -265,7 +390,7 @@ export function BubbleMapPanel({
 
         const time = galaxyOrbitTime();
         const scratch = { x: 0, y: 0, z: 0 };
-        const threshold = 14 / scale;
+        const threshold = Math.max(GALAXY.playerBubbleRadius * 1.6, 14 / scale);
 
         let best = -1;
         let bestDistance = Infinity;

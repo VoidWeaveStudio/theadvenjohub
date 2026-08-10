@@ -7,6 +7,7 @@ import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFlo
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
+import { DEFAULT_SPAWN_LOCATION_ID } from "./GameLocationOrchestration";
 import { isBodyEmote } from "../data/emotes";
 
 interface PlayerLeaveLocationData {
@@ -348,7 +349,7 @@ export function registerNetworkHandlers(game: Game) {
 
         if (!game.hasRestoredLocation) {
             game.hasRestoredLocation = true;
-            game.restoreToSavedProgress(data?.progress);
+            game.restoreToSavedProgress();
         }
     };
 
@@ -430,11 +431,29 @@ export function registerNetworkHandlers(game: Game) {
             game.onDeathStateChange?.(false, null);
         };
 
+        const placeInHall = () => {
+            const hall = game.locationManager.getCurrentLocation();
+            if (!hall) return;
+            const spawnPoint = hall.getSpawnPoint();
+            game.player.teleportTo(spawnPoint);
+            game.cameraController.yawObject.position.copy(spawnPoint);
+            game.networkManager.sendPlayerUpdate({
+                position: spawnPoint.toArray(),
+                rotation: game.player.mesh.rotation.y,
+                pitch: game.cameraController.getPitch(),
+                state: 'idle', jumping: false, velocityY: 0,
+                weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
+            });
+        };
+
         const currentLocationId = game.locationManager.getCurrentLocation()?.id;
-        if (data.locationId && data.locationId !== currentLocationId) {
-            game.changeLocation(data.locationId, { position: data.position, silent: true }).then(finishRespawn);
+        if (currentLocationId !== DEFAULT_SPAWN_LOCATION_ID) {
+            game.changeLocation(DEFAULT_SPAWN_LOCATION_ID, { silent: true }).then(() => {
+                placeInHall();
+                finishRespawn();
+            });
         } else {
-            game.player.teleportTo(new THREE.Vector3().fromArray(data.position));
+            placeInHall();
             finishRespawn();
         }
     };

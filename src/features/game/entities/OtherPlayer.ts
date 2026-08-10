@@ -4,7 +4,7 @@ import { Entity } from "./Entity";
 import { ResourceManager } from "../core/ResourceManager";
 import { CharacterAnimator } from "./CharacterAnimator";
 import { RIFLE_GRIP_QUATERNION, RIFLE_GRIP_OFFSET } from "./Weapon";
-import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
+import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl, disposePaintableMaterial } from "./characterPaint";
@@ -94,7 +94,6 @@ export class OtherPlayer extends Entity {
 
         this.wisp = new EnergyWisp({ withTrail: false, withLight: false });
         this.wisp.attach(this.mesh, null);
-        this.wisp.group.position.y = 1.0;
         this.wisp.setActive(this.wispMode);
         this.characterModel.visible = !this.wispMode;
 
@@ -115,6 +114,8 @@ export class OtherPlayer extends Entity {
 
         this.animator.setup(data.scene, data.animations);
         this.animator.play('idle', this.weaponEquipped);
+        this.animator.update(0.25);
+        alignModelToGround(data.scene);
 
         const weaponData = resourceManager.getModel("rifle");
         if (weaponData) {

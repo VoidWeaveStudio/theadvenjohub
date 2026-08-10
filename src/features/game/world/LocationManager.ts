@@ -15,6 +15,7 @@ export class LocationManager {
     private readonly persistentLocationIds = new Set(["main-world"]);
     private renderer: THREE.WebGLRenderer;
     private activeCamera: THREE.Camera;
+    private defaultCamera!: THREE.Camera;
     private resourceManager: ResourceManager | null = null;
 
     public onLocationChange?: (locationId: string) => void;
@@ -22,6 +23,7 @@ export class LocationManager {
     constructor(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
         this.renderer = renderer;
         this.activeCamera = camera;
+        this.defaultCamera = camera;
     }
 
     registerLocations(rm: ResourceManager) {
@@ -80,6 +82,10 @@ export class LocationManager {
             }
         }
         return null;
+    }
+
+    setActiveCamera(camera: THREE.Camera | null) {
+        this.activeCamera = camera ?? this.defaultCamera;
     }
 
     render() {

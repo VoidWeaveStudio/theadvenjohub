@@ -23,8 +23,9 @@ const ORBIT_LOCK_BAND = 6;
 
 export class Basement extends TowerFloor {
     public maxPlayerRadius: number | null = GALAXY.maxRadius;
+    public onInteractablesChanged: ((added: THREE.Object3D[], removed: THREE.Object3D[]) => void) | null = null;
 
-    public readonly HOLE_Y = 18.5;
+    public readonly HOLE_Y = 37;
     public readonly SINK_Y = -5;
 
     public readonly textureCache = new Map<string, THREE.Texture>();
@@ -97,6 +98,7 @@ export class Basement extends TowerFloor {
         this.coinFeed.startBackgroundTasks();
 
         this.backdrop.create();
+        this.factions.onInteractablesChanged = (added, removed) => this.onInteractablesChanged?.(added, removed);
         this.factions.start();
         this.steward.create(rm);
     }

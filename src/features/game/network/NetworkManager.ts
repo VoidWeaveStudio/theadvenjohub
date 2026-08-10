@@ -99,19 +99,11 @@ export type SignData = {
   createdAt: string | number;
 };
 
-export type FurnitureData = {
-  id: string;
-  itemId: string;
-  ownerId: string;
-  ownerNickname: string;
-  factionId: string;
-  position: number[];
-  rotation: number;
-  contentType: "text" | "draw" | null;
-  textContent: string | null;
-  drawingUrl: string | null;
-  createdAt: string | number;
-};
+export type RoomBuildOp =
+  | { kind: "place"; piece: { t: string; x: number; z: number; l: number; r: number } }
+  | { kind: "erase"; key: string }
+  | { kind: "env"; sky: string; light: string }
+  | { kind: "clear" };
 
 export type FactionGateData = {
   factionId: string;
@@ -508,10 +500,7 @@ export class NetworkManager {
   public onSignContentSet?: (data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) => void;
   public onSignDespawn?: (id: string) => void;
 
-  public onFurnitureState?: (items: FurnitureData[]) => void;
-  public onFurnitureSpawn?: (item: FurnitureData) => void;
-  public onFurnitureContentSet?: (data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) => void;
-  public onFurnitureDespawn?: (id: string) => void;
+  public onRoomBuildOp?: (op: RoomBuildOp) => void;
   public onInventoryUpdate?: (data: { inventory: InventoryEntry[]; ash: number; placeables: Record<string, number> }) => void;
   public onSellResult?: (data: {
     address: string;
@@ -852,19 +841,8 @@ export class NetworkManager {
       case "signDespawn":
         this.onSignDespawn?.(data.id);
         break;
-      case "furnitureState":
-        if (Array.isArray(data.items)) {
-          this.onFurnitureState?.(data.items);
-        }
-        break;
-      case "furnitureSpawn":
-        this.onFurnitureSpawn?.(data.item);
-        break;
-      case "furnitureContentSet":
-        this.onFurnitureContentSet?.(data);
-        break;
-      case "furnitureDespawn":
-        this.onFurnitureDespawn?.(data.id);
+      case "roomBuildOp":
+        if (data.op) this.onRoomBuildOp?.(data.op);
         break;
       case "inventoryUpdate":
         if (Array.isArray(data.inventory)) {
@@ -1181,24 +1159,9 @@ export class NetworkManager {
     this.send({ type: "signSetDrawingUrl", id, url });
   }
 
-  sendItemPlace(itemId: string, position: number[], rotation: number) {
+  sendRoomBuildOp(op: RoomBuildOp) {
     if (!this.authenticated) return;
-    this.send({ type: "itemPlace", itemId, position, rotation });
-  }
-
-  sendItemRemove(id: string) {
-    if (!this.authenticated) return;
-    this.send({ type: "itemRemove", id });
-  }
-
-  sendItemSetText(id: string, text: string) {
-    if (!this.authenticated) return;
-    this.send({ type: "itemSetText", id, text });
-  }
-
-  sendItemSetDrawingUrl(id: string, url: string) {
-    if (!this.authenticated) return;
-    this.send({ type: "itemSetDrawingUrl", id, url });
+    this.send({ type: "roomBuildOp", op });
   }
 
   sendQuestInteract(questId: string) {

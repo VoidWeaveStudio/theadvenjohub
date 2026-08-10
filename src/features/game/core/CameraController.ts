@@ -3,6 +3,9 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CollisionGrid } from "../world/CollisionGrid";
 
+const CAMERA_NEAR = 0.1;
+const CAMERA_FAR = 20000;
+
 export class CameraController {
     public camera: THREE.PerspectiveCamera;
     public yawObject: THREE.Object3D;
@@ -38,8 +41,8 @@ export class CameraController {
         this.camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
-            0.1,
-            2000
+            CAMERA_NEAR,
+            CAMERA_FAR
         );
 
         this.yawObject = new THREE.Object3D();

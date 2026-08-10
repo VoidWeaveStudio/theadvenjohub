@@ -2,28 +2,23 @@
 import * as THREE from "three";
 import type { Game } from "./Game";
 
-export async function restoreToSavedProgress(
-    game: Game,
-    progress?: { locationId?: string; position: number[]; rotation?: number }
-) {
+export const DEFAULT_SPAWN_LOCATION_ID = "tower-main-hall";
+
+export async function restoreToSavedProgress(game: Game) {
     try {
         const currentId = game.locationManager.getCurrentLocation()?.id;
-        if (progress?.locationId && progress.locationId !== currentId) {
-            await game.changeLocation(progress.locationId, {
-                position: progress.position,
-                rotation: progress.rotation,
-                silent: true,
-            });
-        } else if (progress?.position) {
-            const pos = new THREE.Vector3(progress.position[0], progress.position[1], progress.position[2]);
-            game.player.teleportTo(pos);
-            game.cameraController.yawObject.position.copy(pos);
-            if (progress.rotation !== undefined) {
-                game.player.mesh.rotation.y = progress.rotation;
-            }
+        if (currentId !== DEFAULT_SPAWN_LOCATION_ID) {
+            await game.changeLocation(DEFAULT_SPAWN_LOCATION_ID, { silent: true });
+        }
+
+        const hall = game.locationManager.getCurrentLocation();
+        if (hall) {
+            const spawnPoint = hall.getSpawnPoint();
+            game.player.teleportTo(spawnPoint);
+            game.cameraController.yawObject.position.copy(spawnPoint);
         }
     } catch (error) {
-        console.error("Failed to restore saved location:", error);
+        console.error("Failed to place player at the main hall:", error);
     } finally {
         game.setWeaponEquipped(game.hudState.isWeaponEquipped);
         game.restoreResolver?.();

@@ -35,6 +35,7 @@ import type { GameCallbacks } from "./GameCallbacks";
 import { createGameRenderer } from "./GameRenderer";
 import { updateDamageIndicator } from "./GameDamageIndicator";
 import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone } from "./GameLocationOrchestration";
+import { BuildSession } from "../world/building/BuildSession";
 import { SoundManager } from "./SoundManager";
 
 export interface GameSession {
@@ -91,6 +92,7 @@ export class Game {
     public readonly enemySystem: EnemySystem;
     public readonly lootSystem: LootSystem;
     public readonly buildSystem: BuildSystem;
+    public readonly buildSession: BuildSession;
     public readonly voiceChat: VoiceChatSystem;
     public readonly locationManager: LocationManager;
     public inventory: InventoryEntry[] = [];
@@ -178,6 +180,38 @@ export class Game {
         }).catch(() => {
             this.onNotification?.("⚠️ Failed to teleport to this gate", 2000);
         });
+    }
+
+    public canOpenBuildEditor(): boolean {
+        return this.buildSession.canOpenEditor();
+    }
+
+    public openBuildEditor(): boolean {
+        const location = this.locationManager.getCurrentLocation();
+        if (!location) return false;
+        if (!this.buildSession.enter(location.scene)) {
+            this.onNotification?.("🔒 Only the lot owner can build here", 2500);
+            return false;
+        }
+
+        this.inputManager.setEnabled(false);
+        this.locationManager.setActiveCamera(this.buildSession.editor.camera.camera);
+        this.buildSession.editor.camera.setAspect(this.getViewportAspect());
+        return true;
+    }
+
+    public closeBuildEditor() {
+        if (!this.buildSession.editor.active) return;
+        this.buildSession.exit();
+        this.locationManager.setActiveCamera(null);
+        this.inputManager.setEnabled(true);
+    }
+
+    private getViewportAspect(): number {
+        const container = this.canvas.parentElement;
+        const width = container?.clientWidth || window.innerWidth;
+        const height = container?.clientHeight || window.innerHeight;
+        return width / Math.max(1, height);
     }
 
     public async teleportToPersonalRoom(ownerUserId?: string) {
@@ -292,6 +326,8 @@ export class Game {
         this.enemySystem = new EnemySystem();
         this.lootSystem = new LootSystem();
         this.buildSystem = new BuildSystem();
+        this.buildSession = new BuildSession(width / height, this.networkManager, slug);
+        this.buildSession.attach(canvas);
         this.voiceChat = new VoiceChatSystem();
     }
 
@@ -381,20 +417,25 @@ export class Game {
                     return 0;
                 };
 
-                const getWallSnap = (x: number, z: number) => {
-                    const currentLoc = this.locationManager.getCurrentLocation();
-                    if (currentLoc instanceof FactionGateRoom) {
-                        return currentLoc.getWallSnap(x, z);
-                    }
-                    return null;
-                };
-
                 this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
                 this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight);
-                this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId, getWallSnap);
+                this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId);
                 this.shootingSystem.onShotFired = () => this.notifyLocalShot();
                 this.buildSystem.onNotification = (msg, duration) => {
                     this.onNotification?.(msg, duration);
+                };
+
+                this.buildSession.onNotification = (msg, duration) => {
+                    this.onNotification?.(msg, duration);
+                };
+                this.buildSession.onStateChange = (state) => {
+                    this.onBuildEditorState?.(state);
+                };
+                this.buildSession.onRequestExit = () => {
+                    this.closeBuildEditor();
+                };
+                this.networkManager.onRoomBuildOp = (op) => {
+                    this.buildSession.applyRemoteOp(op);
                 };
 
                 this.shootingSystem.prewarm();
@@ -507,25 +548,6 @@ export class Game {
                         });
                     }
                 };
-                this.interactionSystem.onOpenItemEditor = (itemId) => {
-                    this.onOpenItemEditorUI?.(itemId);
-                };
-                this.interactionSystem.onOpenItemViewer = (itemId) => {
-                    const item = this.buildSystem.getFurniture(itemId);
-                    if (item) {
-                        this.onOpenItemViewerUI?.({
-                            id: item.id,
-                            ownerNickname: item.ownerNickname ?? "",
-                            contentType: item.contentType ?? null,
-                            textContent: item.textContent ?? null,
-                            drawingUrl: item.drawingUrl ?? null,
-                        });
-                    }
-                };
-                this.interactionSystem.onToggleFurnitureDoor = (itemId) => {
-                    this.buildSystem.toggleFurnitureOpen(itemId);
-                };
-
                 this.networkManager.onSignState = (signs) => {
                     this.buildSystem.handleSignState(signs);
                 };
@@ -538,20 +560,6 @@ export class Game {
                 };
                 this.networkManager.onSignDespawn = (id) => {
                     this.buildSystem.handleSignDespawn(id);
-                };
-
-                this.networkManager.onFurnitureState = (items) => {
-                    this.buildSystem.handleFurnitureState(items);
-                };
-                this.networkManager.onFurnitureSpawn = (item) => {
-                    this.buildSystem.handleFurnitureSpawn(item);
-                };
-                this.networkManager.onFurnitureContentSet = (data) => {
-                    this.buildSystem.handleFurnitureContentSet(data);
-                    this.resolvePendingSignSave(data.id);
-                };
-                this.networkManager.onFurnitureDespawn = (id) => {
-                    this.buildSystem.handleFurnitureDespawn(id);
                 };
 
                 this.interactionSystem.onCanyonReturn = () => {
@@ -615,6 +623,7 @@ export class Game {
     ) {
         if (this.isChangingLocation) return;
         this.isChangingLocation = true;
+        this.closeBuildEditor();
 
         try {
             this.onLoadStateChange?.(true, "Traveling to new location...");
@@ -706,7 +715,18 @@ export class Game {
             }
 
             if (newLocation instanceof PersonalRoom) {
-                newLocation.setOwnerName(this.myNickname ? `${this.myNickname}'s Room` : "Your Room");
+                newLocation.setOwnerName(this.myNickname ? `${this.myNickname}'s Lot` : "Your Lot");
+                this.buildSession.bindLot(newLocation.plot, {
+                    ownerType: "personal",
+                    ownerId: newLocation.ownerUserId,
+                });
+            } else if (newLocation instanceof FactionGateRoom) {
+                this.buildSession.bindLot(newLocation.plot, {
+                    ownerType: "faction",
+                    ownerId: newLocation.factionId,
+                });
+            } else {
+                this.buildSession.unbindLot();
             }
 
             if (newLocation instanceof EventsHall) {
@@ -746,8 +766,8 @@ export class Game {
         }
     }
 
-    public async restoreToSavedProgress(progress?: { locationId?: string; position: number[]; rotation?: number }) {
-        return restoreToSavedProgress(this, progress);
+    public async restoreToSavedProgress() {
+        return restoreToSavedProgress(this);
     }
 
     private waitForProgressRestore(timeoutMs = 6000): Promise<void> {
@@ -816,7 +836,11 @@ export class Game {
             if (this.isDead && this.inputManager.isKeyJustPressed("Space")) {
                 this.networkManager.sendRespawnRequest();
             }
-            this.cameraController.update(delta, this.inputManager);
+            if (this.buildSession.editor.active) {
+                this.buildSession.update(delta);
+            } else {
+                this.cameraController.update(delta, this.inputManager);
+            }
 
             const inSafe = (currentLocation instanceof MainHall) && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
 
@@ -893,6 +917,7 @@ export class Game {
         const width = container?.clientWidth || window.innerWidth;
         const height = container?.clientHeight || window.innerHeight;
         this.cameraController.resize(width, height);
+        this.buildSession.editor.camera.setAspect(width / Math.max(1, height));
         this.renderer.setSize(width, height, false);
         this.canvas.style.width = `${width}px`;
         this.canvas.style.height = `${height}px`;
@@ -984,18 +1009,6 @@ export class Game {
 
     setSignDrawingUrl(signId: string, url: string): Promise<void> {
         return this.awaitSignSave(signId, () => this.networkManager.sendSignSetDrawingUrl(signId, url));
-    }
-
-    setItemText(itemId: string, text: string): Promise<void> {
-        return this.awaitSignSave(itemId, () => this.networkManager.sendItemSetText(itemId, text));
-    }
-
-    setItemDrawingUrl(itemId: string, url: string): Promise<void> {
-        return this.awaitSignSave(itemId, () => this.networkManager.sendItemSetDrawingUrl(itemId, url));
-    }
-
-    toggleFurnitureDoor(id: string) {
-        this.buildSystem.toggleFurnitureOpen(id);
     }
 
     private awaitSignSave(signId: string, send: () => void): Promise<void> {
@@ -1311,6 +1324,7 @@ export class Game {
         window.removeEventListener("resize", this.handleResize);
         window.removeEventListener("orientationchange", this.handleResize);
         this.networkManager.disconnect();
+        this.buildSession.dispose();
         this.inputManager.dispose();
         this.safeZone.dispose();
         this.shootingSystem.dispose();

@@ -2,7 +2,6 @@
 "use client";
 
 import Image from "next/image";
-import { ScrollText } from "lucide-react";
 
 export type TopWindowId = "factions" | "quests" | "social" | "shop" | "leaderboards" | "settings";
 
@@ -12,9 +11,9 @@ interface TopMenuProps {
     badges?: Partial<Record<TopWindowId, boolean>>;
 }
 
-const ITEMS: { id: TopWindowId; icon: string | null; label: string }[] = [
+const ITEMS: { id: TopWindowId; icon: string; label: string }[] = [
     { id: "factions", icon: "/icons/topmenu/factions-v3.webp", label: "Factions" },
-    { id: "quests", icon: null, label: "Quests" },
+    { id: "quests", icon: "/icons/topmenu/quests-v2.webp", label: "Quests" },
     { id: "social", icon: "/icons/topmenu/social-v3.webp", label: "Social" },
     { id: "shop", icon: "/icons/topmenu/shop-v2.webp", label: "Shop" },
     { id: "leaderboards", icon: "/icons/topmenu/leaderboard-v2.webp", label: "Leaderboards" },
@@ -34,27 +33,16 @@ export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
                         className={`relative origin-top !bg-transparent !border-0 !p-0 !rounded-none !shadow-none transition-transform duration-200 ease-out hover:z-10 hover:!scale-[2] ${active === id ? "z-10 !scale-[2]" : "!scale-100"
                             }`}
                     >
-                        {icon ? (
-                            <Image
-                                src={icon}
-                                alt={label}
-                                width={100}
-                                height={200}
-                                className={`h-14 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] transition-[filter] duration-200 ${active === id
-                                    ? "brightness-125 drop-shadow-[0_0_14px_rgba(79,209,255,0.8)]"
-                                    : "hover:brightness-125 hover:drop-shadow-[0_0_14px_rgba(79,209,255,0.7)]"
-                                    }`}
-                            />
-                        ) : (
-                            <div
-                                className={`h-14 w-14 flex items-center justify-center rounded-xl border border-[#4FD1FF]/40 bg-[rgba(10,18,28,0.75)] drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] transition-[filter,border-color] duration-200 ${active === id
-                                    ? "brightness-125 border-[#4FD1FF] drop-shadow-[0_0_14px_rgba(79,209,255,0.8)]"
-                                    : "hover:brightness-125 hover:border-[#4FD1FF] hover:drop-shadow-[0_0_14px_rgba(79,209,255,0.7)]"
-                                    }`}
-                            >
-                                <ScrollText className="w-7 h-7 text-[#4FD1FF]" />
-                            </div>
-                        )}
+                        <Image
+                            src={icon}
+                            alt={label}
+                            width={100}
+                            height={200}
+                            className={`h-14 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] transition-[filter] duration-200 ${active === id
+                                ? "brightness-125 drop-shadow-[0_0_14px_rgba(79,209,255,0.8)]"
+                                : "hover:brightness-125 hover:drop-shadow-[0_0_14px_rgba(79,209,255,0.7)]"
+                                }`}
+                        />
                         {badges?.[id] && (
                             <span className="absolute top-0 right-1 w-3 h-3 rounded-full bg-[#FF4D4F] ring-2 ring-[rgba(10,14,20,0.9)]" />
                         )}

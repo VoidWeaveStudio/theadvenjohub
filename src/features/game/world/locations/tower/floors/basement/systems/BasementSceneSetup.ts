@@ -42,7 +42,7 @@ export function setupBasementSky(
 
         tex.mapping = EquirectangularReflectionMapping;
         floor.scene.environment = tex;
-        (floor.scene as any).environmentIntensity = 0.35;
+        (floor.scene as any).environmentIntensity = 0.55;
 
         onReady(skySphere);
     };
@@ -188,8 +188,8 @@ export function setupBasementFloor(floor: Basement, rm: ResourceManager, isDispo
             if (p.z > maxZ) maxZ = p.z;
         }
         floor.collisionGrid.insert(new THREE.Box3(
-            new THREE.Vector3(minX, -0.1, minZ),
-            new THREE.Vector3(maxX, 0.1, maxZ)
+            new THREE.Vector3(minX, -0.2, minZ),
+            new THREE.Vector3(maxX, 0, maxZ)
         ));
     }
 
@@ -203,11 +203,12 @@ export interface BasementPortals {
 
 export function setupBasementPortals(floor: Basement): BasementPortals {
     const source = createProceduralPortal({
-        radius: 5.4,
+        radius: 8.6,
         inner: 0xd8f4ff,
         outer: 0x1f6bd8,
         ringColor: 0x8fd8ff,
         facing: "down",
+        withBeam: true,
     });
     source.group.position.set(0, floor.HOLE_Y, 0);
     floor.scene.add(source.group);

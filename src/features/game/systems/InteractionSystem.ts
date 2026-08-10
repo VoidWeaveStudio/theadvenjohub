@@ -46,9 +46,6 @@ export class InteractionSystem extends System {
     public onEnterLocation?: (locationId: string) => void;
     public onOpenSignEditor?: (signId: string) => void;
     public onOpenSignViewer?: (signId: string) => void;
-    public onOpenItemEditor?: (itemId: string) => void;
-    public onOpenItemViewer?: (itemId: string) => void;
-    public onToggleFurnitureDoor?: (itemId: string) => void;
     public localUserId: string = "";
     public myFactionIds: Set<string> = new Set();
     public isBlueprintActive: boolean = false;
@@ -202,32 +199,6 @@ export class InteractionSystem extends System {
                         this.onOpenSignEditor?.(signId);
                     } else {
                         this.onOpenSignViewer?.(signId);
-                    }
-                }
-            } else if (id?.startsWith("item-")) {
-                const itemUid = id.slice("item-".length);
-                const itemType = nearest.obj.userData.itemId as string | undefined;
-
-                if (itemType === "wardrobe") {
-                    this.onPrompt?.("[E] Open/Close Wardrobe");
-                    if (isEJustPressed === true) {
-                        this.onToggleFurnitureDoor?.(itemUid);
-                    }
-                } else if (itemType === "wall-poster") {
-                    const ownerId = nearest.obj.userData.ownerId;
-                    const hasContent = !!nearest.obj.userData.contentType;
-                    const isOwner = ownerId === this.localUserId;
-                    if (isOwner && this.isBlueprintActive) {
-                        this.onPrompt?.("[E] View Poster  •  [RMB] Remove poster (no refund)");
-                    } else {
-                        this.onPrompt?.("[E] View Poster");
-                    }
-                    if (isEJustPressed === true) {
-                        if (!hasContent && isOwner) {
-                            this.onOpenItemEditor?.(itemUid);
-                        } else {
-                            this.onOpenItemViewer?.(itemUid);
-                        }
                     }
                 }
             }

@@ -11,6 +11,7 @@ import {
   boolean,
   bigint,
   uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -547,6 +548,22 @@ export const placedFurniture = pgTable("placed_furniture", {
 }, (table) => [
   index("idx_placed_furniture_faction").on(table.factionId),
   index("idx_placed_furniture_user").on(table.userId),
+]);
+
+// One row per buildable lot. The whole layout is a single JSON document
+// instead of a row per piece: a multi-storey house is thousands of walls and
+// floor tiles, and the editor always saves and loads the lot as a whole.
+export const roomLayouts = pgTable("room_layouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  ownerType: varchar("owner_type", { length: 10 }).notNull(),
+  ownerId: uuid("owner_id").notNull(),
+  revision: integer("revision").default(1).notNull(),
+  data: jsonb("data").notNull(),
+  updatedByUserId: uuid("updated_by_user_id").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_room_layouts_owner").on(table.gameId, table.ownerType, table.ownerId),
 ]);
 
 // P2P item trades between players. A row only ever exists for a resolved

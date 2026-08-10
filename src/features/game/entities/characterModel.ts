@@ -17,6 +17,24 @@ export function scaleAndCenterModel(root: THREE.Object3D, targetHeight: number, 
     root.rotation.y = yRotation;
 }
 
+let cachedPoseGroundOffset: number | null = null;
+
+export function alignModelToGround(root: THREE.Object3D) {
+    if (cachedPoseGroundOffset === null) {
+        root.updateWorldMatrix(true, true);
+
+        const box = new THREE.Box3().setFromObject(root, true);
+        if (!Number.isFinite(box.min.y)) return;
+
+        if (root.parent) {
+            box.applyMatrix4(new THREE.Matrix4().copy(root.parent.matrixWorld).invert());
+        }
+        cachedPoseGroundOffset = box.min.y;
+    }
+
+    root.position.y -= cachedPoseGroundOffset;
+}
+
 export function findBoneFirst(root: THREE.Object3D, matches: (nameLower: string) => boolean): THREE.Object3D | null {
     let found: THREE.Object3D | null = null;
     root.traverse((child) => {

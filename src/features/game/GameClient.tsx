@@ -23,6 +23,8 @@ import { GateStewardPanel, GateFactionResult } from "./ui/GateStewardPanel";
 import { BubbleInfoPanel } from "./ui/BubbleInfoPanel";
 import { FactionBubblePanel } from "./ui/FactionBubblePanel";
 import { RoomPortalPanel } from "./ui/RoomPortalPanel";
+import { BuildEditorPanel } from "./ui/BuildEditorPanel";
+import type { BuildSessionState } from "./world/building/BuildSession";
 import { RoomConsolePanel } from "./ui/RoomConsolePanel";
 import { BubbleMapPanel } from "./ui/BubbleMapPanel";
 import type { FactionGateData, ShardStateData } from "./network/NetworkManager";
@@ -104,6 +106,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [factionGates, setFactionGates] = useState<FactionGateData[]>([]);
   const [factionBubbleId, setFactionBubbleId] = useState<string | null>(null);
   const [isRoomPortalOpen, setIsRoomPortalOpen] = useState(false);
+  const [buildEditorState, setBuildEditorState] = useState<BuildSessionState | null>(null);
   const [isRoomConsoleOpen, setIsRoomConsoleOpen] = useState(false);
   const [roomConsoleFactionId, setRoomConsoleFactionId] = useState<string | null>(null);
   const [isBubbleMapOpen, setIsBubbleMapOpen] = useState(false);
@@ -122,8 +125,6 @@ export function GameClient({ slug }: GameClientProps) {
   const [isVoiceCapturing, setIsVoiceCapturing] = useState(false);
   const [signEditorId, setSignEditorId] = useState<string | null>(null);
   const [viewingSign, setViewingSign] = useState<SignViewData | null>(null);
-  const [itemEditorId, setItemEditorId] = useState<string | null>(null);
-  const [viewingItem, setViewingItem] = useState<SignViewData | null>(null);
   const [isPlaceableMenuOpen, setIsPlaceableMenuOpen] = useState(false);
   const [isEmoteWheelOpen, setIsEmoteWheelOpen] = useState(false);
   const [spawnProtectionSeconds, setSpawnProtectionSeconds] = useState(0);
@@ -266,6 +267,11 @@ export function GameClient({ slug }: GameClientProps) {
             setIsBubbleMapOpen(false);
           }
         };
+        game.onBuildEditorState = (state) => {
+          if (cancelled) return;
+          setBuildEditorState(state);
+        };
+
         game.onFloorSelectorToggle = (isOpen: boolean) => {
           if (cancelled) return;
           setShowFloorSelector(isOpen);
@@ -350,16 +356,6 @@ export function GameClient({ slug }: GameClientProps) {
         game.onOpenSignViewerUI = (sign) => {
           if (cancelled) return;
           setViewingSign(sign);
-          document.exitPointerLock();
-        };
-        game.onOpenItemEditorUI = (itemId) => {
-          if (cancelled) return;
-          setItemEditorId(itemId);
-          document.exitPointerLock();
-        };
-        game.onOpenItemViewerUI = (item) => {
-          if (cancelled) return;
-          setViewingItem(item);
           document.exitPointerLock();
         };
         game.onEquippedToolChange = (tool) => {
@@ -629,7 +625,9 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || bubbleIndex !== null || factionBubbleId !== null || isRoomPortalOpen || isRoomConsoleOpen || isBubbleMapOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || itemEditorId !== null || viewingItem !== null || isPlaceableMenuOpen || isEmoteWheelOpen || tradeSession !== null || pendingTradeInvite !== null) return;
+      if (buildEditorState?.active) return;
+
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || bubbleIndex !== null || factionBubbleId !== null || isRoomPortalOpen || isRoomConsoleOpen || isBubbleMapOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen || isEmoteWheelOpen || tradeSession !== null || pendingTradeInvite !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -689,7 +687,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, itemEditorId, viewingItem, isPlaceableMenuOpen, isEmoteWheelOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, isEmoteWheelOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -746,30 +744,6 @@ export function GameClient({ slug }: GameClientProps) {
 
     const data: { url: string } = await res.json();
     await gameRef.current?.setSignDrawingUrl(signId, data.url);
-  };
-
-  const handleItemSaveText = async (itemId: string, text: string) => {
-    await gameRef.current?.setItemText(itemId, text);
-  };
-
-  const handleItemSaveDrawing = async (itemId: string, blob: Blob) => {
-    const formData = new FormData();
-    formData.append("file", blob, "poster.png");
-
-    const csrf = getCsrfToken();
-    const res = await fetch("/api/game/furniture/upload", {
-      method: "POST",
-      credentials: "include",
-      headers: csrf ? { "x-csrf-token": csrf } : undefined,
-      body: formData,
-    });
-
-    if (!res.ok) {
-      throw new Error("upload_failed");
-    }
-
-    const data: { url: string } = await res.json();
-    await gameRef.current?.setItemDrawingUrl(itemId, data.url);
   };
 
   const handleSendMessage = (message: string) => {
@@ -1086,21 +1060,6 @@ export function GameClient({ slug }: GameClientProps) {
         sign={viewingSign}
       />
 
-      <SignEditorModal
-        isOpen={itemEditorId !== null}
-        onClose={() => setItemEditorId(null)}
-        signId={itemEditorId}
-        onSubmitText={handleItemSaveText}
-        onSubmitDraw={handleItemSaveDrawing}
-        onNotification={notifications.addNotification}
-      />
-
-      <SignViewerModal
-        isOpen={viewingItem !== null}
-        onClose={() => setViewingItem(null)}
-        sign={viewingItem}
-      />
-
       <PlaceableMenu
         isOpen={isPlaceableMenuOpen}
         onClose={() => setIsPlaceableMenuOpen(false)}
@@ -1241,9 +1200,25 @@ export function GameClient({ slug }: GameClientProps) {
       <RoomConsolePanel
         isOpen={isRoomConsoleOpen}
         factionId={roomConsoleFactionId}
+        canBuild={buildEditorState?.canEdit ?? false}
         onClose={() => setIsRoomConsoleOpen(false)}
         onNotification={(msg, duration) => notifications.addNotification(msg, duration)}
+        onOpenBuildEditor={() => gameRef.current?.openBuildEditor()}
       />
+
+      {buildEditorState && (
+        <BuildEditorPanel
+          state={buildEditorState}
+          onSelectType={(typeId) => gameRef.current?.buildSession.selectType(typeId)}
+          onSetTool={(tool) => gameRef.current?.buildSession.setTool(tool)}
+          onRotate={() => gameRef.current?.buildSession.rotate()}
+          onSetLevel={(level) => gameRef.current?.buildSession.setLevel(level)}
+          onSetEnvironment={(sky, light) => gameRef.current?.buildSession.setEnvironment(sky, light)}
+          onClearLot={() => gameRef.current?.buildSession.clearLot()}
+          onSave={() => { void gameRef.current?.buildSession.save(); }}
+          onExit={() => gameRef.current?.closeBuildEditor()}
+        />
+      )}
 
       <RoomPortalPanel
         isOpen={isRoomPortalOpen}

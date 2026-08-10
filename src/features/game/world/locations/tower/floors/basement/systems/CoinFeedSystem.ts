@@ -1,8 +1,12 @@
 // src/features/game/world/locations/tower/floors/basement/systems/CoinFeedSystem.ts
 import * as THREE from "three";
 import { tokenTextureCache } from "../../../../../../utils/TokenTextureCache";
-import { createCoinMesh } from "../utils/meshFactory";
+import { createCoinMesh, disposeCoinMesh, disposeSharedCoinAssets } from "../utils/meshFactory";
 import type { Basement } from "../Basement";
+
+const ORBIT_BASE_RADIUS = 165;
+const ORBIT_RADIUS_STEP = 28;
+const ORBIT_RADIUS_SPREAD = 0.08;
 
 export interface MemeToken {
     address: string;
@@ -90,7 +94,7 @@ export class CoinFeedSystem {
 
             this.orbitData.push({
                 mesh: coinGroup,
-                baseRadius: 80 + i * 10,
+                baseRadius: ORBIT_BASE_RADIUS + i * ORBIT_RADIUS_STEP,
                 speed: 0.2 + Math.random() * 0.2,
                 phase: Math.random() * Math.PI * 2,
                 inclination: Math.random() * 0.6,
@@ -157,16 +161,7 @@ export class CoinFeedSystem {
             const oldCoin = this.activeCoins.shift();
             if (oldCoin) {
                 this.floor.scene.remove(oldCoin.mesh);
-                oldCoin.mesh.traverse((child) => {
-                    if (child instanceof THREE.Mesh) {
-                        child.geometry.dispose();
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(m => m.dispose());
-                        } else {
-                            (child.material as THREE.Material).dispose();
-                        }
-                    }
-                });
+                disposeCoinMesh(oldCoin.mesh);
             }
         }
 
@@ -207,7 +202,7 @@ export class CoinFeedSystem {
 
         const coinGroup = createCoinMesh(finalTexture, 0.4, false, false, "none");
 
-        const spawnRadius = 2.2;
+        const spawnRadius = 3.4;
         const angle = Math.random() * Math.PI * 2;
         const r = Math.sqrt(Math.random()) * spawnRadius;
 
@@ -242,14 +237,14 @@ export class CoinFeedSystem {
             );
 
             pos.applyAxisAngle(c.axis, c.inclination);
-            pos.multiplyScalar(1 + i * 0.08);
+            pos.multiplyScalar(1 + i * ORBIT_RADIUS_SPREAD);
 
             c.mesh.position.copy(pos);
             c.mesh.rotation.y += delta * 0.4;
 
             if (c.trail) {
                 const p = c.mesh.position;
-                c.trail.positions.copyWithin(3, 0, 57);
+                c.trail.positions.copyWithin(3, 0, c.trail.positions.length - 3);
                 c.trail.positions[0] = p.x;
                 c.trail.positions[1] = p.y;
                 c.trail.positions[2] = p.z;
@@ -271,16 +266,7 @@ export class CoinFeedSystem {
 
             if (coin.mesh.position.y <= this.floor.SINK_Y) {
                 this.floor.scene.remove(coin.mesh);
-                coin.mesh.traverse((child) => {
-                    if (child instanceof THREE.Mesh) {
-                        child.geometry.dispose();
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(m => m.dispose());
-                        } else {
-                            (child.material as THREE.Material).dispose();
-                        }
-                    }
-                });
+                disposeCoinMesh(coin.mesh);
                 this.activeCoins.splice(i, 1);
             }
         }
@@ -304,33 +290,17 @@ export class CoinFeedSystem {
 
         for (const c of this.orbitData) {
             this.floor.scene.remove(c.mesh);
-            c.mesh.traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                    child.geometry.dispose();
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(m => m.dispose());
-                    } else {
-                        (child.material as THREE.Material).dispose();
-                    }
-                }
-            });
+            disposeCoinMesh(c.mesh);
         }
         this.orbitData = [];
 
         for (const coin of this.activeCoins) {
             this.floor.scene.remove(coin.mesh);
-            coin.mesh.traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                    child.geometry.dispose();
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(m => m.dispose());
-                    } else {
-                        (child.material as THREE.Material).dispose();
-                    }
-                }
-            });
+            disposeCoinMesh(coin.mesh);
         }
         this.activeCoins = [];
         this.tokenQueue = [];
+
+        disposeSharedCoinAssets();
     }
 }

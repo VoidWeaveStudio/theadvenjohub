@@ -25,6 +25,13 @@ export function configureLocationSpecifics(game: Game, location: Location) {
             location.hallRadius - 3
         );
     } else if (location instanceof Basement) {
+        location.onInteractablesChanged = (added, removed) => {
+            removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));
+            added.forEach((obj) => game.interactionSystem.registerInteractable(obj));
+        };
+        if (game.factionGates.length > 0) {
+            location.handleFactionGatesState(game.factionGates);
+        }
         location.columns.syncFromServer(game.slug);
         location.setViewportHeight(game.getViewportHeight());
         location.setAccountCount(game.accountCount);

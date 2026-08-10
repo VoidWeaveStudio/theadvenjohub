@@ -8,7 +8,7 @@ import { Weapon } from "./Weapon";
 import { CollisionGrid } from "../world/CollisionGrid";
 import { HeightProvider, FlightZone } from "../world/Location";
 import { CharacterAnimator } from "./CharacterAnimator";
-import { scaleAndCenterModel, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
+import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 import { SoundManager } from "../core/SoundManager";
 import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
@@ -165,7 +165,6 @@ export class Player extends Entity {
 
         this.wisp = new EnergyWisp({ withTrail: true, withLight: true });
         this.wisp.attach(this.mesh, scene);
-        this.wisp.group.position.y = 1.0;
 
         const paintableMesh = findPaintableMesh(data.scene);
         this.paintableMaterial = paintableMesh ? clonePaintableMaterial(paintableMesh) : null;
@@ -185,6 +184,8 @@ export class Player extends Entity {
 
         this.animator.setup(data.scene, data.animations);
         this.animator.play('idle', this.weaponEquipped);
+        this.animator.update(0.25);
+        alignModelToGround(data.scene);
 
         this.weapon.create(this.mesh, resourceManager);
 
@@ -465,7 +466,7 @@ export class Player extends Entity {
         if (this.isGrounded) {
             if (moved) {
                 const bobFreq = isSprinting ? 14 : 10;
-                const bobAmp = isSprinting ? 0.08 : 0.05;
+                const bobAmp = isSprinting ? 0.045 : 0.03;
                 const sinValue = Math.sin(this.time * bobFreq);
                 bobOffset = Math.abs(sinValue) * bobAmp;
 

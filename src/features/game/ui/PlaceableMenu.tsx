@@ -14,14 +14,13 @@ interface PlaceableMenuProps {
 export function PlaceableMenu({ isOpen, onClose, placeables, onSelect, isInOwnFactionRoom }: PlaceableMenuProps) {
     if (!isOpen) return null;
 
-    const available = PLACEABLE_ITEMS.filter((item) => {
-        if (item.placeable === false) return false;
-        const scope = item.placementScope ?? "main-world";
-        if (scope === "own-faction-room" && !isInOwnFactionRoom) return false;
-        if (scope === "main-world" && isInOwnFactionRoom) return false;
-        if (item.price === 0) return true;
-        return (placeables[item.id] || 0) > 0;
-    });
+    const available = isInOwnFactionRoom
+        ? []
+        : PLACEABLE_ITEMS.filter((item) => {
+            if (item.placeable === false) return false;
+            if (item.price === 0) return true;
+            return (placeables[item.id] || 0) > 0;
+        });
 
     return (
         <div
@@ -36,7 +35,7 @@ export function PlaceableMenu({ isOpen, onClose, placeables, onSelect, isInOwnFa
                 {available.length === 0 ? (
                     <p className="text-[#6B7280] text-xs text-center py-4">
                         {isInOwnFactionRoom
-                            ? "Nothing to place here yet."
+                            ? "Use the room console to open the build editor."
                             : "You don't own anything to place yet. Buy items from the Shop."}
                     </p>
                 ) : (

@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { SlidersHorizontal, Loader2, Trash2, UserPlus } from "lucide-react";
+import { SlidersHorizontal, Loader2, Trash2, UserPlus, Hammer } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import { getCsrfToken } from "@/core/lib/clientUtils";
 import { ROOM_ACCESS_LABELS, type RoomAccess } from "@/core/lib/roomAccess";
@@ -26,11 +26,13 @@ interface RoomAccessResponse {
 interface RoomConsolePanelProps {
     isOpen: boolean;
     factionId: string | null;
+    canBuild: boolean;
     onClose: () => void;
     onNotification: (message: string, duration?: number) => void;
+    onOpenBuildEditor: () => void;
 }
 
-export function RoomConsolePanel({ isOpen, factionId, onClose, onNotification }: RoomConsolePanelProps) {
+export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotification, onOpenBuildEditor }: RoomConsolePanelProps) {
     const [state, setState] = useState<RoomAccessResponse | null>(null);
     const [invites, setInvites] = useState<RoomInvite[]>([]);
     const [nickname, setNickname] = useState("");
@@ -188,6 +190,15 @@ export function RoomConsolePanel({ isOpen, factionId, onClose, onNotification }:
                         ✕
                     </button>
                 </div>
+
+                {canBuild && (
+                    <button
+                        onClick={() => { onClose(); onOpenBuildEditor(); }}
+                        className="w-full flex items-center justify-center gap-2 mb-4 px-3 py-2.5 rounded-lg bg-[#4FD1FF]/15 border border-[#4FD1FF]/40 text-[#4FD1FF] text-sm font-black hover:bg-[#4FD1FF]/25 transition-colors"
+                    >
+                        <Hammer className="w-4 h-4" /> Open build editor
+                    </button>
+                )}
 
                 {!state ? (
                     <div className="flex items-center gap-2 text-[#8B8F98] text-sm">

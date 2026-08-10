@@ -1,5 +1,6 @@
 // src/features/game/core/GameCallbacks.ts
 import { ChatMessage } from "../ui/Chat";
+import type { BuildSessionState } from "../world/building/BuildSession";
 import {
     InventoryEntry,
     QuestInfoData,
@@ -38,6 +39,7 @@ export interface GameCallbacks {
     onDamageIndicatorUpdate?: (attackerId: string | null, direction: number) => void;
 
     onFloorSelectorToggle?: (isOpen: boolean) => void;
+    onBuildEditorState?: (state: BuildSessionState) => void;
     onLocationChange?: (id: string) => void;
 
     onOpenTokenUI?: (tokenData: any) => void;
@@ -56,14 +58,6 @@ export interface GameCallbacks {
     onEquippedToolChange?: (tool: "weapon" | "blueprint" | null) => void;
     onOpenSignEditorUI?: (signId: string) => void;
     onOpenSignViewerUI?: (sign: {
-        id: string;
-        ownerNickname: string;
-        contentType: "text" | "draw" | null;
-        textContent: string | null;
-        drawingUrl: string | null;
-    }) => void;
-    onOpenItemEditorUI?: (itemId: string) => void;
-    onOpenItemViewerUI?: (item: {
         id: string;
         ownerNickname: string;
         contentType: "text" | "draw" | null;

@@ -73,6 +73,8 @@ function disposeSprite(sprite: THREE.Sprite) {
 }
 
 export class FactionBubbleSystem {
+    public onInteractablesChanged: ((added: THREE.Object3D[], removed: THREE.Object3D[]) => void) | null = null;
+
     private bubbles: Map<string, FactionBubble> = new Map();
     private coreFactionId: string | null = null;
     private mcInterval: ReturnType<typeof setInterval> | null = null;
@@ -240,6 +242,8 @@ export class FactionBubbleSystem {
         this.positionBubble(bubble);
         this.loadLogo(bubble);
         this.refreshMarketCap(bubble);
+
+        this.onInteractablesChanged?.([group], []);
     }
 
     private loadLogo(bubble: FactionBubble) {
@@ -254,6 +258,7 @@ export class FactionBubbleSystem {
     }
 
     private removeBubble(factionId: string, bubble: FactionBubble) {
+        this.onInteractablesChanged?.([], [bubble.group]);
         this.scene.remove(bubble.group);
         bubble.core?.dispose();
         bubble.group.traverse((obj) => {

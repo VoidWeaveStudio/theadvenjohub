@@ -3,16 +3,14 @@ import * as THREE from "three";
 import { System } from "./System";
 import { Player } from "../entities/Player";
 import { Sign } from "../entities/Sign";
-import { NetworkManager, SignData, FurnitureData } from "../network/NetworkManager";
+import { NetworkManager, SignData } from "../network/NetworkManager";
 import { InputManager } from "../core/InputManager";
 import { InteractionSystem } from "./InteractionSystem";
-import { FURNITURE_DEFS, FurnitureEntity, isFurnitureItemId } from "./FurnitureRegistry";
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
 
 const REACH_DISTANCE = 3;
 const REMOVE_RADIUS = 5;
 
-type WallSnap = { x: number; y: number; z: number; rotation: number };
 
 export class BuildSystem extends System {
     private scene!: THREE.Scene;
@@ -20,7 +18,6 @@ export class BuildSystem extends System {
     private player!: Player;
     private inputManager!: InputManager;
     private getGroundHeight!: (x: number, z: number) => number;
-    private getWallSnap: ((x: number, z: number) => WallSnap | null) | null = null;
     private interactionSystem!: InteractionSystem;
     private myUserId: string = "";
     private isMainWorldScene: boolean = false;
@@ -30,8 +27,6 @@ export class BuildSystem extends System {
     private pendingSigns: SignData[] = [];
     private ghost: Sign | null = null;
 
-    private placedFurniture: Map<string, FurnitureEntity> = new Map();
-    private furnitureGhost: FurnitureEntity | null = null;
 
     private active: boolean = false;
     private armedItemId: string | null = null;
@@ -49,8 +44,7 @@ export class BuildSystem extends System {
         inputManager: InputManager,
         getGroundHeight: (x: number, z: number) => number,
         interactionSystem: InteractionSystem,
-        myUserId: string,
-        getWallSnap?: (x: number, z: number) => WallSnap | null
+        myUserId: string
     ) {
         this.scene = scene;
         this.isMainWorldScene = locationId === 'main-world';
@@ -59,7 +53,6 @@ export class BuildSystem extends System {
         this.player = player;
         this.inputManager = inputManager;
         this.getGroundHeight = getGroundHeight;
-        this.getWallSnap = getWallSnap ?? null;
         this.interactionSystem = interactionSystem;
         this.myUserId = myUserId;
     }
@@ -72,14 +65,8 @@ export class BuildSystem extends System {
         for (const sign of this.signs.values()) {
             scene.add(sign.mesh);
         }
-        for (const item of this.placedFurniture.values()) {
-            scene.add(item.mesh);
-        }
         if (this.ghost) {
             this.scene.add(this.ghost.mesh);
-        }
-        if (this.furnitureGhost) {
-            this.scene.add(this.furnitureGhost.mesh);
         }
         if (this.isMainWorldScene && this.pendingSigns.length > 0) {
             const pending = this.pendingSigns;
@@ -113,13 +100,6 @@ export class BuildSystem extends System {
         this.disarm();
         this.armedItemId = itemId;
 
-        if (isFurnitureItemId(itemId)) {
-            const def = FURNITURE_DEFS[itemId];
-            this.furnitureGhost = def.build("__ghost__", true);
-            this.scene.add(this.furnitureGhost.mesh);
-            return;
-        }
-
         if (!this.ghost) {
             this.ghost = new Sign("__ghost__", "", "", null, null, null, true);
             this.scene.add(this.ghost.mesh);
@@ -131,10 +111,6 @@ export class BuildSystem extends System {
         this.armedItemId = null;
         if (this.ghost) {
             this.ghost.mesh.visible = false;
-        }
-        if (this.furnitureGhost) {
-            this.furnitureGhost.dispose(this.scene);
-            this.furnitureGhost = null;
         }
     }
 
@@ -192,77 +168,7 @@ export class BuildSystem extends System {
         return this.signs.get(id);
     }
 
-    private spawnLocalFurniture(data: FurnitureData) {
-        // Furniture belongs to a specific faction's room, unlike signs (always
-        // main-world) — a mismatched factionId means this data is for a room
-        // we've since left, so it's dropped rather than queued: the server
-        // re-sends a fresh furnitureState whenever we actually enter a room.
-        if (data.factionId !== this.currentRoomFactionId) return;
-        if (this.placedFurniture.has(data.id)) return;
-        const def = FURNITURE_DEFS[data.itemId];
-        if (!def) return;
-
-        const entity = def.build(data.id, false, {
-            ownerId: data.ownerId,
-            ownerNickname: data.ownerNickname,
-            contentType: data.contentType,
-            textContent: data.textContent,
-            drawingUrl: data.drawingUrl,
-        });
-        entity.mesh.position.set(data.position[0], data.position[1], data.position[2]);
-        entity.mesh.rotation.y = data.rotation;
-        entity.mesh.userData.ownerId = data.ownerId;
-        entity.mesh.userData.itemId = data.itemId;
-        this.scene.add(entity.mesh);
-        this.placedFurniture.set(data.id, entity);
-        if (entity.mesh.userData.interactionId) {
-            this.interactionSystem.registerInteractable(entity.mesh);
-        }
-    }
-
-    private despawnLocalFurniture(id: string) {
-        const item = this.placedFurniture.get(id);
-        if (!item) return;
-        if (item.mesh.userData.interactionId) {
-            this.interactionSystem.removeInteractable(item.mesh);
-        }
-        item.dispose(this.scene);
-        this.placedFurniture.delete(id);
-    }
-
-    public handleFurnitureState(list: FurnitureData[]) {
-        for (const data of list) this.spawnLocalFurniture(data);
-    }
-
-    public handleFurnitureSpawn(data: FurnitureData) {
-        this.spawnLocalFurniture(data);
-    }
-
-    public handleFurnitureDespawn(id: string) {
-        this.despawnLocalFurniture(id);
-    }
-
-    public handleFurnitureContentSet(data: { id: string; contentType: "text" | "draw"; textContent?: string; drawingUrl?: string }) {
-        const item = this.placedFurniture.get(data.id);
-        if (!item?.updateContent) return;
-        item.updateContent(data.contentType, data.textContent ?? null, data.drawingUrl ?? null);
-        item.mesh.userData.contentType = data.contentType;
-    }
-
-    public getFurniture(id: string): FurnitureEntity | undefined {
-        return this.placedFurniture.get(id);
-    }
-
-    public toggleFurnitureOpen(id: string) {
-        this.placedFurniture.get(id)?.toggleOpen?.();
-    }
-
     public update(_delta: number) {
-        if (this.placedFurniture.size > 0) {
-            const now = performance.now();
-            for (const item of this.placedFurniture.values()) item.update?.(now);
-        }
-
         if (!this.active) {
             this.wasPlaceButtonDown = false;
             this.wasRemoveButtonDown = false;
@@ -274,24 +180,12 @@ export class BuildSystem extends System {
         const reachX = playerPos.x + Math.sin(yaw) * REACH_DISTANCE;
         const reachZ = playerPos.z + Math.cos(yaw) * REACH_DISTANCE;
 
-        const armedDef = this.armedItemId && isFurnitureItemId(this.armedItemId) ? FURNITURE_DEFS[this.armedItemId] : null;
-        const wallSnap = armedDef?.wallMounted ? this.getWallSnap?.(reachX, reachZ) ?? null : null;
+        const placeX = reachX;
+        const placeY = this.getGroundHeight(reachX, reachZ);
+        const placeZ = reachZ;
+        const placeRotation = yaw;
 
-        let placeX = reachX;
-        let placeY = this.getGroundHeight(reachX, reachZ);
-        let placeZ = reachZ;
-        let placeRotation = yaw;
-        if (wallSnap) {
-            placeX = wallSnap.x;
-            placeY = wallSnap.y;
-            placeZ = wallSnap.z;
-            placeRotation = wallSnap.rotation;
-        }
-
-        if (this.armedItemId && armedDef && this.furnitureGhost) {
-            this.furnitureGhost.mesh.position.set(placeX, placeY, placeZ);
-            this.furnitureGhost.mesh.rotation.y = placeRotation;
-        } else if (this.armedItemId && this.ghost) {
+        if (this.armedItemId && this.ghost) {
             this.ghost.mesh.position.set(placeX, placeY, placeZ);
             this.ghost.mesh.rotation.y = placeRotation;
         }
@@ -300,11 +194,7 @@ export class BuildSystem extends System {
 
         const placeDown = pointerLocked && this.inputManager.isMousePressed(0);
         if (placeDown && !this.wasPlaceButtonDown && this.armedItemId) {
-            if (!armedDef?.wallMounted || wallSnap) {
-                this.tryPlace(placeX, placeY, placeZ, placeRotation);
-            } else {
-                this.onNotification?.("Stand closer to a wall to place this", 1500);
-            }
+            this.tryPlace(placeX, placeY, placeZ, placeRotation);
         }
         this.wasPlaceButtonDown = placeDown;
 
@@ -325,17 +215,12 @@ export class BuildSystem extends System {
             this.onNotification?.("You don't own any of that — buy one from the Shop", 2500);
             return;
         }
-        if (isFurnitureItemId(this.armedItemId)) {
-            this.network.sendItemPlace(this.armedItemId, [x, y, z], rotation);
-            return;
-        }
         this.network.sendSignPlace([x, y, z], rotation);
     }
 
     private tryRemoveNearestOwned(playerPos: THREE.Vector3) {
         let nearestId: string | null = null;
         let nearestDist = Infinity;
-        let nearestIsFurniture = false;
 
         for (const sign of this.signs.values()) {
             if (sign.ownerId !== this.myUserId) continue;
@@ -343,42 +228,20 @@ export class BuildSystem extends System {
             if (d < REMOVE_RADIUS && d < nearestDist) {
                 nearestDist = d;
                 nearestId = sign.id;
-                nearestIsFurniture = false;
-            }
-        }
-
-        for (const item of this.placedFurniture.values()) {
-            if (item.mesh.userData.ownerId !== this.myUserId) continue;
-            const d = playerPos.distanceTo(item.mesh.position);
-            if (d < REMOVE_RADIUS && d < nearestDist) {
-                nearestDist = d;
-                nearestId = item.id;
-                nearestIsFurniture = true;
             }
         }
 
         if (!nearestId) return;
-        if (nearestIsFurniture) {
-            this.network.sendItemRemove(nearestId);
-        } else {
-            this.network.sendSignRemove(nearestId);
-        }
+        this.network.sendSignRemove(nearestId);
     }
 
     public clear() {
         for (const id of Array.from(this.signs.keys())) {
             this.despawnLocal(id);
         }
-        for (const id of Array.from(this.placedFurniture.keys())) {
-            this.despawnLocalFurniture(id);
-        }
         if (this.ghost) {
             this.ghost.dispose(this.scene);
             this.ghost = null;
-        }
-        if (this.furnitureGhost) {
-            this.furnitureGhost.dispose(this.scene);
-            this.furnitureGhost = null;
         }
         this.armedItemId = null;
     }
