@@ -62,7 +62,7 @@ export function middleware(request: NextRequest) {
     response.headers.set('Access-Control-Allow-Credentials', 'true');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-csrf-token, x-device-id, x-client-version');
     response.headers.set('Vary', 'Origin');
-  } else {
+  } else if (origin) {
     console.log(`[CORS] Blocked request from origin: ${origin}`);
   }
   

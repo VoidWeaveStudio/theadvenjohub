@@ -31,6 +31,10 @@ const GHOST_OK = 0x6fe3a0;
 const GHOST_BAD = 0xff6b7a;
 const HIGHLIGHT = 0xffd166;
 
+const PREVENTED_KEYS = new Set([
+    "Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown",
+]);
+
 export class BuildEditor {
     public readonly camera: EditorCamera;
     public active = false;
@@ -40,6 +44,7 @@ export class BuildEditor {
     public level = 0;
     public selection: EditorSelection | null = null;
     public carrying: BuildPiece | null = null;
+    public suspended = false;
 
     private layout: BuildLayout | null = null;
     private scene: THREE.Scene | null = null;
@@ -64,6 +69,7 @@ export class BuildEditor {
 
     private onKeyDown: (event: KeyboardEvent) => void;
     private onKeyUp: (event: KeyboardEvent) => void;
+    private onBlur: () => void;
     private onMouseMove: (event: MouseEvent) => void;
     private onMouseDown: (event: MouseEvent) => void;
     private onMouseUp: (event: MouseEvent) => void;
@@ -82,11 +88,12 @@ export class BuildEditor {
         this.ghost.visible = false;
 
         this.onKeyDown = (event) => {
-            if (!this.active) return;
+            if (!this.active || this.suspended) return;
             const target = event.target as HTMLElement | null;
             if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
 
             this.keys.add(event.code);
+            if (PREVENTED_KEYS.has(event.code)) event.preventDefault();
 
             if (event.code === "KeyR") {
                 this.rotation = (this.rotation + 1) % 4;
@@ -115,6 +122,8 @@ export class BuildEditor {
             this.keys.delete(event.code);
         };
 
+        this.onBlur = () => this.releaseKeys();
+
         this.onMouseMove = (event) => {
             if (!this.active || !this.canvas) return;
 
@@ -130,7 +139,7 @@ export class BuildEditor {
         };
 
         this.onMouseDown = (event) => {
-            if (!this.active) return;
+            if (!this.active || this.suspended) return;
             this.lastMouse.x = event.clientX;
             this.lastMouse.y = event.clientY;
 
@@ -162,6 +171,7 @@ export class BuildEditor {
         this.canvas = canvas;
         window.addEventListener("keydown", this.onKeyDown);
         window.addEventListener("keyup", this.onKeyUp);
+        window.addEventListener("blur", this.onBlur);
         canvas.addEventListener("mousemove", this.onMouseMove);
         canvas.addEventListener("mousedown", this.onMouseDown);
         window.addEventListener("mouseup", this.onMouseUp);
@@ -172,6 +182,7 @@ export class BuildEditor {
     public detach() {
         window.removeEventListener("keydown", this.onKeyDown);
         window.removeEventListener("keyup", this.onKeyUp);
+        window.removeEventListener("blur", this.onBlur);
         window.removeEventListener("mouseup", this.onMouseUp);
         if (this.canvas) {
             this.canvas.removeEventListener("mousemove", this.onMouseMove);
@@ -208,8 +219,7 @@ export class BuildEditor {
         if (this.carrying) this.cancelCarry();
 
         this.active = false;
-        this.keys.clear();
-        this.orbiting = false;
+        this.releaseKeys();
         this.ghost.visible = false;
         this.selection = null;
 
@@ -222,6 +232,12 @@ export class BuildEditor {
         this.disposeHighlight();
         this.scene = null;
         this.layout = null;
+    }
+
+    public releaseKeys() {
+        this.keys.clear();
+        this.orbiting = false;
+        this.camera.stopPan();
     }
 
     public setSelectedType(typeId: string | null) {
@@ -257,6 +273,36 @@ export class BuildEditor {
         const piece = this.selection?.piece;
         if (!piece) return null;
         return getBuildEntry(piece.t)?.name ?? piece.t;
+    }
+
+    public selectionPaintable(): boolean {
+        const piece = this.selection?.piece;
+        if (!piece || this.carrying) return false;
+        return getBuildEntry(piece.t)?.paint !== undefined;
+    }
+
+    public selectionPaintAspect(): number | null {
+        const piece = this.selection?.piece;
+        if (!piece || this.carrying) return null;
+
+        const spec = getBuildEntry(piece.t)?.paint;
+        return spec ? spec.width / spec.height : null;
+    }
+
+    public selectionPaintUrl(): string | null {
+        const piece = this.selection?.piece;
+        if (!piece || this.carrying) return null;
+        return getBuildEntry(piece.t)?.paint ? piece.d ?? null : null;
+    }
+
+    public paintSelection(url: string) {
+        const selected = this.selection;
+        if (!selected) return;
+
+        const painted: BuildPiece = { ...selected.piece, d: url };
+        this.callbacks.onPlace(painted);
+        this.selection = { key: pieceKey(painted), piece: painted };
+        this.callbacks.onStateChange();
     }
 
     public clearSelection() {
@@ -439,12 +485,15 @@ export class BuildEditor {
 
         let forward = 0;
         let right = 0;
+        let up = 0;
         if (this.keys.has("KeyW") || this.keys.has("ArrowUp")) forward += 1;
         if (this.keys.has("KeyS") || this.keys.has("ArrowDown")) forward -= 1;
         if (this.keys.has("KeyD") || this.keys.has("ArrowRight")) right += 1;
         if (this.keys.has("KeyA") || this.keys.has("ArrowLeft")) right -= 1;
-        if (forward !== 0 || right !== 0) this.camera.pan(forward, right);
+        if (this.keys.has("Space")) up += 1;
+        if (this.keys.has("ControlLeft") || this.keys.has("ControlRight")) up -= 1;
 
+        this.camera.setPan(forward, right, up, this.keys.has("ShiftLeft") || this.keys.has("ShiftRight"));
         this.camera.update(delta);
         this.updateCursor();
     }

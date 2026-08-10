@@ -13,7 +13,10 @@ export interface BuildPiece {
     z: number;
     l: number;
     r: number;
+    d?: string;
 }
+
+const MAX_PAINT_URL = 300;
 
 export interface BuildEnvironment {
     sky: string;
@@ -47,6 +50,10 @@ export function worldToCell(world: number, plotSize: number): number {
 
 export function levelBaseY(level: number): number {
     return level * LEVEL_HEIGHT;
+}
+
+export function tileKey(layer: BuildLayer, level: number, x: number, z: number): string {
+    return `t:${layer}:${level}:${x}:${z}`;
 }
 
 export function pieceKey(piece: BuildPiece): string {
@@ -86,6 +93,10 @@ export function sanitizePiece(raw: unknown, plotSize: number): BuildPiece | null
     if (!Number.isFinite(piece.x) || !Number.isFinite(piece.z) || !Number.isFinite(piece.l)) return null;
     if (!isPieceInBounds(piece, plotSize)) return null;
 
+    if (typeof source.d === "string" && source.d.length <= MAX_PAINT_URL && /^https?:\/\//.test(source.d)) {
+        piece.d = source.d;
+    }
+
     return piece;
 }
 
@@ -124,7 +135,7 @@ export class BuildLayout {
         const key = pieceKey(piece);
         const replaced = this.pieces.get(key) ?? null;
 
-        if (replaced && replaced.t === piece.t && replaced.r === piece.r) {
+        if (replaced && replaced.t === piece.t && replaced.r === piece.r && replaced.d === piece.d) {
             return { changed: false, key, replaced };
         }
 

@@ -45,6 +45,7 @@ import { LeaderboardsWindow } from "./ui/LeaderboardsWindow";
 import { SettingsWindow } from "./ui/SettingsWindow";
 import { SupportModal } from "./ui/SupportModal";
 import { SignEditorModal } from "./ui/SignEditorModal";
+import { PosterPaintModal } from "./ui/PosterPaintModal";
 import { SignViewerModal, SignViewData } from "./ui/SignViewerModal";
 import { PlaceableMenu } from "./ui/PlaceableMenu";
 import { PlayerProfileCard } from "./ui/PlayerProfileCard";
@@ -107,6 +108,8 @@ export function GameClient({ slug }: GameClientProps) {
   const [factionBubbleId, setFactionBubbleId] = useState<string | null>(null);
   const [isRoomPortalOpen, setIsRoomPortalOpen] = useState(false);
   const [buildEditorState, setBuildEditorState] = useState<BuildSessionState | null>(null);
+  const [isPosterPaintOpen, setIsPosterPaintOpen] = useState(false);
+  const [paintTarget, setPaintTarget] = useState<{ key: string; aspect: number; url: string | null } | null>(null);
   const [isRoomConsoleOpen, setIsRoomConsoleOpen] = useState(false);
   const [roomConsoleFactionId, setRoomConsoleFactionId] = useState<string | null>(null);
   const [isBubbleMapOpen, setIsBubbleMapOpen] = useState(false);
@@ -351,6 +354,14 @@ export function GameClient({ slug }: GameClientProps) {
         game.onOpenSignEditorUI = (signId) => {
           if (cancelled) return;
           setSignEditorId(signId);
+          document.exitPointerLock();
+        };
+        game.onOpenPosterPaintUI = (pieceKey) => {
+          if (cancelled) return;
+          const target = game.buildSession.getPaintTarget(pieceKey);
+          if (!target) return;
+          setPaintTarget({ key: pieceKey, ...target });
+          setIsPosterPaintOpen(true);
           document.exitPointerLock();
         };
         game.onOpenSignViewerUI = (sign) => {
@@ -1217,12 +1228,35 @@ export function GameClient({ slug }: GameClientProps) {
           onDeleteSelection={() => gameRef.current?.buildSession.deleteSelection()}
           onMoveSelection={() => gameRef.current?.buildSession.moveSelection()}
           onRotateSelection={() => gameRef.current?.buildSession.rotateSelection()}
+          onPaintSelection={() => {
+            gameRef.current?.buildSession.setInputSuspended(true);
+            setPaintTarget(null);
+            setIsPosterPaintOpen(true);
+          }}
           onCancelCarry={() => gameRef.current?.buildSession.cancelCarry()}
           onClearLot={() => gameRef.current?.buildSession.clearLot()}
           onSave={() => { void gameRef.current?.buildSession.save(); }}
           onExit={() => gameRef.current?.closeBuildEditor()}
         />
       )}
+
+      <PosterPaintModal
+        isOpen={isPosterPaintOpen && (paintTarget !== null || (buildEditorState?.canPaint ?? false))}
+        aspect={paintTarget?.aspect ?? buildEditorState?.paintAspect ?? null}
+        sourceUrl={paintTarget?.url ?? buildEditorState?.paintUrl ?? null}
+        onClose={() => {
+          gameRef.current?.buildSession.setInputSuspended(false);
+          setIsPosterPaintOpen(false);
+          setPaintTarget(null);
+        }}
+        onSubmit={async (image) => {
+          const session = gameRef.current?.buildSession;
+          if (!session) throw new Error("The editor is closed");
+          if (paintTarget) await session.paintPiece(paintTarget.key, image);
+          else await session.paintSelection(image);
+        }}
+        onNotification={notifications.addNotification}
+      />
 
       <RoomPortalPanel
         isOpen={isRoomPortalOpen}

@@ -4,6 +4,7 @@ import { System } from "./System";
 import { Player } from "../entities/Player";
 import { InputManager } from "../core/InputManager";
 import { SafeZone } from "../world/SafeZone";
+import { PAINT_PREFIX } from "../world/building/BuildRenderer";
 
 interface TokenInfo {
     name: string;
@@ -46,6 +47,8 @@ export class InteractionSystem extends System {
     public onEnterLocation?: (locationId: string) => void;
     public onOpenSignEditor?: (signId: string) => void;
     public onOpenSignViewer?: (signId: string) => void;
+    public onOpenPosterPaint?: (pieceKey: string) => void;
+    public canPaintLot: boolean = false;
     public localUserId: string = "";
     public myFactionIds: Set<string> = new Set();
     public isBlueprintActive: boolean = false;
@@ -183,6 +186,15 @@ export class InteractionSystem extends System {
                 this.onPrompt?.("[E] Return to the Outpost");
                 if (isEJustPressed === true) {
                     this.onCanyonReturn?.();
+                }
+            } else if (id?.startsWith(PAINT_PREFIX)) {
+                if (this.canPaintLot) {
+                    this.onPrompt?.("[E] Draw on it");
+                    if (isEJustPressed === true) {
+                        this.onOpenPosterPaint?.(id.slice(PAINT_PREFIX.length));
+                    }
+                } else {
+                    this.onPrompt?.("Only the lot owner can draw here");
                 }
             } else if (id?.startsWith("sign-")) {
                 const ownerId = nearest.obj.userData.ownerId;

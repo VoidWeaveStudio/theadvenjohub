@@ -57,6 +57,7 @@ export interface GameCallbacks {
     onOpenCanyonMapUI?: () => void;
     onEquippedToolChange?: (tool: "weapon" | "blueprint" | null) => void;
     onOpenSignEditorUI?: (signId: string) => void;
+    onOpenPosterPaintUI?: (pieceKey: string) => void;
     onOpenSignViewerUI?: (sign: {
         id: string;
         ownerNickname: string;

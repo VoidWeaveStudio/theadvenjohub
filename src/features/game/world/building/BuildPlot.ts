@@ -1,11 +1,11 @@
 // src/features/game/world/building/BuildPlot.ts
 import * as THREE from "three";
 import { CollisionGrid } from "../CollisionGrid";
-import { getSurfaceMaterial } from "./buildTextures";
+import { getSurfaceMaterial, getSurfaceUvScale } from "./buildTextures";
 import { BuildRenderer } from "./BuildRenderer";
-import { BuildEnvironmentRig } from "./environmentPresets";
-import { BuildLayout, pieceKey, sanitizePiece, type BuildLayoutData, type BuildPiece } from "./BuildLayout";
-import { CELL_SIZE } from "./BuildCatalog";
+import { BuildEnvironmentRig, getSkyPreset, skyDaylight } from "./environmentPresets";
+import { BuildLayout, pieceKey, sanitizePiece, tileKey, type BuildLayoutData, type BuildPiece } from "./BuildLayout";
+import { CELL_SIZE, getBuildEntry } from "./BuildCatalog";
 
 export class BuildPlot {
     public readonly layout: BuildLayout;
@@ -13,6 +13,7 @@ export class BuildPlot {
     public readonly collisionGrid: CollisionGrid;
 
     private environment: BuildEnvironmentRig | null = null;
+    private viewerOverride: THREE.Vector3 | null = null;
     private ground: THREE.Mesh | null = null;
     private border: THREE.LineSegments | null = null;
     private groundMaterial: THREE.MeshStandardMaterial | null = null;
@@ -28,14 +29,18 @@ export class BuildPlot {
         this.applyEnvironment();
 
         this.groundMaterial = getSurfaceMaterial("grass").clone();
-        const map = this.groundMaterial.map;
-        if (map) {
-            const repeats = Math.max(4, Math.round(this.plotSize / 6));
-            this.groundMaterial.map = map.clone();
-            this.groundMaterial.map.needsUpdate = true;
-            this.groundMaterial.map.wrapS = THREE.RepeatWrapping;
-            this.groundMaterial.map.wrapT = THREE.RepeatWrapping;
-            this.groundMaterial.map.repeat.set(repeats, repeats);
+
+        const repeats = Math.max(4, Math.round(this.plotSize * getSurfaceUvScale("grass")));
+        for (const slot of ["map", "normalMap"] as const) {
+            const texture = this.groundMaterial[slot];
+            if (!texture) continue;
+
+            const cloned = texture.clone();
+            cloned.needsUpdate = true;
+            cloned.wrapS = THREE.RepeatWrapping;
+            cloned.wrapT = THREE.RepeatWrapping;
+            cloned.repeat.set(repeats, repeats);
+            this.groundMaterial[slot] = cloned;
         }
 
         this.ground = new THREE.Mesh(
@@ -79,6 +84,21 @@ export class BuildPlot {
 
     public applyEnvironment() {
         this.environment?.apply(this.layout.environment.sky, this.layout.environment.light);
+        this.renderer.setDaylight(skyDaylight(getSkyPreset(this.layout.environment.sky)));
+    }
+
+    public setViewerOverride(viewer: THREE.Vector3 | null) {
+        this.viewerOverride = viewer;
+    }
+
+    public getInteractables(): THREE.Object3D[] {
+        return this.renderer.getPaintAnchors();
+    }
+
+    public findPaintable(key: string): BuildPiece | null {
+        const piece = this.layout.at(key);
+        if (!piece) return null;
+        return getBuildEntry(piece.t)?.paint ? piece : null;
     }
 
     public setEnvironment(sky: string, light: string) {
@@ -96,6 +116,35 @@ export class BuildPlot {
 
     public exportLayout(): BuildLayoutData {
         return this.layout.serialize();
+    }
+
+    private hasRampAt(level: number, x: number, z: number): boolean {
+        if (level < 0) return false;
+        const piece = this.layout.at(tileKey("stairs", level, x, z));
+        return !!piece && !!getBuildEntry(piece.t)?.ramp;
+    }
+
+    public stairwellConflicts(piece: BuildPiece): string[] {
+        if (!getBuildEntry(piece.t)?.ramp) return [];
+
+        return [
+            tileKey("floor", piece.l + 1, piece.x, piece.z),
+            tileKey("ground", piece.l + 1, piece.x, piece.z),
+            tileKey("ceiling", piece.l, piece.x, piece.z),
+        ].filter((key) => this.layout.at(key) !== undefined);
+    }
+
+    public blocksStairwell(piece: BuildPiece): boolean {
+        const entry = getBuildEntry(piece.t);
+        if (!entry || entry.slot !== "tile") return false;
+
+        if (entry.layer === "floor" || entry.layer === "ground") {
+            return this.hasRampAt(piece.l - 1, piece.x, piece.z);
+        }
+        if (entry.layer === "ceiling") {
+            return this.hasRampAt(piece.l, piece.x, piece.z);
+        }
+        return false;
     }
 
     public placePiece(piece: BuildPiece): boolean {
@@ -137,8 +186,10 @@ export class BuildPlot {
     }
 
     public update(delta: number, viewer: THREE.Vector3) {
-        this.environment?.followTarget(viewer.x, viewer.z);
-        this.renderer.update(delta, viewer.x, viewer.y, viewer.z);
+        const focus = this.viewerOverride ?? viewer;
+        this.environment?.followTarget(focus.x, focus.z);
+        this.environment?.update(delta);
+        this.renderer.update(delta, focus.x, focus.y, focus.z);
     }
 
     public setEditorMode(active: boolean) {
@@ -157,6 +208,7 @@ export class BuildPlot {
         }
         if (this.groundMaterial) {
             this.groundMaterial.map?.dispose();
+            this.groundMaterial.normalMap?.dispose();
             this.groundMaterial.dispose();
             this.groundMaterial = null;
         }

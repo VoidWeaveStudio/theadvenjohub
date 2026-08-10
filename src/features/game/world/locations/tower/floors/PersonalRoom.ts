@@ -13,6 +13,7 @@ const CONSOLE_OFFSET = 6;
 export class PersonalRoom extends TowerFloor {
     public readonly ownerUserId: string;
     public readonly plot: BuildPlot;
+    public onInteractablesChanged: ((added: THREE.Object3D[], removed: THREE.Object3D[]) => void) | null = null;
 
     private ownerName = "Your Lot";
     private console: RoomConsole | null = null;
@@ -34,6 +35,9 @@ export class PersonalRoom extends TowerFloor {
 
     create(_rm: ResourceManager): void {
         this.plot.create();
+        this.plot.renderer.onInteractablesChanged = (added, removed) => {
+            this.onInteractablesChanged?.(added, removed);
+        };
 
         this.collisionGrid = this.plot.collisionGrid;
         this.terrain = { getHeightAt: (x, z, referenceY) => this.plot.getHeightAt(x, z, referenceY) };
@@ -63,6 +67,7 @@ export class PersonalRoom extends TowerFloor {
     public override getInteractables(): THREE.Object3D[] {
         const interactables = super.getInteractables();
         if (this.console) interactables.push(this.console.group);
+        interactables.push(...this.plot.getInteractables());
         return interactables;
     }
 

@@ -429,7 +429,11 @@ export class Game {
                     this.onNotification?.(msg, duration);
                 };
                 this.buildSession.onStateChange = (state) => {
+                    this.interactionSystem.canPaintLot = state.canEdit;
                     this.onBuildEditorState?.(state);
+                };
+                this.interactionSystem.onOpenPosterPaint = (pieceKey) => {
+                    this.onOpenPosterPaintUI?.(pieceKey);
                 };
                 this.buildSession.onRequestExit = () => {
                     this.closeBuildEditor();

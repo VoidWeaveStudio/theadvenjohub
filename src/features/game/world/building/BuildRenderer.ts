@@ -7,14 +7,16 @@ import {
     DOOR_LEAF,
     HALF,
     LEVEL_HEIGHT,
-    STAIR_STEPS,
     WALL_THICKNESS,
+    applyBoxUv,
     getBuildEntry,
     getBuildParts,
     getBuildMaterial,
     getDoorLeafGeometry,
+    stairSurfaceHeight,
+    type BuildLightSpec,
 } from "./BuildCatalog";
-import type { SurfaceId } from "./buildTextures";
+import { getSurfaceUvScale, type SurfaceId } from "./buildTextures";
 import { BuildLayout, cellToWorld, levelBaseY, pieceKey, worldToCell, type BuildPiece } from "./BuildLayout";
 
 const CHUNK_CELLS = 12;
@@ -22,6 +24,12 @@ const WALL_SKIN = 0.03;
 const COVER_CLEARANCE = 0.5;
 const DOOR_TRIGGER_RADIUS = 2.6;
 const DOOR_SPEED = 5;
+const MAX_ACTIVE_LIGHTS = 10;
+const LIGHT_REFRESH_INTERVAL = 0.4;
+const RAMP_SEGMENTS = 12;
+const PAINT_REACH = 3.2;
+
+export const PAINT_PREFIX = "paint:";
 
 interface ChunkBucket {
     meshes: THREE.Mesh[];
@@ -38,6 +46,20 @@ interface DoorInstance {
     target: number;
 }
 
+interface PaintInstance {
+    mesh: THREE.Mesh;
+    url: string;
+}
+
+interface LightSource {
+    x: number;
+    y: number;
+    z: number;
+    level: number;
+    phase: number;
+    spec: BuildLightSpec;
+}
+
 function chunkIdOf(piece: BuildPiece): string {
     return `${Math.floor(piece.x / CHUNK_CELLS)}:${Math.floor(piece.z / CHUNK_CELLS)}:${piece.l}`;
 }
@@ -51,16 +73,40 @@ function rampHeightAt(piece: BuildPiece, rise: number, worldX: number, worldZ: n
     const dz = worldZ - cellToWorld(piece.z, plotSize);
     const angle = (piece.r * Math.PI) / 2;
     const localZ = Math.sin(angle) * dx + Math.cos(angle) * dz;
-    return rise * THREE.MathUtils.clamp((HALF - localZ) / CELL_SIZE, 0, 1);
+    return stairSurfaceHeight(localZ, rise);
+}
+
+const paintTextures = new Map<string, THREE.Texture>();
+const paintLoader = new THREE.TextureLoader();
+
+function getPaintTexture(url: string): THREE.Texture {
+    const cached = paintTextures.get(url);
+    if (cached) return cached;
+
+    const texture = paintLoader.load(url);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    paintTextures.set(url, texture);
+    return texture;
 }
 
 export class BuildRenderer {
     public readonly group = new THREE.Group();
     public readonly staticColliders: THREE.Box3[] = [];
+    public onInteractablesChanged: ((added: THREE.Object3D[], removed: THREE.Object3D[]) => void) | null = null;
 
     private chunks = new Map<string, ChunkBucket>();
     private cellIndex = new Map<string, BuildPiece[]>();
     private doors = new Map<string, DoorInstance>();
+    private paints = new Map<string, PaintInstance>();
+    private paintAnchors = new Map<string, THREE.Object3D>();
+    private lightSources: LightSource[] = [];
+    private activeSources: Array<LightSource | null> = [];
+    private lightPool: THREE.PointLight[] = [];
+    private lightTimer = 0;
+    private daylight = 1;
+    private elapsed = 0;
+    private visibleLevel: number | null = null;
     private dirty = new Set<string>();
     private matrix = new THREE.Matrix4();
     private euler = new THREE.Euler();
@@ -99,7 +145,50 @@ export class BuildRenderer {
 
         this.dirty.clear();
         this.syncDoors();
+        this.syncPaintings();
+        this.syncPaintAnchors();
+        this.rebuildLightSources();
         this.rebuildCollision();
+    }
+
+    private syncPaintAnchors() {
+        const seen = new Set<string>();
+        const added: THREE.Object3D[] = [];
+        const removed: THREE.Object3D[] = [];
+
+        for (const piece of this.layout.list()) {
+            const spec = getBuildEntry(piece.t)?.paint;
+            if (!spec) continue;
+
+            const key = pieceKey(piece);
+            seen.add(key);
+            if (this.paintAnchors.has(key)) continue;
+
+            const anchor = new THREE.Object3D();
+            anchor.position.set(0, spec.y, spec.z);
+            anchor.applyMatrix4(this.pieceMatrix(piece));
+            anchor.userData.interactionId = `${PAINT_PREFIX}${key}`;
+            anchor.userData.interactionRadius = PAINT_REACH;
+
+            this.group.add(anchor);
+            this.paintAnchors.set(key, anchor);
+            added.push(anchor);
+        }
+
+        for (const [key, anchor] of Array.from(this.paintAnchors.entries())) {
+            if (seen.has(key)) continue;
+            this.group.remove(anchor);
+            this.paintAnchors.delete(key);
+            removed.push(anchor);
+        }
+
+        if (added.length > 0 || removed.length > 0) {
+            this.onInteractablesChanged?.(added, removed);
+        }
+    }
+
+    public getPaintAnchors(): THREE.Object3D[] {
+        return Array.from(this.paintAnchors.values());
     }
 
     private disposeChunk(chunkId: string) {
@@ -130,25 +219,29 @@ export class BuildRenderer {
         this.disposeChunk(chunkId);
         if (pieces.length === 0) return;
 
-        const bySurface = new Map<SurfaceId, THREE.BufferGeometry[]>();
+        const batches = new Map<string, { surface: SurfaceId; casts: boolean; geometries: THREE.BufferGeometry[] }>();
 
         for (const piece of pieces) {
             const matrix = this.pieceMatrix(piece);
+            const layer = getBuildEntry(piece.t)?.layer;
+            const casts = layer !== "ground";
 
             for (const part of getBuildParts(piece.t)) {
                 const geometry = part.geometry.index ? part.geometry.toNonIndexed() : part.geometry.clone();
                 geometry.applyMatrix4(matrix);
 
-                const bucket = bySurface.get(part.surface);
-                if (bucket) bucket.push(geometry);
-                else bySurface.set(part.surface, [geometry]);
+                const key = `${part.surface}:${casts ? 1 : 0}`;
+                const bucket = batches.get(key);
+                if (bucket) bucket.geometries.push(geometry);
+                else batches.set(key, { surface: part.surface, casts, geometries: [geometry] });
             }
         }
 
         const chunk: ChunkBucket = { meshes: [], group: new THREE.Group() };
         chunk.group.matrixAutoUpdate = false;
 
-        bySurface.forEach((geometries, surface) => {
+        batches.forEach((batch) => {
+            const { geometries, surface } = batch;
             const merged = geometries.length === 1 ? geometries[0] : mergeGeometries(geometries, false);
             if (geometries.length > 1) geometries.forEach((geometry) => geometry.dispose());
             if (!merged) {
@@ -156,8 +249,11 @@ export class BuildRenderer {
                 return;
             }
 
+            applyBoxUv(merged, getSurfaceUvScale(surface));
+            merged.computeBoundingSphere();
+
             const mesh = new THREE.Mesh(merged, getBuildMaterial(surface));
-            mesh.castShadow = true;
+            mesh.castShadow = batch.casts;
             mesh.receiveShadow = true;
             mesh.matrixAutoUpdate = false;
             mesh.updateMatrix();
@@ -212,7 +308,155 @@ export class BuildRenderer {
         }
     }
 
+    private disposePainting(key: string) {
+        const painting = this.paints.get(key);
+        if (!painting) return;
+
+        this.group.remove(painting.mesh);
+        painting.mesh.geometry.dispose();
+        (painting.mesh.material as THREE.Material).dispose();
+        this.paints.delete(key);
+    }
+
+    private syncPaintings() {
+        const seen = new Set<string>();
+
+        for (const piece of this.layout.list()) {
+            const entry = getBuildEntry(piece.t);
+            const spec = entry?.paint;
+            if (!spec || !piece.d) continue;
+
+            const key = pieceKey(piece);
+            seen.add(key);
+
+            const existing = this.paints.get(key);
+            if (existing && existing.url === piece.d) continue;
+            if (existing) this.disposePainting(key);
+
+            const mesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(spec.width, spec.height),
+                new THREE.MeshStandardMaterial({ map: getPaintTexture(piece.d), roughness: 0.86, metalness: 0 })
+            );
+            mesh.position.set(0, spec.y, spec.z + 0.012);
+            mesh.receiveShadow = true;
+            mesh.applyMatrix4(this.pieceMatrix(piece));
+
+            this.group.add(mesh);
+            this.paints.set(key, { mesh, url: piece.d });
+        }
+
+        for (const key of Array.from(this.paints.keys())) {
+            if (!seen.has(key)) this.disposePainting(key);
+        }
+    }
+
+    private rebuildLightSources() {
+        this.lightSources.length = 0;
+
+        for (const piece of this.layout.list()) {
+            const spec = getBuildEntry(piece.t)?.light;
+            if (!spec) continue;
+
+            const angle = (piece.r * Math.PI) / 2;
+            const sin = Math.sin(angle);
+            const cos = Math.cos(angle);
+
+            this.lightSources.push({
+                x: cellToWorld(piece.x, this.layout.plotSize) + spec.x * cos + spec.z * sin,
+                y: levelBaseY(piece.l) + spec.y,
+                z: cellToWorld(piece.z, this.layout.plotSize) - spec.x * sin + spec.z * cos,
+                level: piece.l,
+                phase: (piece.x * 7 + piece.z * 13 + piece.l * 3) % 17,
+                spec,
+            });
+        }
+
+        this.lightTimer = 0;
+        this.refreshLights(0, 0, 0);
+    }
+
+    private resizeLightPool(size: number) {
+        while (this.lightPool.length < size) {
+            const light = new THREE.PointLight(0xffffff, 0, 10, 1.6);
+            this.group.add(light);
+            this.lightPool.push(light);
+        }
+        while (this.lightPool.length > size) {
+            const light = this.lightPool.pop()!;
+            this.group.remove(light);
+            light.dispose();
+        }
+    }
+
+    public setDaylight(daylight: number) {
+        this.daylight = THREE.MathUtils.clamp(daylight, 0, 1);
+        this.lightTimer = 0;
+    }
+
+    private sourceIntensity(source: LightSource): number {
+        const dim = source.spec.nightOnly ? 1 - this.daylight * 0.85 : 1 - this.daylight * 0.25;
+        return source.spec.intensity * Math.max(0.05, dim);
+    }
+
+    private refreshLights(viewerX: number, viewerY: number, viewerZ: number) {
+        this.resizeLightPool(Math.min(this.lightSources.length, MAX_ACTIVE_LIGHTS));
+        if (this.lightPool.length === 0) return;
+
+        const visible = this.lightSources.filter(
+            (source) => this.visibleLevel === null || source.level <= this.visibleLevel
+        );
+
+        visible.sort((a, b) => {
+            const da = (a.x - viewerX) ** 2 + (a.y - viewerY) ** 2 + (a.z - viewerZ) ** 2;
+            const db = (b.x - viewerX) ** 2 + (b.y - viewerY) ** 2 + (b.z - viewerZ) ** 2;
+            return da - db;
+        });
+
+        this.activeSources.length = 0;
+
+        for (let i = 0; i < this.lightPool.length; i++) {
+            const light = this.lightPool[i];
+            const source = visible[i];
+
+            if (!source) {
+                light.intensity = 0;
+                light.visible = false;
+                this.activeSources.push(null);
+                continue;
+            }
+
+            light.visible = true;
+            light.position.set(source.x, source.y, source.z);
+            light.color.setHex(source.spec.color);
+            light.intensity = this.sourceIntensity(source);
+            light.distance = source.spec.distance;
+            this.activeSources.push(source);
+        }
+    }
+
+    private animateFlicker() {
+        for (let i = 0; i < this.lightPool.length; i++) {
+            const source = this.activeSources[i];
+            if (!source?.spec.flicker) continue;
+
+            const t = this.elapsed * 9 + source.phase;
+            const wave = Math.sin(t) * 0.6 + Math.sin(t * 2.37) * 0.3 + Math.sin(t * 4.13) * 0.1;
+            this.lightPool[i].intensity = this.sourceIntensity(source) * (1 + wave * source.spec.flicker);
+        }
+    }
+
     public update(delta: number, viewerX: number, viewerY: number, viewerZ: number) {
+        this.elapsed += delta;
+
+        if (this.lightSources.length > 0) {
+            this.lightTimer -= delta;
+            if (this.lightTimer <= 0) {
+                this.lightTimer = LIGHT_REFRESH_INTERVAL;
+                this.refreshLights(viewerX, viewerY, viewerZ);
+            }
+            this.animateFlicker();
+        }
+
         if (this.doors.size === 0) return;
 
         const blend = Math.min(1, delta * DOOR_SPEED);
@@ -276,29 +520,48 @@ export class BuildRenderer {
         );
     }
 
-    private insertStairSteps(piece: BuildPiece, rise: number, baseY: number) {
+    private insertLocalBox(
+        piece: BuildPiece, baseY: number,
+        x0: number, x1: number, y0: number, y1: number, z0: number, z1: number
+    ) {
         const worldX = cellToWorld(piece.x, this.layout.plotSize);
         const worldZ = cellToWorld(piece.z, this.layout.plotSize);
         const angle = (piece.r * Math.PI) / 2;
-        const sin = Math.sin(angle);
-        const cos = Math.cos(angle);
+        const sin = Math.round(Math.sin(angle));
+        const cos = Math.round(Math.cos(angle));
 
-        const step = rise / STAIR_STEPS;
-        const run = CELL_SIZE / STAIR_STEPS;
-        const alongX = Math.abs(cos) > 0.5;
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minZ = Infinity;
+        let maxZ = -Infinity;
 
-        for (let i = 0; i < STAIR_STEPS; i++) {
-            const localZ = HALF - run / 2 - i * run;
-            const centerX = worldX + sin * localZ;
-            const centerZ = worldZ + cos * localZ;
+        for (const localX of [x0, x1]) {
+            for (const localZ of [z0, z1]) {
+                const x = worldX + localX * cos + localZ * sin;
+                const z = worldZ - localX * sin + localZ * cos;
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                minZ = Math.min(minZ, z);
+                maxZ = Math.max(maxZ, z);
+            }
+        }
 
-            const halfX = alongX ? HALF : run / 2;
-            const halfZ = alongX ? run / 2 : HALF;
+        this.insertBox(minX, baseY + y0, minZ, maxX, baseY + y1, maxZ);
+    }
 
-            this.insertBox(
-                centerX - halfX, baseY, centerZ - halfZ,
-                centerX + halfX, baseY + (i + 1) * step, centerZ + halfZ
-            );
+    private insertRampSides(piece: BuildPiece, rise: number, baseY: number) {
+        const length = CELL_SIZE / RAMP_SEGMENTS;
+
+        for (let i = 0; i < RAMP_SEGMENTS; i++) {
+            const z0 = HALF - (i + 1) * length;
+            const z1 = HALF - i * length;
+
+            const height = stairSurfaceHeight(z1, rise);
+            if (height <= 0.05) continue;
+
+            for (const side of [-1, 1]) {
+                this.insertLocalBox(piece, baseY, side * 0.9, side * HALF, 0, height, z0, z1);
+            }
         }
     }
 
@@ -317,7 +580,7 @@ export class BuildRenderer {
             const baseY = levelBaseY(piece.l);
 
             if (entry.ramp && entry.walkableTop !== null) {
-                this.insertStairSteps(piece, entry.walkableTop, baseY);
+                this.insertRampSides(piece, entry.walkableTop, baseY);
             } else if (entry.walkableTop !== null) {
                 this.insertBox(
                     worldX - HALF, baseY + entry.walkableTop - 0.35, worldZ - HALF,
@@ -345,9 +608,10 @@ export class BuildRenderer {
             }
 
             const height = entry.blockHeight ?? LEVEL_HEIGHT * 0.7;
+            const radius = entry.blockRadius ?? CELL_SIZE * 0.4;
             this.insertBox(
-                worldX - CELL_SIZE * 0.4, baseY, worldZ - CELL_SIZE * 0.4,
-                worldX + CELL_SIZE * 0.4, baseY + height, worldZ + CELL_SIZE * 0.4
+                worldX - radius, baseY, worldZ - radius,
+                worldX + radius, baseY + height, worldZ + radius
             );
         }
     }
@@ -402,10 +666,12 @@ export class BuildRenderer {
     }
 
     public setLevelVisibility(maxLevel: number | null) {
+        this.visibleLevel = maxLevel;
         this.chunks.forEach((chunk, chunkId) => {
             const level = Number(chunkId.split(":")[2]);
             chunk.group.visible = maxLevel === null || level <= maxLevel;
         });
+        this.lightTimer = 0;
     }
 
     public dispose() {
@@ -414,6 +680,14 @@ export class BuildRenderer {
         this.cellIndex.clear();
         this.doors.forEach((door) => this.group.remove(door.root));
         this.doors.clear();
+        for (const key of Array.from(this.paints.keys())) this.disposePainting(key);
+        this.paintAnchors.forEach((anchor) => this.group.remove(anchor));
+        this.paintAnchors.clear();
+        this.onInteractablesChanged = null;
+        this.lightPool.forEach((light) => this.group.remove(light));
+        this.lightPool.length = 0;
+        this.lightSources.length = 0;
+        this.activeSources.length = 0;
         this.dirty.clear();
         this.staticColliders.length = 0;
         this.group.removeFromParent();

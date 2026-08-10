@@ -3,6 +3,7 @@ import type { NetworkManager, RoomBuildOp } from "../../network/NetworkManager";
 import { BuildEditor, type EditorTool } from "./BuildEditor";
 import type { BuildPlot } from "./BuildPlot";
 import { pieceKey, type BuildPiece } from "./BuildLayout";
+import { getBuildEntry } from "./BuildCatalog";
 
 export type LotOwnerType = "personal" | "faction";
 
@@ -19,6 +20,9 @@ export interface BuildSessionState {
     level: number;
     tool: EditorTool;
     selectionLabel: string | null;
+    canPaint: boolean;
+    paintAspect: number | null;
+    paintUrl: string | null;
     carrying: boolean;
     saving: boolean;
     dirty: boolean;
@@ -61,6 +65,9 @@ export class BuildSession {
             level: this.editor.level,
             tool: this.editor.tool,
             selectionLabel: this.editor.selectionLabel(),
+            canPaint: this.editor.selectionPaintable(),
+            paintAspect: this.editor.selectionPaintAspect(),
+            paintUrl: this.editor.selectionPaintUrl(),
             carrying: this.editor.carrying !== null,
             saving: this.saving,
             dirty: this.dirty,
@@ -101,14 +108,23 @@ export class BuildSession {
 
         try {
             const res = await fetch(`/api/game/room-layout?${params.toString()}`, { credentials: "include" });
-            const payload = await res.json();
-            if (!res.ok) return;
+            const payload = await res.json().catch(() => null);
 
-            this.canEdit = !!payload.canEdit;
-            if (payload.data) this.plot.loadLayout(payload.data);
+            if (!res.ok) {
+                this.onNotification?.(
+                    res.status === 401
+                        ? "🔒 Your session expired — sign in again to load this lot"
+                        : "⚠️ Could not load this lot",
+                    3000
+                );
+                return;
+            }
+
+            this.canEdit = !!payload?.canEdit;
+            if (payload?.data) this.plot.loadLayout(payload.data);
             this.emit();
         } catch {
-            return;
+            this.onNotification?.("⚠️ Could not reach the server to load this lot", 3000);
         }
     }
 
@@ -121,6 +137,7 @@ export class BuildSession {
 
         this.editor.activate(scene, this.plot.layout);
         this.plot.setEditorMode(true);
+        this.plot.setViewerOverride(this.editor.camera.focus);
         this.emit();
         return true;
     }
@@ -129,6 +146,7 @@ export class BuildSession {
         if (!this.editor.active) return;
         this.editor.deactivate();
         this.plot?.setEditorMode(false);
+        this.plot?.setViewerOverride(null);
         void this.save();
         this.emit();
     }
@@ -139,6 +157,16 @@ export class BuildSession {
 
     private place(piece: BuildPiece) {
         if (!this.plot || !this.canEdit) return;
+
+        if (this.plot.blocksStairwell(piece)) {
+            this.onNotification?.("🪜 A staircase comes up here — keep this cell open", 2600);
+            return;
+        }
+
+        for (const key of this.plot.stairwellConflicts(piece)) {
+            this.erase(key);
+        }
+
         if (!this.plot.placePiece(piece)) return;
 
         this.dirty = true;
@@ -242,6 +270,11 @@ export class BuildSession {
         this.editor.setTool(tool);
     }
 
+    public setInputSuspended(suspended: boolean) {
+        this.editor.suspended = suspended;
+        if (suspended) this.editor.releaseKeys();
+    }
+
     public deleteSelection() {
         this.editor.deleteSelection();
     }
@@ -256,6 +289,54 @@ export class BuildSession {
 
     public cancelCarry() {
         this.editor.cancelCarry();
+    }
+
+    private async uploadPaint(image: Blob): Promise<string> {
+        const body = new FormData();
+        body.append("file", new File([image], "poster.png", { type: "image/png" }));
+
+        const res = await fetch("/api/game/poster/upload", {
+            method: "POST",
+            credentials: "include",
+            body,
+        });
+
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !payload?.url) {
+            if (res.status === 401) throw new Error("Your session expired — sign in again");
+            throw new Error(payload?.error === "too_many_attempts" ? "Too many uploads, wait a moment" : "Upload failed");
+        }
+
+        return payload.url as string;
+    }
+
+    public async paintSelection(image: Blob): Promise<void> {
+        if (!this.plot || !this.canEdit || !this.editor.selectionPaintable()) {
+            throw new Error("Nothing to paint here");
+        }
+
+        this.editor.paintSelection(await this.uploadPaint(image));
+    }
+
+    public getPaintTarget(key: string): { aspect: number; url: string | null } | null {
+        const piece = this.plot?.findPaintable(key);
+        if (!piece) return null;
+
+        const spec = getBuildEntry(piece.t)?.paint;
+        if (!spec) return null;
+
+        return { aspect: spec.width / spec.height, url: piece.d ?? null };
+    }
+
+    public async paintPiece(key: string, image: Blob): Promise<void> {
+        if (!this.plot || !this.canEdit) throw new Error("Only the lot owner can draw here");
+
+        const piece = this.plot.findPaintable(key);
+        if (!piece) throw new Error("Nothing to paint here");
+
+        const url = await this.uploadPaint(image);
+        this.place({ ...piece, d: url });
+        await this.save();
     }
 
     public setLevel(level: number) {

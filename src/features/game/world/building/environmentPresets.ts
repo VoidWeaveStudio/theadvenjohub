@@ -1,14 +1,28 @@
 // src/features/game/world/building/environmentPresets.ts
 import * as THREE from "three";
+import { EditorSky } from "./EditorSky";
 
 export interface SkyPreset {
     id: string;
     name: string;
-    top: number;
-    horizon: number;
-    ground: number;
-    stars: boolean;
+    elevation: number;
+    azimuth: number;
+    turbidity: number;
+    rayleigh: number;
+    mieCoefficient: number;
+    mieDirectionalG: number;
+    cloudCoverage: number;
+    cloudDensity: number;
+    cloudSpeed: number;
+    cloudElevation: number;
+    stars: number;
+    aurora: number;
+    auroraColor: number;
+    space: number;
+    spaceTint: number;
+    fog: number;
     fogDensity: number;
+    sunDisc: boolean;
 }
 
 export interface LightPreset {
@@ -21,26 +35,31 @@ export interface LightPreset {
     hemiIntensity: number;
     sun: number;
     sunIntensity: number;
-    sunAngle: number;
-    sunHeight: number;
 }
 
 export const SKY_PRESETS: SkyPreset[] = [
-    { id: "day", name: "Clear Day", top: 0x3f7fd0, horizon: 0xbfd9f2, ground: 0x6f7a63, stars: false, fogDensity: 0.0016 },
-    { id: "sunset", name: "Sunset", top: 0x2b3a6b, horizon: 0xf0955a, ground: 0x4a3a34, stars: false, fogDensity: 0.0022 },
-    { id: "overcast", name: "Overcast", top: 0x8d99a8, horizon: 0xc3cad3, ground: 0x5f6560, stars: false, fogDensity: 0.0034 },
-    { id: "night", name: "Starry Night", top: 0x05070f, horizon: 0x131c33, ground: 0x0a0c12, stars: true, fogDensity: 0.0026 },
-    { id: "cosmos", name: "Cosmos", top: 0x05030f, horizon: 0x241452, ground: 0x07050f, stars: true, fogDensity: 0.0012 },
-    { id: "void", name: "Void", top: 0x000000, horizon: 0x0a0a0c, ground: 0x000000, stars: false, fogDensity: 0.004 },
+    { id: "day", name: "Clear Day", elevation: 52, azimuth: 165, turbidity: 4, rayleigh: 1.5, mieCoefficient: 0.004, mieDirectionalG: 0.8, cloudCoverage: 0.28, cloudDensity: 0.34, cloudSpeed: 0.00008, cloudElevation: 0.45, stars: 0, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x3b2a6b, fog: 0xc3daea, fogDensity: 0.0009, sunDisc: true },
+    { id: "summer", name: "Summer Noon", elevation: 74, azimuth: 190, turbidity: 3, rayleigh: 1.1, mieCoefficient: 0.003, mieDirectionalG: 0.78, cloudCoverage: 0.16, cloudDensity: 0.26, cloudSpeed: 0.00005, cloudElevation: 0.3, stars: 0, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x3b2a6b, fog: 0xcfe6f4, fogDensity: 0.0006, sunDisc: true },
+    { id: "morning", name: "Soft Morning", elevation: 20, azimuth: 110, turbidity: 6, rayleigh: 2.2, mieCoefficient: 0.006, mieDirectionalG: 0.82, cloudCoverage: 0.44, cloudDensity: 0.4, cloudSpeed: 0.0001, cloudElevation: 0.55, stars: 0, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x3b2a6b, fog: 0xd8e2e8, fogDensity: 0.0017, sunDisc: true },
+    { id: "golden", name: "Golden Hour", elevation: 7, azimuth: 200, turbidity: 8, rayleigh: 2.8, mieCoefficient: 0.011, mieDirectionalG: 0.87, cloudCoverage: 0.4, cloudDensity: 0.46, cloudSpeed: 0.00012, cloudElevation: 0.6, stars: 0, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x3b2a6b, fog: 0xe8b184, fogDensity: 0.0018, sunDisc: true },
+    { id: "sunset", name: "Sunset", elevation: 1.4, azimuth: 215, turbidity: 11, rayleigh: 2.6, mieCoefficient: 0.02, mieDirectionalG: 0.9, cloudCoverage: 0.5, cloudDensity: 0.52, cloudSpeed: 0.00014, cloudElevation: 0.65, stars: 0.25, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x3b2a6b, fog: 0xd88355, fogDensity: 0.0024, sunDisc: true },
+    { id: "overcast", name: "Overcast", elevation: 34, azimuth: 150, turbidity: 18, rayleigh: 0.6, mieCoefficient: 0.02, mieDirectionalG: 0.7, cloudCoverage: 0.82, cloudDensity: 0.72, cloudSpeed: 0.00016, cloudElevation: 0.4, stars: 0, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x3b2a6b, fog: 0xb9bfc6, fogDensity: 0.0032, sunDisc: false },
+    { id: "storm", name: "Storm Front", elevation: 16, azimuth: 140, turbidity: 26, rayleigh: 0.35, mieCoefficient: 0.028, mieDirectionalG: 0.68, cloudCoverage: 0.95, cloudDensity: 0.88, cloudSpeed: 0.0004, cloudElevation: 0.72, stars: 0, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x3b2a6b, fog: 0x6f7681, fogDensity: 0.0052, sunDisc: false },
+    { id: "night", name: "Starry Night", elevation: -11, azimuth: 300, turbidity: 10, rayleigh: 0.45, mieCoefficient: 0.006, mieDirectionalG: 0.8, cloudCoverage: 0.14, cloudDensity: 0.3, cloudSpeed: 0.00006, cloudElevation: 0.45, stars: 1, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x3b2a6b, fog: 0x121a2c, fogDensity: 0.0022, sunDisc: false },
+    { id: "aurora", name: "Aurora", elevation: -16, azimuth: 20, turbidity: 6, rayleigh: 0.4, mieCoefficient: 0.004, mieDirectionalG: 0.78, cloudCoverage: 0.08, cloudDensity: 0.25, cloudSpeed: 0.00006, cloudElevation: 0.4, stars: 1, aurora: 0.55, auroraColor: 0x53ffc0, space: 0, spaceTint: 0x1c3a55, fog: 0x0d1e2a, fogDensity: 0.0026, sunDisc: false },
+    { id: "cosmos", name: "Cosmos", elevation: -40, azimuth: 40, turbidity: 2, rayleigh: 0.08, mieCoefficient: 0.002, mieDirectionalG: 0.6, cloudCoverage: 0, cloudDensity: 0, cloudSpeed: 0, cloudElevation: 0.5, stars: 1, aurora: 0.2, auroraColor: 0x8a6cff, space: 0.85, spaceTint: 0x4b2f7a, fog: 0x150c2b, fogDensity: 0.0012, sunDisc: false },
+    { id: "nebula", name: "Nebula", elevation: -55, azimuth: 250, turbidity: 2, rayleigh: 0.05, mieCoefficient: 0.002, mieDirectionalG: 0.6, cloudCoverage: 0, cloudDensity: 0, cloudSpeed: 0, cloudElevation: 0.5, stars: 1, aurora: 0.32, auroraColor: 0xff6ec7, space: 0.95, spaceTint: 0x7a2f66, fog: 0x25102e, fogDensity: 0.0014, sunDisc: false },
+    { id: "void", name: "Void", elevation: -90, azimuth: 0, turbidity: 1, rayleigh: 0, mieCoefficient: 0, mieDirectionalG: 0, cloudCoverage: 0, cloudDensity: 0, cloudSpeed: 0, cloudElevation: 0.5, stars: 0.35, aurora: 0, auroraColor: 0x4dffc3, space: 0, spaceTint: 0x05050a, fog: 0x05050a, fogDensity: 0.0045, sunDisc: false },
 ];
 
 export const LIGHT_PRESETS: LightPreset[] = [
-    { id: "noon", name: "Noon", ambient: 0xffffff, ambientIntensity: 0.42, hemiSky: 0xcfe6ff, hemiGround: 0x6b6455, hemiIntensity: 0.85, sun: 0xfff4de, sunIntensity: 2.1, sunAngle: 0.7, sunHeight: 0.95 },
-    { id: "morning", name: "Morning", ambient: 0xffe9d0, ambientIntensity: 0.35, hemiSky: 0xffe0bd, hemiGround: 0x6a6154, hemiIntensity: 0.7, sun: 0xffd7a1, sunIntensity: 1.7, sunAngle: 2.2, sunHeight: 0.45 },
-    { id: "evening", name: "Evening", ambient: 0xffcf9e, ambientIntensity: 0.3, hemiSky: 0xffb583, hemiGround: 0x4a3f38, hemiIntensity: 0.6, sun: 0xff9b52, sunIntensity: 1.5, sunAngle: 4.0, sunHeight: 0.3 },
-    { id: "moonlit", name: "Moonlit", ambient: 0x8fa8d8, ambientIntensity: 0.22, hemiSky: 0x6f86c0, hemiGround: 0x1a1d26, hemiIntensity: 0.45, sun: 0xaec6ff, sunIntensity: 0.7, sunAngle: 1.4, sunHeight: 0.8 },
-    { id: "neon", name: "Neon", ambient: 0xb478ff, ambientIntensity: 0.4, hemiSky: 0x7be0ff, hemiGround: 0x35124a, hemiIntensity: 0.8, sun: 0xff7bd0, sunIntensity: 1.2, sunAngle: 3.1, sunHeight: 0.6 },
-    { id: "studio", name: "Studio", ambient: 0xffffff, ambientIntensity: 0.75, hemiSky: 0xffffff, hemiGround: 0xbdbdbd, hemiIntensity: 0.9, sun: 0xffffff, sunIntensity: 1.1, sunAngle: 0.9, sunHeight: 0.9 },
+    { id: "noon", name: "Noon", ambient: 0xffffff, ambientIntensity: 0.35, hemiSky: 0xcfe6ff, hemiGround: 0x6b6455, hemiIntensity: 0.8, sun: 0xfff4de, sunIntensity: 2.2 },
+    { id: "morning", name: "Morning", ambient: 0xffe9d0, ambientIntensity: 0.3, hemiSky: 0xffe0bd, hemiGround: 0x6a6154, hemiIntensity: 0.65, sun: 0xffd7a1, sunIntensity: 1.8 },
+    { id: "evening", name: "Evening", ambient: 0xffcf9e, ambientIntensity: 0.26, hemiSky: 0xffb583, hemiGround: 0x4a3f38, hemiIntensity: 0.55, sun: 0xff9b52, sunIntensity: 1.5 },
+    { id: "moonlit", name: "Moonlit", ambient: 0x8fa8d8, ambientIntensity: 0.2, hemiSky: 0x6f86c0, hemiGround: 0x1a1d26, hemiIntensity: 0.4, sun: 0xaec6ff, sunIntensity: 0.6 },
+    { id: "neon", name: "Neon", ambient: 0xb478ff, ambientIntensity: 0.36, hemiSky: 0x7be0ff, hemiGround: 0x35124a, hemiIntensity: 0.75, sun: 0xff7bd0, sunIntensity: 1.1 },
+    { id: "studio", name: "Studio", ambient: 0xffffff, ambientIntensity: 0.7, hemiSky: 0xffffff, hemiGround: 0xbdbdbd, hemiIntensity: 0.85, sun: 0xffffff, sunIntensity: 1.2 },
+    { id: "overcast", name: "Diffused", ambient: 0xdfe6ee, ambientIntensity: 0.5, hemiSky: 0xc9d6e2, hemiGround: 0x5c5f5a, hemiIntensity: 0.9, sun: 0xd9e2ec, sunIntensity: 0.7 },
 ];
 
 export function getSkyPreset(id: string): SkyPreset {
@@ -51,70 +70,97 @@ export function getLightPreset(id: string): LightPreset {
     return LIGHT_PRESETS.find((preset) => preset.id === id) ?? LIGHT_PRESETS[0];
 }
 
-const skyVertex = /* glsl */ `
-varying vec3 vLocal;
-void main() {
-    vLocal = normalize(position);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const skyFragment = /* glsl */ `
-uniform vec3 uTop;
-uniform vec3 uHorizon;
-uniform vec3 uGround;
-uniform float uStars;
-varying vec3 vLocal;
-
-float hash(vec3 p) {
-    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+export function skyDaylight(preset: SkyPreset): number {
+    return THREE.MathUtils.clamp((preset.elevation + 4) / 14, 0, 1);
 }
 
-void main() {
-    float h = vLocal.y;
-    vec3 color = h >= 0.0
-        ? mix(uHorizon, uTop, pow(clamp(h, 0.0, 1.0), 0.65))
-        : mix(uHorizon, uGround, pow(clamp(-h, 0.0, 1.0), 0.5));
+function createStarField(radius: number, count: number, size: number, seed: number): THREE.Points {
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const color = new THREE.Color();
 
-    if (uStars > 0.5 && h > -0.05) {
-        vec3 cell = floor(vLocal * 260.0);
-        float star = hash(cell);
-        if (star > 0.9975) {
-            float twinkle = 0.6 + 0.4 * hash(cell + 3.1);
-            color += vec3(twinkle) * smoothstep(-0.05, 0.25, h);
-        }
+    for (let i = 0; i < count; i++) {
+        const theta = ((Math.sin(i * 12.9898 + seed) * 43758.5453) % 1 + 1) % 1 * Math.PI * 2;
+        const phi = Math.acos(((Math.sin(i * 78.233 + seed) * 12345.6789) % 1 + 1) % 1 * 2 - 1);
+
+        positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3 + 1] = Math.abs(radius * Math.cos(phi));
+        positions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+
+        const warm = ((Math.sin(i * 3.17 + seed) + 1) / 2);
+        color.setHSL(0.55 + warm * 0.12, 0.35, 0.72 + warm * 0.2);
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
     }
 
-    gl_FragColor = vec4(color, 1.0);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+    return new THREE.Points(geometry, new THREE.PointsMaterial({
+        size,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        sizeAttenuation: false,
+        fog: false,
+    }));
 }
-`;
 
 export class BuildEnvironmentRig {
-    private dome: THREE.Mesh;
+    private sky: EditorSky;
+    private stars: THREE.Points;
+    private brightStars: THREE.Points;
+    private moon: THREE.Mesh;
+    private moonGlow: THREE.Mesh;
+
     private ambient: THREE.AmbientLight;
     private hemisphere: THREE.HemisphereLight;
     private sun: THREE.DirectionalLight;
     private sunTarget: THREE.Object3D;
 
+    private sunDirection = new THREE.Vector3(0, 1, 0);
+    private elapsed = 0;
+
     constructor(private scene: THREE.Scene, radius: number) {
-        this.dome = new THREE.Mesh(
-            new THREE.SphereGeometry(radius, 32, 24),
-            new THREE.ShaderMaterial({
-                uniforms: {
-                    uTop: { value: new THREE.Color() },
-                    uHorizon: { value: new THREE.Color() },
-                    uGround: { value: new THREE.Color() },
-                    uStars: { value: 0 },
-                },
-                vertexShader: skyVertex,
-                fragmentShader: skyFragment,
-                side: THREE.BackSide,
-                depthWrite: false,
+        this.sky = new EditorSky();
+        this.sky.scale.setScalar(14000);
+        this.sky.renderOrder = -1000;
+        this.sky.frustumCulled = false;
+        this.scene.add(this.sky);
+
+        this.stars = createStarField(5000, 2200, 1.6, 17);
+        this.stars.renderOrder = -999;
+        this.stars.frustumCulled = false;
+        this.scene.add(this.stars);
+
+        this.brightStars = createStarField(4900, 180, 3.4, 91);
+        this.brightStars.renderOrder = -999;
+        this.brightStars.frustumCulled = false;
+        this.scene.add(this.brightStars);
+
+        this.moon = new THREE.Mesh(
+            new THREE.SphereGeometry(80, 24, 16),
+            new THREE.MeshBasicMaterial({ color: 0xe6ecfa, fog: false, depthWrite: false })
+        );
+        this.moon.renderOrder = -998;
+        this.scene.add(this.moon);
+
+        this.moonGlow = new THREE.Mesh(
+            new THREE.SphereGeometry(190, 20, 14),
+            new THREE.MeshBasicMaterial({
+                color: 0x9fb6e8,
                 fog: false,
+                depthWrite: false,
+                transparent: true,
+                opacity: 0.16,
+                side: THREE.BackSide,
             })
         );
-        this.dome.renderOrder = -1000;
-        this.scene.add(this.dome);
+        this.moonGlow.renderOrder = -998;
+        this.scene.add(this.moonGlow);
 
         this.ambient = new THREE.AmbientLight(0xffffff, 0.4);
         this.scene.add(this.ambient);
@@ -125,10 +171,10 @@ export class BuildEnvironmentRig {
         this.sun = new THREE.DirectionalLight(0xffffff, 1.6);
         this.sun.castShadow = true;
         this.sun.shadow.mapSize.set(2048, 2048);
-        this.sun.shadow.bias = -0.0005;
-        this.sun.shadow.normalBias = 0.04;
+        this.sun.shadow.bias = -0.0004;
+        this.sun.shadow.normalBias = 0.03;
         this.sun.shadow.camera.near = 1;
-        this.sun.shadow.camera.far = radius * 1.6;
+        this.sun.shadow.camera.far = 600;
 
         const extent = Math.min(radius * 0.6, 90);
         this.sun.shadow.camera.left = -extent;
@@ -147,14 +193,40 @@ export class BuildEnvironmentRig {
         const sky = getSkyPreset(skyId);
         const light = getLightPreset(lightId);
 
-        const uniforms = (this.dome.material as THREE.ShaderMaterial).uniforms;
-        (uniforms.uTop.value as THREE.Color).setHex(sky.top);
-        (uniforms.uHorizon.value as THREE.Color).setHex(sky.horizon);
-        (uniforms.uGround.value as THREE.Color).setHex(sky.ground);
-        uniforms.uStars.value = sky.stars ? 1 : 0;
+        const uniforms = this.sky.material.uniforms;
+        uniforms.turbidity.value = sky.turbidity;
+        uniforms.rayleigh.value = sky.rayleigh;
+        uniforms.mieCoefficient.value = sky.mieCoefficient;
+        uniforms.mieDirectionalG.value = sky.mieDirectionalG;
+        uniforms.cloudCoverage.value = sky.cloudCoverage;
+        uniforms.cloudDensity.value = sky.cloudDensity;
+        uniforms.cloudSpeed.value = sky.cloudSpeed;
+        uniforms.cloudElevation.value = sky.cloudElevation;
+        uniforms.showSunDisc.value = sky.sunDisc ? 1 : 0;
+        uniforms.auroraStrength.value = sky.aurora;
+        (uniforms.auroraColor.value as THREE.Color).setHex(sky.auroraColor);
+        uniforms.spaceAmount.value = sky.space;
+        (uniforms.spaceTint.value as THREE.Color).setHex(sky.spaceTint);
 
-        this.scene.background = new THREE.Color(sky.horizon);
-        this.scene.fog = new THREE.FogExp2(new THREE.Color(sky.horizon), sky.fogDensity);
+        const phi = THREE.MathUtils.degToRad(90 - sky.elevation);
+        const theta = THREE.MathUtils.degToRad(sky.azimuth);
+        this.sunDirection.setFromSphericalCoords(1, phi, theta);
+        (uniforms.sunPosition.value as THREE.Vector3).copy(this.sunDirection);
+
+        const blackout = sky.rayleigh <= 0.001 && sky.space <= 0.001;
+        this.sky.visible = !blackout;
+        this.scene.background = blackout ? new THREE.Color(0x02020a) : null;
+
+        for (const field of [this.stars, this.brightStars]) {
+            (field.material as THREE.PointsMaterial).opacity = sky.stars;
+            field.visible = sky.stars > 0.01;
+        }
+
+        const moonVisible = sky.elevation < 6 && sky.space < 0.5;
+        this.moon.visible = moonVisible;
+        this.moonGlow.visible = moonVisible;
+
+        this.scene.fog = new THREE.FogExp2(new THREE.Color(sky.fog), sky.fogDensity);
 
         this.ambient.color.setHex(light.ambient);
         this.ambient.intensity = light.ambientIntensity;
@@ -163,28 +235,62 @@ export class BuildEnvironmentRig {
         this.hemisphere.groundColor.setHex(light.hemiGround);
         this.hemisphere.intensity = light.hemiIntensity;
 
+        const daylight = skyDaylight(sky);
         this.sun.color.setHex(light.sun);
-        this.sun.intensity = light.sunIntensity;
+        this.sun.intensity = light.sunIntensity * (0.25 + 0.75 * daylight);
+        this.sun.castShadow = this.sun.intensity > 0.25;
 
-        const distance = 120;
-        this.sun.position.set(
-            Math.cos(light.sunAngle) * distance,
-            light.sunHeight * distance,
-            Math.sin(light.sunAngle) * distance
-        );
-        this.sunTarget.position.set(0, 0, 0);
-        this.sunTarget.updateMatrixWorld();
+        this.followTarget(this.sunTarget.position.x, this.sunTarget.position.z);
     }
 
     public followTarget(x: number, z: number) {
-        this.dome.position.set(x, 0, z);
+        this.sky.position.set(x, 0, z);
+        this.stars.position.set(x, 0, z);
+        this.brightStars.position.set(x, 0, z);
+
+        const moonX = x - this.sunDirection.x * 3500;
+        const moonY = Math.abs(this.sunDirection.y) * 2200 + 400;
+        const moonZ = z - this.sunDirection.z * 3500;
+        this.moon.position.set(moonX, moonY, moonZ);
+        this.moonGlow.position.set(moonX, moonY, moonZ);
+
+        const height = Math.max(0.3, Math.abs(this.sunDirection.y));
+        this.sun.position.set(
+            x + this.sunDirection.x * 150,
+            height * 190,
+            z + this.sunDirection.z * 150
+        );
         this.sunTarget.position.set(x, 0, z);
         this.sunTarget.updateMatrixWorld();
     }
 
+    public update(delta: number) {
+        this.elapsed += delta;
+        this.sky.material.uniforms.time.value = this.elapsed;
+
+        if (this.stars.visible) {
+            this.stars.rotation.y += delta * 0.002;
+            this.brightStars.rotation.y += delta * 0.002;
+        }
+    }
+
     public dispose() {
-        this.dome.geometry.dispose();
-        (this.dome.material as THREE.Material).dispose();
-        this.scene.remove(this.dome, this.ambient, this.hemisphere, this.sun, this.sunTarget);
+        this.sky.geometry.dispose();
+        this.sky.material.dispose();
+        this.stars.geometry.dispose();
+        (this.stars.material as THREE.Material).dispose();
+        this.brightStars.geometry.dispose();
+        (this.brightStars.material as THREE.Material).dispose();
+        this.moon.geometry.dispose();
+        (this.moon.material as THREE.Material).dispose();
+        this.moonGlow.geometry.dispose();
+        (this.moonGlow.material as THREE.Material).dispose();
+
+        this.scene.background = null;
+        this.scene.fog = null;
+        this.scene.remove(
+            this.sky, this.stars, this.brightStars, this.moon, this.moonGlow,
+            this.ambient, this.hemisphere, this.sun, this.sunTarget
+        );
     }
 }

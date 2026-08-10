@@ -2,7 +2,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Hammer, Eraser, RotateCw, Save, X, Layers, Sun, Trash2, MousePointer2, Move } from "lucide-react";
+import { Hammer, Eraser, RotateCw, Save, X, Layers, Sun, Trash2, MousePointer2, Move, Paintbrush } from "lucide-react";
 import { getBuildEntries, type BuildCategory } from "../world/building/BuildCatalog";
 import { MAX_LEVELS } from "../world/building/BuildLayout";
 import { SKY_PRESETS, LIGHT_PRESETS } from "../world/building/environmentPresets";
@@ -12,15 +12,20 @@ const CATEGORY_LABELS: Record<BuildCategory, string> = {
     structure: "Structure",
     openings: "Doors & Windows",
     roofing: "Roofing",
-    outdoor: "Outdoor",
+    outdoor: "Streets",
+    garden: "Garden",
+    lighting: "Lighting",
     furniture: "Furniture",
     decor: "Decor",
 };
 
-const CATEGORY_ORDER: BuildCategory[] = ["structure", "openings", "roofing", "outdoor", "furniture", "decor"];
+const CATEGORY_ORDER: BuildCategory[] = ["structure", "openings", "roofing", "outdoor", "garden", "lighting", "furniture", "decor"];
 
 const CATEGORY_HINTS: Partial<Record<BuildCategory, string>> = {
+    structure: "Stairs are walk-up ramps — face them toward the level above and your character climbs on its own, no jumping. The cell right above a staircase stays open automatically, so the flight always has somewhere to come out.",
     roofing: "One slope tile climbs exactly one level. Ring the outer wall with slopes, then move up a level and ring the next row in — repeat until the rows meet. Cap the last row with Ridge Cap, close the sides with Gable End.",
+    lighting: "These fixtures cast real light. The ten closest to you stay lit, so spread them out instead of clustering them. Street lamps dim at daytime and switch on at night.",
+    decor: "Place a poster or billboard, then walk up to it in the lot and press E to draw on it. You can also select it here and hit Paint. Re-open it later to keep working on the same picture.",
 };
 
 interface BuildEditorPanelProps {
@@ -33,6 +38,7 @@ interface BuildEditorPanelProps {
     onDeleteSelection: () => void;
     onMoveSelection: () => void;
     onRotateSelection: () => void;
+    onPaintSelection: () => void;
     onCancelCarry: () => void;
     onClearLot: () => void;
     onSave: () => void;
@@ -49,6 +55,7 @@ export function BuildEditorPanel({
     onDeleteSelection,
     onMoveSelection,
     onRotateSelection,
+    onPaintSelection,
     onCancelCarry,
     onClearLot,
     onSave,
@@ -104,9 +111,12 @@ export function BuildEditorPanel({
                             <button
                                 key={level}
                                 onClick={() => onSetLevel(level)}
-                                className={`w-6 h-6 rounded text-[11px] font-bold transition-colors ${state.level === level ? "bg-[#4FD1FF]/25 text-[#4FD1FF]" : "text-[#6B7280] hover:text-[#E5E7EB]"}`}
+                                title={`Level ${level + 1}`}
+                                className={`w-6 h-6 p-0 rounded transition-colors ${state.level === level ? "bg-[#4FD1FF]/25 text-[#4FD1FF]" : "text-[#6B7280] hover:text-[#E5E7EB]"}`}
                             >
-                                {level + 1}
+                                <span className="block w-full text-center leading-6 text-[11px] font-bold tabular-nums">
+                                    {level + 1}
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -260,6 +270,14 @@ export function BuildEditorPanel({
                                 >
                                     <RotateCw className="w-3.5 h-3.5" /> Rotate
                                 </button>
+                                {state.canPaint && (
+                                    <button
+                                        onClick={onPaintSelection}
+                                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#7FE6CF] hover:bg-[#7FE6CF]/15 transition-colors"
+                                    >
+                                        <Paintbrush className="w-3.5 h-3.5" /> Paint
+                                    </button>
+                                )}
                                 <button
                                     onClick={onDeleteSelection}
                                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#FF6B7A] hover:bg-[#FF4D4F]/15 transition-colors"
@@ -274,7 +292,7 @@ export function BuildEditorPanel({
 
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none font-oxanium">
                 <div className="bg-[rgba(10,14,20,0.85)] border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-[#8B8F98]">
-                    LMB place or select · RMB drag to orbit · WASD pan · wheel zoom · R rotate · Q/E turn · [ ] level · X erase · Del remove
+                    LMB place or select · RMB drag to orbit · WASD pan (camera relative, Shift = fast) · Space/Ctrl or wheel zoom · R rotate · Q/E turn · [ ] level · X erase · Del remove
                 </div>
             </div>
         </>

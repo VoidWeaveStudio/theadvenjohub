@@ -16,6 +16,7 @@ const pieceSchema = z.object({
     z: z.number().int().min(0).max(1024),
     l: z.number().int().min(0).max(15),
     r: z.number().int().min(0).max(3),
+    d: z.string().url().max(300).optional(),
 });
 
 const layoutSchema = z.object({

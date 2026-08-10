@@ -100,7 +100,7 @@ export type SignData = {
 };
 
 export type RoomBuildOp =
-  | { kind: "place"; piece: { t: string; x: number; z: number; l: number; r: number } }
+  | { kind: "place"; piece: { t: string; x: number; z: number; l: number; r: number; d?: string } }
   | { kind: "erase"; key: string }
   | { kind: "env"; sky: string; light: string }
   | { kind: "clear" };

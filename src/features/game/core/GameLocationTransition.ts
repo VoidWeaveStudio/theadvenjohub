@@ -6,6 +6,8 @@ import { MainHall } from "../world/locations/tower/floors/MainHall";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
+import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
+import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
 
 export function applyLocationMovementConfig(game: Game, location: Location) {
     game.player.setTerrain(location.terrain ?? null);
@@ -38,6 +40,11 @@ export function configureLocationSpecifics(game: Game, location: Location) {
         location.setAccountCount(game.accountCount);
         location.setWaypointIndex(game.getBubbleWaypoint());
         game.applyGalaxySpawn(location);
+    } else if (location instanceof PersonalRoom || location instanceof FactionGateRoom) {
+        location.onInteractablesChanged = (added, removed) => {
+            removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));
+            added.forEach((obj) => game.interactionSystem.registerInteractable(obj));
+        };
     } else if (location instanceof FirstFloor) {
         location.onInteractablesChanged = (added, removed) => {
             removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));
