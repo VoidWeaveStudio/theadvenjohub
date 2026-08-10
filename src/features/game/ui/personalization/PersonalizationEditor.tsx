@@ -71,8 +71,14 @@ export function PersonalizationEditor({ isOpen, onClose, currentSkinUrl, onSave,
             }
             await onSave(blob);
             onClose();
-        } catch {
-            onNotification?.("⚠️ Failed to save your skin — try again", 3000);
+        } catch (err) {
+            const expired = err instanceof Error && err.message === "session_expired";
+            onNotification?.(
+                expired
+                    ? "🔒 Session expired — your paint job is still here, hit Save again"
+                    : "⚠️ Could not save — your paint job is still here, hit Save again",
+                4500
+            );
         } finally {
             setIsSaving(false);
         }

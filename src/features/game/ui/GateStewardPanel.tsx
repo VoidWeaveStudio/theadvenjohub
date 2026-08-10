@@ -7,7 +7,7 @@ import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { DoorOpen, Loader2 } from "lucide-react";
 import { useAuth } from "@/core/auth/AuthProvider";
-import { getCsrfToken } from "@/core/lib/clientUtils";
+import { gameFetch } from "../utils/gameFetch";
 import { SoundManager } from "../core/SoundManager";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
@@ -120,7 +120,7 @@ export function GateStewardPanel({
         setError(null);
         setResult(null);
         try {
-            const res = await fetch(`/api/faction/gate/lookup?ca=${encodeURIComponent(trimmed)}`, { credentials: "include" });
+            const res = await gameFetch(`/api/faction/gate/lookup?ca=${encodeURIComponent(trimmed)}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "lookup_failed");
             setResult(data);
@@ -138,7 +138,7 @@ export function GateStewardPanel({
         setFindError(null);
         setFindResult(null);
         try {
-            const res = await fetch(`/api/faction/gate/lookup?ca=${encodeURIComponent(trimmed)}`, { credentials: "include" });
+            const res = await gameFetch(`/api/faction/gate/lookup?ca=${encodeURIComponent(trimmed)}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "lookup_failed");
             setFindResult(data);
@@ -216,14 +216,9 @@ export function GateStewardPanel({
                 console.warn("[GateSteward] confirmation timeout, relying on backend verification:", confirmErr.message);
             }
 
-            const csrfToken = getCsrfToken();
-            const res = await fetch("/api/faction/gate/purchase", {
+            const res = await gameFetch("/api/faction/gate/purchase", {
                 method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ signature, factionId: result.faction.id }),
             });
 

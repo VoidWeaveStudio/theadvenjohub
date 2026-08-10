@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { CopyableText } from "./shell/CopyableText";
+import { gameFetch } from "../utils/gameFetch";
 
 interface TradeHistoryEntry {
     id: string;
@@ -30,7 +31,7 @@ export function TradeHistoryTab() {
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch("/api/user/trades", { credentials: "include" });
+                const res = await gameFetch("/api/user/trades");
                 if (res.ok) {
                     const data = await res.json();
                     if (!cancelled) setTrades(Array.isArray(data.trades) ? data.trades : []);

@@ -4,6 +4,7 @@ import { BuildEditor, type EditorTool } from "./BuildEditor";
 import type { BuildPlot } from "./BuildPlot";
 import { pieceKey, type BuildPiece } from "./BuildLayout";
 import { getBuildEntry } from "./BuildCatalog";
+import { gameFetch } from "../../utils/gameFetch";
 
 export type LotOwnerType = "personal" | "faction";
 
@@ -107,7 +108,7 @@ export class BuildSession {
         });
 
         try {
-            const res = await fetch(`/api/game/room-layout?${params.toString()}`, { credentials: "include" });
+            const res = await gameFetch(`/api/game/room-layout?${params.toString()}`);
             const payload = await res.json().catch(() => null);
 
             if (!res.ok) {
@@ -227,16 +228,9 @@ export class BuildSession {
         this.emit();
 
         try {
-            const { getCsrfToken } = await import("@/core/lib/clientUtils");
-            const csrfToken = getCsrfToken();
-
-            const res = await fetch("/api/game/room-layout", {
+            const res = await gameFetch("/api/game/room-layout", {
                 method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     ownerType: this.identity.ownerType,
                     ownerId: this.identity.ownerId,
@@ -246,7 +240,12 @@ export class BuildSession {
             });
 
             if (!res.ok) {
-                this.onNotification?.("⚠️ Could not save the lot", 2500);
+                this.onNotification?.(
+                    res.status === 401 || res.status === 403
+                        ? "🔒 Session expired — your build is still here, sign in again and hit Save"
+                        : "⚠️ Could not save the lot — your build is still here, try Save again",
+                    4000
+                );
                 return false;
             }
 
@@ -254,7 +253,7 @@ export class BuildSession {
             this.onNotification?.("💾 Lot saved", 1800);
             return true;
         } catch {
-            this.onNotification?.("⚠️ Could not save the lot", 2500);
+            this.onNotification?.("⚠️ Could not reach the server — your build is still here, try Save again", 4000);
             return false;
         } finally {
             this.saving = false;
@@ -295,9 +294,8 @@ export class BuildSession {
         const body = new FormData();
         body.append("file", new File([image], "poster.png", { type: "image/png" }));
 
-        const res = await fetch("/api/game/poster/upload", {
+        const res = await gameFetch("/api/game/poster/upload", {
             method: "POST",
-            credentials: "include",
             body,
         });
 

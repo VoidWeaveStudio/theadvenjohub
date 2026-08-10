@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Eraser, Paintbrush, Undo2 } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import { ColorPalette } from "./shell/ColorPalette";
+import { canvasToPngBlob } from "../utils/exportPng";
 
 interface PosterPaintModalProps {
     isOpen: boolean;
@@ -162,7 +163,7 @@ export function PosterPaintModal({
 
         setIsSaving(true);
         try {
-            const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+            const blob = await canvasToPngBlob(canvas);
             if (!blob) {
                 onNotification?.("⚠️ Could not export the drawing", 3000);
                 return;

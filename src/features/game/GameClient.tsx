@@ -29,7 +29,7 @@ import { RoomConsolePanel } from "./ui/RoomConsolePanel";
 import { BubbleMapPanel } from "./ui/BubbleMapPanel";
 import type { FactionGateData, ShardStateData } from "./network/NetworkManager";
 import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
-import { getCsrfToken } from "@/core/lib/clientUtils";
+import { gameFetch, keepSessionAlive } from "./utils/gameFetch";
 import { QuestTracker } from "./ui/QuestTracker";
 import { CanyonMapPanel } from "./ui/CanyonMapPanel";
 import { AlaricPanel } from "./ui/AlaricPanel";
@@ -66,6 +66,8 @@ import { useFactionQuestState } from "./ui/hooks/useFactionQuestState";
 import { useLeaderboardState } from "./ui/hooks/useLeaderboardState";
 import { useProfileState } from "./ui/hooks/useProfileState";
 import { useSocialState } from "./ui/hooks/useSocialState";
+
+const SESSION_KEEPALIVE_MS = 9 * 60 * 1000;
 
 interface GameClientProps {
   slug: string;
@@ -202,6 +204,18 @@ export function GameClient({ slug }: GameClientProps) {
       document.exitPointerLock();
     }
   };
+
+  useEffect(() => {
+    void keepSessionAlive();
+    const timer = setInterval(() => { void keepSessionAlive(); }, SESSION_KEEPALIVE_MS);
+    const onWake = () => { if (document.visibilityState === "visible") void keepSessionAlive(); };
+
+    document.addEventListener("visibilitychange", onWake);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onWake);
+    };
+  }, []);
 
   useEffect(() => {
     const handleScrollKeys = (e: KeyboardEvent) => {
@@ -344,7 +358,7 @@ export function GameClient({ slug }: GameClientProps) {
           if (!cancelled) setShardState(state);
         };
 
-        fetch("/api/game/my-bubble", { credentials: "include" })
+        gameFetch("/api/game/my-bubble")
           .then((res) => res.json())
           .then((data) => {
             if (cancelled || typeof data?.bubbleIndex !== "number") return;
@@ -721,16 +735,13 @@ export function GameClient({ slug }: GameClientProps) {
     const formData = new FormData();
     formData.append("file", blob, "skin.png");
 
-    const csrf = getCsrfToken();
-    const res = await fetch("/api/game/skin/upload", {
+    const res = await gameFetch("/api/game/skin/upload", {
       method: "POST",
-      credentials: "include",
-      headers: csrf ? { "x-csrf-token": csrf } : undefined,
       body: formData,
     });
 
     if (!res.ok) {
-      throw new Error("upload_failed");
+      throw new Error(res.status === 401 || res.status === 403 ? "session_expired" : "upload_failed");
     }
 
     const data: { url: string } = await res.json();
@@ -746,16 +757,13 @@ export function GameClient({ slug }: GameClientProps) {
     const formData = new FormData();
     formData.append("file", blob, "sign.png");
 
-    const csrf = getCsrfToken();
-    const res = await fetch("/api/game/sign/upload", {
+    const res = await gameFetch("/api/game/sign/upload", {
       method: "POST",
-      credentials: "include",
-      headers: csrf ? { "x-csrf-token": csrf } : undefined,
       body: formData,
     });
 
     if (!res.ok) {
-      throw new Error("upload_failed");
+      throw new Error(res.status === 401 || res.status === 403 ? "session_expired" : "upload_failed");
     }
 
     const data: { url: string } = await res.json();

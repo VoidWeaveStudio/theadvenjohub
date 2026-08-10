@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { SlidersHorizontal, Loader2, Trash2, UserPlus, Hammer } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
-import { getCsrfToken } from "@/core/lib/clientUtils";
+import { gameFetch } from "../utils/gameFetch";
 import { ROOM_ACCESS_LABELS, type RoomAccess } from "@/core/lib/roomAccess";
 
 const PERSONAL_ACCESS: RoomAccess[] = ["public", "invite", "closed"];
@@ -44,7 +44,7 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
     const loadInvites = useCallback(async () => {
         if (isFactionRoom) return;
         try {
-            const res = await fetch("/api/game/room-invites", { credentials: "include" });
+            const res = await gameFetch("/api/game/room-invites");
             const data = await res.json();
             if (Array.isArray(data?.invites)) setInvites(data.invites);
         } catch {
@@ -61,7 +61,7 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
 
         SoundManager.getInstance().play('modal-open');
 
-        fetch("/api/game/room-access", { credentials: "include" })
+        gameFetch("/api/game/room-access")
             .then((res) => res.json())
             .then((data) => {
                 if (!data?.error) setState(data);
@@ -86,14 +86,9 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
     const saveAccess = async (access: RoomAccess) => {
         setBusy(true);
         try {
-            const csrfToken = getCsrfToken();
-            const res = await fetch("/api/game/room-access", {
+            const res = await gameFetch("/api/game/room-access", {
                 method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(
                     isFactionRoom ? { scope: "faction", factionId, access } : { scope: "personal", access }
                 ),
@@ -122,14 +117,9 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
 
         setBusy(true);
         try {
-            const csrfToken = getCsrfToken();
-            const res = await fetch("/api/game/room-invites", {
+            const res = await gameFetch("/api/game/room-invites", {
                 method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ nickname: trimmed, permanent }),
             });
             const data = await res.json();
@@ -155,14 +145,9 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
     const revokeInvite = async (inviteId: string) => {
         setBusy(true);
         try {
-            const csrfToken = getCsrfToken();
-            await fetch("/api/game/room-invites", {
+            await gameFetch("/api/game/room-invites", {
                 method: "DELETE",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ inviteId }),
             });
             await loadInvites();

@@ -7,7 +7,7 @@ import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { Users, Loader2 } from "lucide-react";
 import { useAuth } from "@/core/auth/AuthProvider";
-import { getCsrfToken } from "@/core/lib/clientUtils";
+import { gameFetch } from "../utils/gameFetch";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 export const FACTION_CREATION_PRICE_TNJ = 1_000_000;
@@ -196,14 +196,9 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
                 console.warn("[FactionCreate] confirmation timeout, relying on backend verification:", confirmErr.message);
             }
 
-            const csrfToken = getCsrfToken();
-            const res = await fetch("/api/faction/create", {
+            const res = await gameFetch("/api/faction/create", {
                 method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ signature, ca: createCa.trim(), gameSlug }),
             });
 

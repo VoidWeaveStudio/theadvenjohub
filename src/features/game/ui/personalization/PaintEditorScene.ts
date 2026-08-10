@@ -4,6 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ResourceManager } from "../../core/ResourceManager";
 import { scaleAndCenterModel } from "../../entities/characterModel";
 import { findPaintableMesh, clonePaintableMaterial } from "../../entities/characterPaint";
+import { canvasToPngBlob } from "../../utils/exportPng";
 
 const CANVAS_SIZE = 1024;
 const MODEL_HEIGHT = 1.8;
@@ -321,9 +322,7 @@ export class PaintEditorScene {
     }
 
     exportPNGBlob(): Promise<Blob | null> {
-        return new Promise((resolve) => {
-            this.paintCanvas.toBlob((blob) => resolve(blob), "image/png");
-        });
+        return canvasToPngBlob(this.paintCanvas);
     }
 
     resize() {
