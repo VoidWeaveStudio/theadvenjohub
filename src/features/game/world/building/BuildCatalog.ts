@@ -7,14 +7,23 @@ export const CELL_SIZE = 2;
 export const LEVEL_HEIGHT = 3;
 export const WALL_THICKNESS = 0.18;
 export const HALF = CELL_SIZE / 2;
+export const STAIR_STEPS = 8;
+
+const SEAM = 0.02;
 
 export type BuildSlot = "tile" | "edge" | "object";
-export type BuildLayer = "floor" | "ceiling" | "roof" | "ground";
+export type BuildLayer = "floor" | "ceiling" | "roof" | "ground" | "stairs";
 export type BuildCategory = "structure" | "openings" | "roofing" | "outdoor" | "furniture" | "decor";
 
 export interface BuildPart {
     geometry: THREE.BufferGeometry;
     surface: SurfaceId;
+}
+
+export interface BuildOpening {
+    width: number;
+    bottom: number;
+    top: number;
 }
 
 export interface BuildEntry {
@@ -26,6 +35,10 @@ export interface BuildEntry {
     layer: BuildLayer;
     blocking: boolean;
     walkableTop: number | null;
+    blockHeight?: number;
+    opening?: BuildOpening;
+    ramp?: boolean;
+    hinged?: boolean;
     build: () => BuildPart[];
 }
 
@@ -53,19 +66,19 @@ function part(surface: SurfaceId, geometries: THREE.BufferGeometry[]): BuildPart
 }
 
 function slab(surface: SurfaceId, thickness: number, y: number): BuildPart[] {
-    return [part(surface, [box(CELL_SIZE, thickness, CELL_SIZE, 0, y + thickness / 2, 0)])];
+    return [part(surface, [box(CELL_SIZE, thickness + SEAM, CELL_SIZE, 0, y + thickness / 2 - SEAM / 2, 0)])];
 }
 
 function wallBody(surface: SurfaceId, height: number, baseY: number): THREE.BufferGeometry {
-    return box(CELL_SIZE, height, WALL_THICKNESS, 0, baseY + height / 2, -HALF + WALL_THICKNESS / 2);
+    return box(CELL_SIZE, height + SEAM, WALL_THICKNESS, 0, baseY + height / 2 - SEAM / 2, -HALF + WALL_THICKNESS / 2);
 }
 
 function wallWithHole(surface: SurfaceId, holeWidth: number, holeBottom: number, holeTop: number): BuildPart[] {
     const sideWidth = (CELL_SIZE - holeWidth) / 2;
     const z = -HALF + WALL_THICKNESS / 2;
     const pieces: THREE.BufferGeometry[] = [
-        box(sideWidth, LEVEL_HEIGHT, WALL_THICKNESS, -(CELL_SIZE - sideWidth) / 2, LEVEL_HEIGHT / 2, z),
-        box(sideWidth, LEVEL_HEIGHT, WALL_THICKNESS, (CELL_SIZE - sideWidth) / 2, LEVEL_HEIGHT / 2, z),
+        box(sideWidth, LEVEL_HEIGHT + SEAM, WALL_THICKNESS, -(CELL_SIZE - sideWidth) / 2, LEVEL_HEIGHT / 2 - SEAM / 2, z),
+        box(sideWidth, LEVEL_HEIGHT + SEAM, WALL_THICKNESS, (CELL_SIZE - sideWidth) / 2, LEVEL_HEIGHT / 2 - SEAM / 2, z),
     ];
     if (holeBottom > 0.001) {
         pieces.push(box(holeWidth, holeBottom, WALL_THICKNESS, 0, holeBottom / 2, z));
@@ -88,18 +101,18 @@ function frame(surface: SurfaceId, width: number, bottom: number, top: number, t
 }
 
 function stairParts(surface: SurfaceId, railSurface: SurfaceId): BuildPart[] {
-    const steps = 8;
-    const rise = LEVEL_HEIGHT / steps;
-    const run = CELL_SIZE / steps;
+    const rise = LEVEL_HEIGHT / STAIR_STEPS;
+    const run = CELL_SIZE / STAIR_STEPS;
     const treads: THREE.BufferGeometry[] = [];
 
-    for (let i = 0; i < steps; i++) {
-        treads.push(box(CELL_SIZE * 0.86, rise, run, 0, rise / 2 + i * rise, HALF - run / 2 - i * run));
+    for (let i = 0; i < STAIR_STEPS; i++) {
+        const top = (i + 1) * rise;
+        treads.push(box(CELL_SIZE * 0.86, top + SEAM, run, 0, top / 2 - SEAM / 2, HALF - run / 2 - i * run));
     }
 
     const rails: THREE.BufferGeometry[] = [];
     for (const side of [-1, 1]) {
-        for (let i = 0; i < steps; i += 2) {
+        for (let i = 0; i < STAIR_STEPS; i += 2) {
             rails.push(box(0.09, rise * 2.2, 0.09, side * CELL_SIZE * 0.4, rise * i + rise * 1.6, HALF - run / 2 - i * run));
         }
     }
@@ -107,29 +120,60 @@ function stairParts(surface: SurfaceId, railSurface: SurfaceId): BuildPart[] {
     return [part(surface, treads), part(railSurface, rails)];
 }
 
-function roofSlopeParts(surface: SurfaceId): BuildPart[] {
-    const slices = 6;
-    const pieces: THREE.BufferGeometry[] = [];
-    const step = CELL_SIZE / slices;
+export const DOOR_LEAF = {
+    width: 1.34,
+    height: 2.15,
+    thickness: 0.07,
+    hingeX: -0.68,
+    z: -HALF + WALL_THICKNESS / 2,
+    surface: "plank" as SurfaceId,
+    openAngle: Math.PI * 0.52,
+};
 
-    for (let i = 0; i < slices; i++) {
-        const height = ((i + 1) / slices) * LEVEL_HEIGHT * 0.72;
-        pieces.push(box(CELL_SIZE, 0.16, step, 0, height, -HALF + step / 2 + i * step));
+let doorLeafGeometry: THREE.BufferGeometry | null = null;
+
+export function getDoorLeafGeometry(): THREE.BufferGeometry {
+    if (!doorLeafGeometry) {
+        doorLeafGeometry = box(
+            DOOR_LEAF.width, DOOR_LEAF.height, DOOR_LEAF.thickness,
+            DOOR_LEAF.width / 2, DOOR_LEAF.height / 2, 0
+        );
     }
-    return [part(surface, pieces)];
+    return doorLeafGeometry;
+}
+
+function profile(points: Array<[number, number]>): THREE.Shape {
+    const shape = new THREE.Shape();
+    shape.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) shape.lineTo(points[i][0], points[i][1]);
+    shape.closePath();
+    return shape;
+}
+
+function prismAlongX(points: Array<[number, number]>, width: number): THREE.BufferGeometry {
+    const geometry = new THREE.ExtrudeGeometry(profile(points), { depth: width, bevelEnabled: false });
+    geometry.translate(0, 0, -width / 2);
+    geometry.rotateY(-Math.PI / 2);
+    geometry.translate(0, -SEAM, 0);
+    return geometry;
+}
+
+function plateOnEdge(points: Array<[number, number]>, thickness: number): THREE.BufferGeometry {
+    const geometry = new THREE.ExtrudeGeometry(profile(points), { depth: thickness, bevelEnabled: false });
+    geometry.translate(0, 0, -HALF);
+    return geometry;
+}
+
+function roofSlopeParts(surface: SurfaceId): BuildPart[] {
+    return [part(surface, [prismAlongX([[-HALF, 0], [HALF, 0], [-HALF, LEVEL_HEIGHT]], CELL_SIZE)])];
 }
 
 function roofRidgeParts(surface: SurfaceId): BuildPart[] {
-    const slices = 6;
-    const pieces: THREE.BufferGeometry[] = [];
-    const step = CELL_SIZE / slices;
+    return [part(surface, [prismAlongX([[-HALF, 0], [HALF, 0], [0, LEVEL_HEIGHT / 2]], CELL_SIZE)])];
+}
 
-    for (let i = 0; i < slices; i++) {
-        const t = Math.abs(i - (slices - 1) / 2) / ((slices - 1) / 2);
-        const height = (1 - t) * LEVEL_HEIGHT * 0.72;
-        pieces.push(box(CELL_SIZE, 0.16, step, 0, height, -HALF + step / 2 + i * step));
-    }
-    return [part(surface, pieces)];
+function roofGableParts(surface: SurfaceId): BuildPart[] {
+    return [part(surface, [plateOnEdge([[-HALF, 0], [HALF, 0], [HALF, LEVEL_HEIGHT]], WALL_THICKNESS)])];
 }
 
 function chairParts(): BuildPart[] {
@@ -252,26 +296,27 @@ const ENTRIES: BuildEntry[] = [
     { id: "wall-plaster", name: "Plaster Wall", icon: "🧱", category: "structure", slot: "edge", layer: "floor", blocking: true, walkableTop: null, build: () => [part("plaster", [wallBody("plaster", LEVEL_HEIGHT, 0)])] },
     { id: "wall-brick", name: "Brick Wall", icon: "🟥", category: "structure", slot: "edge", layer: "floor", blocking: true, walkableTop: null, build: () => [part("brick", [wallBody("brick", LEVEL_HEIGHT, 0)])] },
     { id: "wall-stone", name: "Stone Wall", icon: "⬛", category: "structure", slot: "edge", layer: "floor", blocking: true, walkableTop: null, build: () => [part("stone", [wallBody("stone", LEVEL_HEIGHT, 0)])] },
-    { id: "wall-half", name: "Half Wall", icon: "▂", category: "structure", slot: "edge", layer: "floor", blocking: true, walkableTop: null, build: () => [part("plaster", [wallBody("plaster", LEVEL_HEIGHT * 0.45, 0)])] },
+    { id: "wall-half", name: "Half Wall", icon: "▂", category: "structure", slot: "edge", layer: "floor", blocking: true, walkableTop: null, blockHeight: LEVEL_HEIGHT * 0.45, build: () => [part("plaster", [wallBody("plaster", LEVEL_HEIGHT * 0.45, 0)])] },
     { id: "pillar", name: "Pillar", icon: "🏛️", category: "structure", slot: "object", layer: "floor", blocking: true, walkableTop: null, build: pillarParts },
     { id: "ceiling", name: "Ceiling", icon: "⬛", category: "structure", slot: "tile", layer: "ceiling", blocking: false, walkableTop: null, build: () => slab("plaster", 0.14, LEVEL_HEIGHT - 0.14) },
-    { id: "stairs", name: "Stairs", icon: "🪜", category: "structure", slot: "tile", layer: "floor", blocking: false, walkableTop: LEVEL_HEIGHT, build: () => stairParts("plank", "metal") },
+    { id: "stairs", name: "Stairs", icon: "🪜", category: "structure", slot: "tile", layer: "stairs", blocking: false, walkableTop: LEVEL_HEIGHT, ramp: true, build: () => stairParts("plank", "metal") },
 
-    { id: "door", name: "Door", icon: "🚪", category: "openings", slot: "edge", layer: "floor", blocking: false, walkableTop: null, build: () => [...wallWithHole("plaster", 1.1, 0, 2.2), part("plank", frame("plank", 1.2, 0, 2.3, 0.1))] },
-    { id: "arch", name: "Archway", icon: "⛩️", category: "openings", slot: "edge", layer: "floor", blocking: false, walkableTop: null, build: () => wallWithHole("plaster", 1.4, 0, 2.45) },
+    { id: "door", name: "Door", icon: "🚪", category: "openings", slot: "edge", layer: "floor", blocking: true, walkableTop: null, hinged: true, opening: { width: 1.4, bottom: 0, top: 2.2 }, build: () => [...wallWithHole("plaster", 1.4, 0, 2.2), part("plank", frame("plank", 1.5, 0, 2.3, 0.1))] },
+    { id: "arch", name: "Archway", icon: "⛩️", category: "openings", slot: "edge", layer: "floor", blocking: true, walkableTop: null, opening: { width: 1.6, bottom: 0, top: 2.45 }, build: () => wallWithHole("plaster", 1.6, 0, 2.45) },
     { id: "window", name: "Window", icon: "🪟", category: "openings", slot: "edge", layer: "floor", blocking: true, walkableTop: null, build: () => [...wallWithHole("plaster", 1.2, 0.9, 2.2), part("plank", frame("plank", 1.3, 0.85, 2.25, 0.1)), part("glass", [box(1.2, 1.3, 0.04, 0, 1.55, -HALF + WALL_THICKNESS / 2)])] },
     { id: "window-round", name: "Round Window", icon: "⭕", category: "openings", slot: "edge", layer: "floor", blocking: true, walkableTop: null, build: () => [...wallWithHole("brick", 1.0, 1.1, 2.1), part("glass", [cylinder(0.5, 0.5, 0.05, 20, 0, 1.6, -HALF + WALL_THICKNESS / 2)])] },
 
-    { id: "roof-slope", name: "Sloped Roof", icon: "🏠", category: "roofing", slot: "tile", layer: "roof", blocking: false, walkableTop: null, build: () => roofSlopeParts("shingle") },
-    { id: "roof-ridge", name: "Ridge Roof", icon: "⛰️", category: "roofing", slot: "tile", layer: "roof", blocking: false, walkableTop: null, build: () => roofRidgeParts("shingle") },
-    { id: "roof-thatch", name: "Thatch Roof", icon: "🌾", category: "roofing", slot: "tile", layer: "roof", blocking: false, walkableTop: null, build: () => roofSlopeParts("thatch") },
+    { id: "roof-slope", name: "Roof Slope", icon: "🏠", category: "roofing", slot: "tile", layer: "roof", blocking: false, walkableTop: null, build: () => roofSlopeParts("shingle") },
+    { id: "roof-thatch", name: "Thatch Slope", icon: "🌾", category: "roofing", slot: "tile", layer: "roof", blocking: false, walkableTop: null, build: () => roofSlopeParts("thatch") },
+    { id: "roof-ridge", name: "Ridge Cap", icon: "⛰️", category: "roofing", slot: "tile", layer: "roof", blocking: false, walkableTop: null, build: () => roofRidgeParts("shingle") },
+    { id: "roof-gable", name: "Gable End", icon: "🔺", category: "roofing", slot: "edge", layer: "roof", blocking: false, walkableTop: null, build: () => roofGableParts("plaster") },
     { id: "roof-flat", name: "Flat Roof", icon: "▪️", category: "roofing", slot: "tile", layer: "roof", blocking: false, walkableTop: null, build: () => slab("stone", 0.18, 0) },
 
     { id: "path-stone", name: "Stone Path", icon: "🛤️", category: "outdoor", slot: "tile", layer: "ground", blocking: false, walkableTop: 0.06, build: () => slab("cobble", 0.06, 0) },
     { id: "path-marble", name: "Marble Path", icon: "🀫", category: "outdoor", slot: "tile", layer: "ground", blocking: false, walkableTop: 0.06, build: () => slab("marble", 0.06, 0) },
     { id: "path-plank", name: "Boardwalk", icon: "🪵", category: "outdoor", slot: "tile", layer: "ground", blocking: false, walkableTop: 0.06, build: () => slab("plank", 0.06, 0) },
-    { id: "fence-wood", name: "Wooden Fence", icon: "🚧", category: "outdoor", slot: "edge", layer: "floor", blocking: true, walkableTop: null, build: () => fenceParts("plank") },
-    { id: "fence-metal", name: "Iron Fence", icon: "⛓️", category: "outdoor", slot: "edge", layer: "floor", blocking: true, walkableTop: null, build: () => fenceParts("metal") },
+    { id: "fence-wood", name: "Wooden Fence", icon: "🚧", category: "outdoor", slot: "edge", layer: "floor", blocking: true, walkableTop: null, blockHeight: 1.2, build: () => fenceParts("plank") },
+    { id: "fence-metal", name: "Iron Fence", icon: "⛓️", category: "outdoor", slot: "edge", layer: "floor", blocking: true, walkableTop: null, blockHeight: 1.2, build: () => fenceParts("metal") },
 
     { id: "chair", name: "Chair", icon: "🪑", category: "furniture", slot: "object", layer: "floor", blocking: true, walkableTop: null, build: chairParts },
     { id: "table", name: "Table", icon: "🛋️", category: "furniture", slot: "object", layer: "floor", blocking: true, walkableTop: null, build: tableParts },
@@ -314,4 +359,6 @@ export function getBuildMaterial(surface: SurfaceId): THREE.MeshStandardMaterial
 export function disposeBuildCatalog() {
     partsCache.forEach((parts) => parts.forEach((entry) => entry.geometry.dispose()));
     partsCache.clear();
+    doorLeafGeometry?.dispose();
+    doorLeafGeometry = null;
 }

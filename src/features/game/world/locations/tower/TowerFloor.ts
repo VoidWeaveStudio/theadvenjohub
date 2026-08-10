@@ -5,18 +5,21 @@ import { ResourceManager } from "../../../core/ResourceManager";
 import { CollisionGrid } from "../../CollisionGrid";
 import { isSharedNpcGeometry } from "../../../entities/npcModel";
 
+const ZERO = new THREE.Vector3(0, 0, 0);
+
 export abstract class TowerFloor extends Location {
     public collisionGrid: CollisionGrid;
     public maxPlayerRadius: number | null = 9999;
     protected time: number = 0;
     protected centralCrystal!: THREE.Group;
+    protected crystalBaseY: number = 0;
 
     constructor(id: string, name: string) {
         super(id, name);
         this.collisionGrid = new CollisionGrid(20);
     }
 
-    protected createCentralCrystal() {
+    protected createCentralCrystal(position?: THREE.Vector3) {
         this.centralCrystal = new THREE.Group();
 
         const core = new THREE.Mesh(
@@ -44,14 +47,16 @@ export abstract class TowerFloor extends Location {
         light.shadow.camera.updateProjectionMatrix();
 
         this.centralCrystal.add(core, shell, light);
-        this.centralCrystal.position.set(0, 0, 0);
+        this.centralCrystal.position.copy(position ?? ZERO);
+        this.crystalBaseY = this.centralCrystal.position.y;
         this.scene.add(this.centralCrystal);
 
         this.centralCrystal.userData.interactionId = "tower-crystal";
 
+        const { x, y, z } = this.centralCrystal.position;
         this.collisionGrid.insert(new THREE.Box3(
-            new THREE.Vector3(-1, 0, -1),
-            new THREE.Vector3(1, 3, 1)
+            new THREE.Vector3(x - 1, y, z - 1),
+            new THREE.Vector3(x + 1, y + 3, z + 1)
         ));
     }
 
@@ -60,12 +65,12 @@ export abstract class TowerFloor extends Location {
 
         if (this.centralCrystal) {
             this.centralCrystal.rotation.y += delta * 0.6;
-            this.centralCrystal.position.y = Math.sin(this.time * 1.5) * 0.2;
+            this.centralCrystal.position.y = this.crystalBaseY + Math.sin(this.time * 1.5) * 0.2;
         }
     }
 
     public getInteractables(): THREE.Object3D[] {
-        return [this.centralCrystal];
+        return this.centralCrystal ? [this.centralCrystal] : [];
     }
 
     getSpawnPoint(): THREE.Vector3 {

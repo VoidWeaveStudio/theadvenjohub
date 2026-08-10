@@ -1,16 +1,4 @@
 // src/features/game/systems/VoiceChatSystem.ts
-// Proximity push-to-talk voice chat over WebRTC. Peers connect directly to
-// each other (mesh) — the game server only relays SDP offers/answers and ICE
-// candidates over the existing game WebSocket, there's no separate media
-// server. Game.ts calls syncPeers() periodically with the set of player ids
-// currently nearby (the same set used for visibility/shooting), so peers
-// connect/disconnect automatically as players come in and out of range.
-//
-// Negotiation follows the standard "perfect negotiation" pattern (see MDN):
-// each connection has a "polite" side (decided deterministically by comparing
-// player ids) that yields when an incoming offer collides with one it's
-// already sending, so both sides can independently react to proximity
-// changes without a separate "who goes first" handshake.
 const ICE_SERVERS: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },

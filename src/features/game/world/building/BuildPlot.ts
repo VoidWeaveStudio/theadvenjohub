@@ -121,14 +121,24 @@ export class BuildPlot {
         return true;
     }
 
-    public getHeightAt(x: number, z: number): number {
+    public getHeightAt(x: number, z: number, referenceY?: number): number {
         const half = this.plotSize / 2;
         if (Math.abs(x) > half || Math.abs(z) > half) return -1000;
-        return this.renderer.getSurfaceHeightAt(x, z);
+        return this.renderer.getSurfaceHeightAt(x, z, referenceY);
     }
 
-    public followViewer(x: number, z: number) {
-        this.environment?.followTarget(x, z);
+    public getCoverHeightAt(x: number, y: number, z: number): number {
+        return this.renderer.getCoverHeightAt(x, z, y);
+    }
+
+    public addStaticCollider(box: THREE.Box3) {
+        this.renderer.staticColliders.push(box);
+        this.collisionGrid.insert(box);
+    }
+
+    public update(delta: number, viewer: THREE.Vector3) {
+        this.environment?.followTarget(viewer.x, viewer.z);
+        this.renderer.update(delta, viewer.x, viewer.y, viewer.z);
     }
 
     public setEditorMode(active: boolean) {

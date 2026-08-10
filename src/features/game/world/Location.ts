@@ -13,8 +13,10 @@ export interface Portal {
 }
 
 export interface HeightProvider {
-    getHeightAt(x: number, z: number): number;
+    getHeightAt(x: number, z: number, referenceY?: number): number;
 }
+
+export type CoverProbe = (x: number, y: number, z: number) => number;
 
 export interface FlightZone {
     center: THREE.Vector3;
@@ -36,6 +38,7 @@ export abstract class Location {
     public collisionGrid?: CollisionGrid;
     public cameraCollisionGrid?: CollisionGrid;
     public terrain?: HeightProvider;
+    public coverProbe?: CoverProbe;
     public maxPlayerRadius?: number | null;
     public flightZone?: FlightZone;
 

@@ -10,6 +10,9 @@ import { SoundManager } from "./SoundManager";
 import { DEFAULT_SPAWN_LOCATION_ID } from "./GameLocationOrchestration";
 import { isBodyEmote } from "../data/emotes";
 
+let systemMessageCounter = 0;
+const systemMessageId = () => `system-${Date.now()}-${++systemMessageCounter}`;
+
 interface PlayerLeaveLocationData {
     playerId: string;
     fromLocation: string;
@@ -119,7 +122,7 @@ export function registerNetworkHandlers(game: Game) {
             game.shootingSystem.unregisterOtherPlayer(data.playerId);
             op.setHidden(true);
             game.onChatMessage?.({
-                id: `system-${Date.now()}`, sender: "System",
+                id: systemMessageId(), sender: "System",
                 message: `${op.nickname} left the area`,
                 timestamp: Date.now(), type: "system",
             });
@@ -152,7 +155,7 @@ export function registerNetworkHandlers(game: Game) {
             op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
             game.updateOnlineCount();
             game.onChatMessage?.({
-                id: `system-${Date.now()}`, sender: "System",
+                id: systemMessageId(), sender: "System",
                 message: `${data.nickname} entered the area`,
                 timestamp: Date.now(), type: "system",
             });
@@ -261,7 +264,7 @@ export function registerNetworkHandlers(game: Game) {
         op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
         game.updateOnlineCount();
         game.onChatMessage?.({
-            id: `system-${Date.now()}`, sender: "System",
+            id: systemMessageId(), sender: "System",
             message: `${data.nickname} joined the game`,
             timestamp: Date.now(), type: "system",
         });
@@ -271,7 +274,7 @@ export function registerNetworkHandlers(game: Game) {
         const op = game.otherPlayers.get(playerId);
         if (op) {
             game.onChatMessage?.({
-                id: `system-${Date.now()}`, sender: "System",
+                id: systemMessageId(), sender: "System",
                 message: `${op.nickname} left the game`,
                 timestamp: Date.now(), type: "system",
             });
@@ -398,7 +401,7 @@ export function registerNetworkHandlers(game: Game) {
             if (op && !op.isHidden()) {
                 op.setDead(true);
                 game.onChatMessage?.({
-                    id: `system-${Date.now()}`, sender: "System",
+                    id: systemMessageId(), sender: "System",
                     message: `${op.nickname} was eliminated`,
                     timestamp: Date.now(), type: "system",
                 });

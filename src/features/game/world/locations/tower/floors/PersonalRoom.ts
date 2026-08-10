@@ -14,7 +14,6 @@ export class PersonalRoom extends TowerFloor {
     public readonly ownerUserId: string;
     public readonly plot: BuildPlot;
 
-    private nameSprite: THREE.Sprite | null = null;
     private ownerName = "Your Lot";
     private console: RoomConsole | null = null;
 
@@ -27,62 +26,38 @@ export class PersonalRoom extends TowerFloor {
 
     public setOwnerName(name: string) {
         this.ownerName = name;
-        this.refreshNameplate();
+    }
+
+    public getOwnerName(): string {
+        return this.ownerName;
     }
 
     create(_rm: ResourceManager): void {
         this.plot.create();
 
         this.collisionGrid = this.plot.collisionGrid;
-        this.terrain = { getHeightAt: (x, z) => this.plot.getHeightAt(x, z) };
-
-        this.buildNameplate();
+        this.terrain = { getHeightAt: (x, z, referenceY) => this.plot.getHeightAt(x, z, referenceY) };
+        this.coverProbe = (x, y, z) => this.plot.getCoverHeightAt(x, y, z);
 
         this.console = createRoomConsole(new THREE.Color(0x4fd1ff));
         this.console.group.position.set(CONSOLE_OFFSET, 0, -CONSOLE_OFFSET);
         this.console.group.rotation.y = -Math.PI / 4;
         this.scene.add(this.console.group);
-        this.plot.collisionGrid.insert(new THREE.Box3().setFromObject(this.console.group));
-    }
+        this.plot.addStaticCollider(new THREE.Box3().setFromObject(this.console.group));
 
-    private buildNameplate() {
-        this.nameSprite = this.createNameSprite(this.ownerName);
-        this.nameSprite.position.set(0, 3.4, -8);
-        this.scene.add(this.nameSprite);
-    }
-
-    private createNameSprite(text: string): THREE.Sprite {
-        const canvas = document.createElement("canvas");
-        canvas.width = 512;
-        canvas.height = 96;
-        const ctx = canvas.getContext("2d")!;
-        ctx.fillStyle = "#e5e7eb";
-        ctx.font = "bold 42px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.shadowColor = "rgba(0,0,0,0.9)";
-        ctx.shadowBlur = 12;
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-        sprite.scale.set(5, 0.94, 1);
-        return sprite;
-    }
-
-    private refreshNameplate() {
-        if (this.nameSprite) {
-            this.scene.remove(this.nameSprite);
-            (this.nameSprite.material.map as THREE.Texture | null)?.dispose();
-            this.nameSprite.material.dispose();
-        }
-        this.buildNameplate();
+        this.createCentralCrystal(new THREE.Vector3(
+            -CONSOLE_OFFSET,
+            this.plot.getHeightAt(-CONSOLE_OFFSET, -CONSOLE_OFFSET),
+            -CONSOLE_OFFSET
+        ));
+        this.centralCrystal.userData.interactionId = "room-portal";
+        this.plot.addStaticCollider(new THREE.Box3().setFromObject(this.centralCrystal));
     }
 
     update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean) {
         super.update(playerPosition, delta, isEPressed);
         this.console?.update(delta);
-        this.plot.followViewer(playerPosition.x, playerPosition.z);
+        this.plot.update(delta, playerPosition);
     }
 
     public override getInteractables(): THREE.Object3D[] {
@@ -98,12 +73,6 @@ export class PersonalRoom extends TowerFloor {
     dispose() {
         this.console?.dispose();
         this.console = null;
-
-        if (this.nameSprite) {
-            (this.nameSprite.material.map as THREE.Texture | null)?.dispose();
-            this.nameSprite.material.dispose();
-            this.nameSprite = null;
-        }
 
         this.plot.dispose();
         super.dispose();

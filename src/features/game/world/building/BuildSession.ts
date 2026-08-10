@@ -1,6 +1,6 @@
 // src/features/game/world/building/BuildSession.ts
 import type { NetworkManager, RoomBuildOp } from "../../network/NetworkManager";
-import { BuildEditor } from "./BuildEditor";
+import { BuildEditor, type EditorTool } from "./BuildEditor";
 import type { BuildPlot } from "./BuildPlot";
 import { pieceKey, type BuildPiece } from "./BuildLayout";
 
@@ -17,7 +17,9 @@ export interface BuildSessionState {
     selectedType: string | null;
     rotation: number;
     level: number;
-    tool: "place" | "erase";
+    tool: EditorTool;
+    selectionLabel: string | null;
+    carrying: boolean;
     saving: boolean;
     dirty: boolean;
     sky: string;
@@ -58,6 +60,8 @@ export class BuildSession {
             rotation: this.editor.rotation,
             level: this.editor.level,
             tool: this.editor.tool,
+            selectionLabel: this.editor.selectionLabel(),
+            carrying: this.editor.carrying !== null,
             saving: this.saving,
             dirty: this.dirty,
             sky: this.plot?.layout.environment.sky ?? "day",
@@ -234,8 +238,24 @@ export class BuildSession {
         this.editor.setSelectedType(typeId);
     }
 
-    public setTool(tool: "place" | "erase") {
+    public setTool(tool: EditorTool) {
         this.editor.setTool(tool);
+    }
+
+    public deleteSelection() {
+        this.editor.deleteSelection();
+    }
+
+    public moveSelection() {
+        this.editor.pickUpSelection();
+    }
+
+    public rotateSelection() {
+        this.editor.rotateSelection();
+    }
+
+    public cancelCarry() {
+        this.editor.cancelCarry();
     }
 
     public setLevel(level: number) {

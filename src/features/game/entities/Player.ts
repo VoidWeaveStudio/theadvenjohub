@@ -206,7 +206,7 @@ export class Player extends Entity {
     setTerrain(terrain: HeightProvider | null) {
         this.terrain = terrain;
         if (this.terrain) {
-            this.baseY = this.terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z);
+            this.baseY = this.terrain.getHeightAt(this.mesh.position.x, this.mesh.position.z, this.mesh.position.y);
             this.mesh.position.y = this.baseY;
         } else {
             this.baseY = this.mesh.position.y;
@@ -280,12 +280,12 @@ export class Player extends Entity {
         this.jumpCooldown = 0;
 
         if (this.terrain) {
-            this.baseY = this.terrain.getHeightAt(position.x, position.z);
+            this.baseY = this.terrain.getHeightAt(position.x, position.z, position.y);
         }
     }
 
     private getSurfaceHeight(x: number, z: number): number {
-        const terrainHeight = this.terrain?.getHeightAt(x, z) || 0;
+        const terrainHeight = this.terrain?.getHeightAt(x, z, this.baseY) || 0;
         let platformHeight = -Infinity;
 
         if (this.collisionGrid) {

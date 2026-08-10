@@ -2,7 +2,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Hammer, Eraser, RotateCw, Save, X, Layers, Sun, Trash2 } from "lucide-react";
+import { Hammer, Eraser, RotateCw, Save, X, Layers, Sun, Trash2, MousePointer2, Move } from "lucide-react";
 import { getBuildEntries, type BuildCategory } from "../world/building/BuildCatalog";
 import { MAX_LEVELS } from "../world/building/BuildLayout";
 import { SKY_PRESETS, LIGHT_PRESETS } from "../world/building/environmentPresets";
@@ -19,13 +19,21 @@ const CATEGORY_LABELS: Record<BuildCategory, string> = {
 
 const CATEGORY_ORDER: BuildCategory[] = ["structure", "openings", "roofing", "outdoor", "furniture", "decor"];
 
+const CATEGORY_HINTS: Partial<Record<BuildCategory, string>> = {
+    roofing: "One slope tile climbs exactly one level. Ring the outer wall with slopes, then move up a level and ring the next row in — repeat until the rows meet. Cap the last row with Ridge Cap, close the sides with Gable End.",
+};
+
 interface BuildEditorPanelProps {
     state: BuildSessionState;
     onSelectType: (typeId: string) => void;
-    onSetTool: (tool: "place" | "erase") => void;
+    onSetTool: (tool: BuildSessionState["tool"]) => void;
     onRotate: () => void;
     onSetLevel: (level: number) => void;
     onSetEnvironment: (sky: string, light: string) => void;
+    onDeleteSelection: () => void;
+    onMoveSelection: () => void;
+    onRotateSelection: () => void;
+    onCancelCarry: () => void;
     onClearLot: () => void;
     onSave: () => void;
     onExit: () => void;
@@ -38,6 +46,10 @@ export function BuildEditorPanel({
     onRotate,
     onSetLevel,
     onSetEnvironment,
+    onDeleteSelection,
+    onMoveSelection,
+    onRotateSelection,
+    onCancelCarry,
     onClearLot,
     onSave,
     onExit,
@@ -57,6 +69,12 @@ export function BuildEditorPanel({
         <>
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-auto font-oxanium">
                 <div className="flex items-center gap-2 bg-[rgba(10,14,20,0.92)] border border-[#4FD1FF]/30 rounded-xl px-3 py-2 shadow-[0_0_25px_rgba(79,209,255,0.12)]">
+                    <button
+                        onClick={() => onSetTool("select")}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${state.tool === "select" ? "bg-[#FFD166]/20 text-[#FFD166]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
+                    >
+                        <MousePointer2 className="w-4 h-4" /> Select
+                    </button>
                     <button
                         onClick={() => onSetTool("place")}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${state.tool === "place" ? "bg-[#4FD1FF]/20 text-[#4FD1FF]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
@@ -164,6 +182,12 @@ export function BuildEditorPanel({
                         ))}
                     </div>
 
+                    {CATEGORY_HINTS[category] && (
+                        <div className="mb-2 rounded-lg bg-[#FFD166]/10 border border-[#FFD166]/25 px-2.5 py-2 text-[10px] leading-relaxed text-[#FFD166]">
+                            {CATEGORY_HINTS[category]}
+                        </div>
+                    )}
+
                     <div className="max-h-[46vh] overflow-y-auto space-y-1 pr-1">
                         {entries.map((entry) => (
                             <button
@@ -207,9 +231,50 @@ export function BuildEditorPanel({
                 </div>
             </div>
 
+            {(state.selectionLabel || state.carrying) && (
+                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-50 pointer-events-auto font-oxanium">
+                    <div className="flex items-center gap-2 bg-[rgba(10,14,20,0.94)] border border-[#FFD166]/40 rounded-xl px-3 py-2 shadow-[0_0_25px_rgba(255,209,102,0.12)]">
+                        {state.carrying ? (
+                            <>
+                                <span className="text-[#FFD166] text-xs font-bold">Click a cell to drop it</span>
+                                <button
+                                    onClick={onCancelCarry}
+                                    className="px-2.5 py-1 rounded-md bg-white/5 text-[#8B8F98] text-[11px] font-bold hover:text-[#E5E7EB] transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-[#E5E7EB] text-xs font-bold">{state.selectionLabel}</span>
+                                <div className="w-px h-5 bg-white/10" />
+                                <button
+                                    onClick={onMoveSelection}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#4FD1FF] hover:bg-[#4FD1FF]/15 transition-colors"
+                                >
+                                    <Move className="w-3.5 h-3.5" /> Move
+                                </button>
+                                <button
+                                    onClick={onRotateSelection}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#8B8F98] hover:text-[#E5E7EB] transition-colors"
+                                >
+                                    <RotateCw className="w-3.5 h-3.5" /> Rotate
+                                </button>
+                                <button
+                                    onClick={onDeleteSelection}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#FF6B7A] hover:bg-[#FF4D4F]/15 transition-colors"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none font-oxanium">
                 <div className="bg-[rgba(10,14,20,0.85)] border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-[#8B8F98]">
-                    LMB place · RMB drag to orbit · WASD pan · wheel zoom · R rotate · Q/E turn · [ ] level · X erase
+                    LMB place or select · RMB drag to orbit · WASD pan · wheel zoom · R rotate · Q/E turn · [ ] level · X erase · Del remove
                 </div>
             </div>
         </>

@@ -133,13 +133,7 @@ export class OtherPlayer extends Entity {
             rifle.position.copy(scaledCenter).multiplyScalar(-1);
             rifle.quaternion.copy(RIFLE_GRIP_QUATERNION);
 
-            // Grip offset must live on a wrapper positioned in the (unrotated)
-            // hand-bone frame, not summed into rifle.position directly — rifle
-            // is already rotated by RIFLE_GRIP_QUATERNION, so adding the offset
-            // to the same vector would apply it through that rotation instead
-            // of in the hand's own space, landing the weapon far from the grip
-            // (this is how Weapon.ts/Player.ts do it for the local player).
-            const weaponMount = new THREE.Group();
+             const weaponMount = new THREE.Group();
             weaponMount.add(rifle);
             weaponMount.position.copy(RIFLE_GRIP_OFFSET);
 
@@ -164,12 +158,7 @@ export class OtherPlayer extends Entity {
 
     public setPendingJoinData(data: PlayerNetData) {
         this.pendingJoinData = data;
-        // Keep identity current even while still hidden: create() (run later,
-        // once this placeholder is promoted) builds the name tag from these
-        // fields directly, not from pendingJoinData — without this, a stale
-        // first snapshot (e.g. nickname not assigned yet server-side at that
-        // exact moment) would get baked into the sprite permanently.
-        this.nickname = data.nickname;
+         this.nickname = data.nickname;
         this.factionSymbol = data.factionSymbol ?? null;
         this.factionImage = data.factionImage ?? null;
     }

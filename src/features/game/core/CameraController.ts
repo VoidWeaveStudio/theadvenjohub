@@ -2,9 +2,20 @@
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CollisionGrid } from "../world/CollisionGrid";
+import type { CoverProbe } from "../world/Location";
 
 const CAMERA_NEAR = 0.1;
 const CAMERA_FAR = 20000;
+
+const OUTDOOR_DISTANCE = 6;
+const INDOOR_DISTANCE = 2.9;
+const OUTDOOR_HEIGHT = 2.5;
+const INDOOR_HEIGHT = 1.5;
+const OUTDOOR_FOV = 75;
+const INDOOR_FOV = 62;
+const INDOOR_MAX_PITCH = Math.PI / 6;
+const COVER_RANGE = 4.5;
+const INDOOR_BLEND_SPEED = 3.5;
 
 export class CameraController {
     public camera: THREE.PerspectiveCamera;
@@ -12,9 +23,9 @@ export class CameraController {
     public pitchObject: THREE.Object3D;
 
     private target: THREE.Object3D | null = null;
-    private distance: number = 6;
-    private currentDistance: number = 6;
-    private heightOffset: number = 2.5;
+    private distance: number = OUTDOOR_DISTANCE;
+    private currentDistance: number = OUTDOOR_DISTANCE;
+    private heightOffset: number = OUTDOOR_HEIGHT;
     private pitch: number = 0;
     private yaw: number = 0;
 
@@ -22,10 +33,12 @@ export class CameraController {
     private maxPitch: number = Math.PI / 3;
     private sensitivity: number = 0.002;
 
-    private readonly baseFov: number = 75;
     private readonly aimFov: number = 45;
-    private currentFov: number = 75;
+    private currentFov: number = OUTDOOR_FOV;
     private isAiming: boolean = false;
+
+    private coverProbe: CoverProbe | null = null;
+    private indoorBlend: number = 0;
 
     private collisionGrid: CollisionGrid | null = null;
     private raycaster: THREE.Raycaster = new THREE.Raycaster();
@@ -68,6 +81,23 @@ export class CameraController {
         this.collisionGrid = grid;
     }
 
+    setCoverProbe(probe: CoverProbe | null) {
+        this.coverProbe = probe;
+        this.indoorBlend = 0;
+    }
+
+    private updateIndoorBlend(delta: number) {
+        let wanted = 0;
+
+        if (this.coverProbe && this.target) {
+            const position = this.target.position;
+            const cover = this.coverProbe(position.x, position.y, position.z);
+            if (Number.isFinite(cover) && cover - position.y <= COVER_RANGE) wanted = 1;
+        }
+
+        this.indoorBlend = THREE.MathUtils.lerp(this.indoorBlend, wanted, Math.min(1, delta * INDOOR_BLEND_SPEED));
+    }
+
     getYaw(): number {
         return this.yaw;
     }
@@ -89,8 +119,18 @@ export class CameraController {
     update(delta: number, inputManager: InputManager) {
         if (!this.target) return;
 
+        this.updateIndoorBlend(delta);
+
+        const openFov = THREE.MathUtils.lerp(OUTDOOR_FOV, INDOOR_FOV, this.indoorBlend);
+        const followDistance = THREE.MathUtils.lerp(OUTDOOR_DISTANCE, INDOOR_DISTANCE, this.indoorBlend);
+        const followHeight = THREE.MathUtils.lerp(OUTDOOR_HEIGHT, INDOOR_HEIGHT, this.indoorBlend);
+        const pitchCeiling = THREE.MathUtils.lerp(this.maxPitch, INDOOR_MAX_PITCH, this.indoorBlend);
+
+        this.distance = followDistance;
+        this.heightOffset = followHeight;
+
         this.isAiming = inputManager.isMousePressed(2);
-        const targetFov = this.isAiming ? this.aimFov : this.baseFov;
+        const targetFov = this.isAiming ? this.aimFov : openFov;
         this.currentFov = THREE.MathUtils.lerp(this.currentFov, targetFov, Math.min(1, delta * 10));
         if (Math.abs(this.camera.fov - this.currentFov) > 0.01) {
             this.camera.fov = this.currentFov;
@@ -101,7 +141,7 @@ export class CameraController {
         const mouseMovement = inputManager.consumeMouseMovement();
         this.yaw -= mouseMovement.x * aimSensitivity;
         this.pitch -= mouseMovement.y * aimSensitivity;
-        this.pitch = Math.max(this.minPitch, Math.min(this.maxPitch, this.pitch));
+        this.pitch = Math.max(this.minPitch, Math.min(pitchCeiling, this.pitch));
 
         this.yawObject.rotation.y = this.yaw;
         this.pitchObject.rotation.x = this.pitch;

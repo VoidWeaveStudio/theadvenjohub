@@ -1214,6 +1214,10 @@ export function GameClient({ slug }: GameClientProps) {
           onRotate={() => gameRef.current?.buildSession.rotate()}
           onSetLevel={(level) => gameRef.current?.buildSession.setLevel(level)}
           onSetEnvironment={(sky, light) => gameRef.current?.buildSession.setEnvironment(sky, light)}
+          onDeleteSelection={() => gameRef.current?.buildSession.deleteSelection()}
+          onMoveSelection={() => gameRef.current?.buildSession.moveSelection()}
+          onRotateSelection={() => gameRef.current?.buildSession.rotateSelection()}
+          onCancelCarry={() => gameRef.current?.buildSession.cancelCarry()}
           onClearLot={() => gameRef.current?.buildSession.clearLot()}
           onSave={() => { void gameRef.current?.buildSession.save(); }}
           onExit={() => gameRef.current?.closeBuildEditor()}

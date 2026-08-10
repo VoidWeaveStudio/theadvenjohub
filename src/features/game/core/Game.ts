@@ -734,12 +734,7 @@ export class Game {
             }
 
             if (newLocation instanceof FactionGateRoom) {
-                // Prefer explicit options (from the steward's search-and-teleport, which
-                // already has the full faction record from the lookup API) over
-                // getFactionGateInfo — that lookup only knows about gates *currently
-                // displayed* in one of the hall's fixed slots, so a faction whose gate
-                // isn't presently shown there would otherwise resolve to nothing.
-                if (options?.factionName !== undefined) {
+               if (options?.factionName !== undefined) {
                     newLocation.setFactionInfo(options.factionName, options.factionImage ?? null, options.factionSymbol ?? null);
                 } else {
                     const info = previousLocation instanceof Basement

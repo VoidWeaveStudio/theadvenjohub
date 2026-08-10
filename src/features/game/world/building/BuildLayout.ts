@@ -1,7 +1,7 @@
 // src/features/game/world/building/BuildLayout.ts
 import { getBuildEntry, CELL_SIZE, LEVEL_HEIGHT, type BuildLayer } from "./BuildCatalog";
 
-const TILE_LAYERS: BuildLayer[] = ["floor", "ground", "ceiling", "roof"];
+const TILE_LAYERS: BuildLayer[] = ["stairs", "floor", "ground", "ceiling", "roof"];
 
 export const MAX_LEVELS = 6;
 export const PERSONAL_PLOT_SIZE = 100;

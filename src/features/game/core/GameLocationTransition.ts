@@ -11,6 +11,7 @@ export function applyLocationMovementConfig(game: Game, location: Location) {
     game.player.setTerrain(location.terrain ?? null);
     game.player.setCollisionGrid(location.collisionGrid!);
     game.cameraController.setCollisionGrid(location.cameraCollisionGrid ?? location.collisionGrid!);
+    game.cameraController.setCoverProbe(location.coverProbe ?? null);
     game.player.setMaxRadius(location.maxPlayerRadius ?? 9999);
     game.player.setFlightZone(location.flightZone ?? null);
     game.shootingSystem.setLocation(location, location.collisionGrid ?? null);

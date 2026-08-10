@@ -170,6 +170,7 @@ export class CollisionGrid {
         const candidates = this.query(position, size);
 
         const feetY = position.y - size.y / 2;
+        const headY = position.y + size.y / 2;
         const FEET_TOLERANCE = 0.1;
 
         for (const box of candidates) {
@@ -177,6 +178,10 @@ export class CollisionGrid {
             const intersectsZ = this.tempBox.max.z > box.min.z && this.tempBox.min.z < box.max.z;
 
             if (intersectsX && intersectsZ) {
+                if (box.min.y >= headY) {
+                    continue;
+                }
+
                 if (box.max.y <= feetY + FEET_TOLERANCE) {
                     continue;
                 }
