@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import type { Game } from "./Game";
 import { Location } from "../world/Location";
-import { MainHall } from "../world/locations/tower/floors/MainHall";
+import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
@@ -27,6 +27,11 @@ export function configureLocationSpecifics(game: Game, location: Location) {
             new THREE.Vector3(0, 0, 0),
             location.hallRadius - 3
         );
+
+        if (game.leaderboard.length > 0) location.setLeaderboard(game.leaderboard);
+        if (game.factionLeaderboard.length > 0) location.setFactionLeaderboard(game.factionLeaderboard);
+        game.requestLeaderboard();
+        game.requestFactionLeaderboard();
     } else if (location instanceof Basement) {
         location.onInteractablesChanged = (added, removed) => {
             removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));

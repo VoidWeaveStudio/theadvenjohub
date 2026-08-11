@@ -11,8 +11,11 @@ const OUTDOOR_DISTANCE = 6;
 const INDOOR_DISTANCE = 2.9;
 const OUTDOOR_HEIGHT = 2.5;
 const INDOOR_HEIGHT = 1.5;
-const OUTDOOR_FOV = 75;
-const INDOOR_FOV = 62;
+const OUTDOOR_HFOV = 88;
+const INDOOR_HFOV = 76;
+const AIM_HFOV = 66;
+const MIN_VFOV = 32;
+const MAX_VFOV = 70;
 const INDOOR_MAX_PITCH = Math.PI / 6;
 const COVER_RANGE = 4.5;
 const INDOOR_BLEND_SPEED = 3.5;
@@ -33,8 +36,8 @@ export class CameraController {
     private maxPitch: number = Math.PI / 3;
     private sensitivity: number = 0.002;
 
-    private readonly aimFov: number = 45;
-    private currentFov: number = OUTDOOR_FOV;
+    private horizontalFov: number = OUTDOOR_HFOV;
+    private currentFov: number = MAX_VFOV;
     private isAiming: boolean = false;
 
     private coverProbe: CoverProbe | null = null;
@@ -45,18 +48,30 @@ export class CameraController {
     private cameraOffset: number = 0.3;
     private lerpSpeed: number = 10;
 
+    private verticalFovFor(horizontalFov: number): number {
+        const aspect = this.camera.aspect > 0 ? this.camera.aspect : 1;
+        const vertical = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(horizontalFov) / 2) / aspect);
+        return THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(vertical), MIN_VFOV, MAX_VFOV);
+    }
+
     resize(width: number, height: number) {
         this.camera.aspect = width / height;
+        this.currentFov = this.verticalFovFor(this.horizontalFov);
+        this.camera.fov = this.currentFov;
         this.camera.updateProjectionMatrix();
     }
 
     constructor() {
         this.camera = new THREE.PerspectiveCamera(
-            75,
+            60,
             window.innerWidth / window.innerHeight,
             CAMERA_NEAR,
             CAMERA_FAR
         );
+
+        this.currentFov = this.verticalFovFor(OUTDOOR_HFOV);
+        this.camera.fov = this.currentFov;
+        this.camera.updateProjectionMatrix();
 
         this.yawObject = new THREE.Object3D();
         this.pitchObject = new THREE.Object3D();
@@ -121,7 +136,7 @@ export class CameraController {
 
         this.updateIndoorBlend(delta);
 
-        const openFov = THREE.MathUtils.lerp(OUTDOOR_FOV, INDOOR_FOV, this.indoorBlend);
+        const openHorizontalFov = THREE.MathUtils.lerp(OUTDOOR_HFOV, INDOOR_HFOV, this.indoorBlend);
         const followDistance = THREE.MathUtils.lerp(OUTDOOR_DISTANCE, INDOOR_DISTANCE, this.indoorBlend);
         const followHeight = THREE.MathUtils.lerp(OUTDOOR_HEIGHT, INDOOR_HEIGHT, this.indoorBlend);
         const pitchCeiling = THREE.MathUtils.lerp(this.maxPitch, INDOOR_MAX_PITCH, this.indoorBlend);
@@ -130,7 +145,8 @@ export class CameraController {
         this.heightOffset = followHeight;
 
         this.isAiming = inputManager.isMousePressed(2);
-        const targetFov = this.isAiming ? this.aimFov : openFov;
+        this.horizontalFov = this.isAiming ? AIM_HFOV : openHorizontalFov;
+        const targetFov = this.verticalFovFor(this.horizontalFov);
         this.currentFov = THREE.MathUtils.lerp(this.currentFov, targetFov, Math.min(1, delta * 10));
         if (Math.abs(this.camera.fov - this.currentFov) > 0.01) {
             this.camera.fov = this.currentFov;

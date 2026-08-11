@@ -1,10 +1,10 @@
-// src/features/game/world/locations/tower/floors/mainHallNpcs.ts
+// src/features/game/world/locations/tower/floors/main-hall/systems/NpcSystem.ts
 import * as THREE from "three";
-import { CollisionGrid } from "../../../CollisionGrid";
-import { ResourceManager } from "../../../../core/ResourceManager";
-import { createNpcModel, NpcHandle } from "../../../../entities/npcModel";
-import { createNpcNameTag } from "../../../../entities/npcNameTag";
-import { MAIN_HALL_BUILDINGS, FACING_ROTATION, npcDoorPosition } from "./mainHallLayout";
+import { CollisionGrid } from "../../../../../CollisionGrid";
+import { ResourceManager } from "../../../../../../core/ResourceManager";
+import { createNpcModel, NpcHandle } from "../../../../../../entities/npcModel";
+import { createNpcNameTag } from "../../../../../../entities/npcNameTag";
+import { HALL_NPCS, POST_RADIUS, inwardRotation, localToWorld } from "../layout";
 
 export interface MainHallNpc {
     handle: NpcHandle;
@@ -12,7 +12,7 @@ export interface MainHallNpc {
     time: number;
 }
 
-type AccessoryBuilder = (headPos: THREE.Vector3, accentHex: number) => THREE.Object3D[];
+type AccessoryBuilder = (headPosition: THREE.Vector3, accentHex: number) => THREE.Object3D[];
 
 function markerAndGlow(headPos: THREE.Vector3, accentHex: number, markerColor: number): THREE.Object3D[] {
     const marker = new THREE.Mesh(
@@ -21,10 +21,7 @@ function markerAndGlow(headPos: THREE.Vector3, accentHex: number, markerColor: n
     );
     marker.position.set(headPos.x, headPos.y + 0.9, headPos.z);
 
-    const glow = new THREE.PointLight(accentHex, 1.6, 6);
-    glow.position.set(headPos.x, headPos.y - 0.2, headPos.z + 0.3);
-
-    return [marker, glow];
+    return [marker];
 }
 
 const ACCESSORY_BUILDERS: Record<string, AccessoryBuilder> = {
@@ -72,71 +69,20 @@ const ACCESSORY_BUILDERS: Record<string, AccessoryBuilder> = {
     },
 };
 
-const BODY_TINTS: Record<string, number> = {
-    "token-vendor": 0x7a2f3a,
-    "quest-giver-sola": 0x2f6b4a,
-    "npc-alfredo": 0x1e6091,
-    "faction-broker": 0x8b2fc9,
-};
-
-function buildCounter(
-    scene: THREE.Scene,
-    collisionGrid: CollisionGrid,
-    position: THREE.Vector3,
-    rotationY: number,
-    accentHex: number
-) {
-    const counterGroup = new THREE.Group();
-    counterGroup.position.copy(position);
-    counterGroup.rotation.y = rotationY;
-
-    const shell = new THREE.Mesh(
-        new THREE.BoxGeometry(5, 1.1, 1.3),
-        new THREE.MeshStandardMaterial({ color: 0x0d131c, roughness: 0.45, metalness: 0.85 })
-    );
-    shell.position.set(0, 0.55, 1.6);
-    shell.castShadow = true;
-    shell.receiveShadow = true;
-    counterGroup.add(shell);
-
-    const trim = new THREE.Mesh(
-        new THREE.BoxGeometry(5.1, 0.12, 1.4),
-        new THREE.MeshStandardMaterial({ color: 0x0a0f16, emissive: accentHex, emissiveIntensity: 5, roughness: 0.3 })
-    );
-    trim.position.set(0, 1.16, 1.6);
-    counterGroup.add(trim);
-
-    scene.add(counterGroup);
-
-    const inward = position.clone().normalize().negate();
-    const center = position.clone().addScaledVector(inward, 1.6);
-    const alongZ = Math.abs(inward.z) > 0.5;
-    const halfX = alongZ ? 2.55 : 0.7;
-    const halfZ = alongZ ? 0.7 : 2.55;
-
-    collisionGrid.insert(new THREE.Box3(
-        new THREE.Vector3(center.x - halfX, 0, center.z - halfZ),
-        new THREE.Vector3(center.x + halfX, 1.3, center.z + halfZ)
-    ));
-}
-
 export function createMainHallNpcs(scene: THREE.Scene, collisionGrid: CollisionGrid, rm: ResourceManager): MainHallNpc[] {
-    return MAIN_HALL_BUILDINGS.map((building) => {
-        const position = npcDoorPosition(building.facing);
-        const baseRotation = FACING_ROTATION[building.facing];
+    return HALL_NPCS.map((npc) => {
+        const post = localToWorld(npc.angle, POST_RADIUS, 0, 0, -0.4);
+        const position = new THREE.Vector3(post[0], post[1], post[2]);
+        const baseRotation = inwardRotation(npc.angle);
 
-        const handle = createNpcModel(rm, BODY_TINTS[building.id], (headPos) =>
-            ACCESSORY_BUILDERS[building.id](headPos, building.accentHex)
+        const handle = createNpcModel(rm, npc.bodyTint, (headPos) =>
+            ACCESSORY_BUILDERS[npc.id](headPos, npc.accentHex)
         );
         handle.group.position.copy(position);
         handle.group.rotation.y = baseRotation;
-        handle.group.userData.interactionId = building.id;
-        handle.group.add(createNpcNameTag(building.npcName, building.accent));
+        handle.group.userData.interactionId = npc.id;
+        handle.group.add(createNpcNameTag(npc.npcName, npc.accent));
         scene.add(handle.group);
-
-        if (building.id === "token-vendor") {
-            buildCounter(scene, collisionGrid, position, baseRotation, building.accentHex);
-        }
 
         collisionGrid.insert(new THREE.Box3(
             new THREE.Vector3(position.x - 0.5, 0, position.z - 0.5),

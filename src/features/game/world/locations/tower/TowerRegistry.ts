@@ -1,6 +1,6 @@
 // src/features/game/world/locations/tower/TowerRegistry.ts
 import { Location } from "../../Location";
-import { MainHall } from "./floors/MainHall";
+import { MainHall } from "./floors/main-hall/MainHall";
 import { Basement } from "./floors/basement/Basement";
 import { FirstFloor } from "./floors/first-floor/FirstFloor";
 import { TokenGatesFloor } from "./floors/TokenGatesFloor";

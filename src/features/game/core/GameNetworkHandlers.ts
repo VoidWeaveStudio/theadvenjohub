@@ -5,6 +5,7 @@ import { PlayerNetData } from "../network/NetworkManager";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
+import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
 import { DEFAULT_SPAWN_LOCATION_ID } from "./GameLocationOrchestration";
@@ -677,11 +678,23 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onLeaderboardResult = (leaderboard) => {
+        game.leaderboard = leaderboard;
         game.onLeaderboardResult?.(leaderboard);
+
+        const location = game.locationManager.getCurrentLocation();
+        if (location instanceof MainHall) {
+            location.setLeaderboard(leaderboard);
+        }
     };
 
     game.networkManager.onFactionLeaderboardResult = (leaderboard) => {
+        game.factionLeaderboard = leaderboard;
         game.onFactionLeaderboardResult?.(leaderboard);
+
+        const location = game.locationManager.getCurrentLocation();
+        if (location instanceof MainHall) {
+            location.setFactionLeaderboard(leaderboard);
+        }
     };
 
     game.networkManager.onFactionTaskListResult = (tasks) => {
