@@ -49,6 +49,7 @@ export class LocationManager {
                 }
                 location = factory();
             }
+            location.renderer = this.renderer;
             if (this.resourceManager) {
                 location.create(this.resourceManager);
             }

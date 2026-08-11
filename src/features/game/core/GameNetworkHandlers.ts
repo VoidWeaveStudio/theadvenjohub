@@ -721,7 +721,13 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onFactionQuestListResult = (quests) => {
+        game.factionQuests = quests;
         game.onFactionQuestListResult?.(quests);
+
+        const questLocation = game.locationManager.getCurrentLocation();
+        if (questLocation instanceof MainHall) {
+            questLocation.setFactionQuests(quests);
+        }
     };
 
     game.networkManager.onFactionQuestManageListResult = (data) => {

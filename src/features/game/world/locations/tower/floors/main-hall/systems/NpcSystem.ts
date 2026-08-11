@@ -4,7 +4,7 @@ import { CollisionGrid } from "../../../../../CollisionGrid";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
 import { createNpcModel, NpcHandle } from "../../../../../../entities/npcModel";
 import { createNpcNameTag } from "../../../../../../entities/npcNameTag";
-import { HALL_NPCS, POST_RADIUS, inwardRotation, localToWorld } from "../layout";
+import { HALL_NPCS, POST_PLINTH_TOP, POST_RADIUS, inwardRotation, localToWorld } from "../layout";
 
 export interface MainHallNpc {
     handle: NpcHandle;
@@ -71,7 +71,7 @@ const ACCESSORY_BUILDERS: Record<string, AccessoryBuilder> = {
 
 export function createMainHallNpcs(scene: THREE.Scene, collisionGrid: CollisionGrid, rm: ResourceManager): MainHallNpc[] {
     return HALL_NPCS.map((npc) => {
-        const post = localToWorld(npc.angle, POST_RADIUS, 0, 0, -0.4);
+        const post = localToWorld(npc.angle, POST_RADIUS, 0, POST_PLINTH_TOP, 0.6);
         const position = new THREE.Vector3(post[0], post[1], post[2]);
         const baseRotation = inwardRotation(npc.angle);
 
@@ -84,10 +84,11 @@ export function createMainHallNpcs(scene: THREE.Scene, collisionGrid: CollisionG
         handle.group.add(createNpcNameTag(npc.npcName, npc.accent));
         scene.add(handle.group);
 
-        collisionGrid.insert(new THREE.Box3(
-            new THREE.Vector3(position.x - 0.5, 0, position.z - 0.5),
-            new THREE.Vector3(position.x + 0.5, 2.5, position.z + 0.5)
-        ));
+        collisionGrid.insertCylinder(
+            new THREE.Vector3(position.x, position.y + 1.25, position.z),
+            0.55,
+            2.5
+        );
 
         return { handle, baseRotation, time: 0 };
     });

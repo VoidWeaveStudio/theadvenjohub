@@ -14,6 +14,7 @@ export function applyLocationMovementConfig(game: Game, location: Location) {
     game.player.setCollisionGrid(location.collisionGrid!);
     game.cameraController.setCollisionGrid(location.cameraCollisionGrid ?? location.collisionGrid!);
     game.cameraController.setCoverProbe(location.coverProbe ?? null);
+    game.cameraController.setCameraBounds(location.cameraBounds ?? null);
     game.player.setMaxRadius(location.maxPlayerRadius ?? 9999);
     game.player.setFlightZone(location.flightZone ?? null);
     game.shootingSystem.setLocation(location, location.collisionGrid ?? null);
@@ -30,8 +31,14 @@ export function configureLocationSpecifics(game: Game, location: Location) {
 
         if (game.leaderboard.length > 0) location.setLeaderboard(game.leaderboard);
         if (game.factionLeaderboard.length > 0) location.setFactionLeaderboard(game.factionLeaderboard);
-        game.requestLeaderboard();
-        game.requestFactionLeaderboard();
+        if (game.factionQuests.length > 0) location.setFactionQuests(game.factionQuests);
+
+        location.onRequestBoardData = () => {
+            game.requestLeaderboard();
+            game.requestFactionLeaderboard();
+            game.requestFactionQuestList();
+        };
+        location.onRequestBoardData();
     } else if (location instanceof Basement) {
         location.onInteractablesChanged = (added, removed) => {
             removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));

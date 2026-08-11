@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary } from "../network/NetworkManager";
+import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry } from "../network/NetworkManager";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -101,6 +101,7 @@ export class Game {
     public factionGates: FactionGateData[] = [];
     public leaderboard: LeaderboardEntry[] = [];
     public factionLeaderboard: FactionSummary[] = [];
+    public factionQuests: FactionQuestEntry[] = [];
     public myNickname: string = "";
     public shardState: ShardStateData | null = null;
     private ownBubbleIndex: number | null = null;
@@ -840,6 +841,7 @@ export class Game {
             if (this.buildSession.editor.active) {
                 this.buildSession.update(delta);
             } else {
+                this.cameraController.setAbsorbSteps(!this.player.isJumping());
                 this.cameraController.update(delta, this.inputManager);
             }
 

@@ -18,6 +18,12 @@ export interface HeightProvider {
 
 export type CoverProbe = (x: number, y: number, z: number) => number;
 
+export interface CameraBounds {
+    radius: number;
+    minY: number;
+    maxY: number;
+}
+
 export interface FlightZone {
     center: THREE.Vector3;
     radius: number;
@@ -35,11 +41,13 @@ export abstract class Location {
     public colliders: THREE.Box3[] = [];
     public pendingTeleport: string | null = null;
 
+    public renderer?: THREE.WebGLRenderer;
     public collisionGrid?: CollisionGrid;
     public cameraCollisionGrid?: CollisionGrid;
     public terrain?: HeightProvider;
     public coverProbe?: CoverProbe;
     public maxPlayerRadius?: number | null;
+    public cameraBounds?: CameraBounds;
     public flightZone?: FlightZone;
 
     public onOpenFloorSelector?: () => void;

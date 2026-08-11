@@ -28,7 +28,10 @@ export class Player extends Entity {
     private jumpCooldown: number = 0;
 
     private baseY: number = 0;
+    private visualY: number = 0;
     private lastFootstepSign: number = 0;
+    private readonly STEP_SMOOTH_RATE = 15;
+    private readonly STEP_SMOOTH_SNAP = 1.3;
 
     private readonly GRAVITY = 22;
     private readonly JUMP_FORCE = 8.5;
@@ -273,6 +276,7 @@ export class Player extends Entity {
 
     public teleportTo(position: THREE.Vector3) {
         this.mesh.position.copy(position);
+        this.visualY = position.y;
         this.flightVelocity.set(0, 0, 0);
         this.velocityY = 0;
         this.isGrounded = true;
@@ -309,7 +313,19 @@ export class Player extends Entity {
         return trapped || !this.collidesAt(x, z);
     }
 
-    private getSurfaceHeight(x: number, z: number): number {
+    private smoothVerticalY(targetY: number, delta: number): number {
+        const diff = targetY - this.visualY;
+
+        if (!this.isGrounded || Math.abs(diff) > this.STEP_SMOOTH_SNAP) {
+            this.visualY = targetY;
+        } else {
+            this.visualY += diff * Math.min(1, delta * this.STEP_SMOOTH_RATE);
+        }
+
+        return this.visualY;
+    }
+
+    private getSurfaceHeight(x: number, z: number, allowStepUp: boolean = false): number {
         const terrainHeight = this.terrain?.getHeightAt(x, z, this.baseY) || 0;
         let platformHeight = -Infinity;
 
@@ -318,7 +334,8 @@ export class Player extends Entity {
             const platformCheck = this.collisionGrid.checkPlatformBelow(
                 Player._surfacePos.set(x, centerY, z),
                 Player._playerSize.y,
-                2.5
+                2.5,
+                allowStepUp ? CollisionGrid.STEP_UP_HEIGHT : 0
             );
 
             if (platformCheck.found) {
@@ -407,7 +424,7 @@ export class Player extends Entity {
                 this.isGrounded = true;
             }
         } else {
-            const surfaceHeight = this.getSurfaceHeight(this.mesh.position.x, this.mesh.position.z);
+            const surfaceHeight = this.getSurfaceHeight(this.mesh.position.x, this.mesh.position.z, true);
 
             if (this.baseY > surfaceHeight + 0.1) {
                 this.isGrounded = false;
@@ -444,7 +461,7 @@ export class Player extends Entity {
                 this.mesh.position.z = nextZ;
 
                 if (this.isGrounded) {
-                    const surfaceHeight = this.getSurfaceHeight(nextX, nextZ);
+                    const surfaceHeight = this.getSurfaceHeight(nextX, nextZ, true);
 
                     const STEP_UP_HEIGHT = CollisionGrid.STEP_UP_HEIGHT;
                     const heightDiff = surfaceHeight - this.baseY;
@@ -498,7 +515,7 @@ export class Player extends Entity {
             }
         }
 
-        this.mesh.position.y = this.baseY + bobOffset;
+        this.mesh.position.y = this.smoothVerticalY(this.baseY + bobOffset, delta);
 
         this.checkTakeoff();
         this.updateHeadRotation();

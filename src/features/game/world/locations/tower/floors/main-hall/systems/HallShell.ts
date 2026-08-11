@@ -6,9 +6,10 @@ import { GeometryBatch, makeRandom } from "../utils/geometryBatch";
 import {
     createBrassMaterial,
     createDarkTrimMaterial,
+    createDomeGlassMaterial,
+    createFloorMedallionTexture,
     createGlassMaterial,
     createMarbleMaterial,
-    createSkylightMaterial,
     createSteelMaterial,
     createStoneMaterial,
     createTickerTexture,
@@ -16,18 +17,21 @@ import {
 import {
     ARCADE_TOP,
     COLONNADE_RADIUS,
+    COLUMN_COLLIDER_RADIUS,
     COLUMN_COUNT,
     HALL_RADIUS,
     MEZZANINE_INNER,
-    MEZZANINE_OUTER,
     MEZZANINE_Y,
     RING_STEPS,
     VAULT_HEIGHT,
-    WALL_HEIGHT,
+    WALL_SOLID_TOP,
 } from "../layout";
 
-const TICKER_TEXT = "MEMETOWER FLOOR  ·  ASH INDEX  ·  FACTION VOLUME  ·  OPEN INTEREST  ·  ";
-const TICKER_REPEAT = 11;
+const TICKER_TEXT =
+    "MEMETOWER FLOOR  ·  ASH INDEX +4.812%  ·  FACTION VOLUME 128.4M  ·  OPEN INTEREST 41.9M  ·  TOP MOVER: PEPE +212%  ·  LIQUIDATIONS 3.1M  ·  ";
+const TICKER_REPEAT = 9;
+const MEDALLION_INNER = RING_STEPS[0].radius + 0.4;
+const MEDALLION_RADIUS = 46;
 
 export interface ShellMaterials {
     stone: THREE.MeshStandardMaterial;
@@ -59,11 +63,10 @@ export class HallShell {
         const brassBatch = new GeometryBatch();
 
         this.buildFloor(brassBatch);
-        this.buildWall(steel);
+        this.buildWall(stoneBatch, brassBatch);
         this.buildColonnade(stoneBatch, brassBatch);
-        this.buildMezzanine(brassBatch);
         this.buildTicker();
-        this.buildVault(brassBatch);
+        this.buildDome(brassBatch);
 
         const stoneMesh = stoneBatch.build(stone, { castShadow: true, receiveShadow: true });
         if (stoneMesh) this.scene.add(stoneMesh);
@@ -71,66 +74,95 @@ export class HallShell {
         const brassMesh = brassBatch.build(brass, { castShadow: false, receiveShadow: true });
         if (brassMesh) this.scene.add(brassMesh);
 
-        this.buildPerimeterCollision();
-
         return this.materials;
     }
 
     private buildFloor(brassBatch: GeometryBatch) {
         const marble = createMarbleMaterial(this.bin, this.random);
-        const floor = new THREE.Mesh(new THREE.CircleGeometry(HALL_RADIUS, 64), marble);
+        const floor = new THREE.Mesh(new THREE.CircleGeometry(HALL_RADIUS, 96), marble);
         floor.rotation.x = -Math.PI / 2;
         floor.receiveShadow = true;
         floor.matrixAutoUpdate = false;
         floor.updateMatrix();
         this.scene.add(floor);
 
-        for (const radius of [26, 46]) {
-            const ring = this.bin.geometry(new THREE.TorusGeometry(radius, 0.13, 4, 72));
-            brassBatch.addRotated(ring, 0, 0.03, 0, Math.PI / 2);
+        const medallion = new THREE.Mesh(
+            new THREE.RingGeometry(MEDALLION_INNER, MEDALLION_RADIUS, 96, 1),
+            this.bin.material(new THREE.MeshStandardMaterial({
+                map: createFloorMedallionTexture(this.bin, this.random),
+                transparent: true,
+                roughness: 0.3,
+                metalness: 0.6,
+                depthWrite: false,
+                polygonOffset: true,
+                polygonOffsetFactor: -2,
+                polygonOffsetUnits: -2,
+            }))
+        );
+        medallion.rotation.x = -Math.PI / 2;
+        medallion.position.y = 0.02;
+        medallion.receiveShadow = false;
+        medallion.matrixAutoUpdate = false;
+        medallion.updateMatrix();
+        this.scene.add(medallion);
+
+        for (const radius of [MEDALLION_INNER, MEDALLION_RADIUS, 64, 86]) {
+            const ring = this.bin.geometry(new THREE.TorusGeometry(radius, 0.14, 4, 96));
+            brassBatch.addRotated(ring, 0, 0.04, 0, Math.PI / 2);
         }
 
         const innerRadius = RING_STEPS[0].radius;
         const spoke = this.bin.geometry(new THREE.BoxGeometry(1, 1, 1));
-        for (let i = 0; i < 4; i++) {
-            const angle = (i / 4) * Math.PI * 2;
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
             const midRadius = (innerRadius + HALL_RADIUS) / 2;
             brassBatch.addScaled(
                 spoke,
                 Math.sin(angle) * midRadius,
-                0.03,
+                0.04,
                 -Math.cos(angle) * midRadius,
-                0.4,
-                0.06,
+                0.35,
+                0.07,
                 HALL_RADIUS - innerRadius,
                 -angle
             );
         }
     }
 
-    private buildWall(steel: THREE.MeshStandardMaterial) {
-        const wallMaterial = this.bin.material(steel.clone());
-        wallMaterial.side = THREE.BackSide;
-
-        const wall = new THREE.Mesh(
-            new THREE.CylinderGeometry(HALL_RADIUS, HALL_RADIUS, WALL_HEIGHT, 48, 1, true),
-            wallMaterial
+    private buildWall(stoneBatch: GeometryBatch, brassBatch: GeometryBatch) {
+        const plinth = this.bin.geometry(
+            new THREE.CylinderGeometry(HALL_RADIUS, HALL_RADIUS, WALL_SOLID_TOP, 96, 1, true)
         );
-        wall.position.y = WALL_HEIGHT / 2;
-        wall.receiveShadow = true;
-        wall.matrixAutoUpdate = false;
-        wall.updateMatrix();
-        this.scene.add(wall);
+        stoneBatch.add(plinth, 0, WALL_SOLID_TOP / 2, 0);
+
+        const skirt = this.bin.geometry(new THREE.RingGeometry(HALL_RADIUS - 2.2, HALL_RADIUS, 96));
+        stoneBatch.addRotated(skirt, 0, WALL_SOLID_TOP, 0, -Math.PI / 2);
+
+        for (const y of [0.5, WALL_SOLID_TOP]) {
+            const band = this.bin.geometry(new THREE.TorusGeometry(HALL_RADIUS - 0.25, 0.26, 5, 96));
+            brassBatch.addRotated(band, 0, y, 0, Math.PI / 2);
+        }
+
+        const cornice = this.bin.geometry(new THREE.TorusGeometry(HALL_RADIUS - 0.4, 0.42, 6, 96));
+        brassBatch.addRotated(cornice, 0, ARCADE_TOP, 0, Math.PI / 2);
     }
 
     private buildColonnade(stoneBatch: GeometryBatch, brassBatch: GeometryBatch) {
         const base = this.bin.geometry(new THREE.BoxGeometry(1, 1, 1));
-        const shaft = this.bin.geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
-        const collar = this.bin.geometry(new THREE.TorusGeometry(1, 0.14, 5, 16));
+        const shaft = this.bin.geometry(new THREE.CylinderGeometry(1, 1, 1, 12));
+        const collarLower = this.bin.geometry(new THREE.TorusGeometry(1.62, 0.15, 6, 24).rotateX(Math.PI / 2));
+        const collarUpper = this.bin.geometry(new THREE.TorusGeometry(1.32, 0.13, 6, 24).rotateX(Math.PI / 2));
         const glass = this.bin.geometry(new THREE.PlaneGeometry(1, 1));
+        const mullion = this.bin.geometry(new THREE.BoxGeometry(1, 1, 1));
         const glassBatch = new GeometryBatch();
 
         const step = (Math.PI * 2) / COLUMN_COUNT;
+        const glazeBottom = WALL_SOLID_TOP - 0.25;
+        const glazeTop = ARCADE_TOP - 0.6;
+        const glazeHeight = glazeTop - glazeBottom;
+        const glazeCenter = (glazeTop + glazeBottom) / 2;
+        const glazeRadius = HALL_RADIUS - 1.4;
+        const bayWidth = 2 * glazeRadius * Math.tan(step / 2);
 
         for (let i = 0; i < COLUMN_COUNT; i++) {
             const angle = i * step;
@@ -138,52 +170,51 @@ export class HallShell {
             const z = -Math.cos(angle) * COLONNADE_RADIUS;
             const rotation = -angle;
 
-            stoneBatch.addScaled(base, x, 0.4, z, 4, 0.8, 4, rotation);
-            stoneBatch.addScaled(shaft, x, 6.2, z, 1.3, 10.8, 1.3, rotation);
-            stoneBatch.addScaled(base, x, 12, z, 3.4, 0.8, 3.4, rotation);
+            stoneBatch.addScaled(base, x, 0.45, z, 4.2, 0.9, 4.2, rotation);
+            stoneBatch.addScaled(shaft, x, 7.7, z, 1.5, 13.6, 1.5, rotation);
+            stoneBatch.addScaled(base, x, 14.9, z, 3.6, 0.8, 3.6, rotation);
 
-            brassBatch.addRotated(collar, x, 1.1, z, 0, rotation, 0);
-            brassBatch.addRotated(collar, x, 11.3, z, 0, rotation, 0);
+            brassBatch.add(collarLower, x, 1.25, z);
+            brassBatch.add(collarLower, x, 14.1, z);
 
-            stoneBatch.addScaled(shaft, x, 18.4, z, 0.95, 9.6, 0.95, rotation);
-            stoneBatch.addScaled(base, x, 23.55, z, 2.7, 0.7, 2.7, rotation);
+            stoneBatch.addScaled(base, x, 16.4, z, 3.4, 0.8, 3.4, rotation);
+            stoneBatch.addScaled(shaft, x, 23.1, z, 1.2, 12.6, 1.2, rotation);
+            stoneBatch.addScaled(base, x, 29.8, z, 3, 0.8, 3, rotation);
+
+            brassBatch.add(collarUpper, x, 17.2, z);
+            brassBatch.add(collarUpper, x, 29, z);
 
             const panelAngle = angle + step / 2;
-            const panelX = Math.sin(panelAngle) * (HALL_RADIUS - 1.2);
-            const panelZ = -Math.cos(panelAngle) * (HALL_RADIUS - 1.2);
-            const panelWidth = 2 * (HALL_RADIUS - 1.2) * Math.sin(step / 2) * 0.84;
-            glassBatch.addScaled(glass, panelX, 12, panelZ, panelWidth, 22, 1, -panelAngle);
+            const panelX = Math.sin(panelAngle) * glazeRadius;
+            const panelZ = -Math.cos(panelAngle) * glazeRadius;
+            const tangentX = Math.cos(panelAngle);
+            const tangentZ = Math.sin(panelAngle);
 
-            this.collisionGrid.insert(new THREE.Box3(
-                new THREE.Vector3(x - 2, 0, z - 2),
-                new THREE.Vector3(x + 2, 14, z + 2)
-            ));
+            glassBatch.addScaled(glass, panelX, glazeCenter, panelZ, bayWidth, glazeHeight, 1, -panelAngle);
+
+            const frameRadius = glazeRadius - 0.18;
+            const frameX = Math.sin(panelAngle) * frameRadius;
+            const frameZ = -Math.cos(panelAngle) * frameRadius;
+
+            for (const offset of [-0.5, 0, 0.5]) {
+                const mx = frameX + tangentX * offset * bayWidth;
+                const mz = frameZ + tangentZ * offset * bayWidth;
+                brassBatch.addScaled(mullion, mx, glazeCenter, mz, 0.26, glazeHeight, 0.3, -panelAngle);
+            }
+
+            for (const railY of [glazeBottom + 0.13, glazeCenter, glazeTop - 0.13]) {
+                brassBatch.addScaled(mullion, frameX, railY, frameZ, bayWidth + 0.3, 0.26, 0.3, -panelAngle);
+            }
+
+            this.collisionGrid.insertCylinder(
+                new THREE.Vector3(x, ARCADE_TOP / 2, z),
+                COLUMN_COLLIDER_RADIUS,
+                ARCADE_TOP
+            );
         }
 
         const glassMesh = glassBatch.build(createGlassMaterial(this.bin), { renderOrder: 2 });
         if (glassMesh) this.scene.add(glassMesh);
-    }
-
-    private buildMezzanine(brassBatch: GeometryBatch) {
-        const mezzBatch = new GeometryBatch();
-
-        const deck = this.bin.geometry(new THREE.RingGeometry(MEZZANINE_INNER, MEZZANINE_OUTER, 48));
-        mezzBatch.addRotated(deck, 0, MEZZANINE_Y, 0, -Math.PI / 2);
-        mezzBatch.addRotated(deck, 0, MEZZANINE_Y - 0.5, 0, Math.PI / 2);
-
-        const parapet = this.bin.geometry(new THREE.CylinderGeometry(MEZZANINE_INNER, MEZZANINE_INNER, 1.6, 48, 1, true));
-        mezzBatch.add(parapet, 0, MEZZANINE_Y + 0.8, 0);
-
-        const mezzMaterial = this.bin.material(this.materials.steel.clone());
-        mezzMaterial.side = THREE.DoubleSide;
-        const mezzMesh = mezzBatch.build(mezzMaterial, { receiveShadow: true });
-        if (mezzMesh) this.scene.add(mezzMesh);
-
-        const rail = this.bin.geometry(new THREE.TorusGeometry(MEZZANINE_INNER, 0.16, 5, 64));
-        brassBatch.addRotated(rail, 0, MEZZANINE_Y + 1.65, 0, Math.PI / 2);
-
-        const cornice = this.bin.geometry(new THREE.TorusGeometry(COLONNADE_RADIUS, 0.3, 5, 64));
-        brassBatch.addRotated(cornice, 0, ARCADE_TOP, 0, Math.PI / 2);
     }
 
     private buildTicker() {
@@ -194,42 +225,42 @@ export class HallShell {
             map: this.tickerTexture,
             emissiveMap: this.tickerTexture,
             emissive: 0xffffff,
-            emissiveIntensity: 1.1,
+            emissiveIntensity: 0.95,
             roughness: 0.4,
             metalness: 0.1,
             side: THREE.BackSide,
         }));
 
         const band = new THREE.Mesh(
-            new THREE.CylinderGeometry(MEZZANINE_INNER - 0.1, MEZZANINE_INNER - 0.1, 1.25, 48, 1, true),
+            new THREE.CylinderGeometry(MEZZANINE_INNER - 0.1, MEZZANINE_INNER - 0.1, 1.35, 96, 1, true),
             material
         );
-        band.position.y = MEZZANINE_Y + 0.8;
+        band.position.y = MEZZANINE_Y - 1.2;
         band.matrixAutoUpdate = false;
         band.updateMatrix();
         this.scene.add(band);
     }
 
-    private buildVault(brassBatch: GeometryBatch) {
+    private buildDome(brassBatch: GeometryBatch) {
         const scaleY = (VAULT_HEIGHT - ARCADE_TOP) / HALL_RADIUS;
 
-        const vault = new THREE.Mesh(
-            new THREE.SphereGeometry(HALL_RADIUS, 32, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-            createSkylightMaterial(this.bin)
+        const dome = new THREE.Mesh(
+            new THREE.SphereGeometry(HALL_RADIUS, 64, 20, 0, Math.PI * 2, 0, Math.PI / 2),
+            createDomeGlassMaterial(this.bin)
         );
-        vault.scale.y = scaleY;
-        vault.position.y = ARCADE_TOP;
-        vault.matrixAutoUpdate = false;
-        vault.updateMatrix();
-        vault.renderOrder = -1000;
-        this.scene.add(vault);
+        dome.scale.y = scaleY;
+        dome.position.y = ARCADE_TOP;
+        dome.matrixAutoUpdate = false;
+        dome.updateMatrix();
+        dome.renderOrder = 3;
+        this.scene.add(dome);
 
-        const ribCount = 12;
+        const ribCount = 20;
         for (let i = 0; i < ribCount; i++) {
             const angle = (i / ribCount) * Math.PI * 2;
             const points: THREE.Vector3[] = [];
-            for (let step = 0; step <= 8; step++) {
-                const phi = (step / 8) * (Math.PI / 2);
+            for (let step = 0; step <= 10; step++) {
+                const phi = (step / 10) * (Math.PI / 2);
                 const radius = HALL_RADIUS * Math.sin(phi);
                 points.push(new THREE.Vector3(
                     Math.sin(angle) * radius,
@@ -238,32 +269,31 @@ export class HallShell {
                 ));
             }
 
-            const rib = this.bin.geometry(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 10, 0.3, 4, false));
+            const rib = this.bin.geometry(
+                new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 14, 0.34, 5, false)
+            );
             brassBatch.add(rib, 0, 0, 0);
         }
 
-        const oculus = this.bin.geometry(new THREE.TorusGeometry(12, 0.4, 5, 32));
-        brassBatch.addRotated(oculus, 0, VAULT_HEIGHT - 1.6, 0, Math.PI / 2);
-    }
-
-    private buildPerimeterCollision() {
-        const segments = 40;
-        for (let i = 0; i < segments; i++) {
-            const angle = ((i + 0.5) / segments) * Math.PI * 2;
-            const x = Math.cos(angle) * (HALL_RADIUS + 5);
-            const z = Math.sin(angle) * (HALL_RADIUS + 5);
-            const half = 8;
-
-            this.collisionGrid.insert(new THREE.Box3(
-                new THREE.Vector3(x - half, 0, z - half),
-                new THREE.Vector3(x + half, VAULT_HEIGHT + 10, z + half)
-            ));
+        for (let step = 1; step <= 4; step++) {
+            const phi = (step / 5) * (Math.PI / 2);
+            const radius = HALL_RADIUS * Math.sin(phi);
+            const y = ARCADE_TOP + HALL_RADIUS * Math.cos(phi) * scaleY;
+            const hoop = this.bin.geometry(new THREE.TorusGeometry(radius, 0.2, 5, 96));
+            brassBatch.addRotated(hoop, 0, y, 0, Math.PI / 2);
         }
+
+        const oculus = this.bin.geometry(new THREE.TorusGeometry(11, 0.55, 6, 48));
+        brassBatch.addRotated(oculus, 0, VAULT_HEIGHT - 1.2, 0, Math.PI / 2);
+
+        const lanternRing = this.bin.geometry(new THREE.CylinderGeometry(11, 11, 2.4, 48, 1, true));
+        brassBatch.add(lanternRing, 0, VAULT_HEIGHT + 0.2, 0);
     }
+
 
     update(delta: number) {
         if (this.tickerTexture) {
-            this.tickerTexture.offset.x = (this.tickerTexture.offset.x + delta * 0.03) % 1;
+            this.tickerTexture.offset.x = (this.tickerTexture.offset.x + delta * 0.024) % 1;
         }
     }
 
