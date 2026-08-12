@@ -600,7 +600,7 @@ export class BoardSystem {
     }
 
     hasBoardData(): boolean {
-        return this.players.length > 0 && this.factions.length > 0;
+        return this.received.players && this.received.factions && this.received.quests;
     }
 
     setFactions(list: FactionSummary[]) {

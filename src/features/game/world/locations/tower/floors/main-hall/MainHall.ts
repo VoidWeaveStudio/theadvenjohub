@@ -18,7 +18,8 @@ import { perf } from "../../../../../core/PerfProfiler";
 
 const SHADOW_EXTENT = 46;
 const ENV_PROBE_HEIGHT = 14;
-const BOARD_RETRY_SECONDS = 2.5;
+const BOARD_RETRY_SECONDS = 4;
+const BOARD_MAX_RETRIES = 5;
 const BOARD_REFRESH_SECONDS = 30;
 
 export class MainHall extends TowerFloor {
@@ -38,6 +39,7 @@ export class MainHall extends TowerFloor {
     private keyLight: THREE.DirectionalLight | null = null;
     private environmentMap: THREE.Texture | null = null;
     private refreshTimer = 0;
+    private retryAttempts = 0;
 
     public onRequestBoardData?: () => void;
 
@@ -154,8 +156,16 @@ export class MainHall extends TowerFloor {
         this.refreshTimer -= delta;
         if (this.refreshTimer > 0) return;
 
-        const settled = this.boards?.hasBoardData() ?? false;
-        this.refreshTimer = settled ? BOARD_REFRESH_SECONDS : BOARD_RETRY_SECONDS;
+        if (this.boards?.hasBoardData()) {
+            this.refreshTimer = BOARD_REFRESH_SECONDS;
+            this.retryAttempts = 0;
+        } else if (this.retryAttempts < BOARD_MAX_RETRIES) {
+            this.retryAttempts++;
+            this.refreshTimer = BOARD_RETRY_SECONDS * this.retryAttempts;
+        } else {
+            this.refreshTimer = BOARD_REFRESH_SECONDS;
+        }
+
         this.onRequestBoardData();
     }
 

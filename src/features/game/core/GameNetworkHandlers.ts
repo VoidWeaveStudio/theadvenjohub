@@ -558,6 +558,15 @@ export function registerNetworkHandlers(game: Game) {
         if (op) op.setNickname(data.nickname);
     };
 
+    game.networkManager.onPlayerFactionIdentity = (data) => {
+        const op = game.otherPlayers.get(data.id);
+        op?.setFactionIdentity(data.factionSymbol, data.factionImage, data.isFactionCreator);
+    };
+
+    game.networkManager.onFactionRosterChanged = (data) => {
+        game.refreshFactionViews(data.mine);
+    };
+
     game.networkManager.onSkinUpdate = (data) => {
         if (data.playerId === game.localPlayerNetId) {
             game.player.applySkinTexture(data.url);

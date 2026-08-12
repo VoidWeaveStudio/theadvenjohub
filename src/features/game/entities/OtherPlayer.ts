@@ -49,6 +49,8 @@ export class OtherPlayer extends Entity {
     private animator = new CharacterAnimator();
 
     private static readonly _wispVelocity = new THREE.Vector3();
+    private static readonly _targetQuat = new THREE.Quaternion();
+    private static readonly _targetEuler = new THREE.Euler();
 
     private characterModel: THREE.Object3D | null = null;
     private wisp: EnergyWisp | null = null;
@@ -267,6 +269,58 @@ export class OtherPlayer extends Entity {
         if (this.nameTexture) this.nameTexture.needsUpdate = true;
     }
 
+    public setFactionIdentity(symbol: string | null, image: string | null, isFactionCreator: boolean) {
+        const nextSymbol = symbol || null;
+        const nextImage = image || null;
+
+        if (this.factionSymbol === nextSymbol && this.factionImage === nextImage && this.isFactionCreator === isFactionCreator) {
+            return;
+        }
+
+        const hadFaction = !!this.factionSymbol;
+        this.factionSymbol = nextSymbol;
+        this.factionImage = nextImage;
+        this.isFactionCreator = isFactionCreator;
+
+        if (nextImage === null) this.factionImageEl = null;
+
+        if (!this.created || !this.nameSprite) return;
+
+        if (hadFaction !== !!nextSymbol) {
+            this.mesh.remove(this.nameSprite);
+            this.disposeNameTag();
+            this.nameSprite = this.createNameTag(this.nickname);
+            this.mesh.add(this.nameSprite);
+            return;
+        }
+
+        if (nextImage && this.factionImageEl?.src !== nextImage) {
+            this.factionImageEl = null;
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => {
+                this.factionImageEl = img;
+                this.drawNameTag(this.nickname);
+                if (this.nameTexture) this.nameTexture.needsUpdate = true;
+            };
+            img.src = nextImage;
+        }
+
+        this.drawNameTag(this.nickname);
+        if (this.nameTexture) this.nameTexture.needsUpdate = true;
+    }
+
+    private disposeNameTag() {
+        if (!this.nameSprite) return;
+        const material = this.nameSprite.material as THREE.SpriteMaterial;
+        material.map?.dispose();
+        material.dispose();
+        this.nameTexture = null;
+        this.nameCanvas = null;
+        this.nameCtx = null;
+        this.nameSprite = null;
+    }
+
     public setSkinTexture(url: string | null) {
         applySkinTextureUrl(this.paintableMaterial, url);
     }
@@ -342,13 +396,15 @@ export class OtherPlayer extends Entity {
         this.hitbox.position.copy(this.mesh.position);
         this.hitbox.position.y += 0.9;
 
-        const targetQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.targetRotation, 0));
-        this.mesh.quaternion.slerp(targetQuat, Math.min(1, delta * 12));
+        OtherPlayer._targetEuler.set(0, this.targetRotation, 0);
+        OtherPlayer._targetQuat.setFromEuler(OtherPlayer._targetEuler);
+        this.mesh.quaternion.slerp(OtherPlayer._targetQuat, Math.min(1, delta * 12));
         this.hitbox.quaternion.copy(this.mesh.quaternion);
 
         if (this.headBone) {
-            const headQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.targetPitch, 0, 0));
-            this.headBone.quaternion.slerp(headQuat, Math.min(1, delta * 12));
+            OtherPlayer._targetEuler.set(this.targetPitch, 0, 0);
+            OtherPlayer._targetQuat.setFromEuler(OtherPlayer._targetEuler);
+            this.headBone.quaternion.slerp(OtherPlayer._targetQuat, Math.min(1, delta * 12));
         }
 
         if (this.posedAnimation) {

@@ -558,6 +558,13 @@ export class NetworkManager {
   public onNicknameChanged?: (nickname: string) => void;
   public onOtherPlayerNicknameChange?: (data: { id: string; nickname: string }) => void;
   public onSkinUpdate?: (data: { playerId: string; url: string | null }) => void;
+  public onPlayerFactionIdentity?: (data: {
+    id: string;
+    factionSymbol: string | null;
+    factionImage: string | null;
+    isFactionCreator: boolean;
+  }) => void;
+  public onFactionRosterChanged?: (data: { factionId: string; mine: boolean }) => void;
 
   public onWeaponForceUnequip?: () => void;
   public onUserBlocked?: (entry: BlockedEntry) => void;
@@ -906,6 +913,17 @@ export class NetworkManager {
         break;
       case "skinUpdate":
         this.onSkinUpdate?.({ playerId: data.playerId, url: data.url ?? null });
+        break;
+      case "playerFactionIdentity":
+        this.onPlayerFactionIdentity?.({
+          id: data.id,
+          factionSymbol: data.factionSymbol ?? null,
+          factionImage: data.factionImage ?? null,
+          isFactionCreator: !!data.isFactionCreator,
+        });
+        break;
+      case "factionRosterChanged":
+        this.onFactionRosterChanged?.({ factionId: data.factionId, mine: !!data.mine });
         break;
       case "positionCorrection":
         if (Array.isArray(data.position) && data.position.length === 3) {

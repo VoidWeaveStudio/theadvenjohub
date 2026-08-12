@@ -48,6 +48,7 @@ export interface GameSession {
     wallet: string;
 }
 
+const FACTION_VIEW_REFRESH_COOLDOWN_MS = 4000;
 const ASSET_STAGE_END = 0.4;
 const CONNECT_TIMEOUT_MS = 8000;
 const LOCATION_READY_TIMEOUT_MS = 10000;
@@ -109,6 +110,8 @@ export class Game {
     public leaderboard: LeaderboardEntry[] = [];
     public factionLeaderboard: FactionSummary[] = [];
     public factionQuests: FactionQuestEntry[] = [];
+    private lastFactionViewRefresh = 0;
+    private pendingOwnFactionRefresh = false;
     public myNickname: string = "";
     public shardState: ShardStateData | null = null;
     private ownBubbleIndex: number | null = null;
@@ -1282,6 +1285,25 @@ export class Game {
 
     claimFactionCreator(factionId: string) {
         this.networkManager.sendFactionClaimCreator(factionId);
+    }
+
+    refreshFactionViews(includeOwnFactions: boolean = true) {
+        const now = performance.now();
+        if (now - this.lastFactionViewRefresh < FACTION_VIEW_REFRESH_COOLDOWN_MS) {
+            this.pendingOwnFactionRefresh ||= includeOwnFactions;
+            return;
+        }
+        this.lastFactionViewRefresh = now;
+
+        const withOwn = includeOwnFactions || this.pendingOwnFactionRefresh;
+        this.pendingOwnFactionRefresh = false;
+
+        this.requestFactionLeaderboard();
+        this.requestFactionQuestList();
+        if (withOwn) this.networkManager.sendFactionMyListRequest();
+
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof MainHall) location.onRequestBoardData?.();
     }
 
     requestFactionQuestList() {
