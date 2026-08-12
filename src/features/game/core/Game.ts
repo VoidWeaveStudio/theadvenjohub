@@ -22,6 +22,8 @@ import { disposeSkinTextures } from "../entities/characterSkinTexture";
 import { EmoteKey, isBodyEmote } from "../data/emotes";
 import { CosmeticId } from "../data/cosmetics";
 import { LocationManager } from "../world/LocationManager";
+import type { Location } from "../world/Location";
+import { withTimeout, waitForFrames } from "../utils/loadGate";
 import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { EventsHall } from "../world/locations/tower/floors/EventsHall";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
@@ -33,6 +35,7 @@ import { applyLocationMovementConfig, configureLocationSpecifics, syncMainWorldE
 import { registerNetworkHandlers } from "./GameNetworkHandlers";
 import type { GameCallbacks } from "./GameCallbacks";
 import { createGameRenderer } from "./GameRenderer";
+import { perf } from "./PerfProfiler";
 import { updateDamageIndicator } from "./GameDamageIndicator";
 import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone } from "./GameLocationOrchestration";
 import { BuildSession } from "../world/building/BuildSession";
@@ -44,6 +47,10 @@ export interface GameSession {
     userId: string;
     wallet: string;
 }
+
+const ASSET_STAGE_END = 0.4;
+const CONNECT_TIMEOUT_MS = 8000;
+const LOCATION_READY_TIMEOUT_MS = 10000;
 
 export interface HUDState {
     health: number;
@@ -309,6 +316,7 @@ export class Game {
         const height = container?.clientHeight || window.innerHeight;
 
         this.renderer = createGameRenderer(canvas, width, height);
+        perf.attach(this.renderer);
 
         canvas.style.width = '100%';
         canvas.style.height = '100%';
@@ -336,17 +344,20 @@ export class Game {
 
 
     async init() {
-        this.onLoadStateChange?.(true, "Initializing core assets...");
+        this.setLoadingStage("Initializing core assets...", 0);
 
         SoundManager.getInstance().loadCritical().then(() => {
             SoundManager.getInstance().loadLazy();
         });
 
         this.resourceManager.onProgress = (progress, message) => {
-            this.onLoadStateChange?.(true, `${message} ${Math.round(progress)}%`);
+            this.setLoadingStage(message, (progress / 100) * ASSET_STAGE_END);
         };
 
-        const criticalResult = await this.resourceManager.loadCritical();
+        const criticalResult = await perf.measureAsync("resourceManager.loadCritical", () =>
+            this.resourceManager.loadCritical()
+        );
+        perf.flushLoad("critical assets");
 
         if (!criticalResult.success) {
             this.onLoadStateChange?.(false);
@@ -360,7 +371,7 @@ export class Game {
         requestAnimationFrame(async () => {
             if (this.disposed) return;
             try {
-                this.onLoadStateChange?.(true, "Setting up world...");
+                this.setLoadingStage("Building the tower...", ASSET_STAGE_END);
 
                 this.locationManager.registerLocations(this.resourceManager);
                 const currentLocation = await this.locationManager.loadLocation("tower-main-hall");
@@ -599,11 +610,27 @@ export class Game {
                 if (this.disposed) return;
                 this.setupNetwork();
 
-                this.onLoadStateChange?.(true, "Restoring your last position...");
+                this.setLoadingStage("Connecting to the server...", 0.55);
+                await withTimeout(this.networkManager.whenAuthenticated(), CONNECT_TIMEOUT_MS);
+                if (this.disposed) return;
+
+                this.setLoadingStage("Restoring your last position...", 0.65);
                 await this.waitForProgressRestore();
                 if (this.disposed) return;
 
                 this.isLoaded = true;
+
+                const hall = this.locationManager.getCurrentLocation();
+                if (hall instanceof MainHall) hall.onRequestBoardData?.();
+
+                this.setLoadingStage("Compiling shaders...", 0.75);
+                if (hall) await this.compileScene(hall);
+                if (this.disposed) return;
+
+                if (hall) await this.awaitLocationReady(hall, 0.85);
+                if (this.disposed) return;
+
+                this.setLoadingStage("Entering the tower...", 1);
                 this.onLoadStateChange?.(false);
                 this.emitState(true);
 
@@ -633,7 +660,7 @@ export class Game {
         this.closeBuildEditor();
 
         try {
-            this.onLoadStateChange?.(true, "Traveling to new location...");
+            this.setLoadingStage("Traveling to a new location...", 0.05);
 
             await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
             if (this.disposed) return;
@@ -648,6 +675,7 @@ export class Game {
             this.lootSystem.clear();
             this.buildSystem.clear();
 
+            this.setLoadingStage("Building the location...", 0.2);
             const newLocation = await this.locationManager.loadLocation(targetLocationId);
             if (this.disposed) return;
             if (!newLocation || newLocation === previousLocation) {
@@ -688,10 +716,12 @@ export class Game {
             this.lootSystem.setScene(newLocation.scene);
             this.buildSystem.setScene(newLocation.scene, newLocation.id);
 
+            this.setLoadingStage("Compiling shaders...", 0.5);
             this.shootingSystem.prewarm();
             await this.lootSystem.prewarm();
             if (this.disposed) return;
-            this.renderer.compile(newLocation.scene, this.cameraController.camera);
+            await this.compileScene(newLocation);
+            if (this.disposed) return;
             this.shootingSystem.endPrewarm();
             this.lootSystem.endPrewarm();
 
@@ -762,6 +792,10 @@ export class Game {
                 if (this.disposed) return;
             }
 
+            await this.awaitLocationReady(newLocation, 0.8);
+            if (this.disposed) return;
+
+            this.setLoadingStage("Entering the location...", 1);
             this.onLoadStateChange?.(false);
         } finally {
             this.isChangingLocation = false;
@@ -774,6 +808,36 @@ export class Game {
 
     private waitForProgressRestore(timeoutMs = 6000): Promise<void> {
         return waitForProgressRestore(this, timeoutMs);
+    }
+
+    private setLoadingStage(message: string, progress: number) {
+        this.onLoadStateChange?.(true, message, Math.max(0, Math.min(1, progress)));
+    }
+
+    private async compileScene(location: Location) {
+        await withTimeout(
+            this.renderer.compileAsync(location.scene, this.cameraController.camera),
+            LOCATION_READY_TIMEOUT_MS
+        );
+    }
+
+    private async awaitLocationReady(location: Location, startProgress: number) {
+        this.setLoadingStage("Syncing location data...", startProgress);
+        this.player.setMovementLocked(true);
+
+        try {
+            await withTimeout(
+                Promise.all([location.whenReady?.(), this.buildSession.whenLotReady()]),
+                LOCATION_READY_TIMEOUT_MS
+            );
+            if (this.disposed) return;
+
+            this.setLoadingStage("Almost there...", 0.97);
+            await withTimeout(waitForFrames(2), 3000);
+        } finally {
+            this.player.setMovementLocked(false);
+            this.networkManager.sendClientReady();
+        }
     }
 
     private setupNetwork() {
@@ -817,6 +881,7 @@ export class Game {
         }
 
         this.frameCount++;
+        perf.frameBegin();
 
         const portal = this.locationManager.checkPortals(this.player.mesh.position);
         const isEJustPressed = this.inputManager.isKeyJustPressed("KeyE");
@@ -834,24 +899,30 @@ export class Game {
         const currentLocation = this.locationManager.getCurrentLocation();
         if (currentLocation) {
             updateDamageIndicator(this);
+            perf.begin("player");
             this.player.update(delta, isEJustPressed);
+            perf.end("player");
             if (this.isDead && this.inputManager.isKeyJustPressed("Space")) {
                 this.networkManager.sendRespawnRequest();
             }
+            perf.begin("camera");
             if (this.buildSession.editor.active) {
                 this.buildSession.update(delta);
             } else {
                 this.cameraController.setAbsorbSteps(!this.player.isJumping());
                 this.cameraController.update(delta, this.inputManager);
             }
+            perf.end("camera");
 
-            const inSafe = (currentLocation instanceof MainHall) && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
+            const inSafe = (currentLocation instanceof MainHall || currentLocation instanceof MainWorld)
+                && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
 
             if (this.hudState.inSafeZone !== inSafe) {
                 this.hudState.inSafeZone = inSafe;
                 this.emitState(true);
             }
 
+            perf.begin("combat");
             if (!inSafe) {
                 this.shootingSystem.update(delta);
                 this.enemySystem.update(delta);
@@ -860,15 +931,20 @@ export class Game {
             }
             this.lootSystem.update(delta);
             this.buildSystem.update(delta);
+            perf.end("combat");
 
             if (currentLocation.update) {
                 const dayTime = this.dayNightConfig
                     ? computeDayTime(Date.now(), this.dayNightConfig)
                     : undefined;
+                perf.begin("location");
                 currentLocation.update(this.player.mesh.position, delta, isEJustPressed, dayTime);
+                perf.end("location");
             }
 
+            perf.begin("interaction");
             this.interactionSystem.update(delta, isEJustPressed);
+            perf.end("interaction");
 
             if (currentLocation.getInteractionPrompt && !portal) {
                 const prompt = currentLocation.getInteractionPrompt(this.player.mesh.position);
@@ -885,13 +961,17 @@ export class Game {
 
             this.updateSpawnProtection();
             this.updateCandleEmote(delta);
+            perf.begin("network");
             this.networkSystem.update(delta);
+            perf.end("network");
             this.emoteSystem.update(delta);
+            perf.begin("otherPlayers");
             const galaxy = currentLocation instanceof Basement ? currentLocation : null;
             this.otherPlayers.forEach((op) => {
                 if (galaxy) op.setWispMode(!galaxy.isOnPlatform(op.mesh.position));
                 op.update(delta);
             });
+            perf.end("otherPlayers");
 
             this.networkManager.sendPlayerUpdate({
                 position: this.player.mesh.position.toArray(),
@@ -907,7 +987,10 @@ export class Game {
             this.emitState(false);
         }
 
+        perf.beginRender();
         this.locationManager.render();
+        perf.endRender();
+        perf.frameEnd();
     };
 
     public getViewportHeight(): number {
@@ -1091,6 +1174,10 @@ export class Game {
         if (untilMs <= Date.now()) {
             this.onSpawnProtectionChange?.(0);
         }
+    }
+
+    public notifyClientReadyIfLoaded() {
+        if (this.isLoaded) this.networkManager.sendClientReady();
     }
 
     public isSpawnProtected(): boolean {

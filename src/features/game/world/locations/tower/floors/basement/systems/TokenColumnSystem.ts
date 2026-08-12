@@ -31,12 +31,20 @@ export class TokenColumnSystem {
     private field: ColumnField | null = null;
     private columnUpdateInterval: NodeJS.Timeout | null = null;
     private gameSlug: string | null = null;
+    private initialSync: Promise<void> | null = null;
+    private pendingColumnLoads: Promise<void>[] = [];
 
     constructor(private floor: Basement) { }
 
     public async syncFromServer(gameSlug: string) {
         this.gameSlug = gameSlug;
-        await this.refreshAssignments();
+        this.initialSync = this.refreshAssignments();
+        await this.initialSync;
+    }
+
+    public async whenReady() {
+        if (this.initialSync) await this.initialSync;
+        await Promise.all(this.pendingColumnLoads);
     }
 
     private async refreshAssignments() {
@@ -57,6 +65,8 @@ export class TokenColumnSystem {
     }
 
     public applyColumnTokens(next: (string | null)[]) {
+        this.pendingColumnLoads = [];
+
         for (let i = 0; i < this.columns.length; i++) {
             const ca = typeof next[i] === "string" && next[i]!.length > 0 ? next[i]! : null;
             const col = this.columns[i];
@@ -69,7 +79,7 @@ export class TokenColumnSystem {
                 : { name: "Empty Pedestal", symbol: "N/A", mc: 0 };
 
             this.clearColumnVisuals(col);
-            if (ca) this.updateColumn(col);
+            if (ca) this.pendingColumnLoads.push(this.updateColumn(col));
         }
     }
 
@@ -194,26 +204,31 @@ export class TokenColumnSystem {
 
             if (!data.image) return;
 
-            this.floor.textureLoader.load(
-                `/api/image-proxy?url=${encodeURIComponent(data.image)}`,
-                (tex) => {
-                    if (col.ca !== ca) {
-                        tex.dispose();
-                        return;
+            await new Promise<void>((resolve) => {
+                this.floor.textureLoader.load(
+                    `/api/image-proxy?url=${encodeURIComponent(data.image)}`,
+                    (tex) => {
+                        if (col.ca !== ca) {
+                            tex.dispose();
+                            resolve();
+                            return;
+                        }
+
+                        tex.colorSpace = THREE.SRGBColorSpace;
+                        this.floor.applyTextureFilters(tex);
+                        this.applyCoinTexture(col, tex);
+
+                        col.texture?.dispose();
+                        col.texture = tex;
+                        resolve();
+                    },
+                    undefined,
+                    () => {
+                        console.warn(`[Basement] Column texture load failed: ${data.image}`);
+                        resolve();
                     }
-
-                    tex.colorSpace = THREE.SRGBColorSpace;
-                    this.floor.applyTextureFilters(tex);
-                    this.applyCoinTexture(col, tex);
-
-                    col.texture?.dispose();
-                    col.texture = tex;
-                },
-                undefined,
-                () => {
-                    console.warn(`[Basement] Column texture load failed: ${data.image}`);
-                }
-            );
+                );
+            });
         } catch (e) {
             console.warn(`[Basement] Failed to update column ${ca}`, e);
         }

@@ -93,6 +93,7 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing game...");
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -266,10 +267,11 @@ export function GameClient({ slug }: GameClientProps) {
         gameRef.current = game;
 
         game.onStateChange = (state) => { if (!cancelled) hud.handleStateChange(state); };
-        game.onLoadStateChange = (loading, message) => {
+        game.onLoadStateChange = (loading, message, progress) => {
           if (cancelled) return;
           setLoading(loading);
           if (message) setLoadingMessage(message);
+          if (typeof progress === "number") setLoadingProgress(progress);
         };
         game.onNotification = (msg, duration = 3000) => {
           if (cancelled) return;
@@ -879,6 +881,12 @@ export function GameClient({ slug }: GameClientProps) {
         <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center z-50">
           <Spinner size="lg" />
           <p className="text-white mt-4 text-lg font-mono">{loadingMessage}</p>
+          <div className="mt-4 w-64 h-1 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-cyan-400 transition-all duration-300 ease-out"
+              style={{ width: `${Math.round(loadingProgress * 100)}%` }}
+            />
+          </div>
         </div>
       )}
 

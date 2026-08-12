@@ -12,7 +12,9 @@ import { TradingPosts } from "./systems/TradingPosts";
 import { BoardSystem } from "./systems/BoardSystem";
 import { createMainHallNpcs, MainHallNpc } from "./systems/NpcSystem";
 import { configureTextureQuality } from "./utils/textureQuality";
+import { whenFactionImagesSettled } from "./utils/factionImages";
 import { HALL_RADIUS, MEZZANINE_Y, RING_TOP_Y, SPAWN_POINT, VAULT_HEIGHT, isLowEndDevice } from "./layout";
+import { perf } from "../../../../../core/PerfProfiler";
 
 const SHADOW_EXTENT = 46;
 const ENV_PROBE_HEIGHT = 14;
@@ -52,8 +54,8 @@ export class MainHall extends TowerFloor {
         this.scene.add(new THREE.HemisphereLight(0xd9edff, 0x3a3648, 0.32));
 
         this.sky = new HallSky(this.scene, this.bin);
-        this.sky.create();
-        this.createKeyLight();
+        perf.measure("sky", () => this.sky.create());
+        perf.measure("keyLight", () => this.createKeyLight());
 
         this.shell = new HallShell(this.scene, this.collisionGrid, this.bin);
         this.mezzanine = new MezzanineSystem(this.scene, this.collisionGrid, this.bin);
@@ -61,18 +63,17 @@ export class MainHall extends TowerFloor {
         this.posts = new TradingPosts(this.scene, this.collisionGrid, this.bin);
         this.boards = new BoardSystem(this.scene, this.collisionGrid, this.bin);
 
-        const materials = this.shell.create();
-        this.mezzanine.create(materials);
-        this.ring.create(materials);
-        this.posts.create(materials);
-        this.boards.create(materials);
+        const materials = perf.measure("shell", () => this.shell.create());
+        perf.measure("mezzanine", () => this.mezzanine.create(materials));
+        perf.measure("tradingRing", () => this.ring.create(materials));
+        perf.measure("tradingPosts", () => this.posts.create(materials));
+        perf.measure("boards", () => this.boards.create(materials));
 
-        this.createCentralCrystal(new THREE.Vector3(0, RING_TOP_Y, 0));
-        this.disableCrystalShadow();
+        perf.measure("crystal", () => this.createCentralCrystal(new THREE.Vector3(0, RING_TOP_Y, 0)));
 
-        this.npcs = createMainHallNpcs(this.scene, this.collisionGrid, rm);
+        this.npcs = perf.measure("npcs", () => createMainHallNpcs(this.scene, this.collisionGrid, rm));
 
-        this.bakeEnvironment();
+        perf.measure("environmentProbe", () => this.bakeEnvironment());
     }
 
     private bakeEnvironment() {
@@ -99,13 +100,6 @@ export class MainHall extends TowerFloor {
 
         this.scene.environment = this.environmentMap;
         this.scene.environmentIntensity = 0.42;
-    }
-
-    private disableCrystalShadow() {
-        this.centralCrystal?.traverse((object) => {
-            const light = object as THREE.PointLight;
-            if (light.isPointLight) light.castShadow = false;
-        });
     }
 
     private createKeyLight() {
@@ -137,6 +131,11 @@ export class MainHall extends TowerFloor {
         this.scene.add(fill);
     }
 
+    public override async whenReady() {
+        await this.boards.whenDataReady();
+        await whenFactionImagesSettled();
+    }
+
     public setLeaderboard(entries: LeaderboardEntry[]) {
         this.boards?.setPlayers(entries);
     }
@@ -165,15 +164,21 @@ export class MainHall extends TowerFloor {
 
         this.shell.update(delta);
         this.sky.update(delta);
+        perf.begin("hall.boards");
         this.boards.update(delta);
         this.updateBoardRefresh(delta);
+        perf.end("hall.boards");
+        perf.begin("hall.shadowCamera");
         this.trackShadowCamera(playerPosition);
+        perf.end("hall.shadowCamera");
 
+        perf.begin("hall.npcs");
         for (const npc of this.npcs) {
             npc.time += delta;
             npc.handle.group.rotation.y = npc.baseRotation + Math.sin(npc.time * 0.4) * 0.3;
             npc.handle.update(delta);
         }
+        perf.end("hall.npcs");
     }
 
     private trackShadowCamera(playerPosition: THREE.Vector3) {

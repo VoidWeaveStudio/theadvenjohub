@@ -204,6 +204,7 @@ export function registerNetworkHandlers(game: Game) {
         game.requestMyFactions();
         game.requestMailInbox();
         game.requestFriendsList();
+        game.notifyClientReadyIfLoaded();
 
         game.restoreTimeoutId = setTimeout(() => {
             game.restoreTimeoutId = null;

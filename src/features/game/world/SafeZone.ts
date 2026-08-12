@@ -1,20 +1,21 @@
 // src/features/game/world/SafeZone.ts
 import * as THREE from "three";
-import { Terrain } from "./Terrain";
+import { HeightProvider } from "./Location";
 
 export class SafeZone {
   private radius: number = 12;
   private position: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
   private ring!: THREE.Mesh;
   private disc!: THREE.Mesh;
-  private terrain: Terrain | null = null;
+  private terrain: HeightProvider | null = null;
 
   create(
     scene: THREE.Scene,
-    terrain?: Terrain,
+    terrain?: HeightProvider,
     centerPosition?: THREE.Vector3,
     radius?: number
   ) {
+    this.dispose();
     this.terrain = terrain || null;
     if (centerPosition) this.position = centerPosition.clone();
     if (radius) this.radius = radius;
@@ -59,5 +60,11 @@ export class SafeZone {
   }
 
   dispose() {
+    for (const mesh of [this.ring, this.disc]) {
+      if (!mesh) continue;
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+    }
   }
 }

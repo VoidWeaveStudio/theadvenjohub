@@ -54,20 +54,17 @@ export class ResourceManager {
   }
 
   async loadCritical(): Promise<{ success: boolean; failed: string[] }> {
-    if (this.models.has("player") && this.textures.has("ground-color")) {
+    if (this.models.has("player") && this.models.has("rifle")) {
       this.onProgress?.(100, "Ready (Cached)");
       return { success: true, failed: [] };
     }
 
     this.loadedCount = 0;
-    this.totalCount = 5;
+    this.totalCount = 2;
 
     const tasks: [string, Promise<boolean>][] = [
       ["player", this.loadModel("player", "/models/player/character.glb", "Loading Player")],
       ["rifle", this.loadModel("rifle", "/models/rifle.glb", "Loading Weapon")],
-      ["ground-color", this.loadTexture("ground-color", "/models/textures/ground/Ground037_1K-JPG_Color.webp", true, "Loading Ground")],
-      ["ground-normal", this.loadTexture("ground-normal", "/models/textures/ground/Ground037_1K-JPG_NormalGL.webp", false, "Loading Ground Details")],
-      ["ground-roughness", this.loadTexture("ground-roughness", "/models/textures/ground/Ground037_1K-JPG_Roughness.webp", false, "Loading Ground Physics")],
     ];
 
     const results = await Promise.all(tasks.map(([, p]) => p));
@@ -86,14 +83,11 @@ export class ResourceManager {
   }
 
   async loadLazy() {
-    if (this.models.has("tree") && this.models.has("cosmos")) {
+    if (this.models.has("cosmos")) {
       return;
     }
 
     const lazyModels = [
-      { name: "tree", url: "/models/tree.glb" },
-      { name: "rock", url: "/models/rock.glb" },
-      { name: "portal", url: "/models/portal.glb" },
       { name: "cosmos", url: "/models/cosmos.glb" },
     ];
 
@@ -106,7 +100,6 @@ export class ResourceManager {
       { name: "floor-color", url: "/models/textures/basement_floor/cobblestone_01_diff_1k.webp", isSRGB: true },
       { name: "floor-normal", url: "/models/textures/basement_floor/cobblestone_01_nor_gl_1k.webp", isSRGB: false },
       { name: "floor-roughness", url: "/models/textures/basement_floor/cobblestone_01_rough_1k.webp", isSRGB: false },
-      { name: "ground-ao", url: "/models/textures/ground/Ground037_1K-JPG_AmbientOcclusion.webp", isSRGB: false },
     ];
 
     lazyTextures.forEach(({ name, url, isSRGB }) => {

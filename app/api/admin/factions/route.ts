@@ -6,8 +6,7 @@ import { db } from "@/core/database";
 import { factions, factionMembers, games, users } from "@/core/database/schema";
 import { desc, eq, ilike, or, sql } from "drizzle-orm";
 import { getTokenByCa } from "@/core/lib/dexscreener";
-
-const ADMIN_FACTION_GAME_SLUG = "tanjo-shooter";
+import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
 
 function buildFactionDescription(name: string, symbol: string | null): string {
     return symbol ? `Community faction for ${name} ($${symbol}).` : `Community faction for ${name}.`;
@@ -90,7 +89,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "name_required", hint: "Token not found automatically, provide a name manually." }, { status: 400 });
         }
 
-        const game = await db.query.games.findFirst({ where: eq(games.slug, ADMIN_FACTION_GAME_SLUG) });
+        const game = await db.query.games.findFirst({ where: eq(games.slug, DEFAULT_GAME_SLUG) });
         if (!game) {
             return NextResponse.json({ error: "game_not_found" }, { status: 500 });
         }

@@ -3,11 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 import { db } from "@/core/database";
-import { shopItemPrices } from "@/core/database/schema";
-import { eq, and } from "drizzle-orm";
+import { games, shopItemPrices } from "@/core/database/schema";
+import { eq, and, asc } from "drizzle-orm";
 import { SHOP_CATALOG, SHOP_CATALOG_BY_ID } from "@/core/lib/shopCatalog";
 import { loadPrices, resolveGameId } from "@/core/lib/shopPricing";
+import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
 import { getTnjUsdPrice } from "@/core/lib/tnjPricing";
+
+async function resolveGame(slug: string | null) {
+    const target = slug && slug.length > 0 ? slug : DEFAULT_GAME_SLUG;
+    const game = await db.query.games.findFirst({ where: eq(games.slug, target) });
+    if (game) return game;
+    return db.query.games.findFirst({ orderBy: asc(games.createdAt) });
+}
 
 export async function GET(req: NextRequest) {
     const admin = requireAdmin(req);
@@ -15,15 +23,17 @@ export async function GET(req: NextRequest) {
 
     try {
         const slug = new URL(req.url).searchParams.get("gameSlug");
-        const gameId = await resolveGameId(slug);
-        if (!gameId) {
+        const game = await resolveGame(slug);
+        if (!game) {
             return NextResponse.json({ error: "game_not_found" }, { status: 404 });
         }
 
-        const prices = await loadPrices(gameId);
+        const prices = await loadPrices(game.id);
         const tnjUsd = await getTnjUsdPrice();
 
         return NextResponse.json({
+            gameSlug: game.slug,
+            gameName: game.title,
             tnjUsdPrice: tnjUsd,
             items: SHOP_CATALOG.map((entry) => {
                 const price = prices.get(entry.itemId)!;

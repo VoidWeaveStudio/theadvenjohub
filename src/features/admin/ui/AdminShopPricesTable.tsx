@@ -36,6 +36,8 @@ const KIND_LABEL: Record<string, string> = {
 
 export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShopPricesTable(_props, ref) {
     const [items, setItems] = useState<ShopPriceRow[]>([]);
+    const [gameSlug, setGameSlug] = useState<string | null>(null);
+    const [gameName, setGameName] = useState<string | null>(null);
     const [tnjUsdPrice, setTnjUsdPrice] = useState<number | null>(null);
     const [drafts, setDrafts] = useState<Record<string, Draft>>({});
     const [loading, setLoading] = useState(true);
@@ -50,6 +52,8 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
             if (res.ok) {
                 const data = await res.json();
                 setItems(data.items || []);
+                setGameSlug(data.gameSlug || null);
+                setGameName(data.gameName || null);
                 setTnjUsdPrice(data.tnjUsdPrice ?? null);
                 const next: Record<string, Draft> = {};
                 for (const item of data.items || []) {
@@ -92,6 +96,7 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
                 priceTnj,
                 priceUsdCents,
                 enabled: draft.enabled,
+                gameSlug,
             });
             if (res.ok) {
                 await load();
@@ -112,7 +117,9 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
         <div className="space-y-3">
             <div className="flex items-center justify-between text-sm">
                 <span className="text-[#8B8F98]">
-                    Prices apply without a game rebuild. Ash prices reach the game server within a minute.
+                    Prices for <span className="text-[#E5E7EB] font-bold">{gameName ?? "—"}</span>
+                    {gameSlug ? <span className="text-[#6B7280] font-mono"> ({gameSlug})</span> : null}. They apply without a
+                    game rebuild, ash prices reach the game server within a minute.
                 </span>
                 <span className="text-white font-bold">
                     TNJ: {tnjUsdPrice ? `$${tnjUsdPrice.toPrecision(4)}` : "price unavailable"}

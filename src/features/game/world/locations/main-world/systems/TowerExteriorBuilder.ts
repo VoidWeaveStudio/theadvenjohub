@@ -349,8 +349,6 @@ export function buildTowerExterior(world: MainWorld): TowerExteriorResult {
     doorWorldPos.applyMatrix4(towerGroup.matrixWorld);
     const towerEntrancePos = doorWorldPos;
 
-    world.vegetation.clearVegetationAroundPortal(towerX, towerZ, 180);
-
     const towerBox = new THREE.Box3(
         new THREE.Vector3(towerX - 110, groundY, towerZ - 110),
         new THREE.Vector3(towerX + 110, groundY + 400, towerZ + 120)

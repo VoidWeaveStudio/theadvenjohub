@@ -18,6 +18,8 @@ export interface HeightProvider {
 
 export type CoverProbe = (x: number, y: number, z: number) => number;
 
+export type WaterProvider = (x: number, z: number) => number | null;
+
 export interface CameraBounds {
     radius: number;
     minY: number;
@@ -46,6 +48,7 @@ export abstract class Location {
     public cameraCollisionGrid?: CollisionGrid;
     public terrain?: HeightProvider;
     public coverProbe?: CoverProbe;
+    public waterProvider?: WaterProvider;
     public maxPlayerRadius?: number | null;
     public cameraBounds?: CameraBounds;
     public flightZone?: FlightZone;
@@ -64,6 +67,7 @@ export abstract class Location {
 
     update?(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean, dayTime?: number): void;
     getInteractionPrompt?(playerPosition: THREE.Vector3): string | null;
+    whenReady?(): Promise<void>;
 
     public getInteractables(): THREE.Object3D[] {
         return [];

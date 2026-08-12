@@ -5,6 +5,7 @@ import type { LeaderboardEntry, FactionSummary, FactionQuestEntry } from "../../
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { tokenTextureCache } from "../../../../../../utils/TokenTextureCache";
 import { AssetBin } from "../utils/assetBin";
+import { LoadGate } from "../../../../../../utils/loadGate";
 import { GeometryBatch, atlasColumn, atlasRow } from "../utils/geometryBatch";
 import { insertLocalBox } from "../utils/collision";
 import { factionImageUrl, loadFactionImage } from "../utils/factionImages";
@@ -106,6 +107,9 @@ export class BoardSystem {
     private factions: FactionSummary[] = [];
     private quests: FactionQuestEntry[] = [];
     private time = 0;
+
+    private readonly dataGate = new LoadGate();
+    private readonly received = { players: false, factions: false, quests: false };
 
     constructor(
         private readonly scene: THREE.Scene,
@@ -568,14 +572,25 @@ export class BoardSystem {
         }
     }
 
+    private markReceived(key: "players" | "factions" | "quests") {
+        this.received[key] = true;
+        if (this.received.players && this.received.factions && this.received.quests) this.dataGate.open();
+    }
+
+    public whenDataReady(): Promise<void> {
+        return this.dataGate.promise;
+    }
+
     setPlayers(entries: LeaderboardEntry[]) {
         this.players = entries;
+        this.markReceived("players");
         if (!this.boardTexture) return;
         this.paintTraderBoard();
     }
 
     setQuests(list: FactionQuestEntry[]) {
         this.quests = list;
+        this.markReceived("quests");
         if (!this.boardTexture) return;
 
         for (const quest of list.slice(0, 6)) {
@@ -590,6 +605,7 @@ export class BoardSystem {
 
     setFactions(list: FactionSummary[]) {
         this.factions = list;
+        this.markReceived("factions");
         if (!this.boardTexture) return;
         this.requestFactionArtwork();
         this.paintFactionBoards();

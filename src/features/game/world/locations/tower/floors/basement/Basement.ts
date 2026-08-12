@@ -196,6 +196,10 @@ export class Basement extends TowerFloor {
         return new THREE.Vector3(0, 0, 14);
     }
 
+    public override async whenReady() {
+        await this.columns.whenReady();
+    }
+
     public override getInteractables(): THREE.Object3D[] {
         const interactables: THREE.Object3D[] = [];
         if (this.environment.basementCrystal) interactables.push(this.environment.basementCrystal);

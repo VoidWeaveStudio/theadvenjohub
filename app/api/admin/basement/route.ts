@@ -6,11 +6,12 @@ import { db } from "@/core/database";
 import { basementColumns, games } from "@/core/database/schema";
 import { eq, and, asc } from "drizzle-orm";
 import { BASEMENT_COLUMN_COUNT } from "@/core/lib/basementColumns";
+import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
 
 async function resolveGame(slug: string | null) {
-    if (slug) {
-        return db.query.games.findFirst({ where: eq(games.slug, slug) });
-    }
+    const target = slug && slug.length > 0 ? slug : DEFAULT_GAME_SLUG;
+    const game = await db.query.games.findFirst({ where: eq(games.slug, target) });
+    if (game) return game;
     return db.query.games.findFirst({ orderBy: asc(games.createdAt) });
 }
 

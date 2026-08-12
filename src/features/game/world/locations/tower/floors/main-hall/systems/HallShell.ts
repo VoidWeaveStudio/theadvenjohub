@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { CollisionGrid } from "../../../../../CollisionGrid";
 import { AssetBin } from "../utils/assetBin";
+import { perf } from "../../../../../../core/PerfProfiler";
 import { GeometryBatch, makeRandom } from "../utils/geometryBatch";
 import {
     createBrassMaterial,
@@ -53,26 +54,36 @@ export class HallShell {
     ) { }
 
     create(): ShellMaterials {
-        const stone = createStoneMaterial(this.bin, this.random);
-        const steel = createSteelMaterial(this.bin, this.random);
-        const brass = createBrassMaterial(this.bin);
-        const darkTrim = createDarkTrimMaterial(this.bin);
-        this.materials = { stone, steel, brass, darkTrim };
+        this.materials = perf.measure("shell.textures", () => {
+            const stone = createStoneMaterial(this.bin, this.random);
+            const steel = createSteelMaterial(this.bin, this.random);
+            const brass = createBrassMaterial(this.bin);
+            const darkTrim = createDarkTrimMaterial(this.bin);
+            return { stone, steel, brass, darkTrim };
+        });
 
         const stoneBatch = new GeometryBatch();
         const brassBatch = new GeometryBatch();
 
-        this.buildFloor(brassBatch);
-        this.buildWall(stoneBatch, brassBatch);
-        this.buildColonnade(stoneBatch, brassBatch);
-        this.buildTicker();
-        this.buildDome(brassBatch);
+        perf.measure("shell.floor", () => this.buildFloor(brassBatch));
+        perf.measure("shell.wall", () => this.buildWall(stoneBatch, brassBatch));
+        perf.measure("shell.colonnade", () => this.buildColonnade(stoneBatch, brassBatch));
+        perf.measure("shell.ticker", () => this.buildTicker());
+        perf.measure("shell.dome", () => this.buildDome(brassBatch));
 
-        const stoneMesh = stoneBatch.build(stone, { castShadow: true, receiveShadow: true });
-        if (stoneMesh) this.scene.add(stoneMesh);
+        perf.measure("shell.merge", () => {
+            const stoneMesh = stoneBatch.build(this.materials.stone, { castShadow: true, receiveShadow: true });
+            if (stoneMesh) {
+                stoneMesh.name = "hall-stone";
+                this.scene.add(stoneMesh);
+            }
 
-        const brassMesh = brassBatch.build(brass, { castShadow: false, receiveShadow: true });
-        if (brassMesh) this.scene.add(brassMesh);
+            const brassMesh = brassBatch.build(this.materials.brass, { castShadow: false, receiveShadow: true });
+            if (brassMesh) {
+                brassMesh.name = "hall-brass";
+                this.scene.add(brassMesh);
+            }
+        });
 
         return this.materials;
     }

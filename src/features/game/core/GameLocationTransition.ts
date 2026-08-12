@@ -8,9 +8,11 @@ import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFlo
 import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
+import { SAFE_ZONE_RADIUS } from "../world/locations/main-world/worldConfig";
 
 export function applyLocationMovementConfig(game: Game, location: Location) {
     game.player.setTerrain(location.terrain ?? null);
+    game.player.setWaterProvider(location.waterProvider ?? null);
     game.player.setCollisionGrid(location.collisionGrid!);
     game.cameraController.setCollisionGrid(location.cameraCollisionGrid ?? location.collisionGrid!);
     game.cameraController.setCoverProbe(location.coverProbe ?? null);
@@ -39,6 +41,13 @@ export function configureLocationSpecifics(game: Game, location: Location) {
             game.requestFactionQuestList();
         };
         location.onRequestBoardData();
+    } else if (location instanceof MainWorld) {
+        game.safeZone.create(
+            location.scene,
+            location.terrain,
+            new THREE.Vector3(0, 0, 0),
+            SAFE_ZONE_RADIUS
+        );
     } else if (location instanceof Basement) {
         location.onInteractablesChanged = (added, removed) => {
             removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));
@@ -72,7 +81,7 @@ export function configureLocationSpecifics(game: Game, location: Location) {
 }
 
 export async function syncMainWorldEntry(game: Game, location: MainWorld) {
-    game.onLoadStateChange?.(true, "Syncing with server...");
+    game.onLoadStateChange?.(true, "Syncing with the server...", 0.7);
     game.lootSystem.preloadTokenTextures();
     await game.enemySystem.waitForInitialSync();
 }

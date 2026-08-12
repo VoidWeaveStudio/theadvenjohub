@@ -4,6 +4,8 @@ import { MainWorld } from "../MainWorld";
 import { buildTowerExterior } from "./TowerExteriorBuilder";
 import { TowerParticles } from "./TowerParticles";
 
+const TOWER_ENTRANCE_LOCATION_ID = "tower-first-floor";
+
 export class FeatureSystem {
     private leftDoorGroup: THREE.Group | null = null;
     private rightDoorGroup: THREE.Group | null = null;
@@ -18,8 +20,6 @@ export class FeatureSystem {
     private particles = new TowerParticles();
 
     private towerGroup: THREE.Group | null = null;
-    private oceanMeshes: THREE.Mesh[] = [];
-    private oceanMaterial: THREE.Material | null = null;
 
     constructor(private world: MainWorld) { }
 
@@ -68,7 +68,7 @@ export class FeatureSystem {
         }
 
         if (dist2D < 3.0 && this.doorOpenProgress > 0.8) {
-            this.world.pendingTeleport = "tower-main-hall";
+            this.world.pendingTeleport = TOWER_ENTRANCE_LOCATION_ID;
         }
 
         const time = Date.now() * 0.001;
@@ -95,38 +95,6 @@ export class FeatureSystem {
         return null;
     }
 
-    createOcean() {
-        const waterLevel = -5, mapSize = this.world.size, waterWidth = 1500, halfMap = mapSize / 2;
-        const material = new THREE.MeshStandardMaterial({ color: 0x1a2a3a, transparent: true, opacity: 0.85, roughness: 0.1, metalness: 0.4, depthWrite: false });
-        this.oceanMaterial = material;
-
-        const createPlane = (w: number, h: number, x: number, z: number) => {
-            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
-            mesh.rotation.x = -Math.PI / 2; mesh.position.set(x, waterLevel, z); mesh.receiveShadow = true;
-            this.world.scene.add(mesh);
-            this.oceanMeshes.push(mesh);
-        };
-
-        createPlane(mapSize + waterWidth * 2, waterWidth, 0, halfMap + waterWidth / 2);
-        createPlane(mapSize + waterWidth * 2, waterWidth, 0, -halfMap - waterWidth / 2);
-        createPlane(waterWidth, mapSize + waterWidth * 2, -halfMap - waterWidth / 2, 0);
-        createPlane(waterWidth, mapSize + waterWidth * 2, halfMap + waterWidth / 2, 0);
-    }
-
-    createBoundaryColliders() {
-        const limit = 240, height = 50, thickness = 20;
-        const walls = [
-            new THREE.Box3(new THREE.Vector3(-limit, -10, -limit - thickness), new THREE.Vector3(limit, height, -limit)),
-            new THREE.Box3(new THREE.Vector3(-limit, -10, limit), new THREE.Vector3(limit, height, limit + thickness)),
-            new THREE.Box3(new THREE.Vector3(-limit - thickness, -10, -limit), new THREE.Vector3(-limit, height, limit)),
-            new THREE.Box3(new THREE.Vector3(limit, -10, -limit), new THREE.Vector3(limit + thickness, height, limit)),
-        ];
-        walls.forEach(wall => {
-            this.world.colliders.push(wall);
-            this.world.terrainCollisionGrid.insert(wall);
-        });
-    }
-
     dispose() {
         if (this.towerGroup) {
             this.world.scene.remove(this.towerGroup);
@@ -145,14 +113,6 @@ export class FeatureSystem {
         this.rightDoorGroup = null;
         this.towerPortalMesh = null;
         this.towerLights = [];
-
-        for (const mesh of this.oceanMeshes) {
-            this.world.scene.remove(mesh);
-            mesh.geometry.dispose();
-        }
-        this.oceanMeshes = [];
-        this.oceanMaterial?.dispose();
-        this.oceanMaterial = null;
 
         this.particles.dispose();
     }

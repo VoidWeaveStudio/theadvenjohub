@@ -39,6 +39,7 @@ export class BuildSession {
     private canEdit = false;
     private dirty = false;
     private saving = false;
+    private layoutLoad: Promise<void> | null = null;
 
     public onStateChange: ((state: BuildSessionState) => void) | null = null;
     public onNotification: ((message: string, duration?: number) => void) | null = null;
@@ -87,7 +88,7 @@ export class BuildSession {
         this.canEdit = false;
         this.dirty = false;
         this.emit();
-        void this.loadLayout();
+        this.layoutLoad = this.loadLayout();
     }
 
     public unbindLot() {
@@ -95,7 +96,12 @@ export class BuildSession {
         this.plot = null;
         this.identity = null;
         this.canEdit = false;
+        this.layoutLoad = null;
         this.emit();
+    }
+
+    public async whenLotReady(): Promise<void> {
+        if (this.layoutLoad) await this.layoutLoad;
     }
 
     private async loadLayout() {

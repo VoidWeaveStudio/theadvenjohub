@@ -30,7 +30,7 @@ export interface GameCallbacks {
     onHitMark?: () => void;
     onStateChange?: (state: HUDState) => void;
     onNotification?: (msg: string, duration?: number) => void;
-    onLoadStateChange?: (loading: boolean, message?: string) => void;
+    onLoadStateChange?: (loading: boolean, message?: string, progress?: number) => void;
     onChatMessage?: (message: ChatMessage) => void;
     onNicknameLoaded?: (nickname: string) => void;
     onDamageEvent?: (event: DamageEvent) => void;

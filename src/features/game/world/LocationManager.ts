@@ -7,6 +7,7 @@ import { Cave } from "./locations/Cave";
 import { ALL_LOCATIONS } from "./locations/tower/TowerRegistry";
 import { FactionGateRoom } from "./locations/tower/floors/FactionGateRoom";
 import { PersonalRoom, PERSONAL_ROOM_PREFIX } from "./locations/tower/floors/PersonalRoom";
+import { perf } from "../core/PerfProfiler";
 
 export class LocationManager {
     private locations: Map<string, Location> = new Map();
@@ -51,11 +52,15 @@ export class LocationManager {
             }
             location.renderer = this.renderer;
             if (this.resourceManager) {
-                location.create(this.resourceManager);
+                const created = location;
+                perf.measure(`create ${locationId}`, () => created.create(this.resourceManager!));
+                perf.flushLoad(locationId);
+                perf.logSceneReport(locationId, created.scene);
             }
             this.locations.set(locationId, location);
         }
         this.currentLocation = location;
+        perf.setScene(locationId, location.scene);
         this.onLocationChange?.(locationId);
         return location;
     }

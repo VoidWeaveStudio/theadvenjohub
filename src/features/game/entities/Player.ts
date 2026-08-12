@@ -6,7 +6,7 @@ import { ResourceManager } from "../core/ResourceManager";
 import { CameraController } from "../core/CameraController";
 import { Weapon } from "./Weapon";
 import { CollisionGrid } from "../world/CollisionGrid";
-import { HeightProvider, FlightZone } from "../world/Location";
+import { HeightProvider, FlightZone, WaterProvider } from "../world/Location";
 import { CharacterAnimator } from "./CharacterAnimator";
 import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 import { SoundManager } from "../core/SoundManager";
@@ -14,6 +14,7 @@ import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl } from "./characterPaint";
 import { EnergyWisp } from "./EnergyWisp";
+import { SpawnShield } from "./spawnShield";
 
 export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
@@ -41,6 +42,10 @@ export class Player extends Entity {
     private camera!: CameraController;
     private terrain: HeightProvider | null = null;
     private collisionGrid: CollisionGrid | null = null;
+    private waterProvider: WaterProvider | null = null;
+    private swimming: boolean = false;
+    private static readonly SWIM_SUBMERSION = 0.85;
+    private static readonly SWIM_SPEED_MULTIPLIER = 0.52;
 
     private maxRadius: number | null = null;
     private bounds: { min: THREE.Vector3; max: THREE.Vector3 } | null = null;
@@ -59,7 +64,7 @@ export class Player extends Entity {
     private dead: boolean = false;
     private paintableMaterial: THREE.Material | null = null;
     private cosmeticRig: CosmeticRig | null = null;
-    private shield: THREE.Mesh | null = null;
+    private shield: SpawnShield | null = null;
     private posedAnimation: string | null = null;
     private movementLocked: boolean = false;
 
@@ -225,26 +230,12 @@ export class Player extends Entity {
     }
 
     setInvulnerableVisual(active: boolean) {
-        if (active && !this.shield) {
-            const material = new THREE.MeshBasicMaterial({
-                color: 0x6fe0ff,
-                transparent: true,
-                opacity: 0.22,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            });
-            this.shield = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 16), material);
-            this.shield.position.y = 0.95;
-            this.shield.scale.set(1, 1.25, 1);
-            this.mesh.add(this.shield);
-            return;
+        if (!this.shield) {
+            if (!active) return;
+            this.shield = new SpawnShield();
+            this.mesh.add(this.shield.group);
         }
-        if (!active && this.shield) {
-            this.shield.removeFromParent();
-            this.shield.geometry.dispose();
-            (this.shield.material as THREE.Material).dispose();
-            this.shield = null;
-        }
+        this.shield.setActive(active);
     }
 
     applyCosmetics(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
@@ -329,6 +320,9 @@ export class Player extends Entity {
         const terrainHeight = this.terrain?.getHeightAt(x, z, this.baseY) || 0;
         let platformHeight = -Infinity;
 
+        const waterLevel = this.waterProvider?.(x, z) ?? null;
+        const swimHeight = waterLevel !== null ? waterLevel - Player.SWIM_SUBMERSION : -Infinity;
+
         if (this.collisionGrid) {
             const centerY = this.baseY + Player.HALF_HEIGHT;
             const platformCheck = this.collisionGrid.checkPlatformBelow(
@@ -343,7 +337,17 @@ export class Player extends Entity {
             }
         }
 
-        return Math.max(terrainHeight, platformHeight);
+        const surface = Math.max(terrainHeight, platformHeight, swimHeight);
+        this.swimming = swimHeight > -Infinity && surface === swimHeight && swimHeight > terrainHeight;
+        return surface;
+    }
+
+    public isSwimming(): boolean {
+        return this.swimming;
+    }
+
+    setWaterProvider(provider: WaterProvider | null) {
+        this.waterProvider = provider;
     }
 
     public playPose(name: string | null) {
@@ -367,6 +371,8 @@ export class Player extends Entity {
     }
 
     update(delta: number, isInteracting: boolean = false) {
+        this.shield?.update(delta, this.mesh.rotation.y);
+
         if (!this.inputManager || !this.camera) return;
 
         if (this.dead) {
@@ -400,13 +406,14 @@ export class Player extends Entity {
         this.isShooting = this.inputManager.isMousePressed(0);
         const isFiringSlowdown = this.isShooting && this.weaponEquipped;
         const shouldFaceLookDirection = this.isShooting || isInteracting;
-        const currentSpeed = isFiringSlowdown
+        const baseSpeed = isFiringSlowdown
             ? this.speed * this.SHOOTING_SPEED_MULTIPLIER
             : this.speed * (isSprinting ? this.sprintMultiplier : 1);
+        const currentSpeed = this.swimming ? baseSpeed * Player.SWIM_SPEED_MULTIPLIER : baseSpeed;
 
         let moved = false;
 
-        if (this.inputManager.isKeyJustPressed("Space") && this.isGrounded && this.jumpCooldown <= 0) {
+        if (this.inputManager.isKeyJustPressed("Space") && this.isGrounded && !this.swimming && this.jumpCooldown <= 0) {
             this.velocityY = this.JUMP_FORCE;
             this.isGrounded = false;
             this.jumpCooldown = this.JUMP_COOLDOWN_TIME;

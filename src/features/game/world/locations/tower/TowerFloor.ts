@@ -4,6 +4,7 @@ import { Location } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";
 import { CollisionGrid } from "../../CollisionGrid";
 import { isSharedNpcGeometry } from "../../../entities/npcModel";
+import { LiftCrystal } from "../../liftCrystal";
 
 const ZERO = new THREE.Vector3(0, 0, 0);
 
@@ -12,6 +13,7 @@ export abstract class TowerFloor extends Location {
     public maxPlayerRadius: number | null = 9999;
     protected time: number = 0;
     protected centralCrystal!: THREE.Group;
+    protected crystal: LiftCrystal | null = null;
     protected crystalBaseY: number = 0;
 
     constructor(id: string, name: string) {
@@ -20,33 +22,9 @@ export abstract class TowerFloor extends Location {
     }
 
     protected createCentralCrystal(position?: THREE.Vector3) {
-        this.centralCrystal = new THREE.Group();
+        this.crystal = new LiftCrystal();
+        this.centralCrystal = this.crystal.group;
 
-        const core = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(0.8, 1),
-            new THREE.MeshStandardMaterial({ color: 0x66ccff, emissive: 0x3399ff, emissiveIntensity: 2 })
-        );
-        core.position.y = 1.5;
-        core.castShadow = true;
-
-        const shell = new THREE.Mesh(
-            new THREE.OctahedronGeometry(1.5, 1),
-            new THREE.MeshPhysicalMaterial({
-                color: 0x99ddff, transmission: 1, opacity: 0.6,
-                transparent: true, roughness: 0, thickness: 0.5
-            })
-        );
-        shell.position.y = 1.5;
-
-        const light = new THREE.PointLight(0x66ccff, 9, 45);
-        light.position.y = 1.5;
-        light.castShadow = true;
-        light.shadow.mapSize.width = 512;
-        light.shadow.mapSize.height = 512;
-        light.shadow.camera.far = 45;
-        light.shadow.camera.updateProjectionMatrix();
-
-        this.centralCrystal.add(core, shell, light);
         this.centralCrystal.position.copy(position ?? ZERO);
         this.crystalBaseY = this.centralCrystal.position.y;
         this.scene.add(this.centralCrystal);
@@ -64,7 +42,7 @@ export abstract class TowerFloor extends Location {
         this.time += delta;
 
         if (this.centralCrystal) {
-            this.centralCrystal.rotation.y += delta * 0.6;
+            this.crystal?.update(delta);
             this.centralCrystal.position.y = this.crystalBaseY + Math.sin(this.time * 1.5) * 0.2;
         }
     }

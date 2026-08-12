@@ -44,6 +44,22 @@ export function loadFactionImage(raw: string | null | undefined, onReady: () => 
     image.src = url;
 }
 
+export function whenFactionImagesSettled(timeoutMs = 4000): Promise<void> {
+    if (pending.size === 0) return Promise.resolve();
+
+    return new Promise<void>((resolve) => {
+        const deadline = Date.now() + timeoutMs;
+        const check = () => {
+            if (pending.size === 0 || Date.now() >= deadline) {
+                resolve();
+                return;
+            }
+            setTimeout(check, 50);
+        };
+        check();
+    });
+}
+
 export function drawFactionLogo(
     ctx: CanvasRenderingContext2D,
     raw: string | null | undefined,

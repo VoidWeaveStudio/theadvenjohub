@@ -403,6 +403,7 @@ export class NetworkManager {
   private nickname: string = "Player";
   private session: GameSession | null = null;
   private authenticated: boolean = false;
+  private authWaiters: Array<() => void> = [];
 
   private lastUpdateSent: number = 0;
   private updateThrottleMs: number = 50;
@@ -576,6 +577,13 @@ export class NetworkManager {
     this.refreshSession = fn;
   }
 
+  public whenAuthenticated(): Promise<void> {
+    if (this.authenticated) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      this.authWaiters.push(resolve);
+    });
+  }
+
   connect(session: GameSession) {
     this.session = session;
     this.authenticated = false;
@@ -664,6 +672,8 @@ export class NetworkManager {
         this.authenticated = true;
         this.reconnectAttempts = 0;
         this.startHeartbeat();
+        this.authWaiters.forEach((waiter) => waiter());
+        this.authWaiters = [];
         this.onAuthenticated?.({
           playerId: data.playerId,
           nickname: data.nickname,
@@ -1456,6 +1466,11 @@ export class NetworkManager {
   sendLocationChange(locationId: string, instance?: number) {
     if (!this.authenticated) return;
     this.send({ type: 'locationChange', locationId, instance });
+  }
+
+  sendClientReady() {
+    if (!this.authenticated) return;
+    this.send({ type: 'clientReady' });
   }
 
   sendProgressSave(progressData: any) {

@@ -31,6 +31,7 @@ export class HallSky {
         );
 
         this.sky = new EditorSky();
+        this.sky.name = "hall-sky";
         this.sky.scale.setScalar(14000);
         this.sky.renderOrder = -1000;
         this.sky.frustumCulled = false;
@@ -63,6 +64,7 @@ export class HallSky {
         );
 
         const mesh = new THREE.Mesh(geometry, createLightShaftMaterial(this.bin));
+        mesh.name = "light-shafts";
         mesh.position.y = bottom + height / 2;
         mesh.renderOrder = 6;
         mesh.frustumCulled = false;

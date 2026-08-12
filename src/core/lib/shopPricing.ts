@@ -1,15 +1,18 @@
 // src/core/lib/shopPricing.ts
 import { db } from "@/core/database";
 import { shopItemPrices, games } from "@/core/database/schema";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
+import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
 import { SHOP_CATALOG, SHOP_CATALOG_BY_ID, ResolvedPrice, ShopCurrency, defaultPrice } from "@/core/lib/shopCatalog";
 import { quoteUsdCentsInTnj } from "@/core/lib/tnjPricing";
 
 export async function resolveGameId(slug?: string | null): Promise<string | null> {
-    const game = slug
-        ? await db.query.games.findFirst({ where: eq(games.slug, slug) })
-        : await db.query.games.findFirst();
-    return game?.id ?? null;
+    const target = slug && slug.length > 0 ? slug : DEFAULT_GAME_SLUG;
+    const game = await db.query.games.findFirst({ where: eq(games.slug, target) });
+    if (game) return game.id;
+
+    const fallback = await db.query.games.findFirst({ orderBy: asc(games.createdAt) });
+    return fallback?.id ?? null;
 }
 
 export async function loadPrices(gameId: string): Promise<Map<string, ResolvedPrice>> {
