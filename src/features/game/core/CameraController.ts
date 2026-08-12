@@ -114,6 +114,11 @@ export class CameraController {
         this.absorbSteps = absorb;
     }
 
+    resetVerticalSmoothing() {
+        this.stepOffset = 0;
+        this.previousTargetY = null;
+    }
+
     private smoothVerticalStep(rawY: number, delta: number): number {
         if (this.previousTargetY === null) {
             this.previousTargetY = rawY;

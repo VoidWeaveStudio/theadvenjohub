@@ -267,15 +267,17 @@ export class Player extends Entity {
 
     public teleportTo(position: THREE.Vector3) {
         this.mesh.position.copy(position);
-        this.visualY = position.y;
         this.flightVelocity.set(0, 0, 0);
         this.velocityY = 0;
         this.isGrounded = true;
         this.jumpCooldown = 0;
 
-        if (this.terrain) {
-            this.baseY = this.terrain.getHeightAt(position.x, position.z, position.y);
-        }
+        this.baseY = this.terrain
+            ? this.terrain.getHeightAt(position.x, position.z, position.y)
+            : position.y;
+
+        this.mesh.position.y = this.baseY;
+        this.visualY = this.baseY;
     }
 
     private collidesAt(x: number, z: number): boolean {

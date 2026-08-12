@@ -8,7 +8,7 @@ import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
-import { DEFAULT_SPAWN_LOCATION_ID } from "./GameLocationOrchestration";
+import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, beginTeleportGrace } from "./GameLocationOrchestration";
 import { isBodyEmote } from "../data/emotes";
 
 let systemMessageCounter = 0;
@@ -441,7 +441,9 @@ export function registerNetworkHandlers(game: Game) {
             if (!hall) return;
             const spawnPoint = hall.getSpawnPoint();
             game.player.teleportTo(spawnPoint);
+            game.cameraController.resetVerticalSmoothing();
             game.cameraController.yawObject.position.copy(spawnPoint);
+            beginTeleportGrace(game);
             game.networkManager.sendPlayerUpdate({
                 position: spawnPoint.toArray(),
                 rotation: game.player.mesh.rotation.y,
@@ -464,7 +466,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onPositionCorrection = (data: { position: number[] }) => {
-        game.player.teleportTo(new THREE.Vector3().fromArray(data.position));
+        applyPositionCorrection(game, data.position);
     };
 
     game.networkManager.onDayNightSync = (data) => {
@@ -514,7 +516,9 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onShardTeleport = ({ position }) => {
         const target = new THREE.Vector3(position[0], position[1], position[2]);
         game.player.teleportTo(target);
+        game.cameraController.resetVerticalSmoothing();
         game.cameraController.yawObject.position.copy(target);
+        beginTeleportGrace(game);
         game.otherPlayers.forEach((op) => op.setHidden(true));
     };
 
@@ -598,7 +602,9 @@ export function registerNetworkHandlers(game: Game) {
             currentLoc.applyFreshSegment(data);
             const spawnPoint = currentLoc.getSpawnPoint();
             game.player.teleportTo(spawnPoint);
+            game.cameraController.resetVerticalSmoothing();
             game.cameraController.yawObject.position.copy(spawnPoint);
+            beginTeleportGrace(game);
             game.networkManager.sendPlayerUpdate({
                 position: spawnPoint.toArray(),
                 rotation: game.player.mesh.rotation.y,
@@ -629,7 +635,9 @@ export function registerNetworkHandlers(game: Game) {
             currentLoc.applyHub(data);
             const spawnPoint = currentLoc.getSpawnPoint();
             game.player.teleportTo(spawnPoint);
+            game.cameraController.resetVerticalSmoothing();
             game.cameraController.yawObject.position.copy(spawnPoint);
+            beginTeleportGrace(game);
             game.networkManager.sendPlayerUpdate({
                 position: spawnPoint.toArray(),
                 rotation: game.player.mesh.rotation.y,

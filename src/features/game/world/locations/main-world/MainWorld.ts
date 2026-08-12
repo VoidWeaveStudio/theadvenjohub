@@ -13,6 +13,7 @@ import { RockRingSystem } from "./systems/RockRingSystem";
 import { ScatterSystem } from "./systems/ScatterSystem";
 import { GrassSystem } from "./systems/GrassSystem";
 import { CavePortalSystem } from "./systems/CavePortalSystem";
+import { HarborSystem } from "./systems/HarborSystem";
 import { PLAY_RADIUS, SAFE_ZONE_RADIUS, WORLD_SIZE } from "./worldConfig";
 
 export class MainWorld extends Location {
@@ -29,11 +30,13 @@ export class MainWorld extends Location {
   public scatter: ScatterSystem;
   public grass: GrassSystem;
   public cavePortal: CavePortalSystem;
+  public harbor: HarborSystem;
 
   private crystal: LiftCrystal | null = null;
   private crystalBaseY = 0;
   private staticColliders: THREE.Box3[] = [];
   private time = 0;
+  private static readonly _sunDirection = new THREE.Vector3();
 
   private readonly isLowEnd = (typeof navigator !== "undefined" && navigator.hardwareConcurrency != null)
     ? navigator.hardwareConcurrency <= 4
@@ -54,6 +57,7 @@ export class MainWorld extends Location {
     this.scatter = new ScatterSystem(this.scene, this.terrain, this.isLowEnd);
     this.grass = new GrassSystem(this.scene, this.terrain, this.isLowEnd);
     this.cavePortal = new CavePortalSystem(this.scene, this.terrain);
+    this.harbor = new HarborSystem(this.scene, this.terrain, this.isLowEnd);
 
     this.waterProvider = (x, z) => this.water.getWaterHeightAt(x, z);
   }
@@ -65,8 +69,13 @@ export class MainWorld extends Location {
     const spawn = this.getSpawnPoint();
     this.terrain.update(spawn.x, spawn.z);
 
+    if (this.renderer) {
+      this.terrain.setAnisotropy(this.renderer.capabilities.getMaxAnisotropy());
+    }
+
     this.water.create();
     this.rockRing.create();
+    this.harbor.create();
     this.scatter.create();
     this.grass.create();
 
@@ -125,6 +134,10 @@ export class MainWorld extends Location {
     for (const collider of this.scatter.getColliders()) {
       this.collisionGrid.insert(collider);
     }
+
+    for (const collider of this.harbor.getColliders()) {
+      this.collisionGrid.insert(collider);
+    }
   }
 
   private rebuildCameraColliders() {
@@ -153,7 +166,14 @@ export class MainWorld extends Location {
     this.scatter.update(playerPosition.x, playerPosition.z);
     this.grass.update(delta, playerPosition.x, playerPosition.z);
     this.water.update(delta);
+    this.harbor.update(delta);
     this.cavePortal.update(delta);
+
+    if (this.atmosphere.sun) {
+      this.water.setSunDirection(
+        MainWorld._sunDirection.copy(this.atmosphere.sun.position).normalize()
+      );
+    }
 
     this.atmosphere.update(delta, playerPosition, dayTime);
     this.features.update(delta, playerPosition, isEPressed ?? false);
@@ -190,6 +210,7 @@ export class MainWorld extends Location {
     this.grass.dispose();
     this.scatter.dispose();
     this.rockRing.dispose();
+    this.harbor.dispose();
     this.water.dispose();
     this.cavePortal.dispose();
     this.terrain.dispose();

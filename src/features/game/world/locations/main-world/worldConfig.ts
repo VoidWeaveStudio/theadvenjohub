@@ -36,7 +36,7 @@ export interface LakeDefinition {
 
 export const LAKES: LakeDefinition[] = [
     { x: -168, z: 128, radius: 96, depth: 13 },
-    { x: 104, z: -238, radius: 72, depth: 10 },
+    { x: 186, z: 158, radius: 72, depth: 10 },
     { x: -286, z: -186, radius: 58, depth: 8 },
 ];
 
@@ -48,5 +48,21 @@ export interface PortDefinition {
 export const PORTS: PortDefinition[] = [
     { angle: Math.PI * 0.18, halfWidth: 0.13 },
     { angle: Math.PI * 0.92, halfWidth: 0.1 },
-    { angle: -Math.PI * 0.52, halfWidth: 0.11 },
 ];
+
+export const COVE_ANGLE = -Math.PI * 0.52;
+export const COVE_CENTER_RADIUS = 322;
+export const COVE_RADIUS = 176;
+export const COVE_FLOOR = -7.5;
+export const COVE_SHELF = -1;
+export const COVE_BERM = 1.6;
+export const COVE_RIM = 5.2;
+export const COVE_MOUTH_HALF_WIDTH = 74;
+export const COVE_CHANNEL_END = 540;
+export const COVE_RING_OPENNESS = 0.19;
+
+export const COVE_X = Math.cos(COVE_ANGLE) * COVE_CENTER_RADIUS;
+export const COVE_Z = Math.sin(COVE_ANGLE) * COVE_CENTER_RADIUS;
+
+export const HARBOR_PIER_COUNT = 2;
+export const HARBOR_DECK_Y = 2.1;

@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { fbm, smoothstep } from "../utils/worldNoise";
 import type { TerrainSystem } from "./TerrainSystem";
-import { PORTS, RING_INNER, RING_OUTER, SEABED_DEPTH, WORLD_SEED } from "../worldConfig";
+import { COVE_ANGLE, COVE_RING_OPENNESS, PORTS, RING_INNER, RING_OUTER, SEABED_DEPTH, WORLD_SEED } from "../worldConfig";
 
 const RING_STEPS = 320;
 const RING_MAX_HEIGHT = 86;
@@ -32,7 +32,10 @@ export class RockRingSystem {
             const distance = angleDistance(angle, port.angle);
             openness = Math.max(openness, 1 - smoothstep(port.halfWidth * 0.55, port.halfWidth, distance));
         }
-        return openness;
+
+        const coveDistance = angleDistance(angle, COVE_ANGLE);
+        const coveOpen = 1 - smoothstep(COVE_RING_OPENNESS * 0.45, COVE_RING_OPENNESS, coveDistance);
+        return Math.max(openness, coveOpen);
     }
 
     public create() {

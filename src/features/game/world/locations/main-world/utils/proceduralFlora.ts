@@ -1,7 +1,7 @@
 // src/features/game/world/locations/main-world/utils/proceduralFlora.ts
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { createRandom } from "./worldNoise";
+import { createRandom, valueNoise3 } from "./worldNoise";
 
 function paint(geometry: THREE.BufferGeometry, base: THREE.Color, tip: THREE.Color, spanY: number, offsetY: number) {
     const position = geometry.getAttribute("position");
@@ -71,24 +71,65 @@ export function createTreeGeometry(variant: number): THREE.BufferGeometry {
     return combine(parts);
 }
 
+interface RockShape {
+    lumpScale: number;
+    lumpAmount: number;
+    detailScale: number;
+    detailAmount: number;
+    squash: number;
+    stretch: number;
+    bury: number;
+}
+
+const ROCK_SHAPES: RockShape[] = [
+    { lumpScale: 1.5, lumpAmount: 0.34, detailScale: 4.1, detailAmount: 0.11, squash: 0.74, stretch: 1.0, bury: 0.22 },
+    { lumpScale: 1.1, lumpAmount: 0.28, detailScale: 5.6, detailAmount: 0.08, squash: 0.44, stretch: 1.25, bury: 0.3 },
+    { lumpScale: 2.2, lumpAmount: 0.4, detailScale: 3.4, detailAmount: 0.14, squash: 0.92, stretch: 0.86, bury: 0.16 },
+    { lumpScale: 1.7, lumpAmount: 0.24, detailScale: 6.8, detailAmount: 0.06, squash: 0.6, stretch: 1.05, bury: 0.26 },
+];
+
 export function createRockGeometry(variant: number): THREE.BufferGeometry {
-    const random = createRandom(4400 + variant * 977);
-    const geometry = new THREE.IcosahedronGeometry(1, 1);
+    const shape = ROCK_SHAPES[variant % ROCK_SHAPES.length];
+    const seed = 4400 + variant * 977;
+    const geometry = new THREE.IcosahedronGeometry(1, 2);
     const position = geometry.getAttribute("position");
 
+    const vertex = new THREE.Vector3();
+
     for (let i = 0; i < position.count; i++) {
-        const x = position.getX(i);
-        const y = position.getY(i);
-        const z = position.getZ(i);
-        const scale = 0.72 + random() * 0.55;
-        position.setXYZ(i, x * scale, y * scale * (0.55 + random() * 0.35), z * scale);
+        vertex.fromBufferAttribute(position, i).normalize();
+
+        const lump = valueNoise3(
+            vertex.x * shape.lumpScale + 8,
+            vertex.y * shape.lumpScale + 8,
+            vertex.z * shape.lumpScale + 8,
+            seed
+        ) - 0.5;
+
+        const detail = valueNoise3(
+            vertex.x * shape.detailScale + 40,
+            vertex.y * shape.detailScale + 40,
+            vertex.z * shape.detailScale + 40,
+            seed + 313
+        ) - 0.5;
+
+        const radius = 1 + lump * shape.lumpAmount * 2 + detail * shape.detailAmount * 2;
+
+        let x = vertex.x * radius * shape.stretch;
+        let y = vertex.y * radius * shape.squash;
+        let z = vertex.z * radius;
+
+        const floor = -0.5 + shape.bury;
+        if (y < floor) y = floor + (y - floor) * 0.18;
+
+        position.setXYZ(i, x, y, z);
     }
 
     position.needsUpdate = true;
-    geometry.scale(1, 0.82, 1);
-    geometry.translate(0, 0.42, 0);
+    geometry.computeVertexNormals();
+    geometry.translate(0, 0.5 * shape.squash - shape.bury * 0.5, 0);
 
-    return combine([paint(geometry, new THREE.Color(0x2f2d2b), new THREE.Color(0x625e57), 1.6, 0)]);
+    return combine([paint(geometry, new THREE.Color(0x3b3833), new THREE.Color(0x8a8478), 1.4, -0.2)]);
 }
 
 export function createGrassBladeGeometry(): THREE.BufferGeometry {

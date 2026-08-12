@@ -37,7 +37,7 @@ import type { GameCallbacks } from "./GameCallbacks";
 import { createGameRenderer } from "./GameRenderer";
 import { perf } from "./PerfProfiler";
 import { updateDamageIndicator } from "./GameDamageIndicator";
-import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone } from "./GameLocationOrchestration";
+import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone, beginTeleportGrace, enforcePlayerBounds } from "./GameLocationOrchestration";
 import { BuildSession } from "../world/building/BuildSession";
 import { SoundManager } from "./SoundManager";
 
@@ -134,7 +134,8 @@ export class Game {
     private animationFrameId: number | null = null;
     private frameCount: number = 0;
     private disposed: boolean = false;
-    private isChangingLocation: boolean = false;
+    public isChangingLocation: boolean = false;
+    public correctionGraceUntil: number = 0;
 
     private showFloorSelector: boolean = false;
     public localPlayerNetId: string | null = null;
@@ -749,7 +750,9 @@ export class Game {
                 }
             }
             this.player.teleportTo(spawnPoint);
+            this.cameraController.resetVerticalSmoothing();
             this.cameraController.yawObject.position.copy(spawnPoint);
+            beginTeleportGrace(this);
             if (options?.rotation !== undefined) {
                 this.player.mesh.rotation.y = options.rotation;
             }
@@ -801,6 +804,7 @@ export class Game {
             this.setLoadingStage("Entering the location...", 1);
             this.onLoadStateChange?.(false);
         } finally {
+            beginTeleportGrace(this);
             this.isChangingLocation = false;
         }
     }
@@ -904,6 +908,7 @@ export class Game {
             updateDamageIndicator(this);
             perf.begin("player");
             this.player.update(delta, isEJustPressed);
+            enforcePlayerBounds(this);
             perf.end("player");
             if (this.isDead && this.inputManager.isKeyJustPressed("Space")) {
                 this.networkManager.sendRespawnRequest();

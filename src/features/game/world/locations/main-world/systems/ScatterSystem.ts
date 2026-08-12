@@ -18,7 +18,7 @@ import {
 } from "../worldConfig";
 
 const TREE_VARIANTS = 2;
-const ROCK_VARIANTS = 2;
+const ROCK_VARIANTS = 4;
 const TREE_CANDIDATES_PER_CHUNK = 90;
 const ROCK_CANDIDATES_PER_CHUNK = 70;
 const MAX_TREE_INSTANCES = 1500;

@@ -1,7 +1,18 @@
 // src/features/game/world/locations/main-world/systems/TerrainSystem.ts
 import * as THREE from "three";
 import { fbm, smoothstep } from "../utils/worldNoise";
+import { applyTerrainShader, createTerrainTextures, disposeTerrainTextures, setTerrainAnisotropy, TerrainTextures } from "../utils/terrainMaterial";
 import {
+    COVE_CENTER_RADIUS,
+    COVE_CHANNEL_END,
+    COVE_FLOOR,
+    COVE_MOUTH_HALF_WIDTH,
+    COVE_RADIUS,
+    COVE_BERM,
+    COVE_RIM,
+    COVE_SHELF,
+    COVE_X,
+    COVE_Z,
     CHUNKS_PER_SIDE,
     CHUNK_SEGMENTS,
     CHUNK_SIZE,
@@ -17,6 +28,10 @@ import {
     WORLD_HALF,
     WORLD_SEED,
 } from "../worldConfig";
+
+const COVE_AXIS_X = COVE_X / COVE_CENTER_RADIUS;
+const COVE_AXIS_Z = COVE_Z / COVE_CENTER_RADIUS;
+const COVE_CHANNEL_LENGTH = COVE_CHANNEL_END - COVE_CENTER_RADIUS;
 
 const INLAND_FLOOR = 1.6;
 const MAX_TERRAIN_HEIGHT = 40;
@@ -42,7 +57,9 @@ export class TerrainSystem {
     public readonly spawnLevel: number;
     public readonly towerLevel: number;
 
-    constructor(private readonly scene: THREE.Scene) {
+    private textures: TerrainTextures | null = null;
+
+    constructor(private readonly scene: THREE.Scene, private readonly anisotropy: number = 8) {
         this.material = this.createMaterial();
 
         this.spawnLevel = this.rawHeight(0, 0);
@@ -53,33 +70,100 @@ export class TerrainSystem {
                 x: lake.x,
                 z: lake.z,
                 radius: lake.radius,
-                level: this.shapedHeight(lake.x, lake.z) - 1.2,
+                level: this.lowestAround(lake.x, lake.z, lake.radius) - 0.8,
             });
         }
     }
 
+    public setAnisotropy(anisotropy: number) {
+        if (this.textures) setTerrainAnisotropy(this.textures, anisotropy);
+    }
+
+    private lowestAround(centerX: number, centerZ: number, radius: number): number {
+        let lowest = this.baseHeight(centerX, centerZ);
+
+        for (let ring = 1; ring <= 3; ring++) {
+            const sampleRadius = radius * (0.45 + ring * 0.185);
+            for (let step = 0; step < 24; step++) {
+                const angle = (step / 24) * Math.PI * 2;
+                const height = this.baseHeight(
+                    centerX + Math.cos(angle) * sampleRadius,
+                    centerZ + Math.sin(angle) * sampleRadius
+                );
+                if (height < lowest) lowest = height;
+            }
+        }
+
+        return lowest;
+    }
+
+    private baseHeight(x: number, z: number): number {
+        const height = this.shapedHeight(x, z);
+
+        const distanceFromCenter = Math.sqrt(x * x + z * z);
+        const shaped = distanceFromCenter > SHORE_RADIUS
+            ? height * (1 - smoothstep(SHORE_RADIUS, SHORE_RADIUS + 46, distanceFromCenter))
+                + SEABED_DEPTH * smoothstep(SHORE_RADIUS, SHORE_RADIUS + 46, distanceFromCenter)
+            : height;
+
+        return this.applyCove(x, z, shaped);
+    }
+
     public getHeightAt(x: number, z: number): number {
-        let height = this.shapedHeight(x, z);
+        let height = this.baseHeight(x, z);
 
         for (let i = 0; i < this.lakes.length; i++) {
             const lake = this.lakes[i];
             const dx = x - lake.x;
             const dz = z - lake.z;
+            const outer = lake.radius * 1.3;
             const distance = Math.sqrt(dx * dx + dz * dz);
-            if (distance > lake.radius) continue;
+            if (distance > outer) continue;
 
-            const basin = lake.level - LAKES[i].depth * (1 - (distance / lake.radius) ** 2);
-            const blend = smoothstep(lake.radius, lake.radius * 0.72, distance);
-            height = height * (1 - blend) + basin * blend;
-        }
-
-        const distanceFromCenter = Math.sqrt(x * x + z * z);
-        if (distanceFromCenter > SHORE_RADIUS) {
-            const drop = smoothstep(SHORE_RADIUS, SHORE_RADIUS + 46, distanceFromCenter);
-            height = height * (1 - drop) + SEABED_DEPTH * drop;
+            const t = Math.min(1, distance / lake.radius);
+            const basin = lake.level - LAKES[i].depth * (1 - t * t);
+            const blend = 1 - smoothstep(lake.radius, outer, distance);
+            const carved = Math.min(height, basin);
+            height = height * (1 - blend) + carved * blend;
         }
 
         return height;
+    }
+
+    private coveProfile(t: number): number {
+        const basin = smoothstep(0, 0.58, t);
+        const beach = smoothstep(0.55, 0.84, t);
+        const back = smoothstep(0.82, 1, t);
+
+        return COVE_FLOOR
+            + (COVE_SHELF - COVE_FLOOR) * basin
+            + (COVE_BERM - COVE_SHELF) * beach
+            + (COVE_RIM - COVE_BERM) * back;
+    }
+
+    private applyCove(x: number, z: number, height: number): number {
+        const dx = x - COVE_X;
+        const dz = z - COVE_Z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+
+        if (distance < COVE_RADIUS * 1.35) {
+            const t = Math.min(1, distance / COVE_RADIUS);
+            const bowl = this.coveProfile(t);
+            const blend = 1 - smoothstep(COVE_RADIUS, COVE_RADIUS * 1.35, distance);
+            height = height * (1 - blend) + bowl * blend;
+        }
+
+        const along = dx * COVE_AXIS_X + dz * COVE_AXIS_Z;
+        if (along <= 0) return height;
+
+        const clamped = Math.min(along, COVE_CHANNEL_LENGTH);
+        const perpendicular = Math.abs(dz * COVE_AXIS_X - dx * COVE_AXIS_Z);
+        const side = 1 - smoothstep(COVE_MOUTH_HALF_WIDTH * 0.62, COVE_MOUTH_HALF_WIDTH, perpendicular);
+        if (side <= 0) return height;
+
+        const floor = COVE_FLOOR + (SEABED_DEPTH - COVE_FLOOR) * smoothstep(0, COVE_CHANNEL_LENGTH, clamped);
+        const carved = Math.min(height, floor);
+        return height * (1 - side) + carved * side;
     }
 
     public getSlopeAt(x: number, z: number): number {
@@ -253,70 +337,21 @@ export class TerrainSystem {
     }
 
     private createMaterial(): THREE.MeshStandardMaterial {
+        this.textures = createTerrainTextures(this.anisotropy);
+
         const material = new THREE.MeshStandardMaterial({
             color: 0xffffff,
-            roughness: 0.96,
+            roughness: 1,
             metalness: 0,
         });
 
-        material.onBeforeCompile = (shader) => {
-            shader.vertexShader = `
-                varying vec3 vTerrainPos;
-                varying vec3 vTerrainNormal;
-            ` + shader.vertexShader.replace(
-                "#include <begin_vertex>",
-                `
-                #include <begin_vertex>
-                vTerrainPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-                vTerrainNormal = normalize(mat3(modelMatrix) * normal);
-                `
-            );
-
-            shader.fragmentShader = `
-                varying vec3 vTerrainPos;
-                varying vec3 vTerrainNormal;
-
-                float terrainHash(vec2 p) {
-                    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-                }
-
-                float terrainNoise(vec2 p) {
-                    vec2 i = floor(p);
-                    vec2 f = fract(p);
-                    vec2 u = f * f * (3.0 - 2.0 * f);
-                    return mix(
-                        mix(terrainHash(i), terrainHash(i + vec2(1.0, 0.0)), u.x),
-                        mix(terrainHash(i + vec2(0.0, 1.0)), terrainHash(i + vec2(1.0, 1.0)), u.x),
-                        u.y
-                    );
-                }
-            ` + shader.fragmentShader.replace(
-                "#include <map_fragment>",
-                `
-                #include <map_fragment>
-
-                float terrainSlope = 1.0 - clamp(vTerrainNormal.y, 0.0, 1.0);
-                float terrainHeight = vTerrainPos.y;
-                float grain = terrainNoise(vTerrainPos.xz * 0.09) * 0.6 + terrainNoise(vTerrainPos.xz * 0.017) * 0.4;
-
-                vec3 sand = mix(vec3(0.70, 0.62, 0.44), vec3(0.80, 0.73, 0.55), grain);
-                vec3 grass = mix(vec3(0.16, 0.30, 0.13), vec3(0.28, 0.45, 0.19), grain);
-                vec3 stone = mix(vec3(0.31, 0.30, 0.29), vec3(0.47, 0.46, 0.43), grain);
-                vec3 highland = mix(vec3(0.44, 0.42, 0.33), vec3(0.58, 0.55, 0.45), grain);
-
-                vec3 terrainColor = mix(sand, grass, smoothstep(0.8, 4.2, terrainHeight));
-                terrainColor = mix(terrainColor, highland, smoothstep(28.0, 46.0, terrainHeight));
-                terrainColor = mix(terrainColor, stone, smoothstep(0.30, 0.58, terrainSlope));
-
-                diffuseColor.rgb *= terrainColor;
-                `
-            );
-        };
-
-        return material;
+        return applyTerrainShader(material, this.textures);
     }
 
     public dispose() {
+        if (this.textures) disposeTerrainTextures(this.textures);
+        this.textures = null;
+
         for (const mesh of this.chunks.values()) {
             this.scene.remove(mesh);
             mesh.geometry.dispose();
