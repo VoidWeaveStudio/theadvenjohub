@@ -206,6 +206,10 @@ export class MainWorld extends Location {
     return new THREE.Vector3(x, this.terrain.getHeightAt(x, z), z);
   }
 
+  public override async whenReady() {
+    await this.scatter.whenReady();
+  }
+
   dispose() {
     this.grass.dispose();
     this.scatter.dispose();

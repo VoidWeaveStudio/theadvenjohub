@@ -24,8 +24,8 @@ export const TOWER_X = 300;
 export const TOWER_Z = 0;
 export const TOWER_FLAT_RADIUS = 90;
 
-export const CAVE_PORTAL_X = -148;
-export const CAVE_PORTAL_Z = -96;
+export const CAVE_PORTAL_X = -31;
+export const CAVE_PORTAL_Z = 31;
 
 export interface LakeDefinition {
     x: number;
