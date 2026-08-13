@@ -6,6 +6,7 @@ import { OtherPlayer } from "../entities/OtherPlayer";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
+import { Cave } from "../world/locations/cave/Cave";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
 import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, beginTeleportGrace } from "./GameLocationOrchestration";
@@ -506,6 +507,19 @@ export function registerNetworkHandlers(game: Game) {
         if (location instanceof Basement) {
             location.handleFactionGatesState(gates);
         }
+    };
+
+    game.networkManager.onCaveChestOpened = ({ chestId, ash }) => {
+        const location = game.locationManager.getCurrentLocation();
+        if (location instanceof Cave) location.markChestOpened(chestId);
+        game.onNotification?.(`💰 Chest looted — ${ash} Ash`, 3000);
+    };
+
+    game.networkManager.onCaveBossState = ({ defeated }) => {
+        game.caveBossDefeated = defeated;
+        const location = game.locationManager.getCurrentLocation();
+        if (location instanceof Cave) location.setBossDefeated(defeated);
+        if (defeated) game.onNotification?.("🩸 The warden falls — something unseals below", 4000);
     };
 
     game.networkManager.onShardState = (state) => {

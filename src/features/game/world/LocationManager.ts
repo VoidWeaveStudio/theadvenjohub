@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { Location, Portal } from "./Location";
 import { ResourceManager } from "../core/ResourceManager";
 import { MainWorld } from "./locations/main-world/MainWorld";
-import { Cave } from "./locations/Cave";
+import { Cave } from "./locations/cave/Cave";
 import { ALL_LOCATIONS } from "./locations/tower/TowerRegistry";
 import { FactionGateRoom } from "./locations/tower/floors/FactionGateRoom";
 import { PersonalRoom, PERSONAL_ROOM_PREFIX } from "./locations/tower/floors/PersonalRoom";

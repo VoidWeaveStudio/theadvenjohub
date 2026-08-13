@@ -1,6 +1,6 @@
 // src/features/game/world/locations/main-world/systems/ScatterSystem.ts
 import * as THREE from "three";
-import { createRandom } from "../utils/worldNoise";
+import { createRandom, fbm, smoothstep } from "../utils/worldNoise";
 import { createRockGeometry, createTreeGeometry } from "../utils/proceduralFlora";
 import type { TerrainSystem } from "./TerrainSystem";
 import {
@@ -17,9 +17,10 @@ import {
     WORLD_SEED,
 } from "../worldConfig";
 
-const TREE_VARIANTS = 2;
+const TREE_VARIANTS = 4;
 const ROCK_VARIANTS = 4;
-const TREE_CANDIDATES_PER_CHUNK = 90;
+const TREE_CANDIDATES_PER_CHUNK = 100;
+const FOREST_NOISE_SCALE = 0.0085;
 const ROCK_CANDIDATES_PER_CHUNK = 70;
 const MAX_TREE_INSTANCES = 1500;
 const MAX_ROCK_INSTANCES = 1100;
@@ -31,6 +32,9 @@ interface PropInstance {
     scale: number;
     rotation: number;
     variant: number;
+    tiltX: number;
+    tiltZ: number;
+    tint: number;
 }
 
 interface ChunkProps {
@@ -47,6 +51,7 @@ export class ScatterSystem {
     private readonly position = new THREE.Vector3();
     private readonly scale = new THREE.Vector3();
     private readonly euler = new THREE.Euler();
+    private readonly color = new THREE.Color();
 
     private colliders: THREE.Box3[] = [];
     private lastChunkX = Number.NaN;
@@ -66,6 +71,7 @@ export class ScatterSystem {
             roughness: 0.88,
             metalness: 0,
             flatShading: true,
+            side: THREE.DoubleSide,
         });
 
         const rockMaterial = new THREE.MeshStandardMaterial({
@@ -129,7 +135,7 @@ export class ScatterSystem {
                     const bucket = trees[tree.variant];
                     if (bucket.length >= MAX_TREE_INSTANCES) continue;
                     bucket.push(tree);
-                    this.colliders.push(this.makeCollider(tree, 0.55, 5.5));
+                    this.colliders.push(this.makeCollider(tree, 0.5 * tree.scale, 4.5 * tree.scale));
                 }
 
                 for (const rock of props.rocks) {
@@ -158,15 +164,20 @@ export class ScatterSystem {
         for (let i = 0; i < instances.length; i++) {
             const instance = instances[i];
             this.position.set(instance.x, instance.y, instance.z);
-            this.euler.set(0, instance.rotation, 0);
+            this.euler.set(instance.tiltX, instance.rotation, instance.tiltZ);
             this.quaternion.setFromEuler(this.euler);
             this.scale.setScalar(instance.scale);
             this.matrix.compose(this.position, this.quaternion, this.scale);
             mesh.setMatrixAt(i, this.matrix);
+
+            const tint = instance.tint;
+            this.color.setRGB(0.86 + tint * 0.26, 0.88 + tint * 0.2, 0.84 + tint * 0.3);
+            mesh.setColorAt(i, this.color);
         }
 
         mesh.count = instances.length;
         mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         mesh.computeBoundingSphere();
     }
 
@@ -188,13 +199,26 @@ export class ScatterSystem {
             const z = originZ + random() * CHUNK_SIZE;
             if (!this.isPlantable(x, z, 2.6, 34, 0.3)) continue;
 
+            const grove = fbm(x * FOREST_NOISE_SCALE, z * FOREST_NOISE_SCALE, 3, WORLD_SEED + 4477);
+            const density = smoothstep(0.44, 0.7, grove);
+            if (random() > density) continue;
+
+            const height = this.terrain.getHeightAt(x, z);
+            const conifer = height > 18 || grove > 0.72;
+            const variant = conifer
+                ? 2 + Math.floor(random() * 2)
+                : Math.floor(random() * 2);
+
             props.trees.push({
                 x,
-                y: this.terrain.getHeightAt(x, z) - 0.2,
+                y: height - 0.25,
                 z,
-                scale: 0.75 + random() * 0.75,
+                scale: 0.78 + random() * 0.46,
                 rotation: random() * Math.PI * 2,
-                variant: Math.floor(random() * TREE_VARIANTS) % TREE_VARIANTS,
+                variant: variant % TREE_VARIANTS,
+                tiltX: (random() - 0.5) * 0.09,
+                tiltZ: (random() - 0.5) * 0.09,
+                tint: random(),
             });
         }
 
@@ -210,6 +234,9 @@ export class ScatterSystem {
                 scale: 0.6 + random() * 2.1,
                 rotation: random() * Math.PI * 2,
                 variant: Math.floor(random() * ROCK_VARIANTS) % ROCK_VARIANTS,
+                tiltX: (random() - 0.5) * 0.35,
+                tiltZ: (random() - 0.5) * 0.35,
+                tint: random(),
             });
         }
 

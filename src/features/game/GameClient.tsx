@@ -283,7 +283,6 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           setCurrentLocationId(id);
           if (id !== "tower-basement") {
-            setShardState(null);
             setIsBubbleMapOpen(false);
           }
         };

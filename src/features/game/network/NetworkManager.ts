@@ -406,7 +406,13 @@ export class NetworkManager {
   private authWaiters: Array<() => void> = [];
 
   private lastUpdateSent: number = 0;
+  private lastUpdateForced: number = 0;
+  private lastUpdateState: {
+    position: number[]; rotation: number; pitch: number; state: string;
+    jumping: boolean; weaponEquipped: boolean; isShooting: boolean;
+  } | null = null;
   private updateThrottleMs: number = 50;
+  private idleKeepaliveMs: number = 1000;
 
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private lastPong: number = Date.now();
@@ -495,6 +501,8 @@ export class NetworkManager {
   public onFactionGatesState?: (gates: FactionGateData[]) => void;
   public onAccountCount?: (count: number) => void;
   public onShardState?: (state: ShardStateData) => void;
+  public onCaveChestOpened?: (data: { chestId: string; ash: number }) => void;
+  public onCaveBossState?: (data: { defeated: boolean }) => void;
   public onShardTeleport?: (data: { position: number[]; instance: number }) => void;
   public onSignState?: (signs: SignData[]) => void;
   public onSignSpawn?: (sign: SignData) => void;
@@ -772,6 +780,26 @@ export class NetworkManager {
           isShooting: data.isShooting || false,
           locationId: data.locationId || 'main-world',
         });
+        break;
+      case "caveChestOpened":
+        this.onCaveChestOpened?.({ chestId: data.chestId, ash: data.ash ?? 0 });
+        break;
+      case "caveBossState":
+        this.onCaveBossState?.({ defeated: !!data.defeated });
+        break;
+      case "snapshot":
+        if (Array.isArray(data.players)) {
+          for (const entry of data.players) {
+            this.onPlayerUpdate?.({
+              ...entry,
+              health: entry.health ?? 100,
+              alive: entry.alive ?? true,
+              weaponEquipped: entry.weaponEquipped !== false,
+              isShooting: entry.isShooting || false,
+              locationId: entry.locationId || 'main-world',
+            });
+          }
+        }
         break;
       case 'playerLeaveLocation':
         this.onPlayerLeaveLocation?.(data);
@@ -1133,7 +1161,24 @@ export class NetworkManager {
 
     const now = performance.now();
     if (now - this.lastUpdateSent < this.updateThrottleMs) return;
+
+    const previous = this.lastUpdateState;
+    const still = previous !== null
+      && Math.abs(previous.position[0] - data.position[0]) < 0.02
+      && Math.abs(previous.position[1] - data.position[1]) < 0.02
+      && Math.abs(previous.position[2] - data.position[2]) < 0.02
+      && Math.abs(previous.rotation - data.rotation) < 0.01
+      && Math.abs(previous.pitch - data.pitch) < 0.01
+      && previous.state === data.state
+      && previous.jumping === data.jumping
+      && previous.weaponEquipped === data.weaponEquipped
+      && previous.isShooting === data.isShooting;
+
+    if (still && now - this.lastUpdateForced < this.idleKeepaliveMs) return;
+
     this.lastUpdateSent = now;
+    if (!still) this.lastUpdateForced = now;
+    this.lastUpdateState = { ...data, position: [...data.position] };
     this.send({ type: "playerUpdate", ...data });
   }
 
@@ -1486,9 +1531,14 @@ export class NetworkManager {
     this.send({ type: 'locationChange', locationId, instance });
   }
 
+  sendCaveChestOpen(chestId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: 'caveChestOpen', chestId });
+  }
+
   sendClientReady() {
     if (!this.authenticated) return;
-    this.send({ type: 'clientReady' });
+    this.send({ type: 'clientReady', snapshots: true });
   }
 
   sendProgressSave(progressData: any) {

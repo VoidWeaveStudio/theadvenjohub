@@ -35,7 +35,7 @@ export function ShardSwitcher({ state, onSwitch }: ShardSwitcherProps) {
             {isOpen && (
                 <div className="absolute right-0 mt-1.5 min-w-[190px] bg-[rgba(10,12,18,0.96)] border border-[rgba(127,230,207,0.25)] rounded-[8px] p-1.5 shadow-xl z-50">
                     <div className="text-[10px] uppercase tracking-wide text-[#8B8F98] px-2 py-1">
-                        Crypto Universe layers
+                        Location layers
                     </div>
 
                     {state.shards.map((shard) => {

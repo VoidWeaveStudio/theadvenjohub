@@ -107,6 +107,7 @@ export class Game {
     public accountCount: number = 0;
     public gateFactionIds: string[] = [];
     public factionGates: FactionGateData[] = [];
+    public caveBossDefeated: boolean = false;
     public leaderboard: LeaderboardEntry[] = [];
     public factionLeaderboard: FactionSummary[] = [];
     public factionQuests: FactionQuestEntry[] = [];
@@ -429,10 +430,7 @@ export class Game {
 
                 const getGroundHeight = (x: number, z: number) => {
                     const currentLoc = this.locationManager.getCurrentLocation();
-                    if (currentLoc instanceof MainWorld) {
-                        return currentLoc.terrain.getHeightAt(x, z);
-                    }
-                    return 0;
+                    return currentLoc?.terrain?.getHeightAt(x, z) ?? 0;
                 };
 
                 this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
