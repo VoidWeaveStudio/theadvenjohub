@@ -800,10 +800,13 @@ export class Game {
             if (this.disposed) return;
 
             this.setLoadingStage("Entering the location...", 1);
-            this.onLoadStateChange?.(false);
+        } catch (error) {
+            console.error(`Failed to enter ${targetLocationId}:`, error);
+            this.onNotification?.("⚠️ Failed to load the location", 3000);
         } finally {
             beginTeleportGrace(this);
             this.isChangingLocation = false;
+            if (!this.disposed) this.onLoadStateChange?.(false);
         }
     }
 

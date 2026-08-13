@@ -26,6 +26,12 @@ function combine(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
         if (flattened[index] !== part) part.dispose();
     });
 
+    for (const part of flattened) {
+        part.deleteAttribute("normal");
+        part.deleteAttribute("uv");
+        part.deleteAttribute("uv1");
+    }
+
     const merged = mergeGeometries(flattened, false);
     flattened.forEach((part) => part.dispose());
 
