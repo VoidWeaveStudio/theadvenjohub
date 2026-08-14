@@ -55,6 +55,9 @@ const waterFragmentShader = /* glsl */`
     uniform vec3 uSunDirection;
     uniform vec3 uSunColor;
     uniform float uOpacity;
+    uniform sampler2D uRippleTex;
+    uniform vec4 uRippleBounds;
+    uniform float uRippleStrength;
 
     varying vec3 vWorldPos;
     varying vec3 vWaveNormal;
@@ -76,6 +79,25 @@ const waterFragmentShader = /* glsl */`
         return combined;
     }
 
+    vec3 simulatedRipple(vec2 worldXZ, out float crest) {
+        crest = 0.0;
+        vec2 uv = (worldXZ - uRippleBounds.xy) / uRippleBounds.zw;
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec3(0.0);
+
+        float texel = 1.0 / 256.0;
+        float here = texture2D(uRippleTex, uv).r;
+        float left = texture2D(uRippleTex, uv - vec2(texel, 0.0)).r;
+        float right = texture2D(uRippleTex, uv + vec2(texel, 0.0)).r;
+        float down = texture2D(uRippleTex, uv - vec2(0.0, texel)).r;
+        float up = texture2D(uRippleTex, uv + vec2(0.0, texel)).r;
+
+        vec2 edge = min(uv, 1.0 - uv);
+        float inside = smoothstep(0.0, 0.08, min(edge.x, edge.y));
+
+        crest = (abs(here) * 1.2 + abs((left + right + down + up) * 0.25 - here) * 3.0) * inside;
+        return vec3(-(right - left), 0.0, -(up - down)) * uRippleStrength * inside;
+    }
+
     void main() {
         float terrainHeight = sampleTerrain(vWorldPos.xz);
         float depth = max(uWaterLevel - terrainHeight, 0.0);
@@ -87,6 +109,10 @@ const waterFragmentShader = /* glsl */`
             vWaveNormal.y,
             vWaveNormal.z + ripple.y * 0.55 * rippleFade
         ));
+
+        float rippleCrest = 0.0;
+        vec3 simRipple = simulatedRipple(vWorldPos.xz, rippleCrest);
+        normal = normalize(normal + vec3(simRipple.x, 0.0, simRipple.z));
 
         vec3 viewDir = normalize(cameraPosition - vWorldPos);
         float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.2);
@@ -105,6 +131,7 @@ const waterFragmentShader = /* glsl */`
         float shoreWave = sin(depth * 5.5 - uTime * 2.2) * 0.5 + 0.5;
         float foamBand = (1.0 - smoothstep(0.12, 1.35, depth)) * smoothstep(0.02, 0.22, depth);
         float foam = foamBand * (0.45 + shoreWave * 0.55);
+        foam += smoothstep(0.06, 0.34, rippleCrest) * 0.5;
         color = mix(color, uFoamColor, clamp(foam, 0.0, 0.9));
 
         float alpha = uOpacity * smoothstep(0.0, 1.1, depth);
@@ -144,6 +171,9 @@ export class WaterSystem {
             uSunDirection: { value: new THREE.Vector3(0.4, 0.8, 0.3) },
             uSunColor: { value: new THREE.Color(0xfff0cd) },
             uOpacity: { value: 0.82 },
+            uRippleTex: { value: null as THREE.Texture | null },
+            uRippleBounds: { value: new THREE.Vector4(-45, -45, 90, 90) },
+            uRippleStrength: { value: 2.2 },
         };
 
         this.material = new THREE.ShaderMaterial({
@@ -224,6 +254,18 @@ export class WaterSystem {
         }
 
         return this.terrain.getHeightAt(x, z) < SEA_LEVEL ? SEA_LEVEL : null;
+    }
+
+    public getDepthMap(): DepthMap | null {
+        return this.depthMap;
+    }
+
+    public setRippleField(texture: THREE.Texture, bounds: THREE.Vector4) {
+        for (const mesh of this.meshes) {
+            const material = mesh.material as THREE.ShaderMaterial;
+            material.uniforms.uRippleTex.value = texture;
+            material.uniforms.uRippleBounds.value.copy(bounds);
+        }
     }
 
     public update(delta: number) {

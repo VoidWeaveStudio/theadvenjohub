@@ -3,9 +3,11 @@ import * as THREE from "three";
 import { Location } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";
 import { CollisionGrid } from "../../CollisionGrid";
+import { SoundManager } from "../../../core/SoundManager";
 import { createRandom, valueNoise3 } from "../main-world/utils/worldNoise";
-import { buildCaveMesh, caveFloorHeight, CAVE_SEED } from "./caveMesh";
+import { buildCaveMesh, caveCeilingHeight, caveFloorHeight, caveWallPoint, CaveOpenCell, CAVE_CELL, CAVE_SEED } from "./caveMesh";
 import {
+    CAVE_BOSS_ARENA,
     CAVE_CHESTS,
     CAVE_ENTRANCE,
     CAVE_SECRETS,
@@ -14,10 +16,18 @@ import {
     CaveSecret,
 } from "./caveLayout";
 
+const _beam = new THREE.Vector3();
+
 const INTERACT_RANGE = 4.2;
 const LANTERN_HEIGHT = 1.9;
-const DUST_COUNT = 260;
-const DUST_RADIUS = 22;
+const DUST_COUNT = 340;
+const DUST_RADIUS = 20;
+const DUST_COLUMN = 9;
+const DRIP_COUNT = 44;
+const DRIP_RADIUS = 15;
+const MOSS_TEAL = 0x2fd8c4;
+const MOSS_LIME = 0x8dff6a;
+const MOSS_VIOLET = 0x9a72ff;
 
 interface SecretDoor {
     definition: CaveSecret;
@@ -38,7 +48,7 @@ interface Chest {
 
 export class Cave extends Location {
     public collisionGrid: CollisionGrid;
-    public maxPlayerRadius = 210;
+    public maxPlayerRadius = 350;
 
     public onOpenChest: ((chestId: string) => void) | null = null;
     public onSecretFound: ((secretId: string) => void) | null = null;
@@ -49,8 +59,17 @@ export class Cave extends Location {
     private chests: Chest[] = [];
 
     private lantern: THREE.PointLight | null = null;
+    private glowPool: THREE.PointLight | null = null;
+    private flashlight: THREE.SpotLight | null = null;
+    private flashlightTarget: THREE.Object3D | null = null;
     private lanternFlicker = 0;
     private dust: THREE.Points | null = null;
+    private dustMaterial: THREE.ShaderMaterial | null = null;
+    private dripPoints: THREE.Points | null = null;
+    private dripMaterial: THREE.PointsMaterial | null = null;
+    private readonly drips: { x: number; y: number; z: number; velocity: number; floorY: number; splash: number; delay: number }[] = [];
+    private moss: THREE.Points | null = null;
+    private mossMaterial: THREE.ShaderMaterial | null = null;
     private ambientLights: { light: THREE.PointLight; base: number; phase: number }[] = [];
     private bossDefeated = false;
     private time = 0;
@@ -66,10 +85,10 @@ export class Cave extends Location {
     }
 
     create(_rm: ResourceManager) {
-        this.scene.background = new THREE.Color(0x04050a);
-        this.scene.fog = new THREE.FogExp2(0x04050a, 0.052);
+        this.scene.background = new THREE.Color(0x010204);
+        this.scene.fog = new THREE.FogExp2(0x010204, 0.092);
 
-        this.scene.add(new THREE.AmbientLight(0x1b2436, 0.09));
+        this.scene.add(new THREE.AmbientLight(0x0d1422, 0.028));
 
         const mesh = buildCaveMesh();
         this.staticColliders = mesh.colliders;
@@ -103,6 +122,7 @@ export class Cave extends Location {
         this.createBossArenaMood();
         this.createLantern();
         this.createDust();
+        this.createDrips();
 
         this.rebuildColliders();
     }
@@ -137,7 +157,7 @@ export class Cave extends Location {
 
             if (random() < 0.3) {
                 const height = 1 + random() * 2.4;
-                const top = caveFloorHeight(cell.x, cell.z) + cell.ceiling * 0.85;
+                const top = caveCeilingHeight(cell.x, cell.z);
                 position.set(cell.x + (random() - 0.5) * 1.4, top, cell.z + (random() - 0.5) * 1.4);
                 euler.set(Math.PI + (random() - 0.5) * 0.2, random() * Math.PI * 2, 0);
                 quaternion.setFromEuler(euler);
@@ -171,37 +191,109 @@ export class Cave extends Location {
         build(drops, "cave-stalactites");
     }
 
-    private createFungi(cells: { x: number; z: number; edge: boolean }[]) {
+    private createFungi(cells: CaveOpenCell[]) {
         const random = createRandom(CAVE_SEED + 9109);
-        const matrices: THREE.Matrix4[] = [];
-        const matrix = new THREE.Matrix4();
-        const position = new THREE.Vector3();
-        const quaternion = new THREE.Quaternion();
-        const scale = new THREE.Vector3();
+
+        const positions: number[] = [];
+        const colors: number[] = [];
+        const sizes: number[] = [];
+        const phases: number[] = [];
+
+        const color = new THREE.Color();
+        const half = CAVE_CELL * 0.5;
 
         for (const cell of cells) {
-            if (!cell.edge || random() > 0.12) continue;
+            if (!cell.edge) continue;
+            if (cell.wallX === 0 && cell.wallZ === 0) continue;
+            if (random() > 0.34) continue;
 
-            position.set(
-                cell.x + (random() - 0.5) * 1.4,
-                caveFloorHeight(cell.x, cell.z) + 0.12 + random() * 0.5,
-                cell.z + (random() - 0.5) * 1.4
-            );
-            scale.setScalar(0.1 + random() * 0.16);
-            matrices.push(matrix.clone().compose(position, quaternion, scale));
+            const anchorX = cell.x + cell.wallX * half;
+            const anchorZ = cell.z + cell.wallZ * half;
+            const inward = new THREE.Vector3(-cell.wallX, 0, -cell.wallZ).normalize();
+
+            const hue = random();
+            color.setHex(hue < 0.52 ? MOSS_TEAL : hue < 0.84 ? MOSS_LIME : MOSS_VIOLET);
+
+            const patchT = 0.16 + random() * 0.5;
+            const spread = 0.5 + random() * 0.9;
+            const grains = 26 + Math.floor(random() * 44);
+
+            for (let i = 0; i < grains; i++) {
+                const t = THREE.MathUtils.clamp(patchT + (random() - 0.5) * 0.24, 0.04, 0.94);
+                const surface = caveWallPoint(anchorX, anchorZ, t);
+
+                const along = (random() - 0.5) * CAVE_CELL * spread;
+                const bias = 0.4 + random() * 0.5;
+
+                positions.push(
+                    surface.x + inward.x * bias - inward.z * along,
+                    surface.y + (random() - 0.5) * 0.5,
+                    surface.z + inward.z * bias + inward.x * along
+                );
+
+                const shade = 0.42 + random() * 0.75;
+                colors.push(color.r * shade, color.g * shade, color.b * shade);
+                sizes.push(0.05 + random() * 0.13);
+                phases.push(random() * Math.PI * 2);
+            }
         }
 
-        if (matrices.length === 0) return;
+        if (positions.length === 0) return;
 
-        const instanced = new THREE.InstancedMesh(
-            new THREE.IcosahedronGeometry(1, 0),
-            new THREE.MeshBasicMaterial({ color: 0x3fe0c8, fog: true, toneMapped: false }),
-            matrices.length
-        );
-        instanced.name = "cave-fungi";
-        matrices.forEach((m, i) => instanced.setMatrixAt(i, m));
-        instanced.instanceMatrix.needsUpdate = true;
-        this.addStatic(instanced);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setAttribute("aSize", new THREE.Float32BufferAttribute(sizes, 1));
+        geometry.setAttribute("aPhase", new THREE.Float32BufferAttribute(phases, 1));
+        geometry.computeBoundingSphere();
+
+        this.mossMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uScale: { value: 640 },
+            },
+            vertexShader: /* glsl */`
+                attribute float aSize;
+                attribute float aPhase;
+
+                uniform float uTime;
+                uniform float uScale;
+
+                varying vec3 vColor;
+                varying float vGlow;
+
+                void main() {
+                    vColor = color;
+                    vGlow = 0.55 + sin(uTime * 1.4 + aPhase) * 0.45;
+
+                    vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_Position = projectionMatrix * viewPosition;
+                    gl_PointSize = aSize * uScale * (0.75 + vGlow * 0.4) / max(-viewPosition.z, 0.6);
+                }
+            `,
+            fragmentShader: /* glsl */`
+                varying vec3 vColor;
+                varying float vGlow;
+
+                void main() {
+                    vec2 offset = gl_PointCoord - 0.5;
+                    float falloff = 1.0 - smoothstep(0.05, 0.5, length(offset));
+                    if (falloff <= 0.001) discard;
+
+                    float core = pow(falloff, 3.0);
+                    gl_FragColor = vec4(vColor * (0.6 + vGlow * 0.9) * (core + falloff * 0.35), falloff);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            vertexColors: true,
+        });
+
+        this.moss = new THREE.Points(geometry, this.mossMaterial);
+        this.moss.name = "cave-moss";
+        this.moss.frustumCulled = false;
+        this.addStatic(this.moss);
     }
 
     private createSecretDoors() {
@@ -274,7 +366,7 @@ export class Cave extends Location {
             rune.position.set(0, 0.52, 0.58);
             group.add(rune);
 
-            const glow = new THREE.PointLight(0x7fe3ff, 1.2, 9, 2);
+            const glow = new THREE.PointLight(0x7fe3ff, 1.5, 14, 0);
             glow.position.set(0, 1, 0);
             glow.castShadow = false;
             group.add(glow);
@@ -303,10 +395,10 @@ export class Cave extends Location {
         veil.position.y = 2.7;
         group.add(veil);
 
-        const light = new THREE.PointLight(0x6fd6ff, 3, 20, 2);
+        const light = new THREE.PointLight(0x6fd6ff, 2.4, 26, 0);
         light.position.y = 2.8;
         group.add(light);
-        this.ambientLights.push({ light, base: 3, phase: 0 });
+        this.ambientLights.push({ light, base: 2.4, phase: 0 });
 
         this.addStatic(group);
 
@@ -321,59 +413,220 @@ export class Cave extends Location {
     }
 
     private createBossArenaMood() {
-        const positions = [
-            { x: -14, z: -122 },
-            { x: 15, z: -126 },
-            { x: 0, z: -146 },
-        ];
+        const emberMaterial = new THREE.MeshBasicMaterial({ color: 0xff5a34, toneMapped: false });
+        const emberGeometry = new THREE.IcosahedronGeometry(0.4, 0);
 
-        for (const spot of positions) {
-            const floorY = caveFloorHeight(spot.x, spot.z);
-            const light = new THREE.PointLight(0xff4530, 1.1, 26, 2);
-            light.position.set(spot.x, floorY + 2.4, spot.z);
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2 + 0.4;
+            const radius = CAVE_BOSS_ARENA.radius * 0.82;
+            const x = CAVE_BOSS_ARENA.x + Math.cos(angle) * radius;
+            const z = CAVE_BOSS_ARENA.z + Math.sin(angle) * radius;
+            const floorY = caveFloorHeight(x, z);
+
+            const ember = new THREE.Mesh(emberGeometry, emberMaterial);
+            ember.position.set(x, floorY + 0.5, z);
+            this.addStatic(ember);
+
+            if (i % 2 !== 0) continue;
+
+            const light = new THREE.PointLight(0xff3d22, 1.15, 34, 0);
+            light.position.set(x, floorY + 2.4, z);
             light.castShadow = false;
             this.addStatic(light);
-            this.ambientLights.push({ light, base: 1.1, phase: Math.random() * Math.PI * 2 });
-
-            const ember = new THREE.Mesh(
-                new THREE.IcosahedronGeometry(0.4, 0),
-                new THREE.MeshBasicMaterial({ color: 0xff5a34, toneMapped: false })
-            );
-            ember.position.set(spot.x, floorY + 0.5, spot.z);
-            this.addStatic(ember);
+            this.ambientLights.push({ light, base: 1.15, phase: i * 1.3 });
         }
     }
 
     private createLantern() {
-        this.lantern = new THREE.PointLight(0xffd2a1, 2.6, 30, 2);
+        this.lantern = new THREE.PointLight(0xffb066, 1.15, 17, 0);
         this.lantern.castShadow = false;
         this.addStatic(this.lantern);
+
+        this.glowPool = new THREE.PointLight(0x2f4560, 0.4, 9, 0);
+        this.glowPool.castShadow = false;
+        this.addStatic(this.glowPool);
+
+        this.flashlight = new THREE.SpotLight(0xffe4bc, 3.4, 52, 0.44, 0.5, 0.35);
+        this.flashlight.castShadow = false;
+        this.addStatic(this.flashlight);
+
+        this.flashlightTarget = new THREE.Object3D();
+        this.flashlight.target = this.flashlightTarget;
+        this.addStatic(this.flashlightTarget);
     }
 
     private createDust() {
-        const positions = new Float32Array(DUST_COUNT * 3);
         const random = createRandom(CAVE_SEED + 77);
+
+        const positions = new Float32Array(DUST_COUNT * 3);
+        const sizes = new Float32Array(DUST_COUNT);
+        const phases = new Float32Array(DUST_COUNT);
+        const speeds = new Float32Array(DUST_COUNT);
 
         for (let i = 0; i < DUST_COUNT; i++) {
             positions[i * 3] = (random() - 0.5) * DUST_RADIUS * 2;
-            positions[i * 3 + 1] = random() * 6;
+            positions[i * 3 + 1] = random() * DUST_COLUMN;
             positions[i * 3 + 2] = (random() - 0.5) * DUST_RADIUS * 2;
+            sizes[i] = 0.02 + random() * 0.055;
+            phases[i] = random() * Math.PI * 2;
+            speeds[i] = 0.12 + random() * 0.34;
         }
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
+        geometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
+        geometry.setAttribute("aSpeed", new THREE.BufferAttribute(speeds, 1));
+        geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), DUST_RADIUS * 2);
 
-        this.dust = new THREE.Points(geometry, new THREE.PointsMaterial({
-            color: 0xbcd0e0,
-            size: 0.055,
+        this.dustMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uScale: { value: 620 },
+                uColumn: { value: DUST_COLUMN },
+                uFogColor: { value: new THREE.Color(0x010204) },
+                uFogDensity: { value: 0.092 },
+            },
+            vertexShader: /* glsl */`
+                attribute float aSize;
+                attribute float aPhase;
+                attribute float aSpeed;
+
+                uniform float uTime;
+                uniform float uScale;
+                uniform float uColumn;
+
+                varying float vAlpha;
+                varying float vDepth;
+
+                void main() {
+                    vec3 drift = position;
+                    drift.x += sin(uTime * 0.24 + aPhase) * 1.35;
+                    drift.z += cos(uTime * 0.19 + aPhase * 1.7) * 1.15;
+                    drift.y = mod(position.y + uTime * aSpeed, uColumn);
+
+                    float rise = drift.y / uColumn;
+                    float twinkle = 0.45 + sin(uTime * 1.9 + aPhase * 3.1) * 0.55;
+
+                    vAlpha = smoothstep(0.0, 0.16, rise) * (1.0 - smoothstep(0.68, 1.0, rise)) * (0.35 + twinkle * 0.65);
+
+                    vec4 viewPosition = modelViewMatrix * vec4(drift, 1.0);
+                    vDepth = -viewPosition.z;
+                    gl_Position = projectionMatrix * viewPosition;
+                    gl_PointSize = aSize * uScale / max(vDepth, 0.7);
+                }
+            `,
+            fragmentShader: /* glsl */`
+                uniform vec3 uFogColor;
+                uniform float uFogDensity;
+
+                varying float vAlpha;
+                varying float vDepth;
+
+                void main() {
+                    float falloff = 1.0 - smoothstep(0.1, 0.5, length(gl_PointCoord - 0.5));
+                    if (falloff <= 0.001) discard;
+
+                    float fog = 1.0 - exp(-vDepth * uFogDensity);
+                    vec3 tint = mix(vec3(0.72, 0.79, 0.88), uFogColor, fog);
+
+                    gl_FragColor = vec4(tint, falloff * vAlpha * (1.0 - fog * 0.85));
+                }
+            `,
             transparent: true,
-            opacity: 0.5,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+
+        this.dust = new THREE.Points(geometry, this.dustMaterial);
+        this.dust.frustumCulled = false;
+        this.addStatic(this.dust);
+    }
+
+    private createDrips() {
+        const positions = new Float32Array(DRIP_COUNT * 3);
+
+        for (let i = 0; i < DRIP_COUNT; i++) {
+            this.drips.push({ x: 0, y: 0, z: 0, velocity: 0, floorY: 0, splash: 0, delay: i * 0.14 });
+            positions[i * 3 + 1] = -999;
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+
+        this.dripMaterial = new THREE.PointsMaterial({
+            color: 0x9fc4e8,
+            size: 0.09,
+            transparent: true,
+            opacity: 0.75,
             depthWrite: false,
             sizeAttenuation: true,
             fog: true,
-        }));
-        this.dust.frustumCulled = false;
-        this.addStatic(this.dust);
+        });
+
+        this.dripPoints = new THREE.Points(geometry, this.dripMaterial);
+        this.dripPoints.frustumCulled = false;
+        this.addStatic(this.dripPoints);
+    }
+
+    private updateDrips(playerPosition: THREE.Vector3, delta: number) {
+        if (!this.dripPoints) return;
+
+        const attribute = this.dripPoints.geometry.getAttribute("position") as THREE.BufferAttribute;
+        const array = attribute.array as Float32Array;
+
+        for (let i = 0; i < this.drips.length; i++) {
+            const drip = this.drips[i];
+
+            if (drip.delay > 0) {
+                drip.delay -= delta;
+                array[i * 3 + 1] = -999;
+                continue;
+            }
+
+            if (drip.velocity === 0 && drip.splash <= 0) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 3 + Math.random() * DRIP_RADIUS;
+
+                drip.x = playerPosition.x + Math.cos(angle) * radius;
+                drip.z = playerPosition.z + Math.sin(angle) * radius;
+                drip.floorY = caveFloorHeight(drip.x, drip.z);
+                drip.y = caveCeilingHeight(drip.x, drip.z) - 0.25;
+                drip.velocity = 0.4;
+            }
+
+            if (drip.splash > 0) {
+                drip.splash -= delta;
+                array[i * 3 + 1] = -999;
+                if (drip.splash <= 0) drip.delay = Math.random() * 2.4;
+                continue;
+            }
+
+            drip.velocity += 9.81 * delta;
+            drip.y -= drip.velocity * delta;
+
+            if (drip.y <= drip.floorY + 0.05) {
+                drip.velocity = 0;
+                drip.splash = 0.12;
+                array[i * 3 + 1] = -999;
+
+                SoundManager.getInstance().playAt("cave-drip", {
+                    x: drip.x,
+                    z: drip.z,
+                    volume: 0.3,
+                    rate: 0.75 + Math.random() * 0.6,
+                    maxDistance: 24,
+                });
+                continue;
+            }
+
+            array[i * 3] = drip.x;
+            array[i * 3 + 1] = drip.y;
+            array[i * 3 + 2] = drip.z;
+        }
+
+        attribute.needsUpdate = true;
     }
 
     private rebuildColliders() {
@@ -396,6 +649,12 @@ export class Cave extends Location {
         const chest = this.chests.find((item) => item.id === chestId);
         if (!chest || chest.opened) return;
         chest.opened = true;
+
+        SoundManager.getInstance().playAt("chest-open", {
+            x: chest.group.position.x,
+            z: chest.group.position.z,
+            volume: 1,
+        });
     }
 
     private openSecret(door: SecretDoor) {
@@ -404,6 +663,13 @@ export class Cave extends Location {
 
         door.opened = true;
         this.rebuildColliders();
+
+        SoundManager.getInstance().playAt("secret-door", {
+            x: door.definition.doorX,
+            z: door.definition.doorZ,
+            volume: 1,
+        });
+
         this.onSecretFound?.(door.definition.id);
     }
 
@@ -412,6 +678,7 @@ export class Cave extends Location {
 
         this.updateLantern(playerPosition, delta);
         this.updateDust(playerPosition);
+        this.updateDrips(playerPosition, delta);
         this.updateDoors(delta);
         this.updateChests(delta);
         this.updateInteractions(playerPosition, isEPressed === true);
@@ -419,6 +686,8 @@ export class Cave extends Location {
         for (const entry of this.ambientLights) {
             entry.light.intensity = entry.base * (0.72 + Math.sin(this.time * 2.6 + entry.phase) * 0.28);
         }
+
+        if (this.mossMaterial) this.mossMaterial.uniforms.uTime.value = this.time;
     }
 
     private updateLantern(playerPosition: THREE.Vector3, delta: number) {
@@ -427,14 +696,40 @@ export class Cave extends Location {
         this.lanternFlicker += delta * 9;
         const flicker = 0.86 + Math.sin(this.lanternFlicker) * 0.06 + Math.sin(this.lanternFlicker * 2.7) * 0.04;
 
-        this.lantern.position.set(playerPosition.x, playerPosition.y + LANTERN_HEIGHT, playerPosition.z);
-        this.lantern.intensity = 2.6 * flicker;
+        if (this.camera) this.camera.getWorldDirection(_beam);
+        else _beam.set(0, 0, -1);
+
+        _beam.y = _beam.y * 0.6 - 0.1;
+        _beam.normalize();
+
+        this.lantern.position.set(
+            playerPosition.x + _beam.x * 1.6,
+            playerPosition.y + LANTERN_HEIGHT * 0.62,
+            playerPosition.z + _beam.z * 1.6
+        );
+        this.lantern.intensity = 1.15 * flicker;
+
+        if (this.glowPool) {
+            this.glowPool.position.set(playerPosition.x, playerPosition.y + 0.5, playerPosition.z);
+            this.glowPool.intensity = 0.4 * flicker;
+        }
+
+        if (!this.flashlight || !this.flashlightTarget) return;
+
+        this.flashlight.visible = this.camera !== undefined;
+        this.flashlight.position.set(
+            playerPosition.x + _beam.x * 0.9,
+            playerPosition.y + LANTERN_HEIGHT,
+            playerPosition.z + _beam.z * 0.9
+        );
+        this.flashlightTarget.position.copy(this.flashlight.position).addScaledVector(_beam, 20);
+        this.flashlight.intensity = 3.4 * (0.94 + flicker * 0.06);
     }
 
     private updateDust(playerPosition: THREE.Vector3) {
         if (!this.dust) return;
-        this.dust.position.set(playerPosition.x, playerPosition.y, playerPosition.z);
-        this.dust.rotation.y = this.time * 0.02;
+        this.dust.position.set(playerPosition.x, playerPosition.y - DUST_COLUMN * 0.35, playerPosition.z);
+        if (this.dustMaterial) this.dustMaterial.uniforms.uTime.value = this.time;
     }
 
     private updateDoors(delta: number) {
@@ -456,7 +751,7 @@ export class Cave extends Location {
             chest.lidAngle += (target - chest.lidAngle) * Math.min(1, delta * 3.4);
             chest.lid.rotation.x = chest.lidAngle;
 
-            const glowTarget = chest.opened ? 3.4 : 1.2;
+            const glowTarget = chest.opened ? 4.2 : 1.5;
             chest.glow.intensity += (glowTarget - chest.glow.intensity) * Math.min(1, delta * 2);
         }
     }
@@ -533,7 +828,16 @@ export class Cave extends Location {
         this.doors = [];
         this.chests = [];
         this.lantern = null;
+        this.glowPool = null;
+        this.flashlight = null;
+        this.flashlightTarget = null;
+        this.moss = null;
+        this.mossMaterial = null;
         this.dust = null;
+        this.dustMaterial = null;
+        this.dripPoints = null;
+        this.dripMaterial = null;
+        this.drips.length = 0;
         this.ambientLights = [];
         this.collisionGrid.clear();
     }

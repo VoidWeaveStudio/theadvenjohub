@@ -14,6 +14,7 @@ export class AtmosphereSystem {
     private cloudTexture: THREE.Texture | null = null;
 
     public sun: THREE.DirectionalLight | null = null;
+    public hemisphere: THREE.HemisphereLight | null = null;
     public sunTarget: THREE.Object3D | null = null;
 
     constructor(private world: MainWorld) { }

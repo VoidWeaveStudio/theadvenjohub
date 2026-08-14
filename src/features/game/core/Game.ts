@@ -12,6 +12,7 @@ import { SafeZoneSystem } from "../systems/SafeZoneSystem";
 import { InteractionSystem } from "../systems/InteractionSystem";
 import { NetworkSystem } from "../systems/NetworkSystem";
 import { EnemySystem } from "../systems/EnemySystem";
+import { BossProjectiles } from "../entities/bossProjectiles";
 import { LootSystem } from "../systems/LootSystem";
 import { BuildSystem } from "../systems/BuildSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
@@ -98,6 +99,27 @@ export class Game {
     public readonly interactionSystem: InteractionSystem;
     private networkSystem: NetworkSystem;
     public readonly enemySystem: EnemySystem;
+    public readonly bossProjectiles = new BossProjectiles();
+
+    private readonly listenerForward = new THREE.Vector3();
+
+    private updateAudioListener() {
+        const camera = this.cameraController.camera;
+        camera.getWorldDirection(this.listenerForward);
+
+        const position = this.player.mesh.position;
+        SoundManager.getInstance().setListener(
+            position.x,
+            position.z,
+            this.listenerForward.x,
+            this.listenerForward.z
+        );
+    }
+
+    public readonly getGroundHeight = (x: number, z: number) => {
+        const currentLoc = this.locationManager.getCurrentLocation();
+        return currentLoc?.terrain?.getHeightAt(x, z) ?? 0;
+    };
     public readonly lootSystem: LootSystem;
     public readonly buildSystem: BuildSystem;
     public readonly buildSession: BuildSession;
@@ -428,10 +450,8 @@ export class Game {
                     this.onHitMark?.();
                 };
 
-                const getGroundHeight = (x: number, z: number) => {
-                    const currentLoc = this.locationManager.getCurrentLocation();
-                    return currentLoc?.terrain?.getHeightAt(x, z) ?? 0;
-                };
+                const getGroundHeight = this.getGroundHeight;
+                this.bossProjectiles.setScene(currentLocation.scene);
 
                 this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
                 this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight);
@@ -715,8 +735,12 @@ export class Game {
             this.interactionSystem.setScene(newLocation.scene);
             this.interactionSystem.clearInteractables();
             this.enemySystem.setScene(newLocation.scene);
+            this.bossProjectiles.setScene(newLocation.scene);
             this.lootSystem.setScene(newLocation.scene);
             this.buildSystem.setScene(newLocation.scene, newLocation.id);
+
+            this.player.footstepSurface = newLocation.id === "cave" ? "stone" : "soft";
+            SoundManager.getInstance().play("portal-enter", { volume: 0.7 });
 
             this.setLoadingStage("Compiling shaders...", 0.5);
             this.shootingSystem.prewarm();
@@ -931,10 +955,13 @@ export class Game {
                 this.emitState(true);
             }
 
+            this.updateAudioListener();
+
             perf.begin("combat");
             if (!inSafe) {
                 this.shootingSystem.update(delta);
                 this.enemySystem.update(delta);
+                this.bossProjectiles.update(delta);
             } else {
                 this.player.getWeapon().update(delta);
             }
@@ -1448,6 +1475,7 @@ export class Game {
         this.shootingSystem.dispose();
         this.networkSystem.dispose();
         this.enemySystem.dispose();
+        this.bossProjectiles.dispose();
         this.lootSystem.dispose();
         this.voiceChat.dispose();
 

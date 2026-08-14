@@ -1,5 +1,6 @@
 // src/features/game/world/locations/main-world/utils/terrainMaterial.ts
 import * as THREE from "three";
+import { FOLIAGE_PALETTE, FOLIAGE_PALETTE_GLSL } from "./worldLighting";
 import { SEA_LEVEL } from "../worldConfig";
 
 const TEXTURE_ROOT = "/models/textures/world";
@@ -62,6 +63,8 @@ const terrainCommon = /* glsl */`
     uniform sampler2D uSandRough;
     uniform sampler2D uSandNormal;
     uniform sampler2D uGrassMap;
+    uniform vec3 uGrassTint;
+${FOLIAGE_PALETTE_GLSL}
     uniform sampler2D uGrassRough;
     uniform sampler2D uGrassNormal;
     uniform sampler2D uRockMap;
@@ -113,6 +116,7 @@ export function applyTerrainShader(
         shader.uniforms.uSandRough = { value: textures.sand.rough };
         shader.uniforms.uSandNormal = { value: textures.sand.normal };
         shader.uniforms.uGrassMap = { value: textures.grass.map };
+        shader.uniforms.uGrassTint = { value: new THREE.Color(FOLIAGE_PALETTE.groundTint) };
         shader.uniforms.uGrassRough = { value: textures.grass.rough };
         shader.uniforms.uGrassNormal = { value: textures.grass.normal };
         shader.uniforms.uRockMap = { value: textures.rock.map };
@@ -144,13 +148,26 @@ export function applyTerrainShader(
                 ${terrainWeights}
 
                 vec3 sandAlbedo = texture2D(uSandMap, groundUvSand).rgb;
-                vec3 grassAlbedo = texture2D(uGrassMap, groundUvGrass).rgb;
+                vec3 grassSample = texture2D(uGrassMap, groundUvGrass).rgb;
+                float grassLuma = dot(grassSample, vec3(0.299, 0.587, 0.114));
+                vec3 grassAlbedo = mix(grassSample, grassSample * uGrassTint * 2.0, 0.62);
+                grassAlbedo = mix(vec3(grassLuma) * uGrassTint * 1.6, grassAlbedo, 0.72);
                 vec3 rockAlbedo =
                     texture2D(uRockMap, rockUvX).rgb * rockBlend.x +
                     texture2D(uRockMap, rockUvY).rgb * rockBlend.y +
                     texture2D(uRockMap, rockUvZ).rgb * rockBlend.z;
 
                 vec3 terrainAlbedo = sandAlbedo * sandWeight + grassAlbedo * grassWeight + rockAlbedo * rockWeight;
+
+                float viewDistance = distance(vTerrainPos, cameraPosition);
+                float carpetAmount = smoothstep(22.0, 70.0, viewDistance) * grassWeight;
+                if (carpetAmount > 0.001) {
+                    float macro = fract(sin(dot(floor(vTerrainPos.xz * 0.06), vec2(12.9898, 78.233))) * 43758.5453);
+                    vec3 carpet = mix(GRASS_MID, GRASS_TIP, 0.35);
+                    carpet = mix(carpet, GRASS_DRY, 0.22);
+                    carpet *= mix(0.78, 1.22, macro);
+                    terrainAlbedo = mix(terrainAlbedo, carpet * 2.6, carpetAmount * 0.75);
+                }
 
                 float wetness = 1.0 - smoothstep(uSeaLevel - 0.6, uSeaLevel + 1.8, terrainHeight);
                 terrainAlbedo = mix(terrainAlbedo, terrainAlbedo * 0.52, wetness);

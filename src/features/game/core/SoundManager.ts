@@ -1,5 +1,25 @@
 // src/features/game/core/SoundManager.ts
+import { PROCEDURAL_SFX_NAMES, renderProceduralSfx } from "./proceduralSfx";
+
 const FOOTSTEP_NAMES = ["footstep-1", "footstep-2", "footstep-3", "footstep-4"];
+const STONE_FOOTSTEP_NAMES = ["footstep-stone-1", "footstep-stone-2"];
+const HEARING_RANGE = 46;
+
+export interface PlayOptions {
+    volume?: number;
+    rate?: number;
+    delay?: number;
+}
+
+export interface SpatialOptions extends PlayOptions {
+    x: number;
+    z: number;
+    maxDistance?: number;
+}
+
+export interface SoundHandle {
+    stop: (fadeSeconds?: number) => void;
+}
 
 export class SoundManager {
   private static instance: SoundManager | null = null;
@@ -7,6 +27,11 @@ export class SoundManager {
   private audioContext: AudioContext | null = null;
   private buffers: Map<string, AudioBuffer> = new Map();
   private masterVolume = 0.6;
+
+  private listenerX = 0;
+  private listenerZ = 0;
+  private listenerForwardX = 0;
+  private listenerForwardZ = -1;
 
   public static getInstance(): SoundManager {
     if (!SoundManager.instance) {
@@ -35,69 +60,131 @@ export class SoundManager {
     this.masterVolume = Math.max(0, Math.min(1, volume));
   }
 
-  private async loadSound(name: string, url: string, retries = 2): Promise<boolean> {
+  private async loadSound(name: string, url: string): Promise<boolean> {
     const ctx = this.ensureContext();
     if (!ctx) return false;
 
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-        this.buffers.set(name, audioBuffer);
-        return true;
-      } catch (error) {
-        if (attempt === retries) {
-          console.warn(`[SoundManager] Sound "${name}" failed to load`, error);
-          return false;
-        }
-        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-      }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return false;
+      const arrayBuffer = await response.arrayBuffer();
+      this.buffers.set(name, await ctx.decodeAudioData(arrayBuffer));
+      return true;
+    } catch {
+      return false;
     }
-    return false;
   }
 
   async loadCritical(): Promise<{ success: boolean; failed: string[] }> {
-    const tasks: [string, string][] = [
-      ["footstep-1", "/sounds/sfx/footstep-1.ogg"],
-      ["footstep-2", "/sounds/sfx/footstep-2.ogg"],
-      ["footstep-3", "/sounds/sfx/footstep-3.ogg"],
-      ["footstep-4", "/sounds/sfx/footstep-4.ogg"],
-      ["shoot", "/sounds/sfx/shoot.ogg"],
-      ["hitmarker", "/sounds/sfx/hitmarker.ogg"],
-      ["damage-taken", "/sounds/sfx/damage-taken.ogg"],
-    ];
-
-    const results = await Promise.all(tasks.map(([name, url]) => this.loadSound(name, url)));
-    const failed = tasks.filter((_, i) => !results[i]).map(([name]) => name);
-    return { success: true, failed };
+    const generated = await this.initProcedural();
+    return { success: generated > 0, failed: [] };
   }
 
-  loadLazy() {
-    this.loadSound("modal-open", "/sounds/sfx/modal-open.ogg");
+  async loadLazy(): Promise<string[]> {
+    const results = await Promise.all(
+      PROCEDURAL_SFX_NAMES.map(async (name) => ({
+        name,
+        loaded: await this.loadSound(name, `/sounds/sfx/${name}.ogg`),
+      }))
+    );
+
+    return results.filter((entry) => entry.loaded).map((entry) => entry.name);
   }
 
-  play(name: string, opts?: { volume?: number }) {
+  async initProcedural(): Promise<number> {
+    const ctx = this.ensureContext();
+    if (!ctx) return 0;
+
+    const rendered = await renderProceduralSfx(ctx.sampleRate);
+
+    for (const [name, buffer] of rendered) {
+      if (this.buffers.has(name)) continue;
+      this.buffers.set(name, buffer);
+    }
+
+    return rendered.size;
+  }
+
+  setListener(x: number, z: number, forwardX: number, forwardZ: number) {
+    this.listenerX = x;
+    this.listenerZ = z;
+    this.listenerForwardX = forwardX;
+    this.listenerForwardZ = forwardZ;
+  }
+
+  private start(name: string, opts: PlayOptions, gainValue: number, pan: number, loop: boolean): SoundHandle | null {
     const ctx = this.audioContext;
     const buffer = this.buffers.get(name);
-    if (!ctx || !buffer) return;
+    if (!ctx || !buffer || gainValue <= 0.0005) return null;
 
     try {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
+      source.loop = loop;
+      if (opts.rate) source.playbackRate.value = opts.rate;
+
       const gain = ctx.createGain();
-      gain.gain.value = this.masterVolume * (opts?.volume ?? 1);
+      gain.gain.value = gainValue;
+
+      let tail: AudioNode = gain;
       source.connect(gain);
-      gain.connect(ctx.destination);
-      source.start(0);
+
+      if (pan !== 0 && typeof ctx.createStereoPanner === "function") {
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = Math.max(-1, Math.min(1, pan));
+        gain.connect(panner);
+        tail = panner;
+      }
+
+      tail.connect(ctx.destination);
+      source.start(ctx.currentTime + (opts.delay ?? 0));
+
+      return {
+        stop: (fadeSeconds = 0.08) => {
+          try {
+            const now = ctx.currentTime;
+            gain.gain.cancelScheduledValues(now);
+            gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.01, fadeSeconds));
+            source.stop(now + Math.max(0.02, fadeSeconds) + 0.02);
+          } catch {
+            /* already stopped */
+          }
+        },
+      };
     } catch (error) {
       console.warn(`[SoundManager] Failed to play "${name}"`, error);
+      return null;
     }
   }
 
-  playFootstep() {
-    const name = FOOTSTEP_NAMES[Math.floor(Math.random() * FOOTSTEP_NAMES.length)];
-    this.play(name, { volume: 0.5 });
+  play(name: string, opts?: PlayOptions) {
+    this.start(name, opts ?? {}, this.masterVolume * (opts?.volume ?? 1), 0, false);
+  }
+
+  playAt(name: string, opts: SpatialOptions) {
+    const dx = opts.x - this.listenerX;
+    const dz = opts.z - this.listenerZ;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    const maxDistance = opts.maxDistance ?? HEARING_RANGE;
+
+    if (distance >= maxDistance) return;
+
+    const falloff = Math.pow(1 - distance / maxDistance, 1.8);
+    const rightX = -this.listenerForwardZ;
+    const rightZ = this.listenerForwardX;
+    const pan = distance > 0.5 ? ((dx * rightX + dz * rightZ) / distance) * 0.85 : 0;
+
+    this.start(name, opts, this.masterVolume * (opts.volume ?? 1) * falloff, pan, false);
+  }
+
+  playLoop(name: string, opts?: PlayOptions): SoundHandle | null {
+    return this.start(name, opts ?? {}, this.masterVolume * (opts?.volume ?? 1), 0, true);
+  }
+
+  playFootstep(surface: "soft" | "stone" = "soft") {
+    const pool = surface === "stone" ? STONE_FOOTSTEP_NAMES : FOOTSTEP_NAMES;
+    const name = pool[Math.floor(Math.random() * pool.length)];
+    this.play(name, { volume: 0.5, rate: 0.92 + Math.random() * 0.16 });
   }
 }

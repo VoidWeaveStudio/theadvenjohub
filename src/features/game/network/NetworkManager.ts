@@ -488,6 +488,9 @@ export class NetworkManager {
     point: number[];
   }) => void;
   public onEnemyDeath?: (data: { id: string; killerId: string }) => void;
+  public onBossCast?: (data: { enemyId: string; attack: string; windup: number; aim: number[]; radius: number }) => void;
+  public onBossProjectile?: (data: { enemyId: string; attack: string; origin: number[]; target: number[]; travel: number; radius: number }) => void;
+  public onBossPool?: (data: { enemyId: string; x: number; z: number; radius: number; duration: number }) => void;
   public onEnemyRespawn?: (data: {
     id: string;
     position: number[];
@@ -841,6 +844,34 @@ export class NetworkManager {
         break;
       case "enemyRespawn":
         this.onEnemyRespawn?.(data);
+        break;
+      case "bossCast":
+        this.onBossCast?.({
+          enemyId: data.enemyId,
+          attack: data.attack,
+          windup: data.windup,
+          aim: data.aim,
+          radius: data.radius,
+        });
+        break;
+      case "bossProjectile":
+        this.onBossProjectile?.({
+          enemyId: data.enemyId,
+          attack: data.attack,
+          origin: data.origin,
+          target: data.target,
+          travel: data.travel,
+          radius: data.radius,
+        });
+        break;
+      case "bossPool":
+        this.onBossPool?.({
+          enemyId: data.enemyId,
+          x: data.x,
+          z: data.z,
+          radius: data.radius,
+          duration: data.duration,
+        });
         break;
       case "lootState":
         if (Array.isArray(data.loot)) {

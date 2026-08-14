@@ -4,6 +4,7 @@ import { System } from "./System";
 import { Player } from "../entities/Player";
 import { LootDrop } from "../entities/LootDrop";
 import { NetworkManager, LootDropData } from "../network/NetworkManager";
+import { SoundManager } from "../core/SoundManager";
 import { tokenTextureCache } from "../utils/TokenTextureCache";
 
 const WARMUP_PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -76,6 +77,11 @@ export class LootSystem extends System {
     private despawnLocal(id: string) {
         const drop = this.drops.get(id);
         if (!drop) return;
+
+        if (this.pickupAttempts.has(id)) {
+            SoundManager.getInstance().play("loot-pickup", { volume: 0.5, rate: 0.95 + Math.random() * 0.2 });
+        }
+
         drop.dispose(this.scene);
         this.drops.delete(id);
         this.pickupAttempts.delete(id);

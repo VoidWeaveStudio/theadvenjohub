@@ -44,6 +44,7 @@ export class Player extends Entity {
     private collisionGrid: CollisionGrid | null = null;
     private waterProvider: WaterProvider | null = null;
     private swimming: boolean = false;
+    public footstepSurface: "soft" | "stone" = "soft";
     private static readonly SWIM_SUBMERSION = 0.85;
     private static readonly SWIM_SPEED_MULTIPLIER = 0.52;
 
@@ -419,6 +420,7 @@ export class Player extends Entity {
             this.velocityY = this.JUMP_FORCE;
             this.isGrounded = false;
             this.jumpCooldown = this.JUMP_COOLDOWN_TIME;
+            SoundManager.getInstance().play("jump", { volume: 0.4 });
         }
 
         if (!this.isGrounded) {
@@ -428,9 +430,16 @@ export class Player extends Entity {
             const surfaceHeight = this.getSurfaceHeight(this.mesh.position.x, this.mesh.position.z);
 
             if (this.baseY <= surfaceHeight) {
+                const impact = Math.abs(this.velocityY);
                 this.baseY = surfaceHeight;
                 this.velocityY = 0;
                 this.isGrounded = true;
+
+                if (impact > 2.5) {
+                    SoundManager.getInstance().play(this.swimming ? "splash" : "land", {
+                        volume: Math.min(0.8, 0.25 + impact * 0.045),
+                    });
+                }
             }
         } else {
             const surfaceHeight = this.getSurfaceHeight(this.mesh.position.x, this.mesh.position.z, true);
@@ -516,7 +525,9 @@ export class Player extends Entity {
                 const footstepSign = sinValue >= 0 ? 1 : -1;
                 if (footstepSign !== this.lastFootstepSign) {
                     this.lastFootstepSign = footstepSign;
-                    SoundManager.getInstance().playFootstep();
+
+                    if (this.swimming) SoundManager.getInstance().play("swim", { volume: 0.35, rate: 0.9 + Math.random() * 0.2 });
+                    else SoundManager.getInstance().playFootstep(this.footstepSurface);
                 }
             } else {
                 bobOffset = Math.sin(this.time * 2) * 0.02;

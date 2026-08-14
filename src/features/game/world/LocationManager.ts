@@ -51,6 +51,7 @@ export class LocationManager {
                 location = factory();
             }
             location.renderer = this.renderer;
+            location.camera = this.activeCamera;
             if (this.resourceManager) {
                 const created = location;
                 perf.measure(`create ${locationId}`, () => created.create(this.resourceManager!));

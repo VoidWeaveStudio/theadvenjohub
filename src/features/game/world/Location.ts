@@ -44,6 +44,7 @@ export abstract class Location {
     public pendingTeleport: string | null = null;
 
     public renderer?: THREE.WebGLRenderer;
+    public camera?: THREE.Camera;
     public collisionGrid?: CollisionGrid;
     public cameraCollisionGrid?: CollisionGrid;
     public terrain?: HeightProvider;

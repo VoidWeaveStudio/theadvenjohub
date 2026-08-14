@@ -5,12 +5,14 @@ import { CAVE_FLOOR_Y, sampleCave } from "./caveLayout";
 
 export const CAVE_CELL = 1.7;
 export const CAVE_SEED = 771013;
+export const WALL_SEGMENTS = 4;
+const COLLIDER_DEPTH = 3;
 
 export const CAVE_BOUNDS = {
-    minX: -112,
-    maxX: 112,
-    minZ: -198,
-    maxZ: 30,
+    minX: -120,
+    maxX: 108,
+    minZ: -336,
+    maxZ: 28,
 };
 
 export interface CaveOpenCell {
@@ -19,6 +21,8 @@ export interface CaveOpenCell {
     edge: boolean;
     secretId: string | null;
     ceiling: number;
+    wallX: number;
+    wallZ: number;
 }
 
 export interface CaveMeshResult {
@@ -35,16 +39,54 @@ export function caveFloorHeight(x: number, z: number): number {
     return CAVE_FLOOR_Y + rough * 0.5 + swell * 1.1;
 }
 
+export function caveCeilingHeight(x: number, z: number): number {
+    const headroom = sampleCave(x, z).ceiling;
+    const wave = 0.85 + valueNoise3(x * 0.05, 3, z * 0.05, CAVE_SEED + 61) * 0.3;
+    return caveFloorHeight(x, z) + headroom * wave;
+}
+
+export interface CaveWallPoint {
+    x: number;
+    y: number;
+    z: number;
+}
+
+export function caveWallPoint(x: number, z: number, t: number): CaveWallPoint {
+    const bottom = caveFloorHeight(x, z);
+    const top = caveCeilingHeight(x, z);
+    const y = bottom + (top - bottom) * t;
+
+    const taper = Math.sin(Math.min(1, Math.max(0, t)) * Math.PI);
+    if (taper <= 0.0001) return { x, y, z };
+
+    const swell = valueNoise3(x * 0.11, y * 0.09, z * 0.11, CAVE_SEED + 5) - 0.5;
+    const shelf = valueNoise3(x * 0.06, y * 0.52, z * 0.06, CAVE_SEED + 407) - 0.5;
+    const detail = valueNoise3(x * 0.44, y * 0.4, z * 0.44, CAVE_SEED + 129) - 0.5;
+    const grain = valueNoise3(x * 0.9, y * 0.85, z * 0.9, CAVE_SEED + 733) - 0.5;
+
+    const amount = (swell * 0.58 + shelf * 0.34 + detail * 0.2 + grain * 0.09) * taper;
+    const lift = (detail * 0.42 + grain * 0.26) * taper;
+
+    const angle = valueNoise3(x * 0.09, y * 0.07, z * 0.09, CAVE_SEED + 913) * Math.PI * 2;
+
+    return {
+        x: x + Math.cos(angle) * amount,
+        y: y + lift,
+        z: z + Math.sin(angle) * amount,
+    };
+}
+
 export function isCaveOpen(x: number, z: number): boolean {
     return sampleCave(x, z).distance < 0;
 }
 
-function rockColor(target: number[], x: number, y: number, z: number, wet: number) {
+function rockColor(target: number[], x: number, y: number, z: number, wet: number, shade = 1) {
     const grain = valueNoise3(x * 0.35, y * 0.35, z * 0.35, CAVE_SEED + 17);
     const vein = valueNoise3(x * 0.08, y * 0.12, z * 0.08, CAVE_SEED + 233);
+    const crack = valueNoise3(x * 1.6, y * 1.4, z * 1.6, CAVE_SEED + 881);
 
-    const base = 0.07 + grain * 0.09 + vein * 0.05;
-    const damp = wet * 0.05;
+    const base = (0.07 + grain * 0.09 + vein * 0.05) * shade * (0.82 + crack * 0.36);
+    const damp = wet * 0.05 * shade;
 
     target.push(base * 0.92 + damp * 0.3, base * 0.95 + damp * 0.6, base + damp);
 }
@@ -89,39 +131,38 @@ export function buildCaveMesh(): CaveMeshResult {
         ax: number, ay: number, az: number,
         bx: number, by: number, bz: number,
         cx: number, cy: number, cz: number,
-        wet: number
+        wet: number,
+        shade = 1
     ) => {
         positions.push(ax, ay, az, bx, by, bz, cx, cy, cz);
-        rockColor(colors, ax, ay, az, wet);
-        rockColor(colors, bx, by, bz, wet);
-        rockColor(colors, cx, cy, cz, wet);
+        rockColor(colors, ax, ay, az, wet, shade);
+        rockColor(colors, bx, by, bz, wet, shade);
+        rockColor(colors, cx, cy, cz, wet, shade);
     };
 
-    const wallPush = (
-        ax: number, az: number, bx: number, bz: number,
-        outX: number, outZ: number, ceiling: number
-    ) => {
-        const bulgeA = valueNoise3(ax * 0.12, 0, az * 0.12, CAVE_SEED + 5) * 0.55;
-        const bulgeB = valueNoise3(bx * 0.12, 0, bz * 0.12, CAVE_SEED + 5) * 0.55;
+    const wallPush = (ax: number, az: number, bx: number, bz: number) => {
+        for (let s = 0; s < WALL_SEGMENTS; s++) {
+            const t0 = s / WALL_SEGMENTS;
+            const t1 = (s + 1) / WALL_SEGMENTS;
 
-        const a0x = ax + outX * bulgeA;
-        const a0z = az + outZ * bulgeA;
-        const b0x = bx + outX * bulgeB;
-        const b0z = bz + outZ * bulgeB;
+            const a0 = caveWallPoint(ax, az, t0);
+            const a1 = caveWallPoint(ax, az, t1);
+            const b0 = caveWallPoint(bx, bz, t0);
+            const b1 = caveWallPoint(bx, bz, t1);
 
-        const topA = caveFloorHeight(ax, az) + ceiling * (0.85 + valueNoise3(ax * 0.05, 3, az * 0.05, CAVE_SEED + 61) * 0.3);
-        const topB = caveFloorHeight(bx, bz) + ceiling * (0.85 + valueNoise3(bx * 0.05, 3, bz * 0.05, CAVE_SEED + 61) * 0.3);
-        const bottomA = caveFloorHeight(ax, az) - 1.6;
-        const bottomB = caveFloorHeight(bx, bz) - 1.6;
+            const mid = (t0 + t1) * 0.5;
+            const wet = 0.95 - mid * 0.75;
+            const shade = 0.5 + Math.sin(mid * Math.PI) * 0.62;
 
-        pushTriangle(wallPositions, wallColors,
-            a0x, bottomA, a0z,
-            b0x, bottomB, b0z,
-            a0x, topA, a0z, 0.9);
-        pushTriangle(wallPositions, wallColors,
-            b0x, bottomB, b0z,
-            b0x, topB, b0z,
-            a0x, topA, a0z, 0.6);
+            pushTriangle(wallPositions, wallColors,
+                a0.x, a0.y, a0.z,
+                a1.x, a1.y, a1.z,
+                b0.x, b0.y, b0.z, wet, shade);
+            pushTriangle(wallPositions, wallColors,
+                a1.x, a1.y, a1.z,
+                b1.x, b1.y, b1.z,
+                b0.x, b0.y, b0.z, wet, shade);
+        }
     };
 
     for (let iz = 0; iz < rows; iz++) {
@@ -131,17 +172,24 @@ export function buildCaveMesh(): CaveMeshResult {
             const cz = worldZ(iz);
 
             if (!open[slot]) {
-                const neighbourOpen =
-                    (ix > 0 && open[index(ix - 1, iz)]) ||
-                    (ix < cols - 1 && open[index(ix + 1, iz)]) ||
-                    (iz > 0 && open[index(ix, iz - 1)]) ||
-                    (iz < rows - 1 && open[index(ix, iz + 1)]);
+                let neighbourOpen = false;
+
+                for (let dz = -COLLIDER_DEPTH; dz <= COLLIDER_DEPTH && !neighbourOpen; dz++) {
+                    for (let dx = -COLLIDER_DEPTH; dx <= COLLIDER_DEPTH; dx++) {
+                        const nx = ix + dx;
+                        const nz = iz + dz;
+                        if (nx < 0 || nz < 0 || nx >= cols || nz >= rows) continue;
+                        if (!open[index(nx, nz)]) continue;
+                        neighbourOpen = true;
+                        break;
+                    }
+                }
 
                 if (neighbourOpen) {
                     const floorY = caveFloorHeight(cx, cz);
                     colliders.push(new THREE.Box3(
-                        new THREE.Vector3(cx - half, floorY - 4, cz - half),
-                        new THREE.Vector3(cx + half, floorY + ceilings[slot] + 6, cz + half)
+                        new THREE.Vector3(cx - half, floorY - 5, cz - half),
+                        new THREE.Vector3(cx + half, floorY + 16, cz + half)
                     ));
                 }
                 continue;
@@ -161,33 +209,40 @@ export function buildCaveMesh(): CaveMeshResult {
             pushTriangle(floorPositions, floorColors, x1, h10, z0, x0, h01, z1, x1, h11, z1, 0.35);
 
             const ceiling = ceilings[slot];
-            const c00 = h00 + ceiling * (0.85 + valueNoise3(x0 * 0.05, 3, z0 * 0.05, CAVE_SEED + 61) * 0.3);
-            const c10 = h10 + ceiling * (0.85 + valueNoise3(x1 * 0.05, 3, z0 * 0.05, CAVE_SEED + 61) * 0.3);
-            const c01 = h01 + ceiling * (0.85 + valueNoise3(x0 * 0.05, 3, z1 * 0.05, CAVE_SEED + 61) * 0.3);
-            const c11 = h11 + ceiling * (0.85 + valueNoise3(x1 * 0.05, 3, z1 * 0.05, CAVE_SEED + 61) * 0.3);
+            const c00 = caveCeilingHeight(x0, z0);
+            const c10 = caveCeilingHeight(x1, z0);
+            const c01 = caveCeilingHeight(x0, z1);
+            const c11 = caveCeilingHeight(x1, z1);
 
             pushTriangle(ceilingPositions, ceilingColors, x0, c00, z0, x1, c10, z0, x0, c01, z1, 0);
             pushTriangle(ceilingPositions, ceilingColors, x1, c10, z0, x1, c11, z1, x0, c01, z1, 0);
 
             let edge = false;
+            let wallX = 0;
+            let wallZ = 0;
+
             if (ix > 0 && !open[index(ix - 1, iz)]) {
-                wallPush(x0, z0, x0, z1, -1, 0, ceiling);
+                wallPush(x0, z0, x0, z1);
                 edge = true;
+                wallX = -1;
             }
             if (ix < cols - 1 && !open[index(ix + 1, iz)]) {
-                wallPush(x1, z1, x1, z0, 1, 0, ceiling);
+                wallPush(x1, z1, x1, z0);
                 edge = true;
+                wallX = 1;
             }
             if (iz > 0 && !open[index(ix, iz - 1)]) {
-                wallPush(x1, z0, x0, z0, 0, -1, ceiling);
+                wallPush(x1, z0, x0, z0);
                 edge = true;
+                wallZ = -1;
             }
             if (iz < rows - 1 && !open[index(ix, iz + 1)]) {
-                wallPush(x0, z1, x1, z1, 0, 1, ceiling);
+                wallPush(x0, z1, x1, z1);
                 edge = true;
+                wallZ = 1;
             }
 
-            cells.push({ x: cx, z: cz, edge, secretId: secrets[slot], ceiling });
+            cells.push({ x: cx, z: cz, edge, secretId: secrets[slot], ceiling, wallX, wallZ });
         }
     }
 

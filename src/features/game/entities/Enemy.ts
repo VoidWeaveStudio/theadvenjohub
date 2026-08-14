@@ -1,5 +1,9 @@
 // src/features/game/entities/Enemy.ts
 import * as THREE from "three";
+import { SlimeModel } from "./slimeModel";
+import { SoundManager } from "../core/SoundManager";
+
+const BOSS_TYPES = new Set(["slime_boss", "husk_boss", "frost_boss", "spore_boss", "void_boss", "cave_warden"]);
 
 const TYPE_BASE_SCALE: Record<string, number> = {
     slime: 1,
@@ -12,6 +16,7 @@ const TYPE_BASE_SCALE: Record<string, number> = {
     spore_boss: 4,
     voidling: 1.05,
     void_boss: 4.2,
+    cave_warden: 5,
 };
 
 const TYPE_COLOR: Record<string, number> = {
@@ -25,6 +30,7 @@ const TYPE_COLOR: Record<string, number> = {
     spore_boss: 0x7a3fa8,
     voidling: 0x2b2b3d,
     void_boss: 0xff2d78,
+    cave_warden: 0x8f3cff,
 };
 
 export class Enemy {
@@ -36,17 +42,15 @@ export class Enemy {
 
     private targetPosition: THREE.Vector3 = new THREE.Vector3();
     private initialized: boolean = false;
-    private flashTimeout: ReturnType<typeof setTimeout> | null = null;
 
     private aggro: boolean = false;
     private recentlyHitUntil: number = 0;
-    private moveTime: number = 0;
     private currentScale: number = 1;
-    private attackFlashUntil: number = 0;
     private readonly CALM_SCALE = 1.0;
     private readonly AGGRO_SCALE = 1.35;
     private readonly baseScale: number;
     private readonly baseColor: number;
+    private readonly slime: SlimeModel;
 
     private healthBarBg: THREE.Sprite;
     private healthBarFg: THREE.Sprite;
@@ -64,15 +68,18 @@ export class Enemy {
         const material = new THREE.MeshStandardMaterial({
             color: this.baseColor,
             roughness: 0.7,
-            metalness: 0.1
+            metalness: 0.1,
+            visible: false,
         });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.y = 0.5 * this.baseScale;
         cube.scale.setScalar(this.baseScale);
-        cube.castShadow = true;
-        cube.receiveShadow = true;
 
         this.mesh.add(cube);
+
+        this.slime = new SlimeModel(this.baseColor, BOSS_TYPES.has(type));
+        this.slime.group.scale.setScalar(this.baseScale);
+        this.mesh.add(this.slime.group);
 
         this.HEALTH_BAR_Y = 1.6 * this.baseScale;
 
@@ -100,21 +107,22 @@ export class Enemy {
     }
 
     public flashHit() {
-        const cube = this.getHitbox();
-        if (cube.material instanceof THREE.MeshStandardMaterial) {
-            cube.material.color.setHex(0xffffff);
-            if (this.flashTimeout) clearTimeout(this.flashTimeout);
-            this.flashTimeout = setTimeout(() => {
-                if (cube.material instanceof THREE.MeshStandardMaterial) {
-                    cube.material.color.setHex(this.baseColor);
-                }
-            }, 100);
-        }
         this.recentlyHitUntil = performance.now() + 2500;
+        this.slime.flashHit();
     }
 
     public triggerAttack() {
-        this.attackFlashUntil = performance.now() + 200;
+        this.slime.triggerAttack();
+        SoundManager.getInstance().playAt("slime-attack", {
+            x: this.mesh.position.x,
+            z: this.mesh.position.z,
+            volume: 0.7,
+            rate: 1.15 - this.baseScale * 0.12,
+        });
+    }
+
+    public beginCast(seconds: number) {
+        this.slime.beginCast(seconds);
     }
 
     public updateFromNetwork(data: { position: number[]; health: number; maxHealth?: number; targetId?: string | null }) {
@@ -129,6 +137,15 @@ export class Enemy {
         }
     }
 
+    private readDarkness(): number {
+        const scene = this.mesh.parent as THREE.Scene | null;
+        const fog = scene?.fog;
+        if (!fog) return 0.35;
+
+        const color = fog.color;
+        return 1 - THREE.MathUtils.clamp(color.r * 0.299 + color.g * 0.587 + color.b * 0.114, 0, 1);
+    }
+
     public update(delta: number, getGroundHeight: (x: number, z: number) => number) {
         const lerpFactor = Math.min(1, delta * 14);
         this.mesh.position.x = THREE.MathUtils.lerp(this.mesh.position.x, this.targetPosition.x, lerpFactor);
@@ -137,15 +154,10 @@ export class Enemy {
         const dx = this.targetPosition.x - this.mesh.position.x;
         const dz = this.targetPosition.z - this.mesh.position.z;
         const isMoving = dx * dx + dz * dz > 0.01;
-        if (isMoving) {
-            this.mesh.rotation.y = Math.atan2(dx, dz);
-            this.moveTime += delta * 9;
-        }
+        if (isMoving) this.mesh.rotation.y = Math.atan2(dx, dz);
 
         const cube = this.getHitbox();
-
-        const bob = isMoving ? Math.abs(Math.sin(this.moveTime)) * 0.06 : 0;
-        this.mesh.position.y = getGroundHeight(this.mesh.position.x, this.mesh.position.z) + bob;
+        this.mesh.position.y = getGroundHeight(this.mesh.position.x, this.mesh.position.z);
 
         const targetScale = this.aggro ? this.AGGRO_SCALE : this.CALM_SCALE;
         this.currentScale = THREE.MathUtils.lerp(this.currentScale, targetScale, Math.min(1, delta * 5));
@@ -153,10 +165,17 @@ export class Enemy {
         cube.scale.setScalar(appliedScale);
         cube.position.y = 0.5 * appliedScale;
 
-        if (cube.material instanceof THREE.MeshStandardMaterial) {
-            const attacking = performance.now() < this.attackFlashUntil;
-            cube.material.emissive.setHex(attacking ? 0xff6600 : 0x000000);
-            cube.material.emissiveIntensity = attacking ? 1.5 : 0;
+        this.slime.group.scale.setScalar(appliedScale);
+        const landed = this.slime.update(delta, { moving: isMoving, aggro: this.aggro, darkness: this.readDarkness() });
+
+        if (landed) {
+            SoundManager.getInstance().playAt("slime-hop", {
+                x: this.mesh.position.x,
+                z: this.mesh.position.z,
+                volume: 0.32,
+                rate: 1.2 - this.baseScale * 0.14,
+                maxDistance: 34,
+            });
         }
 
         const showBar = this.aggro || performance.now() < this.recentlyHitUntil;
@@ -172,7 +191,7 @@ export class Enemy {
     }
 
     dispose(scene: THREE.Scene) {
-        if (this.flashTimeout) clearTimeout(this.flashTimeout);
+        this.slime.dispose();
         (this.healthBarBg.material as THREE.Material).dispose();
         (this.healthBarFg.material as THREE.Material).dispose();
         scene.remove(this.mesh);

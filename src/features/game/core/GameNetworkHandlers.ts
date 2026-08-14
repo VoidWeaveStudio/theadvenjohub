@@ -480,14 +480,105 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onEnemyDamaged = (data) => {
         game.enemySystem.handleEnemyDamaged(data);
+
+        const hurt = game.enemySystem.getEnemy(data.id);
+        if (hurt) {
+            SoundManager.getInstance().playAt("enemy-hit", {
+                x: hurt.mesh.position.x,
+                z: hurt.mesh.position.z,
+                volume: 0.6,
+                rate: 0.9 + Math.random() * 0.25,
+            });
+        }
     };
 
     game.networkManager.onEnemyDeath = (data) => {
+        const dying = game.enemySystem.getEnemy(data.id);
+        if (dying) {
+            SoundManager.getInstance().playAt("enemy-death", {
+                x: dying.mesh.position.x,
+                z: dying.mesh.position.z,
+                volume: 0.85,
+            });
+        }
+
         game.enemySystem.handleEnemyDeath(data);
     };
 
     game.networkManager.onEnemyRespawn = (data) => {
         game.enemySystem.handleEnemyRespawn(data);
+    };
+
+    game.networkManager.onBossCast = (data) => {
+        const boss = game.enemySystem.getEnemy(data.enemyId);
+        boss?.beginCast(data.windup / 1000);
+
+        if (boss) {
+            SoundManager.getInstance().playAt("boss-cast", {
+                x: boss.mesh.position.x,
+                z: boss.mesh.position.z,
+                volume: 0.9,
+                rate: 1300 / data.windup,
+                maxDistance: 70,
+            });
+        }
+
+        if (data.attack === "spit") return;
+        game.bossProjectiles.addTelegraph(
+            data.aim[0],
+            data.aim[2],
+            data.radius,
+            data.windup,
+            game.getGroundHeight(data.aim[0], data.aim[2])
+        );
+    };
+
+    game.networkManager.onBossProjectile = (data) => {
+        const target = new THREE.Vector3(
+            data.target[0],
+            game.getGroundHeight(data.target[0], data.target[2]) + 0.4,
+            data.target[2]
+        );
+
+        game.bossProjectiles.addProjectile(
+            new THREE.Vector3(data.origin[0], data.origin[1], data.origin[2]),
+            target,
+            data.travel,
+            data.radius,
+            data.attack !== "spit"
+        );
+
+        SoundManager.getInstance().playAt("boss-launch", {
+            x: data.origin[0],
+            z: data.origin[2],
+            volume: 0.7,
+            maxDistance: 70,
+        });
+
+        SoundManager.getInstance().playAt("boss-impact", {
+            x: data.target[0],
+            z: data.target[2],
+            volume: 0.8,
+            delay: data.travel / 1000,
+            maxDistance: 70,
+        });
+    };
+
+    game.networkManager.onBossPool = (data) => {
+        SoundManager.getInstance().playAt("acid-pool", {
+            x: data.x,
+            z: data.z,
+            volume: 0.55,
+            maxDistance: 55,
+        });
+
+        game.bossProjectiles.addPool(
+            data.x,
+            data.z,
+            data.radius,
+            data.duration,
+            game.getGroundHeight(data.x, data.z)
+        );
     };
 
     game.networkManager.onLootState = (list) => {
