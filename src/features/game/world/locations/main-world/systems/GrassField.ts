@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { bakeTerrainDepthMap, DepthMap } from "../utils/waterDepthMap";
 import { FOLIAGE_PALETTE_GLSL, WorldLighting, WORLD_LIGHTING_FUNCTIONS_GLSL, WORLD_LIGHTING_UNIFORMS_GLSL } from "../utils/worldLighting";
 import type { TerrainSystem } from "./TerrainSystem";
-import { SEA_LEVEL, WORLD_SIZE } from "../worldConfig";
+import { SEA_LEVEL, TOWER_PLAZA_FAR, TOWER_PLAZA_HALF_WIDTH, TOWER_X, TOWER_Z, WORLD_SIZE } from "../worldConfig";
 
 interface LayerConfig {
     cell: number;
@@ -17,10 +17,10 @@ interface LayerConfig {
 }
 
 const LAYERS: LayerConfig[] = [
-    { cell: 0.23, radius: 13, perCell: 4, segments: 4, minHeight: 0.3, maxHeight: 0.58, width: 0.03, roundness: 0.62 },
-    { cell: 0.47, radius: 31, perCell: 2, segments: 3, minHeight: 0.32, maxHeight: 0.66, width: 0.035, roundness: 0.52 },
-    { cell: 1.0, radius: 70, perCell: 1, segments: 2, minHeight: 0.36, maxHeight: 0.76, width: 0.044, roundness: 0.4 },
-    { cell: 2.3, radius: 145, perCell: 1, segments: 1, minHeight: 0.42, maxHeight: 0.95, width: 0.07, roundness: 0.3 },
+    { cell: 0.24, radius: 16, perCell: 4, segments: 4, minHeight: 0.3, maxHeight: 0.58, width: 0.03, roundness: 0.62 },
+    { cell: 0.46, radius: 38, perCell: 3, segments: 3, minHeight: 0.32, maxHeight: 0.66, width: 0.035, roundness: 0.52 },
+    { cell: 0.9, radius: 82, perCell: 2, segments: 2, minHeight: 0.36, maxHeight: 0.76, width: 0.044, roundness: 0.4 },
+    { cell: 2.1, radius: 165, perCell: 1, segments: 1, minHeight: 0.42, maxHeight: 0.95, width: 0.07, roundness: 0.3 },
 ];
 
 const HEIGHT_MAP_EXTENT = WORLD_SIZE + 120;
@@ -55,6 +55,7 @@ const grassVertexShader = /* glsl */`
     uniform vec2 uPlayerVel;
     uniform float uPlayerPush;
     uniform float uDensityScale;
+    uniform vec4 uPlaza;
     uniform float uAerial;
     uniform float uPixelScale;
     uniform vec4 uFrustum0;
@@ -111,6 +112,9 @@ const grassVertexShader = /* glsl */`
             if (dot(toBlade, uCamForward) < uCullCos) { reject(); return; }
         }
 
+        float alongPlaza = uPlaza.x - wpos.x;
+        if (alongPlaza > -8.0 && alongPlaza < uPlaza.z + 4.0 && abs(wpos.y - uPlaza.y) < uPlaza.w + 4.0) { reject(); return; }
+
         float ground = sampleGround(wpos);
         if (ground < uWaterLevel + 0.35) { reject(); return; }
 
@@ -135,7 +139,7 @@ const grassVertexShader = /* glsl */`
 
         float u = clamp(dist / uRadius, 0.0, 1.0);
         float radialTaper = 1.0 - u * u * u;
-        float density = smoothstep(0.22, 0.55, clump) * radialTaper * uDensityScale * (1.0 - uAerial);
+        float density = smoothstep(0.14, 0.48, clump) * radialTaper * uDensityScale * (1.0 - uAerial);
         if (r2.x > density) { reject(); return; }
 
         float bladeH = mix(uHeightRange.x, uHeightRange.y, r0.z) * (0.65 + clump * 0.6);
@@ -218,14 +222,14 @@ const grassFragmentShader = /* glsl */`
 
         vec3 albedo = mix(GRASS_ROOT, GRASS_MID, smoothstep(0.0, 0.48, h));
         albedo = mix(albedo, GRASS_TIP, smoothstep(0.42, 1.0, h));
-        albedo = mix(albedo, GRASS_DRY, dryness * 0.7);
+        albedo = mix(albedo, GRASS_DRY, dryness * 0.42);
         albedo *= clumpShade;
         albedo = mix(albedo, albedo * vec3(1.12, 1.04, 0.82), clumpWarm);
 
         float ao = mix(0.42, 1.0, smoothstep(0.0, 0.5, h));
 
         float diffuse = wrapDiffuse(normal, uSunDir, 0.5);
-        vec3 sunTerm = uSunColor * diffuse * 1.15;
+        vec3 sunTerm = uSunColor * diffuse * 0.98;
 
         float translucency = backTranslucency(viewDir, uSunDir, 3.5) * smoothstep(0.25, 1.0, h);
         sunTerm += uSunColor * vec3(1.0, 0.95, 0.6) * translucency * 0.35;
@@ -236,7 +240,7 @@ const grassFragmentShader = /* glsl */`
         vec3 color = albedo * (ambient + sunTerm) * ao;
 
         float rim = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 4.0);
-        color += GRASS_TIP * uSunColor * rim * 0.35 * smoothstep(0.5, 1.0, h) * (1.0 - uNightFactor);
+        color += GRASS_TIP * uSunColor * rim * 0.2 * smoothstep(0.5, 1.0, h) * (1.0 - uNightFactor);
 
         color = applyWorldFog(color, vDistance, vWorldPos.y);
 
@@ -402,6 +406,7 @@ export class GrassField {
                 uPlayerVel: { value: new THREE.Vector2() },
                 uPlayerPush: { value: 1 },
                 uDensityScale: { value: 1 },
+                uPlaza: { value: new THREE.Vector4(TOWER_X, TOWER_Z, TOWER_PLAZA_FAR, TOWER_PLAZA_HALF_WIDTH) },
                 uAerial: { value: 0 },
                 uPixelScale: { value: 0.0016 },
                 uFrustum0: { value: new THREE.Vector4() },

@@ -41,6 +41,16 @@ export class CharacterAnimator {
         }
     }
 
+    getPhase(): number {
+        const action = this.animations.get(this.currentKey);
+        if (!action) return -1;
+
+        const duration = action.getClip().duration;
+        if (duration <= 0) return -1;
+
+        return (action.time % duration) / duration;
+    }
+
     update(delta: number) {
         this.mixer?.update(delta);
     }

@@ -23,8 +23,12 @@ const LANTERN_HEIGHT = 1.9;
 const DUST_COUNT = 340;
 const DUST_RADIUS = 20;
 const DUST_COLUMN = 9;
-const DRIP_COUNT = 44;
+const DRIP_COUNT = 18;
 const DRIP_RADIUS = 15;
+const DRIP_MIN_DELAY = 5;
+const DRIP_DELAY_SPREAD = 11;
+const DRIP_SOUND_COOLDOWN = 0.55;
+const DRIP_SOUND_CHANCE = 0.45;
 const MOSS_TEAL = 0x2fd8c4;
 const MOSS_LIME = 0x8dff6a;
 const MOSS_VIOLET = 0x9a72ff;
@@ -67,6 +71,7 @@ export class Cave extends Location {
     private dustMaterial: THREE.ShaderMaterial | null = null;
     private dripPoints: THREE.Points | null = null;
     private dripMaterial: THREE.PointsMaterial | null = null;
+    private dripSoundCooldown = 0;
     private readonly drips: { x: number; y: number; z: number; velocity: number; floorY: number; splash: number; delay: number }[] = [];
     private moss: THREE.Points | null = null;
     private mossMaterial: THREE.ShaderMaterial | null = null;
@@ -547,7 +552,7 @@ export class Cave extends Location {
         const positions = new Float32Array(DRIP_COUNT * 3);
 
         for (let i = 0; i < DRIP_COUNT; i++) {
-            this.drips.push({ x: 0, y: 0, z: 0, velocity: 0, floorY: 0, splash: 0, delay: i * 0.14 });
+            this.drips.push({ x: 0, y: 0, z: 0, velocity: 0, floorY: 0, splash: 0, delay: i * 0.85 });
             positions[i * 3 + 1] = -999;
         }
 
@@ -572,6 +577,8 @@ export class Cave extends Location {
 
     private updateDrips(playerPosition: THREE.Vector3, delta: number) {
         if (!this.dripPoints) return;
+
+        if (this.dripSoundCooldown > 0) this.dripSoundCooldown -= delta;
 
         const attribute = this.dripPoints.geometry.getAttribute("position") as THREE.BufferAttribute;
         const array = attribute.array as Float32Array;
@@ -599,7 +606,7 @@ export class Cave extends Location {
             if (drip.splash > 0) {
                 drip.splash -= delta;
                 array[i * 3 + 1] = -999;
-                if (drip.splash <= 0) drip.delay = Math.random() * 2.4;
+                if (drip.splash <= 0) drip.delay = DRIP_MIN_DELAY + Math.random() * DRIP_DELAY_SPREAD;
                 continue;
             }
 
@@ -611,13 +618,16 @@ export class Cave extends Location {
                 drip.splash = 0.12;
                 array[i * 3 + 1] = -999;
 
-                SoundManager.getInstance().playAt("cave-drip", {
-                    x: drip.x,
-                    z: drip.z,
-                    volume: 0.3,
-                    rate: 0.75 + Math.random() * 0.6,
-                    maxDistance: 24,
-                });
+                if (this.dripSoundCooldown <= 0 && Math.random() < DRIP_SOUND_CHANCE) {
+                    this.dripSoundCooldown = DRIP_SOUND_COOLDOWN;
+                    SoundManager.getInstance().playAt("cave-drip", {
+                        x: drip.x,
+                        z: drip.z,
+                        volume: 0.3,
+                        rate: 0.75 + Math.random() * 0.6,
+                        maxDistance: 24,
+                    });
+                }
                 continue;
             }
 

@@ -1,10 +1,11 @@
 // src/features/game/world/locations/tower/floors/basement/systems/BasementEnvironmentSystem.ts
 import * as THREE from "three";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
-import { createGlowTexture, createGlowSphere } from "../utils/meshFactory";
+import { createGlowTexture } from "../utils/meshFactory";
 import type { Basement } from "../Basement";
 import { setupBasementSky, setupBasementFloor, setupBasementPortals } from "./BasementSceneSetup";
 import type { ProceduralPortal } from "../utils/proceduralPortal";
+import { LiftCrystal } from "../../../../../liftCrystal";
 
 const HEMI_INTENSITY = 0.42;
 const PLATFORM_LIGHT_HEIGHT = 52;
@@ -19,6 +20,7 @@ const DUST_CEILING = 26;
 
 export class BasementEnvironmentSystem {
     public basementCrystal!: THREE.Group;
+    private crystal: LiftCrystal | null = null;
 
     private platformLight!: THREE.PointLight;
     private sinkGlow!: THREE.PointLight;
@@ -106,42 +108,8 @@ export class BasementEnvironmentSystem {
     }
 
     private createBasementCrystal(radius: number) {
-        const group = new THREE.Group();
-
-        const core = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(0.8, 1),
-            new THREE.MeshStandardMaterial({
-                color: 0x66ccff,
-                emissive: 0x3399ff,
-                emissiveIntensity: 2,
-                metalness: 0,
-                roughness: 0.2
-            })
-        );
-
-        const shell = new THREE.Mesh(
-            new THREE.OctahedronGeometry(1.5, 1),
-            new THREE.MeshPhysicalMaterial({
-                color: 0x99ddff,
-                transmission: 1,
-                opacity: 0.6,
-                transparent: true,
-                roughness: 0,
-                metalness: 0,
-                thickness: 0.5
-            })
-        );
-
-        const glow = createGlowSphere(1.5, 0x66ccff, 0.6, 1.6);
-
-        const light = new THREE.PointLight(0x66ccff, 7, 20);
-        light.position.set(0, 1.5, 0);
-        light.castShadow = false;
-
-        group.add(core);
-        group.add(shell);
-        group.add(glow);
-        group.add(light);
+        this.crystal = new LiftCrystal();
+        const group = this.crystal.group;
 
         group.position.set(radius - 6, 1.5, 0);
         group.userData.interactionId = "tower-crystal";

@@ -23,6 +23,15 @@ export const SPAWN_FLAT_RADIUS = 52;
 export const TOWER_X = 300;
 export const TOWER_Z = 0;
 export const TOWER_FLAT_RADIUS = 90;
+export const TOWER_PLAZA_HALF_WIDTH = 46;
+export const TOWER_PLAZA_NEAR = 26;
+export const TOWER_PLAZA_FAR = 122;
+
+export function insideTowerPlaza(x: number, z: number): boolean {
+    const along = TOWER_X - x;
+    if (along < TOWER_PLAZA_NEAR || along > TOWER_PLAZA_FAR) return false;
+    return Math.abs(z - TOWER_Z) <= TOWER_PLAZA_HALF_WIDTH;
+}
 
 export const CAVE_PORTAL_X = -31;
 export const CAVE_PORTAL_Z = 31;

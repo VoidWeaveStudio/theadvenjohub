@@ -2,7 +2,6 @@
 import * as THREE from "three";
 import { MainWorld } from "../MainWorld";
 import { buildTowerExterior } from "./TowerExteriorBuilder";
-import { TowerParticles } from "./TowerParticles";
 
 const TOWER_ENTRANCE_LOCATION_ID = "tower-first-floor";
 
@@ -17,7 +16,6 @@ export class FeatureSystem {
     public readonly towerClearZone = 180;
 
     private towerLights: THREE.Light[] = [];
-    private particles = new TowerParticles();
 
     private towerGroup: THREE.Group | null = null;
 
@@ -33,7 +31,6 @@ export class FeatureSystem {
         this.towerLights = result.towerLights;
         this.towerEntrancePos.copy(result.towerEntrancePos);
 
-        this.particles.create(result.towerGroup, result.doorZ);
     }
 
     update(delta: number, playerPosition: THREE.Vector3, isEPressed: boolean) {
@@ -56,18 +53,19 @@ export class FeatureSystem {
             if (this.doorOpenProgress < 0) this.doorOpenProgress = 0;
         }
 
-        if (this.leftDoorGroup) {
-            this.leftDoorGroup.rotation.y = -(Math.PI / 2.5) * this.doorOpenProgress;
-        }
-        if (this.rightDoorGroup) {
-            this.rightDoorGroup.rotation.y = (Math.PI / 2.5) * this.doorOpenProgress;
-        }
+        const swing = this.doorOpenProgress < 0.5
+            ? 4 * this.doorOpenProgress ** 3
+            : 1 - Math.pow(-2 * this.doorOpenProgress + 2, 3) / 2;
+        const swingAngle = (Math.PI / 2.15) * swing;
+
+        if (this.leftDoorGroup) this.leftDoorGroup.rotation.y = -swingAngle;
+        if (this.rightDoorGroup) this.rightDoorGroup.rotation.y = swingAngle;
 
         if (this.towerPortalMesh) {
             this.towerPortalMesh.visible = this.doorOpenProgress > 0.5;
         }
 
-        if (dist2D < 3.0 && this.doorOpenProgress > 0.8) {
+        if (isEPressed && dist2D < 9 && this.doorOpenProgress > 0.6) {
             this.world.pendingTeleport = TOWER_ENTRANCE_LOCATION_ID;
         }
 
@@ -81,7 +79,6 @@ export class FeatureSystem {
             }
         });
 
-        this.particles.update(delta);
     }
 
     public getInteractionPrompt(playerPosition: THREE.Vector3): string | null {
@@ -89,8 +86,8 @@ export class FeatureSystem {
         const dz = playerPosition.z - this.towerEntrancePos.z;
         const dist2D = Math.sqrt(dx * dx + dz * dz);
 
-        if (dist2D < 15 && this.doorOpenProgress > 0.3) {
-            return "Walk into the portal";
+        if (dist2D < 9 && this.doorOpenProgress > 0.6) {
+            return "[E] Enter the tower";
         }
         return null;
     }
@@ -114,6 +111,5 @@ export class FeatureSystem {
         this.towerPortalMesh = null;
         this.towerLights = [];
 
-        this.particles.dispose();
     }
 }

@@ -22,6 +22,8 @@ import {
     SHORE_RADIUS,
     SPAWN_FLAT_RADIUS,
     TOWER_FLAT_RADIUS,
+    TOWER_PLAZA_FAR,
+    TOWER_PLAZA_HALF_WIDTH,
     TOWER_X,
     TOWER_Z,
     VIEW_CHUNK_RADIUS,
@@ -196,6 +198,14 @@ export class TerrainSystem {
         const towerDistance = Math.sqrt((x - TOWER_X) ** 2 + (z - TOWER_Z) ** 2);
         const towerBlend = smoothstep(TOWER_FLAT_RADIUS, TOWER_FLAT_RADIUS * 0.55, towerDistance);
         height = height * (1 - towerBlend) + this.towerLevel * towerBlend;
+
+        const along = TOWER_X - x;
+        if (along > 0) {
+            const acrossFade = smoothstep(TOWER_PLAZA_HALF_WIDTH + 16, TOWER_PLAZA_HALF_WIDTH - 2, Math.abs(z - TOWER_Z));
+            const alongFade = smoothstep(TOWER_PLAZA_FAR + 18, TOWER_PLAZA_FAR - 4, along);
+            const plazaBlend = acrossFade * alongFade;
+            height = height * (1 - plazaBlend) + this.towerLevel * plazaBlend;
+        }
 
         return height;
     }

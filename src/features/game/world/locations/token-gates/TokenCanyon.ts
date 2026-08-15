@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { Location } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";
 import { CollisionGrid } from "../../CollisionGrid";
+import { LiftCrystal } from "../../liftCrystal";
 
 const SPAWN_POINT = new THREE.Vector3(0, 2, -40);
 const CRYSTAL_POSITION = new THREE.Vector3(0, 1.5, 44);
@@ -29,6 +30,7 @@ function hashString(str: string): number {
 
 export class TokenCanyon extends Location {
     private canyonCrystal!: THREE.Group;
+    private crystal: LiftCrystal | null = null;
     private sunLight!: THREE.DirectionalLight;
     public collisionGrid: CollisionGrid;
     public maxPlayerRadius = 140;
@@ -223,18 +225,8 @@ export class TokenCanyon extends Location {
     }
 
     private createReturnCrystal() {
-        const group = new THREE.Group();
-        const core = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(0.8, 1),
-            new THREE.MeshStandardMaterial({ color: 0x66ccff, emissive: 0x3399ff, emissiveIntensity: 2 })
-        );
-        const shell = new THREE.Mesh(
-            new THREE.OctahedronGeometry(1.5, 1),
-            new THREE.MeshPhysicalMaterial({ color: 0x99ddff, transmission: 1, opacity: 0.6, transparent: true, roughness: 0, thickness: 0.5 })
-        );
-        const light = new THREE.PointLight(0x66ccff, 7, 20);
-        light.position.set(0, 1.5, 0);
-        group.add(core, shell, light);
+        this.crystal = new LiftCrystal();
+        const group = this.crystal.group;
         group.position.copy(CRYSTAL_POSITION);
         group.userData.interactionId = "tower-crystal";
         this.scene.add(group);
@@ -265,7 +257,8 @@ export class TokenCanyon extends Location {
 
     dispose() {
         if (this.canyonCrystal) {
-            this.canyonCrystal.traverse((c: any) => { if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); } });
+            this.crystal?.dispose();
+            this.crystal = null;
             this.scene.remove(this.canyonCrystal);
         }
         this.collisionGrid.clear();

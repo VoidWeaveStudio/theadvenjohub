@@ -46,8 +46,8 @@ export interface TreeLodPreset {
 
 export const TREE_LODS: TreeLodPreset[] = [
     { levels: 0, radialSegments: 0, sectionLength: 1, leafFactor: 1, leafScale: 1, crossed: true },
-    { levels: -1, radialSegments: -2, sectionLength: 1.8, leafFactor: 0.46, leafScale: 1.55, crossed: false },
-    { levels: -2, radialSegments: -3, sectionLength: 3.2, leafFactor: 0.16, leafScale: 2.7, crossed: false },
+    { levels: 0, radialSegments: -2, sectionLength: 1.7, leafFactor: 0.72, leafScale: 1.35, crossed: false },
+    { levels: -1, radialSegments: -3, sectionLength: 2.8, leafFactor: 0.42, leafScale: 1.95, crossed: false },
 ];
 
 export interface TreeGeometry {
@@ -440,32 +440,32 @@ export function createTree(species: TreeSpecies, lod: TreeLodPreset, seed: numbe
 export const TREE_SPECIES: TreeSpecies[] = [
     {
         id: "oak",
-        levels: 4, children: [3, 8, 5], branchAngle: [38, 50, 58], angleVariance: 14,
-        lengthRatio: 0.62, trunkLength: 7.5, trunkRadius: 0.36, taper: 0.55, taperCurve: 0.7,
+        levels: 4, children: [4, 8, 5], branchAngle: [38, 50, 58], angleVariance: 14,
+        lengthRatio: 0.56, trunkLength: 11.5, trunkRadius: 0.46, taper: 0.55, taperCurve: 0.7,
         rootFlare: 0.6, flareFraction: 0.18, radiusExponent: 2.3, minRadius: 0.045, minLength: 0.7,
         droop: 0.05, upPull: 0.3, gnarl: [0.03, 0.07, 0.1, 0.13], radialSegments: 6,
         sectionLength: 1.3, childStart: 0.12, trunkClear: 0.3,
-        leafCount: 96, leafSize: 1.45, leafAspect: 0.85,
-        barkBase: 0x2f2418, barkTop: 0x6b5942, leafInner: 0x1d3315, leafOuter: 0x3f6b21, leafTop: 0x6d9a34,
+        leafCount: 460, leafSize: 2.15, leafAspect: 0.85,
+        barkBase: 0x2f2418, barkTop: 0x574734, leafInner: 0x1d3315, leafOuter: 0x3f6b21, leafTop: 0x6d9a34,
     },
     {
         id: "birch",
-        levels: 4, children: [3, 7, 5], branchAngle: [30, 44, 52], angleVariance: 12,
-        lengthRatio: 0.66, trunkLength: 9.5, trunkRadius: 0.24, taper: 0.62, taperCurve: 0.8,
+        levels: 4, children: [4, 7, 5], branchAngle: [30, 44, 52], angleVariance: 12,
+        lengthRatio: 0.58, trunkLength: 13.5, trunkRadius: 0.32, taper: 0.62, taperCurve: 0.8,
         rootFlare: 0.35, flareFraction: 0.12, radiusExponent: 2.1, minRadius: 0.035, minLength: 0.6,
         droop: 0.07, upPull: 0.22, gnarl: [0.02, 0.06, 0.09, 0.12], radialSegments: 6,
         sectionLength: 1.5, childStart: 0.18, trunkClear: 0.42,
-        leafCount: 82, leafSize: 1.12, leafAspect: 0.95,
-        barkBase: 0x8d8b80, barkTop: 0xcfcabd, leafInner: 0x24401c, leafOuter: 0x4f7d28, leafTop: 0x8fb445,
+        leafCount: 380, leafSize: 1.75, leafAspect: 0.95,
+        barkBase: 0x8d8b80, barkTop: 0xa8a294, leafInner: 0x24401c, leafOuter: 0x4f7d28, leafTop: 0x8fb445,
     },
     {
         id: "shrub",
         levels: 3, children: [5, 6], branchAngle: [46, 58], angleVariance: 18,
-        lengthRatio: 0.58, trunkLength: 1.1, trunkRadius: 0.09, taper: 0.5, taperCurve: 0.7,
+        lengthRatio: 0.6, trunkLength: 1.45, trunkRadius: 0.11, taper: 0.5, taperCurve: 0.7,
         rootFlare: 0.4, flareFraction: 0.25, radiusExponent: 2, minRadius: 0.02, minLength: 0.25,
         droop: 0.02, upPull: 0.45, gnarl: [0.05, 0.11, 0.14], radialSegments: 5,
         sectionLength: 0.55, childStart: 0.1, trunkClear: 0.12,
-        leafCount: 44, leafSize: 0.62, leafAspect: 0.9,
+        leafCount: 190, leafSize: 0.95, leafAspect: 0.9,
         barkBase: 0x3a2c1d, barkTop: 0x5f4c33, leafInner: 0x22381a, leafOuter: 0x4a7326, leafTop: 0x7ba63a,
     },
 ];

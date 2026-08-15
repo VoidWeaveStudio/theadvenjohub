@@ -30,7 +30,8 @@ export class Player extends Entity {
 
     private baseY: number = 0;
     private visualY: number = 0;
-    private lastFootstepSign: number = 0;
+    private lastFootstepPhase: number = -1;
+    private static readonly FOOTSTEP_PHASES = [0.08, 0.58];
     private readonly STEP_SMOOTH_RATE = 15;
     private readonly STEP_SMOOTH_SNAP = 1.3;
 
@@ -307,6 +308,28 @@ export class Player extends Entity {
         return trapped || !this.collidesAt(x, z);
     }
 
+    private updateFootstepSound() {
+        const phase = this.animator.getPhase();
+        if (phase < 0) return;
+
+        const previous = this.lastFootstepPhase;
+        this.lastFootstepPhase = phase;
+        if (previous < 0) return;
+
+        const wrapped = phase < previous;
+        const crossed = Player.FOOTSTEP_PHASES.some((mark) =>
+            wrapped ? previous < mark || mark <= phase : previous < mark && mark <= phase
+        );
+
+        if (!crossed) return;
+
+        if (this.swimming) {
+            SoundManager.getInstance().play("swim", { volume: 0.35, rate: 0.9 + Math.random() * 0.2 });
+        } else {
+            SoundManager.getInstance().playFootstep(this.footstepSurface);
+        }
+    }
+
     private smoothVerticalY(targetY: number, delta: number): number {
         const diff = targetY - this.visualY;
 
@@ -522,16 +545,10 @@ export class Player extends Entity {
                 const sinValue = Math.sin(this.time * bobFreq);
                 bobOffset = Math.abs(sinValue) * bobAmp;
 
-                const footstepSign = sinValue >= 0 ? 1 : -1;
-                if (footstepSign !== this.lastFootstepSign) {
-                    this.lastFootstepSign = footstepSign;
-
-                    if (this.swimming) SoundManager.getInstance().play("swim", { volume: 0.35, rate: 0.9 + Math.random() * 0.2 });
-                    else SoundManager.getInstance().playFootstep(this.footstepSurface);
-                }
+                this.updateFootstepSound();
             } else {
                 bobOffset = Math.sin(this.time * 2) * 0.02;
-                this.lastFootstepSign = 0;
+                this.lastFootstepPhase = -1;
             }
         }
 

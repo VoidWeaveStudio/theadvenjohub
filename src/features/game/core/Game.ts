@@ -847,6 +847,8 @@ export class Game {
     }
 
     private async compileScene(location: Location) {
+        if (this.disposed) return;
+
         await withTimeout(
             this.renderer.compileAsync(location.scene, this.cameraController.camera),
             LOCATION_READY_TIMEOUT_MS

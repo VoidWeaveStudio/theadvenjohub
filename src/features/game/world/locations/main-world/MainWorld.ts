@@ -14,6 +14,8 @@ import { CavePortalSystem } from "./systems/CavePortalSystem";
 import { GrassField } from "./systems/GrassField";
 import { RippleSimulation } from "./systems/RippleSimulation";
 import { TreeScatterSystem } from "./systems/TreeScatterSystem";
+import { UndergrowthSystem } from "./systems/UndergrowthSystem";
+import { WaterAmbienceSystem } from "./systems/WaterAmbienceSystem";
 import { WorldLighting } from "./utils/worldLighting";
 import { HarborSystem } from "./systems/HarborSystem";
 import { PLAY_RADIUS, SAFE_ZONE_RADIUS, SEA_LEVEL, WORLD_SIZE } from "./worldConfig";
@@ -34,11 +36,14 @@ export class MainWorld extends Location {
   public grass: GrassField;
   public ripples: RippleSimulation | null = null;
   public trees: TreeScatterSystem;
+  public undergrowth: UndergrowthSystem;
+  private waterAmbience: WaterAmbienceSystem;
   public readonly lighting = new WorldLighting();
 
   private crystal: LiftCrystal | null = null;
   private crystalBaseY = 0;
   private staticColliders: THREE.Box3[] = [];
+  private solidPillars: { x: number; y: number; z: number; radius: number; height: number }[] = [];
   private time = 0;
   private static readonly _sunDirection = new THREE.Vector3(0.4, 0.8, 0.3);
   private static readonly _cameraWorld = new THREE.Vector3();
@@ -66,6 +71,8 @@ export class MainWorld extends Location {
     this.harbor = new HarborSystem(this.scene, this.terrain, this.isLowEnd);
     this.grass = new GrassField(this.scene, this.terrain, this.lighting, this.isLowEnd);
     this.trees = new TreeScatterSystem(this.scene, this.terrain, this.isLowEnd);
+    this.undergrowth = new UndergrowthSystem(this.scene, this.terrain, this.isLowEnd);
+    this.waterAmbience = new WaterAmbienceSystem(this.terrain);
 
     this.waterProvider = (x, z) => this.water.getWaterHeightAt(x, z);
   }
@@ -98,7 +105,9 @@ export class MainWorld extends Location {
     this.harbor.create();
     this.grass.create(this.renderer);
     this.trees.create();
+    this.undergrowth.create();
     this.trees.onCollidersChanged = () => this.rebuildColliders();
+    this.undergrowth.onCollidersChanged = () => this.rebuildColliders();
 
     this.features.createGloomyTower();
     this.createLiftCrystal();
@@ -142,6 +151,11 @@ export class MainWorld extends Location {
     ];
   }
 
+  public addSolidPillar(x: number, y: number, z: number, radius: number, height: number) {
+    this.solidPillars.push({ x, y, z, radius, height });
+    this.rebuildColliders();
+  }
+
   private rebuildColliders() {
     this.collisionGrid.clear();
 
@@ -149,8 +163,20 @@ export class MainWorld extends Location {
       this.collisionGrid.insert(collider);
     }
 
+    for (const pillar of this.solidPillars) {
+      this.collisionGrid.insertCylinder(
+        new THREE.Vector3(pillar.x, pillar.y, pillar.z),
+        pillar.radius,
+        pillar.height
+      );
+    }
+
 
     for (const collider of this.harbor.getColliders()) {
+      this.collisionGrid.insert(collider);
+    }
+
+    for (const collider of this.undergrowth.getColliders()) {
       this.collisionGrid.insert(collider);
     }
 
@@ -185,6 +211,8 @@ export class MainWorld extends Location {
     this.water.update(delta);
     this.updateRipples(delta, playerPosition);
     this.trees.update(delta, playerPosition.x, playerPosition.z);
+    this.undergrowth.update(playerPosition.x, playerPosition.z);
+    this.waterAmbience.update(delta, playerPosition);
     this.harbor.update(delta);
     this.cavePortal.update(delta);
 
@@ -280,6 +308,7 @@ export class MainWorld extends Location {
   }
 
   public override async whenReady() {
+    await this.undergrowth.whenReady();
   }
 
   dispose() {
@@ -287,6 +316,8 @@ export class MainWorld extends Location {
     this.harbor.dispose();
     this.grass.dispose();
     this.trees.dispose();
+    this.undergrowth.dispose();
+    this.waterAmbience.dispose();
     this.ripples?.dispose();
     this.ripples = null;
     this.water.dispose();

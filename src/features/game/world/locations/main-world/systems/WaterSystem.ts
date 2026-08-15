@@ -5,8 +5,8 @@ import { bakeTerrainDepthMap, createWaterNormalTexture, DepthMap } from "../util
 import { SEA_LEVEL, WORLD_SIZE } from "../worldConfig";
 
 const OCEAN_EXTENT = WORLD_SIZE * 2.6;
-const OCEAN_SEGMENTS = 128;
-const LAKE_SEGMENTS = 56;
+const OCEAN_SEGMENTS = 200;
+const LAKE_SEGMENTS = 48;
 
 const DEPTH_MAP_EXTENT = 1320;
 const DEPTH_MAP_RESOLUTION = 448;
@@ -15,26 +15,81 @@ const waterVertexShader = /* glsl */`
     uniform float uTime;
     uniform float uWaveHeight;
     uniform float uWaveScale;
+    uniform sampler2D uDepthMap;
+    uniform float uDepthOrigin;
+    uniform float uDepthScale;
+    uniform float uWaterLevel;
+    uniform float uShoreFade;
 
     varying vec3 vWorldPos;
     varying vec3 vWaveNormal;
+    varying float vCrest;
 
-    float waveAt(vec2 p) {
-        return sin(p.x * uWaveScale + uTime * 0.75) * 0.6
-             + sin((p.y * 1.3 - p.x * 0.4) * uWaveScale * 1.7 + uTime * 1.1) * 0.28
-             + sin((p.x * 0.7 + p.y * 0.9) * uWaveScale * 3.1 - uTime * 1.6) * 0.12;
+    const vec4 WAVE_A = vec4(1.0, 0.24, 0.62, 1.00);
+    const vec4 WAVE_B = vec4(-0.62, 0.78, 0.42, 1.73);
+    const vec4 WAVE_C = vec4(0.34, -0.94, 0.24, 2.90);
+    const vec4 WAVE_D = vec4(-0.88, -0.32, 0.13, 4.60);
+
+    vec3 gerstner(vec4 wave, vec2 p, float steepness, inout vec3 tangent, inout vec3 binormal) {
+        vec2 dir = normalize(wave.xy);
+        float k = wave.w * uWaveScale * 6.2831853;
+        float amplitude = wave.z * uWaveHeight;
+        float omega = sqrt(9.81 * k);
+        float phase = k * dot(dir, p) - omega * uTime * 0.62;
+
+        float c = cos(phase);
+        float s = sin(phase);
+        float q = steepness / max(k * amplitude * 4.0, 0.0001);
+
+        tangent += vec3(
+            -q * dir.x * dir.x * k * amplitude * s,
+            dir.x * k * amplitude * c,
+            -q * dir.x * dir.y * k * amplitude * s
+        );
+
+        binormal += vec3(
+            -q * dir.x * dir.y * k * amplitude * s,
+            dir.y * k * amplitude * c,
+            -q * dir.y * dir.y * k * amplitude * s
+        );
+
+        return vec3(
+            q * amplitude * dir.x * c,
+            amplitude * s,
+            q * amplitude * dir.y * c
+        );
     }
 
     void main() {
         vec4 world = modelMatrix * vec4(position, 1.0);
+        vec2 origin = world.xz;
 
-        float h = waveAt(world.xz) * uWaveHeight;
-        float hx = waveAt(world.xz + vec2(2.0, 0.0)) * uWaveHeight;
-        float hz = waveAt(world.xz + vec2(0.0, 2.0)) * uWaveHeight;
+        vec2 depthUv = (origin - vec2(uDepthOrigin)) * uDepthScale;
+        float bedHeight = -40.0;
+        if (depthUv.x >= 0.0 && depthUv.x <= 1.0 && depthUv.y >= 0.0 && depthUv.y <= 1.0) {
+            bedHeight = texture2D(uDepthMap, depthUv).r;
+        }
+        float bedDepth = max(uWaterLevel - bedHeight, 0.0);
+        float shore = smoothstep(0.0, uShoreFade, bedDepth);
 
-        world.y += h;
+        vec3 tangent = vec3(1.0, 0.0, 0.0);
+        vec3 binormal = vec3(0.0, 0.0, 1.0);
+        vec3 offset = vec3(0.0);
+
+        offset += gerstner(WAVE_A, origin, 0.5, tangent, binormal);
+        offset += gerstner(WAVE_B, origin, 0.4, tangent, binormal);
+        offset += gerstner(WAVE_C, origin, 0.26, tangent, binormal);
+        offset += gerstner(WAVE_D, origin, 0.16, tangent, binormal);
+
+        offset *= shore;
+        tangent = mix(vec3(1.0, 0.0, 0.0), tangent, shore);
+        binormal = mix(vec3(0.0, 0.0, 1.0), binormal, shore);
+
+        world.xyz += offset;
+
         vWorldPos = world.xyz;
-        vWaveNormal = normalize(vec3(h - hx, 2.0, h - hz));
+        vWaveNormal = normalize(cross(binormal, tangent));
+        vCrest = clamp(offset.y / max(uWaveHeight, 0.0001) * 0.85, -1.0, 1.0);
 
         gl_Position = projectionMatrix * viewMatrix * world;
     }
@@ -55,12 +110,30 @@ const waterFragmentShader = /* glsl */`
     uniform vec3 uSunDirection;
     uniform vec3 uSunColor;
     uniform float uOpacity;
+    uniform vec2 uBoundsCenter;
+    uniform float uBoundsRadius;
     uniform sampler2D uRippleTex;
     uniform vec4 uRippleBounds;
     uniform float uRippleStrength;
 
     varying vec3 vWorldPos;
     varying vec3 vWaveNormal;
+    varying float vCrest;
+
+    float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+    }
+
+    float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(
+            mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+            u.y
+        );
+    }
 
     float sampleTerrain(vec2 worldXZ) {
         vec2 uv = (worldXZ - vec2(uDepthOrigin)) * uDepthScale;
@@ -99,6 +172,13 @@ const waterFragmentShader = /* glsl */`
     }
 
     void main() {
+        float bounds = 1.0;
+        if (uBoundsRadius > 0.0) {
+            float edge = distance(vWorldPos.xz, uBoundsCenter);
+            bounds = 1.0 - smoothstep(uBoundsRadius * 0.9, uBoundsRadius, edge);
+            if (bounds <= 0.002) discard;
+        }
+
         float terrainHeight = sampleTerrain(vWorldPos.xz);
         float depth = max(uWaterLevel - terrainHeight, 0.0);
 
@@ -115,27 +195,41 @@ const waterFragmentShader = /* glsl */`
         normal = normalize(normal + vec3(simRipple.x, 0.0, simRipple.z));
 
         vec3 viewDir = normalize(cameraPosition - vWorldPos);
-        float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.2);
+        vec3 sunDir = normalize(uSunDirection);
+
+        float facing = clamp(dot(normal, viewDir), 0.0, 1.0);
+        float fresnel = 0.02 + 0.98 * pow(1.0 - facing, 5.0);
 
         vec3 reflectDir = reflect(-viewDir, normal);
         float sky = clamp(reflectDir.y * 0.5 + 0.5, 0.0, 1.0);
         vec3 skyColor = mix(uHorizonColor, uZenithColor, pow(sky, 0.7));
+        skyColor += uSunColor * pow(max(dot(reflectDir, sunDir), 0.0), 8.0) * 0.28;
 
-        float sunSpec = pow(max(dot(reflectDir, normalize(uSunDirection)), 0.0), 220.0);
-        float glitter = pow(max(dot(reflectDir, normalize(uSunDirection)), 0.0), 24.0) * 0.16;
+        float sunSpec = pow(max(dot(reflectDir, sunDir), 0.0), 320.0);
+        float glitter = pow(max(dot(reflectDir, sunDir), 0.0), 42.0) * 0.2;
 
-        vec3 body = mix(uShallowColor, uDeepColor, smoothstep(0.4, 11.0, depth));
-        vec3 color = mix(body, skyColor, clamp(fresnel, 0.0, 0.82));
-        color += uSunColor * (sunSpec * 2.4 + glitter);
+        vec3 extinction = vec3(0.42, 0.11, 0.06);
+        float travel = depth / max(facing, 0.22);
+        vec3 transmittance = exp(-extinction * travel);
+        vec3 body = mix(uDeepColor, uShallowColor, transmittance);
 
-        float shoreWave = sin(depth * 5.5 - uTime * 2.2) * 0.5 + 0.5;
-        float foamBand = (1.0 - smoothstep(0.12, 1.35, depth)) * smoothstep(0.02, 0.22, depth);
-        float foam = foamBand * (0.45 + shoreWave * 0.55);
+        float crestUp = max(vCrest, 0.0);
+        float through = pow(max(dot(viewDir, -sunDir), 0.0), 3.0);
+        body += uShallowColor * uSunColor * through * crestUp * 0.55;
+
+        vec3 color = mix(body, skyColor, clamp(fresnel, 0.0, 0.9));
+        color += uSunColor * (sunSpec * 3.2 + glitter);
+
+        float shoreNoise = noise(vWorldPos.xz * 0.55 - vec2(uTime * 0.35, uTime * 0.22));
+        float surge = sin(depth * 3.4 - uTime * 1.7) * 0.5 + 0.5;
+        float shoreLine = (1.0 - smoothstep(0.05, 1.15, depth)) * smoothstep(0.0, 0.16, depth);
+        float foam = shoreLine * smoothstep(0.28, 0.85, surge * 0.65 + shoreNoise * 0.55);
+        foam += smoothstep(0.55, 0.95, crestUp) * shoreNoise * 0.7;
         foam += smoothstep(0.06, 0.34, rippleCrest) * 0.5;
-        color = mix(color, uFoamColor, clamp(foam, 0.0, 0.9));
+        color = mix(color, uFoamColor, clamp(foam, 0.0, 0.92));
 
-        float alpha = uOpacity * smoothstep(0.0, 1.1, depth);
-        alpha = clamp(alpha + fresnel * 0.3 + foam * 0.5, 0.0, 1.0);
+        float alpha = uOpacity * smoothstep(0.0, 0.85, depth) * bounds;
+        alpha = clamp(alpha + fresnel * 0.35 + foam * 0.6, 0.0, 1.0);
 
         gl_FragColor = vec4(color, alpha);
         #include <tonemapping_fragment>
@@ -156,21 +250,24 @@ export class WaterSystem {
     ) {
         this.uniforms = {
             uTime: { value: 0 },
-            uWaveHeight: { value: 0.34 },
-            uWaveScale: { value: 0.05 },
+            uWaveHeight: { value: 0.19 },
+            uShoreFade: { value: 3.2 },
+            uWaveScale: { value: 0.0085 },
             uDepthMap: { value: null as THREE.Texture | null },
             uNormalMap: { value: null as THREE.Texture | null },
             uDepthOrigin: { value: 0 },
             uDepthScale: { value: 1 },
             uWaterLevel: { value: SEA_LEVEL },
-            uShallowColor: { value: new THREE.Color(0x3fb8bf) },
-            uDeepColor: { value: new THREE.Color(0x0a2b46) },
+            uShallowColor: { value: new THREE.Color(0x4d9c9e) },
+            uDeepColor: { value: new THREE.Color(0x081f33) },
             uFoamColor: { value: new THREE.Color(0xeaf7ff) },
             uHorizonColor: { value: new THREE.Color(0x9fc4de) },
             uZenithColor: { value: new THREE.Color(0x3f6f9e) },
             uSunDirection: { value: new THREE.Vector3(0.4, 0.8, 0.3) },
             uSunColor: { value: new THREE.Color(0xfff0cd) },
             uOpacity: { value: 0.82 },
+            uBoundsCenter: { value: new THREE.Vector2(0, 0) },
+            uBoundsRadius: { value: -1 },
             uRippleTex: { value: null as THREE.Texture | null },
             uRippleBounds: { value: new THREE.Vector4(-45, -45, 90, 90) },
             uRippleStrength: { value: 2.2 },
@@ -215,16 +312,21 @@ export class WaterSystem {
         for (const lake of this.terrain.lakes) {
             const lakeMaterial = this.material.clone();
             lakeMaterial.uniforms = THREE.UniformsUtils.clone(this.uniforms);
+            lakeMaterial.uniforms.uWaveHeight.value = 0.045;
+            lakeMaterial.uniforms.uWaveScale.value = 0.045;
+            lakeMaterial.uniforms.uShoreFade.value = 1.4;
+            lakeMaterial.uniforms.uBoundsCenter.value = new THREE.Vector2(lake.x, lake.z);
+            lakeMaterial.uniforms.uBoundsRadius.value = lake.radius;
             lakeMaterial.uniforms.uDepthMap.value = this.depthMap.texture;
             lakeMaterial.uniforms.uNormalMap.value = this.normalTexture;
             lakeMaterial.uniforms.uDepthOrigin.value = this.depthMap.origin;
             lakeMaterial.uniforms.uDepthScale.value = this.depthMap.scale;
             lakeMaterial.uniforms.uWaterLevel.value = lake.level;
-            lakeMaterial.uniforms.uShallowColor.value = new THREE.Color(0x4bb59a);
-            lakeMaterial.uniforms.uDeepColor.value = new THREE.Color(0x123a3c);
+            lakeMaterial.uniforms.uShallowColor.value = new THREE.Color(0x5a9b84);
+            lakeMaterial.uniforms.uDeepColor.value = new THREE.Color(0x0e2b2c);
 
             const disc = new THREE.Mesh(
-                new THREE.CircleGeometry(lake.radius * 1.02, LAKE_SEGMENTS),
+                new THREE.PlaneGeometry(lake.radius * 2.1, lake.radius * 2.1, LAKE_SEGMENTS, LAKE_SEGMENTS),
                 lakeMaterial
             );
             disc.name = "lake";

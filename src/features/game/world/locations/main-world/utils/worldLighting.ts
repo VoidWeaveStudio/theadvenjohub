@@ -29,10 +29,10 @@ export const FOLIAGE_PALETTE = {
 };
 
 export const FOLIAGE_PALETTE_GLSL = /* glsl */`
-    const vec3 GRASS_ROOT = vec3(0.055, 0.117, 0.030);
-    const vec3 GRASS_MID  = vec3(0.185, 0.363, 0.056);
-    const vec3 GRASS_TIP  = vec3(0.404, 0.585, 0.126);
-    const vec3 GRASS_DRY  = vec3(0.475, 0.475, 0.140);
+    const vec3 GRASS_ROOT = vec3(0.020, 0.045, 0.016);
+    const vec3 GRASS_MID  = vec3(0.068, 0.165, 0.040);
+    const vec3 GRASS_TIP  = vec3(0.158, 0.315, 0.075);
+    const vec3 GRASS_DRY  = vec3(0.225, 0.230, 0.088);
 `;
 
 export const WORLD_LIGHTING_UNIFORMS_GLSL = /* glsl */`

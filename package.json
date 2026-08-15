@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "optimize:assets": "node scripts/optimize-assets.js"
+    "optimize:assets": "node scripts/optimize-assets.js",
+    "sound:manifest": "node scripts/sound-manifest.mjs"
   },
   "dependencies": {
     "@ledgerhq/hw-transport-webhid": "^6.35.4",

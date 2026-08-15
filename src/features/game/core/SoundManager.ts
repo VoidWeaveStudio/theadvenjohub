@@ -1,7 +1,8 @@
 // src/features/game/core/SoundManager.ts
-import { PROCEDURAL_SFX_NAMES, renderProceduralSfx } from "./proceduralSfx";
+import { renderProceduralSfx } from "./proceduralSfx";
 
-const FOOTSTEP_NAMES = ["footstep-1", "footstep-2", "footstep-3", "footstep-4"];
+const OCEAN_WAVE_NAMES = ["ambient-ocean-1", "ambient-ocean-2", "ambient-ocean-3", "ambient-ocean-4"];
+const FOOTSTEP_NAMES = ["footstep-1", "footstep-2", "footstep-3"];
 const STONE_FOOTSTEP_NAMES = ["footstep-stone-1", "footstep-stone-2"];
 const HEARING_RANGE = 46;
 
@@ -19,6 +20,7 @@ export interface SpatialOptions extends PlayOptions {
 
 export interface SoundHandle {
     stop: (fadeSeconds?: number) => void;
+    setVolume?: (volume: number, fadeSeconds?: number) => void;
 }
 
 export class SoundManager {
@@ -60,12 +62,12 @@ export class SoundManager {
     this.masterVolume = Math.max(0, Math.min(1, volume));
   }
 
-  private async loadSound(name: string, url: string): Promise<boolean> {
+  private async loadSound(name: string, extension: string): Promise<boolean> {
     const ctx = this.ensureContext();
     if (!ctx) return false;
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(`/sounds/sfx/${name}.${extension}`);
       if (!response.ok) return false;
       const arrayBuffer = await response.arrayBuffer();
       this.buffers.set(name, await ctx.decodeAudioData(arrayBuffer));
@@ -81,14 +83,28 @@ export class SoundManager {
   }
 
   async loadLazy(): Promise<string[]> {
+    const manifest = await this.loadManifest();
+    if (!manifest) return [];
+
     const results = await Promise.all(
-      PROCEDURAL_SFX_NAMES.map(async (name) => ({
+      Object.entries(manifest).map(async ([name, extension]) => ({
         name,
-        loaded: await this.loadSound(name, `/sounds/sfx/${name}.ogg`),
+        loaded: await this.loadSound(name, extension),
       }))
     );
 
     return results.filter((entry) => entry.loaded).map((entry) => entry.name);
+  }
+
+  private async loadManifest(): Promise<Record<string, string> | null> {
+    try {
+      const response = await fetch("/sounds/sfx/manifest.json");
+      if (!response.ok) return null;
+      const parsed = await response.json();
+      return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : null;
+    } catch {
+      return null;
+    }
   }
 
   async initProcedural(): Promise<number> {
@@ -116,6 +132,7 @@ export class SoundManager {
     const ctx = this.audioContext;
     const buffer = this.buffers.get(name);
     if (!ctx || !buffer || gainValue <= 0.0005) return null;
+    if (ctx.state !== "running") return null;
 
     try {
       const source = ctx.createBufferSource();
@@ -140,6 +157,17 @@ export class SoundManager {
       source.start(ctx.currentTime + (opts.delay ?? 0));
 
       return {
+        setVolume: (volume: number, fadeSeconds = 0.4) => {
+          try {
+            const now = ctx.currentTime;
+            const target = Math.max(0.0001, this.masterVolume * volume);
+            gain.gain.cancelScheduledValues(now);
+            gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
+            gain.gain.linearRampToValueAtTime(target, now + Math.max(0.01, fadeSeconds));
+          } catch {
+            /* node already released */
+          }
+        },
         stop: (fadeSeconds = 0.08) => {
           try {
             const now = ctx.currentTime;
@@ -180,6 +208,12 @@ export class SoundManager {
 
   playLoop(name: string, opts?: PlayOptions): SoundHandle | null {
     return this.start(name, opts ?? {}, this.masterVolume * (opts?.volume ?? 1), 0, true);
+  }
+
+  playOceanWave(volume: number) {
+    const name = OCEAN_WAVE_NAMES[Math.floor(Math.random() * OCEAN_WAVE_NAMES.length)];
+    if (!this.buffers.has(name)) return;
+    this.start(name, { rate: 0.88 + Math.random() * 0.24 }, this.masterVolume * volume, (Math.random() - 0.5) * 0.7, false);
   }
 
   playFootstep(surface: "soft" | "stone" = "soft") {

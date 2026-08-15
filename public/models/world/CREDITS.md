@@ -23,3 +23,15 @@ Poly Haven (https://polyhaven.com), общественное достояние.
 fir_sapling, rock_07, rock_09, stone_01, rock_moss_set_01, tree_stump_01,
 grass_bermuda_01, grass_medium_01, grass_medium_02,
 shrub_02, shrub_03, shrub_04, fern_02, celandine_01, dandelion_01
+
+## Текстуры башни — CC0
+
+Poly Haven (https://polyhaven.com), общественное достояние. Лежат в `public/models/textures/tower`.
+
+| текстура | где используется |
+|---|---|
+| castle_wall_slates | стены и ярусы башни |
+| castle_brick_02_white | карнизы, арка ворот, отделка |
+| cobblestone_02 | мощение площади |
+
+Каждая идёт тремя картами: Diffuse, nor_gl (нормали) и arm (AO + шероховатость + металличность).

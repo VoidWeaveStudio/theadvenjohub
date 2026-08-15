@@ -10,6 +10,8 @@ import {
     CHUNKS_PER_SIDE,
     CHUNK_SIZE,
     SAFE_ZONE_RADIUS,
+    SEA_LEVEL,
+    insideTowerPlaza,
     TOWER_FLAT_RADIUS,
     TOWER_X,
     TOWER_Z,
@@ -19,9 +21,13 @@ import {
 
 const VIEW_CHUNK_RADIUS = 3;
 const REBUILD_MOVE_DISTANCE = 24;
-const LOD_BANDS = [46, 110, 260];
-const CAPACITY = [180, 420, 900];
+const LOD_BANDS = [90, 190, 320];
+const CAPACITY = [300, 700, 1250];
 const VARIANTS_PER_SPECIES = 3;
+const SHRUB_SPECIES = 2;
+const TREE_WATER_MARGIN = 9;
+const SHRUB_WATER_MARGIN = 5;
+const SHORE_CLEARANCE = 0.6;
 
 interface TreeInstance {
     x: number;
@@ -182,6 +188,40 @@ export class TreeScatterSystem {
         return this.colliders;
     }
 
+    private submerged(x: number, z: number): boolean {
+        const height = this.terrain.getHeightAt(x, z);
+        if (height < SEA_LEVEL + SHORE_CLEARANCE) return true;
+
+        for (const lake of this.terrain.lakes) {
+            const dx = x - lake.x;
+            const dz = z - lake.z;
+            if (dx * dx + dz * dz < lake.radius * lake.radius && height < lake.level + SHORE_CLEARANCE) return true;
+        }
+
+        return false;
+    }
+
+    private nearWater(x: number, z: number, margin: number): boolean {
+        if (this.submerged(x, z)) return true;
+
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            if (this.submerged(x + Math.cos(angle) * margin, z + Math.sin(angle) * margin)) return true;
+        }
+
+        return false;
+    }
+
+    private chunkTooFar(chunkX: number, chunkZ: number, playerX: number, playerZ: number): boolean {
+        const minX = -WORLD_HALF + chunkX * CHUNK_SIZE;
+        const minZ = -WORLD_HALF + chunkZ * CHUNK_SIZE;
+
+        const dx = Math.max(minX - playerX, 0, playerX - (minX + CHUNK_SIZE));
+        const dz = Math.max(minZ - playerZ, 0, playerZ - (minZ + CHUNK_SIZE));
+
+        return Math.hypot(dx, dz) > LOD_BANDS[LOD_BANDS.length - 1] + REBUILD_MOVE_DISTANCE;
+    }
+
     public setWind(direction: THREE.Vector2, strength: number) {
         this.windUniforms.uWindDir.value.copy(direction);
         this.windUniforms.uWindStrength.value = strength;
@@ -215,6 +255,7 @@ export class TreeScatterSystem {
         for (let cx = centerChunkX - VIEW_CHUNK_RADIUS; cx <= centerChunkX + VIEW_CHUNK_RADIUS; cx++) {
             for (let cz = centerChunkZ - VIEW_CHUNK_RADIUS; cz <= centerChunkZ + VIEW_CHUNK_RADIUS; cz++) {
                 if (cx < 0 || cz < 0 || cx >= CHUNKS_PER_SIDE || cz >= CHUNKS_PER_SIDE) continue;
+                if (this.chunkTooFar(cx, cz, playerX, playerZ)) continue;
 
                 for (const tree of this.getChunkTrees(cx, cz)) {
                     const distance = Math.hypot(tree.x - playerX, tree.z - playerZ);
@@ -232,7 +273,7 @@ export class TreeScatterSystem {
 
                     buckets[tree.species][lodIndex][tree.variant].push(tree);
 
-                    if (rebuildColliders && distance < LOD_BANDS[0]) {
+                    if (rebuildColliders && tree.species !== SHRUB_SPECIES && distance < LOD_BANDS[0]) {
                         const radius = this.slots[tree.species].species.trunkRadius * tree.scale * 1.6;
                         const height = this.slots[tree.species].species.trunkLength * tree.scale * 0.6;
                         this.colliders.push(new THREE.Box3(
@@ -297,7 +338,7 @@ export class TreeScatterSystem {
         const originZ = -WORLD_HALF + chunkZ * CHUNK_SIZE;
 
         const trees: TreeInstance[] = [];
-        const candidates = this.lowEnd ? 48 : 96;
+        const candidates = this.lowEnd ? 90 : 190;
 
         for (let i = 0; i < candidates; i++) {
             const x = originX + random() * CHUNK_SIZE;
@@ -306,8 +347,8 @@ export class TreeScatterSystem {
             const grove = fbm(x * 0.0085, z * 0.0085, 3, WORLD_SEED + 4477);
             const edge = smoothstep(0.3, 0.5, grove) * (1 - smoothstep(0.7, 0.88, grove));
 
-            const isShrub = random() < 0.42;
-            const chance = isShrub ? edge * 0.8 : smoothstep(0.46, 0.72, grove);
+            const isShrub = random() < 0.38;
+            const chance = isShrub ? edge * 0.85 : smoothstep(0.34, 0.6, grove);
             if (random() > chance) continue;
 
             const height = this.terrain.getHeightAt(x, z);
@@ -317,18 +358,10 @@ export class TreeScatterSystem {
             const spawnDistance = Math.hypot(x, z);
             if (spawnDistance < SAFE_ZONE_RADIUS + 6) continue;
             if (Math.hypot(x - TOWER_X, z - TOWER_Z) < TOWER_FLAT_RADIUS * 0.8) continue;
+            if (insideTowerPlaza(x, z)) continue;
             if (Math.hypot(x - CAVE_PORTAL_X, z - CAVE_PORTAL_Z) < 18) continue;
 
-            let inLake = false;
-            for (const lake of this.terrain.lakes) {
-                const dx = x - lake.x;
-                const dz = z - lake.z;
-                if (dx * dx + dz * dz < lake.radius * lake.radius && height < lake.level + 0.6) {
-                    inLake = true;
-                    break;
-                }
-            }
-            if (inLake) continue;
+            if (this.nearWater(x, z, isShrub ? SHRUB_WATER_MARGIN : TREE_WATER_MARGIN)) continue;
 
             const species = isShrub ? 2 : (random() < 0.62 ? 0 : 1);
 
@@ -336,7 +369,7 @@ export class TreeScatterSystem {
                 x,
                 y: height - 0.15,
                 z,
-                scale: isShrub ? 0.75 + random() * 0.7 : 0.82 + random() * 0.5,
+                scale: isShrub ? 0.8 + random() * 0.75 : 0.95 + random() * 0.7,
                 rotation: random() * Math.PI * 2,
                 tiltX: (random() - 0.5) * 0.05,
                 tiltZ: (random() - 0.5) * 0.05,
