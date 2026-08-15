@@ -31,7 +31,17 @@ export function MarketplaceItemModal({
   };
 
   const typeColor = typeColors[item.type] || typeColors.standard;
-  const fullDescription = t("marketplace.lots.legendary.description") || t("marketplace.noDescription");
+
+  const translateOrNull = (key: string) => {
+    const value = t(key);
+    return value === key ? null : value;
+  };
+
+  const fullDescription =
+    translateOrNull(`marketplace.lots.${item.id}.description`) ??
+    translateOrNull(`marketplace.lots.${item.type}.description`) ??
+    translateOrNull("marketplace.lots.description.common") ??
+    t("marketplace.noDescription");
 
   return (
     <Modal isOpen={true} onClose={onClose} title={item.name} size="xl">

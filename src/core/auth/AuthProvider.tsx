@@ -1,12 +1,14 @@
 // src/core/auth/AuthProvider.tsx
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { apiGet } from "@/core/api/client";
 
 interface AuthContextType {
   userWallet: string | null;
+  activeWallet: string | null;
+  walletMismatch: boolean;
   isAuthorized: boolean;
   isLoading: boolean;
   selectedWalletName: string | null;
@@ -18,11 +20,18 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { disconnect } = useWallet();
+  const { disconnect, publicKey, connected } = useWallet();
   const [userWallet, setUserWallet] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedWalletName, setSelectedWalletName] = useState<string | null>(null);
+
+  const activeWallet = useMemo(
+    () => (connected && publicKey ? publicKey.toBase58() : null),
+    [connected, publicKey]
+  );
+
+  const walletMismatch = Boolean(isAuthorized && userWallet && activeWallet && activeWallet !== userWallet);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -79,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       userWallet,
+      activeWallet,
+      walletMismatch,
       isAuthorized,
       isLoading,
       selectedWalletName,
@@ -97,4 +108,4 @@ export function useAuth() {
     throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
-} 
+}

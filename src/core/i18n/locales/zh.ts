@@ -797,6 +797,12 @@ export const zh: Translations = {
   "promoCode.insufficientBalance": "你未持有该阵营的代币。",
   "promoCode.balanceCheckFailed": "无法验证代币余额，请重试。",
   "promoCode.redeemFailed": "兑换促销码失败。",
+  "auth.switchAccount": "使用已连接的账户登录",
+  "purchase.verifying": "正在验证付款...",
+  "purchase.retryVerification": "重试验证",
+  "purchase.savedSignature": "支付签名",
+  "errors.priceChanged": "价格已变动，请刷新页面",
+  "marketplace.noDescription": "暂无描述",
 };
 
 export default zh;

@@ -69,6 +69,13 @@ export async function POST(req: NextRequest) {
             itemId, itemName, quantity, priceTnj, txSignature: signature,
         };
 
+        if (!verifyResult.ok && verifyResult.retryable) {
+            return NextResponse.json(
+                { success: false, error: verifyResult.error, retryable: true },
+                { status: 503 }
+            );
+        }
+
         if (!verifyResult.ok) {
             try {
                 const [row] = await db.insert(trades).values({

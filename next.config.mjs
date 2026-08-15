@@ -37,10 +37,6 @@ const nextConfig = {
     },
   },
   
-  env: {
-    CSRF_SECRET: process.env.CSRF_SECRET,
-  },
-
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "cdn.tanjo.store" },

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { Redis } from "@upstash/redis";
 import { generateCSRFToken, verifyCSRF } from "@/core/auth/lib/csrf";
+import { clearRevocation } from "@/core/auth/lib/revocation";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { db } from "@/core/database";
 import { users } from "@/core/database/schema";
@@ -126,8 +127,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("[verify] All checks passed, creating user...");
-
     await redis.del(`auth:nonce:${wallet}`);
 
     const jwtSecret = process.env.JWT_SECRET;
@@ -164,7 +163,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("[verify] User found:", finalUser.id);
+    await clearRevocation(finalUser.id);
 
     const accessToken = jwt.sign(
       {
@@ -235,8 +234,6 @@ export async function POST(req: NextRequest) {
       httpOnly: false,
       maxAge: 60 * 60 * 24,
     });
-
-    console.log("[verify] Success! User authenticated:", finalUser.wallet);
 
     return response;
 

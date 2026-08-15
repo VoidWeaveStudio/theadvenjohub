@@ -11,6 +11,13 @@ export async function GET(req: NextRequest) {
     prefix: "api:auth:me",
   });
 
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "too_many_attempts" },
+      { status: 429, headers: formatRateLimitHeaders(rl) }
+    );
+  }
+
   try {
     const token = req.cookies.get("token")?.value;
     const jwtSecret = process.env.JWT_SECRET;

@@ -2,7 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
+import { isSessionRevoked } from "@/core/auth/lib/revocation";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
+import { db } from "@/core/database";
+import { users } from "@/core/database/schema";
+import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,6 +47,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (await isSessionRevoked(decoded.userId, decoded.iat)) {
+      const revoked = NextResponse.json(
+        { error: "session_revoked" },
+        { status: 401, headers: formatRateLimitHeaders(rl) }
+      );
+      revoked.cookies.delete("token");
+      revoked.cookies.delete("refresh_token");
+      revoked.cookies.delete("csrf_token");
+      return revoked;
+    }
+
+    const user = await db.query.users.findFirst({ where: eq(users.id, decoded.userId) });
+
+    if (!user || user.wallet !== decoded.wallet) {
+      const gone = NextResponse.json(
+        { error: "unauthorized" },
+        { status: 401, headers: formatRateLimitHeaders(rl) }
+      );
+      gone.cookies.delete("token");
+      gone.cookies.delete("refresh_token");
+      gone.cookies.delete("csrf_token");
+      return gone;
+    }
+
+    if (user.isBanned) {
+      const banned = NextResponse.json(
+        { error: "banned", reason: user.banReason || undefined },
+        { status: 403, headers: formatRateLimitHeaders(rl) }
+      );
+      banned.cookies.delete("token");
+      banned.cookies.delete("refresh_token");
+      banned.cookies.delete("csrf_token");
+      return banned;
+    }
+
     const newAccessToken = jwt.sign(
       { userId: decoded.userId, wallet: decoded.wallet, type: "access" },
       jwtSecret,
@@ -72,14 +111,12 @@ export async function POST(req: NextRequest) {
     );
 
     const baseCookieOptions = {
-  httpOnly: true,
-  secure: true,
-  sameSite: "lax" as const, 
-  path: "/",
-  domain: process.env.NODE_ENV === "production" 
-    ? ".theadvenjo.online" 
-    : undefined,
-};
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "lax" as const,
+      path: "/",
+      domain: isProd ? ".theadvenjo.online" : undefined,
+    };
 
     response.cookies.set("token", newAccessToken, {
       ...baseCookieOptions,

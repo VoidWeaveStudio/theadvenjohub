@@ -7,10 +7,14 @@ import { eq } from "drizzle-orm";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
+const DEFAULT_MAX_PAYMENT_AGE_SECONDS = 60 * 60;
+const MAX_CLOCK_SKEW_SECONDS = 120;
+
 export interface TnjPaymentVerifyParams {
   signature: string;
   expectedAmountTnj: number;
   expectedSigner: string;
+  maxAgeSeconds?: number;
 }
 
 export interface TnjTransferVerifyParams extends TnjPaymentVerifyParams {
@@ -19,20 +23,26 @@ export interface TnjTransferVerifyParams extends TnjPaymentVerifyParams {
 
 export type TnjPaymentVerifyResult =
   | { ok: true; tx: ParsedTransactionWithMeta }
-  | { ok: false; error: string; status: number; details?: unknown };
+  | { ok: false; error: string; status: number; details?: unknown; retryable?: boolean };
 
 
 export async function verifyTnjTransfer(
   params: TnjTransferVerifyParams
 ): Promise<TnjPaymentVerifyResult> {
-  const { signature, expectedAmountTnj, expectedSigner, expectedRecipient } = params;
+  const {
+    signature,
+    expectedAmountTnj,
+    expectedSigner,
+    expectedRecipient,
+    maxAgeSeconds = DEFAULT_MAX_PAYMENT_AGE_SECONDS,
+  } = params;
 
   const tokenMint = process.env.TNJ_TOKEN_MINT_ADDRESS?.trim();
-  const rpcUrl = process.env.SOLANA_RPC_PRIVATE?.trim() || "https://mainnet.helius-rpc.com";
+  const rpcUrl = process.env.SOLANA_RPC_PRIVATE?.trim();
   const decimals = Number.parseInt(process.env.TNJ_DECIMALS || "6", 10);
 
-  if (!expectedRecipient || !tokenMint) {
-    console.error("[tnjPayment] Missing config:", { expectedRecipient, tokenMint });
+  if (!expectedRecipient || !tokenMint || !rpcUrl) {
+    console.error("[tnjPayment] Missing config:", { expectedRecipient, tokenMint, hasRpcUrl: !!rpcUrl });
     return { ok: false, error: "server_config_error", status: 500 };
   }
 
@@ -53,13 +63,36 @@ export async function verifyTnjTransfer(
 
   if (!tx) {
     return {
-      ok: false, error: "transaction_not_found", status: 400,
+      ok: false, error: "transaction_not_found", status: 400, retryable: true,
       details: { hint: "Wait 10-15 seconds and retry" },
     };
   }
 
   if (tx.meta?.err) {
     return { ok: false, error: "transaction_failed", status: 400, details: tx.meta.err };
+  }
+
+  if (typeof tx.blockTime !== "number") {
+    return {
+      ok: false, error: "payment_timestamp_unavailable", status: 400, retryable: true,
+      details: { hint: "Wait a few seconds and retry" },
+    };
+  }
+
+  const ageSeconds = Math.floor(Date.now() / 1000) - tx.blockTime;
+
+  if (ageSeconds > maxAgeSeconds) {
+    return {
+      ok: false, error: "payment_too_old", status: 400,
+      details: { ageSeconds, maxAgeSeconds },
+    };
+  }
+
+  if (ageSeconds < -MAX_CLOCK_SKEW_SECONDS) {
+    return {
+      ok: false, error: "payment_timestamp_invalid", status: 400,
+      details: { ageSeconds },
+    };
   }
 
   const expectedAmount = BigInt(expectedAmountTnj) * (10n ** BigInt(decimals));

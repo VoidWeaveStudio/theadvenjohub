@@ -19,16 +19,11 @@ import {
 import { useMemo, useCallback } from "react";
 import { AuthProvider } from "@/core/auth/AuthProvider";
 import { OKXWalletAdapter } from "@/core/wallets/OKXWalletAdapter";
+import { getRpcEndpoint } from "@/core/lib/solanaClient";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function SolanaProviders({ children }: { children: React.ReactNode }) {
-  const endpoint = useMemo(() => {
-    const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
-    if (!rpcUrl) {
-      throw new Error("NEXT_PUBLIC_SOLANA_RPC_URL is not set");
-    }
-    return rpcUrl;
-  }, []);
+  const endpoint = useMemo(() => getRpcEndpoint(), []);
 
   const wallets = useMemo(() => [
     new PhantomWalletAdapter(),

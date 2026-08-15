@@ -796,6 +796,12 @@ export const ko: Translations = {
   "promoCode.insufficientBalance": "이 진영의 토큰을 보유하고 있지 않습니다.",
   "promoCode.balanceCheckFailed": "토큰 잔액을 확인할 수 없습니다. 다시 시도해 주세요.",
   "promoCode.redeemFailed": "프로모 코드 사용에 실패했습니다.",
+  "auth.switchAccount": "연결된 계정으로 로그인",
+  "purchase.verifying": "결제 확인 중...",
+  "purchase.retryVerification": "확인 다시 시도",
+  "purchase.savedSignature": "결제 서명",
+  "errors.priceChanged": "가격이 변경되었습니다. 페이지를 새로고침하세요",
+  "marketplace.noDescription": "설명이 없습니다",
 };
 
 export default ko;

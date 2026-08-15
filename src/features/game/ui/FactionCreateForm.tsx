@@ -3,14 +3,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { Users, Loader2 } from "lucide-react";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { gameFetch } from "../utils/gameFetch";
+import { createRpcConnection, confirmSignature } from "@/core/lib/solanaClient";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-export const FACTION_CREATION_PRICE_TNJ = 1_000_000;
 
 type PayState = false | "connecting" | "signing" | "confirming";
 
@@ -153,7 +153,7 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
             if (!configRes.ok) throw new Error("Failed to load payment config");
             const config = await configRes.json();
 
-            const connection = new Connection(config.publicRpc, "confirmed");
+            const connection = createRpcConnection();
             const mintPubkey = new PublicKey(config.tokenMint);
             const treasuryPubkey = new PublicKey(config.treasuryWallet);
             const decimals = parseInt(config.decimals || "6");
@@ -191,9 +191,9 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
 
             setPayState("confirming");
             try {
-                await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+                await confirmSignature(connection, signature, lastValidBlockHeight);
             } catch (confirmErr: any) {
-                console.warn("[FactionCreate] confirmation timeout, relying on backend verification:", confirmErr.message);
+                console.warn("[FactionCreate] confirmation failed, relying on backend verification:", confirmErr.message);
             }
 
             const res = await gameFetch("/api/faction/create", {

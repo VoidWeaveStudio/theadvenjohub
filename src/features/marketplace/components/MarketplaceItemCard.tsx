@@ -51,6 +51,8 @@ export function MarketplaceItemCard({
               <img
                 src={item.imageUrl}
                 alt={item.name}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover"
                 onError={() => setImageError(true)}
               />
@@ -114,6 +116,8 @@ export function MarketplaceItemCard({
           <img
             src={item.imageUrl}
             alt={item.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover transition-transform group-hover:scale-105"
             onError={() => setImageError(true)}
           />

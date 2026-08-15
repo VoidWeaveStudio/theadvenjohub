@@ -10,14 +10,20 @@ import {
   WalletSignMessageError,
   WalletSignTransactionError,
   WalletSendTransactionError,
+  scopePollingDetectionStrategy,
 } from "@solana/wallet-adapter-base";
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 
 export const OKXWalletName = "OKX Wallet" as WalletName<"OKX Wallet">;
 
+interface OKXPublicKey {
+  toBytes(): Uint8Array;
+  toBase58(): string;
+}
+
 interface OKXWallet {
   isOKXWallet?: boolean;
-  publicKey?: { toBytes(): Uint8Array; toBase58(): string };
+  publicKey?: OKXPublicKey;
   isConnected: boolean;
   signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T>;
   signAllTransactions<T extends Transaction | VersionedTransaction>(transactions: T[]): Promise<T[]>;
@@ -43,17 +49,33 @@ function getOKXWallet(): OKXWallet | null {
 export class OKXWalletAdapter extends BaseWalletAdapter {
   name = OKXWalletName;
   url = "https://www.okx.com/web3";
-  icon = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNiIgZmlsbD0iIzAwMCIvPgo8cGF0aCBkPSJNOS41IDExLjVIOVYxMEg5LjVDMTAuMzI4IDEwIDExIDEwLjY3MiAxMSAxMS41VjEyLjVIMTAuNVYxMS41SDkuNVpNMTUuNSAxMS41SDE1VjEwSDE1LjVDMTYuMzI4IDEwIDE3IDEwLjY3MiAxNyAxMS41VjEyLjVIMTYuNVYxMS41SDE1LjVaTTIxLjUgMTEuNUgyMVYxMEgyMS41QzIyLjMyOCAxMCAyMyAxMC42NzIgMjMgMTEuNVYxMi41SDIyLjVWMTEuNUgyMS41Wk05LjUgMTUuNUg5VjE0SDkuNUMxMC4zMjggMTQgMTEgMTQuNjcyIDExIDE1LjVWMTYuNUgxMC41VjE1LjVIOS41Wk0xNS41IDE1LjVIMTVWMTROMEg5LjVDMTAuMzI4IDE0IDExIDE0LjY3MiAxMSAxNS41VjE2LjVIMTAuNVYxNS41SDE1LjVaTTIxLjUgMTUuNUgyMVYxNEgyMS41QzIyLjMyOCAxNCAyMyAxNC42NzIgMjMgMTUuNVYxNi41SDIyLjVWMTUuNUgyMS41Wk05LjUgMTkuNUg5VjE4SDkuNUMxMC4zMjggMTggMTEgMTguNjcyIDExIDE5LjVWMjAuNUgxMC41VjE5LjVIOS41Wk0xNS41IDE5LjVIMTVWMTNONEg5LjVDMTAuMzI4IDE4IDExIDE4LjY3MiAxMSAxOS41VjIwLjVIMTAuNVYxOS41SDE1LjVaTTIxLjUgMTkuNUgyMVYxOEgyMS41QzIyLjMyOCAxOCAyMyAxOC42NzIgMjMgMTkuNVYyMC41SDIyLjVWMTkuNUgyMS41WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+Cg==";
-  
+  icon = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSI2IiBmaWxsPSIjMDAwIi8+PGcgZmlsbD0iI2ZmZiI+PHJlY3QgeD0iNyIgeT0iNyIgd2lkdGg9IjYiIGhlaWdodD0iNiIvPjxyZWN0IHg9IjEzIiB5PSIxMyIgd2lkdGg9IjYiIGhlaWdodD0iNiIvPjxyZWN0IHg9IjE5IiB5PSI3IiB3aWR0aD0iNiIgaGVpZ2h0PSI2Ii8+PHJlY3QgeD0iNyIgeT0iMTkiIHdpZHRoPSI2IiBoZWlnaHQ9IjYiLz48cmVjdCB4PSIxOSIgeT0iMTkiIHdpZHRoPSI2IiBoZWlnaHQ9IjYiLz48L2c+PC9zdmc+";
+
   private _wallet: OKXWallet | null;
   private _publicKey: PublicKey | null;
   private _connecting: boolean;
+  private _readyState: WalletReadyState;
 
   constructor() {
     super();
     this._wallet = null;
     this._publicKey = null;
     this._connecting = false;
+    this._readyState =
+      typeof window === "undefined" || typeof document === "undefined"
+        ? WalletReadyState.Unsupported
+        : WalletReadyState.NotDetected;
+
+    if (this._readyState !== WalletReadyState.Unsupported) {
+      scopePollingDetectionStrategy(() => {
+        const wallet = getOKXWallet();
+        if (!wallet) return false;
+
+        this._readyState = wallet.isOKXWallet ? WalletReadyState.Installed : WalletReadyState.Loadable;
+        this.emit("readyStateChange", this._readyState);
+        return true;
+      });
+    }
   }
 
   get publicKey(): PublicKey | null {
@@ -65,19 +87,48 @@ export class OKXWalletAdapter extends BaseWalletAdapter {
   }
 
   get readyState(): WalletReadyState {
-    const wallet = getOKXWallet();
-    if (!wallet) return WalletReadyState.NotDetected;
-    if (wallet.isOKXWallet) return WalletReadyState.Installed;
-    return WalletReadyState.Loadable;
+    return this._readyState;
   }
 
   get supportedTransactionVersions() {
     return new Set(["legacy", 0] as const);
   }
 
+  private _disconnected = () => {
+    const wallet = this._wallet;
+    if (!wallet) return;
+
+    wallet.off("disconnect", this._disconnected);
+    wallet.off("accountChanged", this._accountChanged);
+
+    this._wallet = null;
+    this._publicKey = null;
+
+    this.emit("error", new WalletDisconnectedError());
+    this.emit("disconnect");
+  };
+
+  private _accountChanged = (newPublicKey?: OKXPublicKey | null) => {
+    if (!newPublicKey) {
+      this._disconnected();
+      return;
+    }
+
+    try {
+      const publicKey = new PublicKey(newPublicKey.toBytes());
+      if (this._publicKey?.equals(publicKey)) return;
+
+      this._publicKey = publicKey;
+      this.emit("connect", publicKey);
+    } catch (error: any) {
+      this.emit("error", new WalletPublicKeyError(error?.message));
+    }
+  };
+
   async connect(): Promise<void> {
     try {
       if (this.connected || this._connecting) return;
+      if (this._readyState === WalletReadyState.Unsupported) throw new WalletNotReadyError();
 
       this._connecting = true;
 
@@ -102,6 +153,9 @@ export class OKXWalletAdapter extends BaseWalletAdapter {
         throw new WalletPublicKeyError(error?.message);
       }
 
+      wallet.on("disconnect", this._disconnected);
+      wallet.on("accountChanged", this._accountChanged);
+
       this._wallet = wallet;
       this._publicKey = publicKey;
 
@@ -118,12 +172,17 @@ export class OKXWalletAdapter extends BaseWalletAdapter {
   async disconnect(): Promise<void> {
     const wallet = this._wallet;
     if (wallet) {
+      wallet.off("disconnect", this._disconnected);
+      wallet.off("accountChanged", this._accountChanged);
+
+      this._wallet = null;
+      this._publicKey = null;
+
       try {
         await wallet.disconnect();
       } catch (error: any) {
         console.error("[OKX Wallet] Disconnection error:", error);
         this.emit("error", new WalletDisconnectedError(error?.message));
-        throw error;
       }
     }
 
@@ -149,15 +208,15 @@ export class OKXWalletAdapter extends BaseWalletAdapter {
     try {
       const wallet = this._wallet;
       if (!wallet) throw new WalletDisconnectedError();
-      
+
       const result = await wallet.signMessage(message);
-      
+
       const signature = result instanceof Uint8Array ? result : (result as any).signature;
-      
+
       if (!signature) {
         throw new Error("Invalid signature format from OKX wallet");
       }
-      
+
       return signature;
     } catch (error: any) {
       console.error("[OKX Wallet] Sign message error:", error);
@@ -189,4 +248,4 @@ export class OKXWalletAdapter extends BaseWalletAdapter {
       throw error;
     }
   }
-} 
+}

@@ -797,6 +797,12 @@ export const ru: Translations = {
   "promoCode.insufficientBalance": "У вас нет токена этой фракции.",
   "promoCode.balanceCheckFailed": "Не удалось проверить баланс токена, попробуйте ещё раз.",
   "promoCode.redeemFailed": "Не удалось активировать код.",
+  "auth.switchAccount": "Войти подключённым кошельком",
+  "purchase.verifying": "Проверяем оплату...",
+  "purchase.retryVerification": "Повторить проверку",
+  "purchase.savedSignature": "Подпись платежа",
+  "errors.priceChanged": "Цена изменилась, обновите страницу",
+  "marketplace.noDescription": "Описание отсутствует",
 };
 
 export default ru;

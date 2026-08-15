@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { X, ArrowLeftRight, Package, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { TradeSessionData } from "../network/NetworkManager";
@@ -11,6 +11,7 @@ import { PLACEABLE_ITEMS } from "../data/placeableItems";
 import { TradeItemPicker } from "./TradeItemPicker";
 import { CopyableText } from "./shell/CopyableText";
 import { SoundManager } from "../core/SoundManager";
+import { createRpcConnection, confirmSignature, readTokenAccountBalance } from "@/core/lib/solanaClient";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -20,23 +21,6 @@ function truncateWallet(wallet: string) {
     return wallet.length > 10 ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}` : wallet;
 }
 
-async function getTokenBalance(connection: Connection, ata: PublicKey): Promise<bigint> {
-    const accountInfo = await connection.getAccountInfo(ata, "confirmed");
-    if (!accountInfo) throw new Error("Token account not found");
-    const data = accountInfo.data;
-    if (data.length < 72) throw new Error("Invalid token account data");
-    return (
-        BigInt(data[64]) |
-        (BigInt(data[65]) << 8n) |
-        (BigInt(data[66]) << 16n) |
-        (BigInt(data[67]) << 24n) |
-        (BigInt(data[68]) << 32n) |
-        (BigInt(data[69]) << 40n) |
-        (BigInt(data[70]) << 48n) |
-        (BigInt(data[71]) << 56n)
-    );
-}
-
 type PayState = false | "connecting" | "signing" | "confirming";
 
 function PayButton({
@@ -44,11 +28,13 @@ function PayButton({
     sellerWallet,
     priceTnj,
     onSubmitPayment,
+    onPaid,
 }: {
     tradeId: string;
     sellerWallet: string;
     priceTnj: number;
     onSubmitPayment: (tradeId: string, signature: string) => void;
+    onPaid: (signature: string) => void;
 }) {
     const { publicKey, connected, wallet } = useWallet();
     const [state, setState] = useState<PayState>(false);
@@ -70,7 +56,7 @@ function PayButton({
             if (!configRes.ok) throw new Error("Failed to load config");
             const config = await configRes.json();
 
-            const connection = new Connection(config.publicRpc, "confirmed");
+            const connection = createRpcConnection();
             const mintPubkey = new PublicKey(config.tokenMint);
             const sellerPubkey = new PublicKey(sellerWallet);
             const decimals = parseInt(config.decimals || "6");
@@ -80,7 +66,7 @@ function PayButton({
             const userATA = await getAssociatedTokenAddress(mintPubkey, userPubkey, false, tokenProgramId);
             const sellerATA = await getAssociatedTokenAddress(mintPubkey, sellerPubkey, true, tokenProgramId);
 
-            const balance = await getTokenBalance(connection, userATA);
+            const balance = await readTokenAccountBalance(connection, userATA);
             const amountToSend = BigInt(priceTnj) * BigInt(10 ** decimals);
             if (balance < amountToSend) {
                 throw new Error(`Insufficient balance. You have ${Number(balance) / 10 ** decimals} TNJ, need ${priceTnj} TNJ`);
@@ -111,11 +97,12 @@ function PayButton({
                 skipPreflight: false,
                 preflightCommitment: "confirmed",
             });
+            onPaid(signature);
 
             try {
-                await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+                await confirmSignature(connection, signature, lastValidBlockHeight);
             } catch (confirmErr: any) {
-                console.warn("[Trade] Confirmation timeout, relying on backend verification:", confirmErr.message);
+                console.warn("[Trade] Confirmation failed, relying on backend verification:", confirmErr.message);
             }
 
             onSubmitPayment(tradeId, signature);
@@ -126,7 +113,7 @@ function PayButton({
             isProcessingRef.current = false;
             setState(false);
         }
-    }, [publicKey, connected, wallet, tradeId, sellerWallet, priceTnj, onSubmitPayment]);
+    }, [publicKey, connected, wallet, tradeId, sellerWallet, priceTnj, onSubmitPayment, onPaid]);
 
     if (!publicKey || !connected) {
         return <p className="text-[#8B8F98] text-xs text-center">Connect your wallet to pay</p>;
@@ -168,6 +155,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [pendingItemId, setPendingItemId] = useState<string | null>(null);
     const [priceInput, setPriceInput] = useState("");
+    const [paidSignature, setPaidSignature] = useState<string | null>(null);
 
     const wasOpenRef = useRef(false);
     useEffect(() => {
@@ -187,6 +175,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
     useEffect(() => {
         setPendingItemId(null);
         setPriceInput("");
+        setPaidSignature(null);
     }, [session?.tradeId]);
 
     if (!session) return null;
@@ -345,12 +334,32 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
 
             {session.phase === "awaiting_payment" && isBuyer && session.priceTnj !== null && (
                 <div className="w-full max-w-2xl">
-                    <PayButton
-                        tradeId={session.tradeId}
-                        sellerWallet={them?.wallet ?? ""}
-                        priceTnj={session.priceTnj}
-                        onSubmitPayment={onSubmitPayment}
-                    />
+                    {paidSignature ? (
+                        <div className="space-y-1.5">
+                            <p className="text-[#8B8F98] text-xs text-center">
+                                Payment already sent — verification did not finish. Retry it instead of paying again.
+                            </p>
+                            <button
+                                onClick={() => onSubmitPayment(session.tradeId, paidSignature)}
+                                className="w-full bg-[#4FD1FF] text-[rgba(12,12,14,0.9)] font-bold px-4 py-2.5 rounded-[8px] transition-all"
+                            >
+                                Retry verification
+                            </button>
+                            <CopyableText
+                                value={paidSignature}
+                                display={`${paidSignature.slice(0, 8)}...${paidSignature.slice(-8)}`}
+                                className="text-[10px] text-[#6B7280] block text-center"
+                            />
+                        </div>
+                    ) : (
+                        <PayButton
+                            tradeId={session.tradeId}
+                            sellerWallet={them?.wallet ?? ""}
+                            priceTnj={session.priceTnj}
+                            onSubmitPayment={onSubmitPayment}
+                            onPaid={setPaidSignature}
+                        />
+                    )}
                 </div>
             )}
             {session.phase === "awaiting_payment" && isSeller && (

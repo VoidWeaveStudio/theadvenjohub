@@ -3,12 +3,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { DoorOpen, Loader2 } from "lucide-react";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { gameFetch } from "../utils/gameFetch";
 import { SoundManager } from "../core/SoundManager";
+import { createRpcConnection, confirmSignature } from "@/core/lib/solanaClient";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 const GATE_PRICE_TNJ = 1_000_000;
@@ -179,7 +180,7 @@ export function GateStewardPanel({
             if (!configRes.ok) throw new Error("Failed to load payment config");
             const config = await configRes.json();
 
-            const connection = new Connection(config.publicRpc, "confirmed");
+            const connection = createRpcConnection();
             const mintPubkey = new PublicKey(config.tokenMint);
             const treasuryPubkey = new PublicKey(config.treasuryWallet);
             const decimals = parseInt(config.decimals || "6");
@@ -211,7 +212,7 @@ export function GateStewardPanel({
 
             setPayState("confirming");
             try {
-                await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+                await confirmSignature(connection, signature, lastValidBlockHeight);
             } catch (confirmErr: any) {
                 console.warn("[GateSteward] confirmation timeout, relying on backend verification:", confirmErr.message);
             }

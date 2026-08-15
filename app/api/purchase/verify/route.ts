@@ -104,6 +104,8 @@ export async function POST(req: NextRequest) {
     const { signature, gameId, lotId } = validation.data;
 
     let serverPrice: number;
+    let lotStatus: string | null = null;
+
     if (gameId) {
       const game = await db.query.games.findFirst({ where: eq(games.id, gameId) });
       if (!game || !game.isActive) {
@@ -112,6 +114,28 @@ export async function POST(req: NextRequest) {
           { status: 404, headers: formatRateLimitHeaders(rl) }
         );
       }
+
+      const ownedLicense = await db.query.gameLicenses.findFirst({
+        where: and(
+          eq(gameLicenses.userId, user.userId),
+          eq(gameLicenses.gameId, gameId),
+          eq(gameLicenses.isActive, true)
+        ),
+      });
+
+      if (ownedLicense && ownedLicense.txSignature !== signature) {
+        console.error("[purchase/verify] Payment submitted for an already owned game:", {
+          gameId, signature, userId: user.userId, existingLicenseId: ownedLicense.id,
+        });
+        return NextResponse.json(
+          {
+            error: "already_owned",
+            hint: "You already own this game. If TNJ was sent, contact support with your transaction signature.",
+          },
+          { status: 409, headers: formatRateLimitHeaders(rl) }
+        );
+      }
+
       serverPrice = game.price;
     } else {
       const lot = await db.query.marketplaceLots.findFirst({ where: eq(marketplaceLots.id, lotId!) });
@@ -121,13 +145,8 @@ export async function POST(req: NextRequest) {
           { status: 404, headers: formatRateLimitHeaders(rl) }
         );
       }
-      if (lot.status !== "available") {
-        return NextResponse.json(
-          { error: "lot_unavailable" },
-          { status: 409, headers: formatRateLimitHeaders(rl) }
-        );
-      }
       serverPrice = lot.price;
+      lotStatus = lot.status;
     }
 
     // A tx signature must only ever redeem ONE purchase. gameLicenses,
@@ -162,8 +181,41 @@ export async function POST(req: NextRequest) {
     });
     if (!verifyResult.ok) {
       return NextResponse.json(
-        { error: verifyResult.error, ...(verifyResult.details ? { details: verifyResult.details } : {}) },
+        {
+          error: verifyResult.error,
+          ...(verifyResult.retryable ? { retryable: true } : {}),
+          ...(verifyResult.details ? { details: verifyResult.details } : {}),
+        },
         { status: verifyResult.status, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
+    if (lotId && lotStatus !== "available") {
+      console.error("[purchase/verify] Paid transaction for a lot that is no longer available:", {
+        lotId, signature, userId: user.userId, lotStatus,
+      });
+
+      try {
+        await db.insert(marketplacePurchases).values({
+          userId: user.userId,
+          wallet: user.wallet,
+          lotId,
+          txSignature: signature,
+          amount: serverPrice,
+          status: "refund_pending",
+        });
+      } catch (recordError: any) {
+        if (recordError?.code !== "23505") {
+          console.error("[purchase/verify] Failed to record refund_pending purchase:", recordError?.message);
+        }
+      }
+
+      return NextResponse.json(
+        {
+          error: "lot_already_sold",
+          hint: "This item was already sold to someone else. Contact support with your transaction signature for a refund.",
+        },
+        { status: 409, headers: formatRateLimitHeaders(rl) }
       );
     }
 
@@ -212,9 +264,30 @@ export async function POST(req: NextRequest) {
         const concurrent = await db.query.gameLicenses.findFirst({
           where: eq(gameLicenses.txSignature, signature),
         });
-        if (!concurrent) throw insertError;
+        if (concurrent) {
+          return NextResponse.json({ success: true, type: "game", id: concurrent.id, alreadyProcessed: true });
+        }
 
-        return NextResponse.json({ success: true, type: "game", id: concurrent.id, alreadyProcessed: true });
+        const ownedConcurrently = await db.query.gameLicenses.findFirst({
+          where: and(
+            eq(gameLicenses.userId, user.userId),
+            eq(gameLicenses.gameId, gameId),
+            eq(gameLicenses.isActive, true)
+          ),
+        });
+        if (!ownedConcurrently) throw insertError;
+
+        console.error("[purchase/verify] Paid transaction for a game claimed by a concurrent request:", {
+          gameId, signature, userId: user.userId, existingLicenseId: ownedConcurrently.id,
+        });
+
+        return NextResponse.json(
+          {
+            error: "already_owned",
+            hint: "You already own this game. If TNJ was sent, contact support with your transaction signature.",
+          },
+          { status: 409, headers: formatRateLimitHeaders(rl) }
+        );
       }
 
     } else if (lotId) {

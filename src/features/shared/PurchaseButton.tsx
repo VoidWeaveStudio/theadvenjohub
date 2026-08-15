@@ -3,21 +3,17 @@
 
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useState, useCallback, useRef, useMemo } from "react";
-import {
-  Connection,
-  PublicKey,
-  Transaction,
-  VersionedTransaction,
-} from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   createTransferInstruction,
-  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { LoginButton } from "@/core/auth/components/LoginButton";
 import { buildSignInMessage } from "@/core/auth/lib/signMessage";
+import { createRpcConnection, confirmSignature, readTokenAccountBalance } from "@/core/lib/solanaClient";
+import { sessionFetch } from "@/core/api/session";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -30,14 +26,15 @@ interface PurchaseButtonProps {
   onSuccess?: (result: { id: string; type: "game" | "item" | "faction_upgrade"; promoCode?: string }) => void;
 }
 
-type LoadingState = boolean | "connecting" | "signing" | "confirming";
+type LoadingState = boolean | "connecting" | "signing" | "confirming" | "verifying";
 
 export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
   const { t } = useLanguage();
   const { publicKey, connected, wallet } = useWallet();
-  const { login, refreshAuth, userWallet, isAuthorized } = useAuth();
+  const { login, refreshAuth, isAuthorized, walletMismatch } = useAuth();
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingSignature, setPendingSignature] = useState<string | null>(null);
 
   const isProcessingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -46,39 +43,24 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
     gameId, lotId, factionId, price, isLot, onSuccess
   }), [gameId, lotId, factionId, price, isLot, onSuccess]);
 
-  const getFreshCsrf = (): string | undefined => {
-    if (typeof document === "undefined") return undefined;
-    const match = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
-    return match ? decodeURIComponent(match[1]) : undefined;
-  };
+  const submitVerification = useCallback(async (signature: string, signal: AbortSignal) => {
+    const endpoint = factionId ? "/api/faction/upgrades/promo-code/purchase" : "/api/purchase/verify";
+    const body = factionId ? { signature, factionId } : { signature, gameId, lotId };
 
-  const getTokenBalance = useCallback(async (
-    connection: Connection,
-    ata: PublicKey,
-    tokenProgramId: PublicKey
-  ): Promise<bigint> => {
-    const accountInfo = await connection.getAccountInfo(ata, "confirmed");
-    
-    if (!accountInfo) {
-      throw new Error("Token account not found");
+    const verifyRes = await sessionFetch(endpoint, {
+      method: "POST",
+      signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!verifyRes.ok) {
+      const errData = await verifyRes.json().catch(() => ({}));
+      throw new Error(errData.error || `Verification failed: ${verifyRes.status}`);
     }
 
-    const data = accountInfo.data;
-    if (data.length < 72) {
-      throw new Error("Invalid token account data");
-    }
-
-    const balance = BigInt(data[64]) |
-      BigInt(data[65]) << 8n |
-      BigInt(data[66]) << 16n |
-      BigInt(data[67]) << 24n |
-      BigInt(data[68]) << 32n |
-      BigInt(data[69]) << 40n |
-      BigInt(data[70]) << 48n |
-      BigInt(data[71]) << 56n;
-
-    return balance;
-  }, []);
+    return verifyRes.json();
+  }, [factionId, gameId, lotId]);
 
   const handlePurchase = useCallback(async (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
@@ -119,15 +101,16 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
     abortControllerRef.current = abortController;
 
     isProcessingRef.current = true;
-    setLoading("connecting");
     setError(null);
 
-    let signature: string | null = null;
+    let signature: string | null = pendingSignature;
 
     try {
-      if (!isAuthorized) {
+      setLoading("connecting");
+
+      if (!isAuthorized || walletMismatch) {
         setLoading("signing");
-        
+
         const challengeRes = await fetch(
           `/api/auth/challenge?wallet=${encodeURIComponent(walletAddress)}`,
           {
@@ -188,13 +171,46 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
         await refreshAuth();
       }
 
+      if (signature) {
+        setLoading("verifying");
+        const retried = await submitVerification(signature, abortController.signal);
+        setPendingSignature(null);
+        onSuccess?.(retried);
+        return;
+      }
+
       setLoading("confirming");
+
+      let amountTnj = price;
+
+      if (!factionId) {
+        const quoteParams = gameId ? `gameId=${encodeURIComponent(gameId)}` : `lotId=${encodeURIComponent(lotId!)}`;
+        const quoteRes = await sessionFetch(`/api/purchase/quote?${quoteParams}`, { signal: abortController.signal });
+
+        if (!quoteRes.ok) {
+          const err = await quoteRes.json().catch(() => ({}));
+          throw new Error(err.error || `Quote failed: ${quoteRes.status}`);
+        }
+
+        const quote = await quoteRes.json();
+
+        if (typeof quote.price !== "number") {
+          throw new Error("price_unavailable");
+        }
+        if (quote.price !== price) {
+          throw new Error(
+            `${t("errors.priceChanged") || "The price changed, reload the page"}: ${quote.price.toLocaleString("en-US")} TNJ`
+          );
+        }
+
+        amountTnj = quote.price;
+      }
 
       const configRes = await fetch("/api/marketplace/config", { signal: abortController.signal });
       if (!configRes.ok) throw new Error("Failed to load config");
       const config = await configRes.json();
 
-      const connection = new Connection(config.publicRpc, "confirmed");
+      const connection = createRpcConnection();
       const mintPubkey = new PublicKey(config.tokenMint);
       const treasuryPubkey = new PublicKey(config.treasuryWallet);
 
@@ -205,12 +221,12 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
       const userATA = await getAssociatedTokenAddress(mintPubkey, userPubkey, false, tokenProgramId);
       const treasuryATA = await getAssociatedTokenAddress(mintPubkey, treasuryPubkey, true, tokenProgramId);
 
-      const balance = await getTokenBalance(connection, userATA, tokenProgramId);
+      const balance = await readTokenAccountBalance(connection, userATA);
 
-      const amountToSend = BigInt(price) * BigInt(10 ** decimals);
+      const amountToSend = BigInt(amountTnj) * BigInt(10 ** decimals);
 
       if (balance < amountToSend) {
-        throw new Error(`Insufficient balance. You have ${Number(balance) / Math.pow(10, decimals)} TNJ, need ${price} TNJ`);
+        throw new Error(`Insufficient balance. You have ${Number(balance) / Math.pow(10, decimals)} TNJ, need ${amountTnj} TNJ`);
       }
 
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
@@ -233,7 +249,7 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
         throw new Error("This wallet doesn't support transaction signing");
       }
 
-      let signedTx: Transaction | VersionedTransaction;
+      let signedTx: Transaction;
       try {
         signedTx = await (walletAdapter as any).signTransaction(tx);
       } catch (signError: any) {
@@ -251,55 +267,37 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
         skipPreflight: false,
         preflightCommitment: "confirmed",
       });
+      setPendingSignature(signature);
 
       try {
-        await connection.confirmTransaction(
-          { signature, blockhash, lastValidBlockHeight },
-          "confirmed"
-        );
+        await confirmSignature(connection, signature, lastValidBlockHeight);
       } catch (confirmErr: any) {
-        console.warn("[TANJO] Transaction confirmation timeout, relying on backend verification:", confirmErr.message);
+        console.warn("[TANJO] Transaction confirmation failed, relying on backend verification:", confirmErr.message);
       }
 
       if (abortController.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
       }
 
-      const newCsrfToken = getFreshCsrf();
+      setLoading("verifying");
 
-      const endpoint = factionId ? "/api/faction/upgrades/promo-code/purchase" : "/api/purchase/verify";
-      const verifyBody = factionId ? { signature, factionId } : { signature, gameId, lotId, price };
-
-      const verifyRes = await fetch(endpoint, {
-        method: "POST",
-        credentials: "include",
-        signal: abortController.signal,
-        headers: {
-          "Content-Type": "application/json",
-          ...(newCsrfToken ? { "x-csrf-token": newCsrfToken } : {}),
-        },
-        body: JSON.stringify(verifyBody),
-      });
-
-      if (!verifyRes.ok) {
-        const errData = await verifyRes.json().catch(() => ({}));
-        throw new Error(errData.error || `Verification failed: ${verifyRes.status}`);
-      }
-
-      const data = await verifyRes.json();
+      const data = await submitVerification(signature, abortController.signal);
+      setPendingSignature(null);
       onSuccess?.(data);
 
     } catch (err: any) {
       console.error("[TANJO Purchase Error]", err);
-      
+
       if (err.name === "AbortError" || err.message === "Aborted") {
         return;
       }
 
       if (err.message?.includes("User rejected") || err.code === 4001) {
         setError(t("errors.userRejected"));
-      } else if (signature && (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError"))) {
-        setError(t("errors.verificationPending"));
+      } else if (signature) {
+        setError(
+          `${err.message || t("errors.transactionFailed")} — ${t("errors.verificationPending") || "payment sent, retry verification"}`
+        );
       } else {
         setError(err.message || t("errors.transactionFailed"));
       }
@@ -307,7 +305,19 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
       isProcessingRef.current = false;
       setLoading(false);
     }
-  }, [publicKey, connected, wallet, purchaseConfig, t, login, refreshAuth, userWallet, isAuthorized, getTokenBalance]);
+  }, [
+    publicKey,
+    connected,
+    wallet,
+    purchaseConfig,
+    t,
+    login,
+    refreshAuth,
+    isAuthorized,
+    walletMismatch,
+    pendingSignature,
+    submitVerification,
+  ]);
 
   if (!publicKey || !connected) {
     return (
@@ -345,6 +355,17 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
         </span>
       );
     }
+    if (loading === "verifying") {
+      return (
+        <span className="flex items-center gap-2">
+          <span className="animate-pulse">🧾</span>
+          {t("purchase.verifying") || "Verifying payment..."}
+        </span>
+      );
+    }
+    if (pendingSignature) {
+      return t("purchase.retryVerification") || "Retry verification";
+    }
 
     return `${t("actions.buy")} ${price.toLocaleString("en-US")} TNJ`;
   };
@@ -362,6 +383,11 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
         {getButtonText()}
       </button>
       {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+      {pendingSignature && !loading && (
+        <p className="text-xs text-text-secondary break-all">
+          {t("purchase.savedSignature") || "Payment signature"}: {pendingSignature}
+        </p>
+      )}
     </div>
   );
 }

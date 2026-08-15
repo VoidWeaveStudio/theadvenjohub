@@ -68,6 +68,7 @@ export const gameLicenses = pgTable("game_licenses", {
   promoCodeUsed: varchar("promo_code_used", { length: 20 }),
 }, (table) => [
   index("idx_licenses_user_game").on(table.userId, table.gameId),
+  uniqueIndex("idx_licenses_user_game_active").on(table.userId, table.gameId).where(sql`is_active = true`),
   index("idx_licenses_wallet").on(table.wallet),
   index("idx_licenses_tx").on(table.txSignature),
   index("idx_licenses_active").on(table.isActive),

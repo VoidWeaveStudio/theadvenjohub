@@ -13,32 +13,18 @@ type LoadingState = boolean | "connecting" | "signing";
 export function LoginButton({ className = "" }: { className?: string }) {
   const { t } = useLanguage();
   const { connect, publicKey, wallet, connected, select, connecting, disconnect } = useWallet();
-  const { login, isAuthorized } = useAuth();
+  const { login, isAuthorized, walletMismatch } = useAuth();
 
   const [loading, setLoading] = useState<LoadingState>(false);
   const [error, setError] = useState<string | null>(null);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [signTrigger, setSignTrigger] = useState(0);
 
+  const needsAuth = !isAuthorized || walletMismatch;
+
   const pendingWalletName = useRef<string | null>(null);
   const isProcessingRef = useRef(false);
   const pendingConnectRef = useRef(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || isAuthorized) return;
-
-    const savedWallet = localStorage.getItem("selectedWallet");
-    if (!savedWallet) return;
-
-    fetch("/api/auth/me", { credentials: "include" })
-      .then(r => r.json())
-      .then(data => {
-        if (data.authenticated && data.user?.wallet) {
-          login(data.user.wallet, savedWallet);
-        }
-      })
-      .catch(() => { });
-  }, [isAuthorized, login]);
 
   useEffect(() => {
     if (pendingConnectRef.current && wallet && !connected && !connecting) {
@@ -204,15 +190,17 @@ export function LoginButton({ className = "" }: { className?: string }) {
   }, [loading, select, t, wallet, connected, publicKey, disconnect]);
 
   const handleConnect = useCallback(() => {
-    if (loading || isAuthorized) return;
+    if (loading || !needsAuth) return;
 
-    const savedWallet = localStorage.getItem("selectedWallet");
+    const currentWalletName = connected && wallet?.adapter.name ? wallet.adapter.name : null;
+    const savedWallet = currentWalletName || localStorage.getItem("selectedWallet");
+
     if (savedWallet) {
       handleWalletSelect(savedWallet);
     } else {
       setShowWalletSelector(true);
     }
-  }, [loading, isAuthorized, handleWalletSelect]);
+  }, [loading, needsAuth, connected, wallet, handleWalletSelect]);
 
   const getButtonText = () => {
     if (loading === "connecting") {
@@ -231,6 +219,9 @@ export function LoginButton({ className = "" }: { className?: string }) {
         </span>
       );
     }
+    if (walletMismatch) {
+      return t("auth.switchAccount") || "Sign in with the connected account";
+    }
     return t("auth.connect");
   };
 
@@ -238,7 +229,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
     <>
       <button
         onClick={handleConnect}
-        disabled={!!loading || isAuthorized}
+        disabled={!!loading || !needsAuth}
         className={`btn-primary px-4 py-2 text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-full justify-center ${className}`}
         type="button"
       >

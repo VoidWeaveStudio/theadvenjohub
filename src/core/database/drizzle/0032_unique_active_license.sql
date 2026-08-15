@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "idx_licenses_user_game_active" ON "game_licenses" USING btree ("user_id","game_id") WHERE is_active = true;

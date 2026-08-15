@@ -17,17 +17,28 @@ export async function GET(req: Request) {
     );
   }
 
-  const publicRpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim();
-  if (!publicRpc) {
-    console.error("[marketplace/config] NEXT_PUBLIC_SOLANA_RPC_URL is not set");
-    return NextResponse.json({ error: "rpc_not_configured" }, { status: 500 });
+  const treasuryWallet = process.env.NEXT_PUBLIC_TREASURY_WALLET_ADDRESS?.trim();
+  const tokenMint = process.env.NEXT_PUBLIC_TNJ_TOKEN_MINT_ADDRESS?.trim();
+
+  if (!treasuryWallet || !tokenMint) {
+    console.error("[marketplace/config] Treasury wallet or token mint is not configured");
+    return NextResponse.json({ error: "payment_not_configured" }, { status: 500 });
+  }
+
+  if (treasuryWallet !== process.env.TREASURY_WALLET_ADDRESS?.trim()) {
+    console.error("[marketplace/config] Public treasury wallet does not match the server-side one");
+    return NextResponse.json({ error: "payment_not_configured" }, { status: 500 });
+  }
+
+  if (tokenMint !== process.env.TNJ_TOKEN_MINT_ADDRESS?.trim()) {
+    console.error("[marketplace/config] Public token mint does not match the server-side one");
+    return NextResponse.json({ error: "payment_not_configured" }, { status: 500 });
   }
 
   const config = {
-    treasuryWallet: process.env.NEXT_PUBLIC_TREASURY_WALLET_ADDRESS?.trim(),
-    tokenMint: process.env.NEXT_PUBLIC_TNJ_TOKEN_MINT_ADDRESS?.trim(),
+    treasuryWallet,
+    tokenMint,
     decimals: process.env.NEXT_PUBLIC_TNJ_DECIMALS?.trim() || "6",
-    publicRpc,
   };
 
   return NextResponse.json(config, {

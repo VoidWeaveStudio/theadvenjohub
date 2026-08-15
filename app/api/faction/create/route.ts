@@ -13,8 +13,6 @@ import { getFactionRank } from "@/core/lib/factionRank";
 import { loadPrice, payableTnjFor } from "@/core/lib/shopPricing";
 import { TNJ_QUOTE_TOLERANCE } from "@/core/lib/tnjPricing";
 
-export const FACTION_CREATION_PRICE_TNJ = 1_000_000;
-
 const createSchema = z.object({
   signature: z.string().min(80).max(100, "Invalid signature length"),
   ca: z.string().min(32).max(64),

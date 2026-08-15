@@ -1,2 +1,3 @@
 // src/core/auth/components/index.ts
-export { LoginWithPhantom } from "./LoginWithPhantom";
+export { LoginButton } from "./LoginButton";
+export { WalletSelectorModal } from "./WalletSelectorModal";

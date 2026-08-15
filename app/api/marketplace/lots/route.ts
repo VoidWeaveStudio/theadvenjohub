@@ -2,14 +2,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/database";
 import { marketplaceLots, games } from "@/core/database/schema";
-import { eq, and, like, sql, desc } from "drizzle-orm";
+import { eq, and, like, sql } from "drizzle-orm";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
+const MAX_SEARCH_LENGTH = 100;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ALLOWED_TYPES = ["standard", "premium", "rare", "legendary"];
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
 
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`marketplace:lots:${ip}`, {
+      maxAttempts: 60,
+      windowMs: 60_000,
+      prefix: "api:marketplace:lots",
+    });
+
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "too_many_attempts" },
+        { status: 429, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
 
     const rawPage = parseInt(searchParams.get("page") || String(DEFAULT_PAGE));
@@ -20,24 +43,32 @@ export async function GET(req: NextRequest) {
 
     const offset = (page - 1) * limit;
 
-    const search = searchParams.get("search") || "";
+    const search = (searchParams.get("search") || "").trim().slice(0, MAX_SEARCH_LENGTH);
     const game = searchParams.get("game") || "";
-    const type = searchParams.get("type")?.split(",").filter(Boolean) || [];
+    const type = (searchParams.get("type")?.split(",").filter(Boolean) || [])
+      .filter((entry) => ALLOWED_TYPES.includes(entry));
     const minPrice = searchParams.get("minPrice");
     const maxPrice = searchParams.get("maxPrice");
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
+    if (game && !UUID_PATTERN.test(game)) {
+      return NextResponse.json(
+        { error: "invalid_game_id" },
+        { status: 400, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
     const conditions = [];
 
     if (search) {
-      conditions.push(like(marketplaceLots.name, `%${search}%`));
+      conditions.push(like(marketplaceLots.name, `%${escapeLikePattern(search)}%`));
     }
     if (game) {
       conditions.push(eq(marketplaceLots.gameId, game));
     }
     if (type.length > 0) {
-      conditions.push(sql`marketplace_lots.type = ANY(${type})`);
+      conditions.push(sql`${marketplaceLots.type} = ANY(${type})`);
     }
     if (minPrice) {
       const min = parseInt(minPrice);
@@ -96,8 +127,9 @@ export async function GET(req: NextRequest) {
       },
     }, {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
         "Content-Type": "application/json",
+        ...formatRateLimitHeaders(rl),
       },
     });
 

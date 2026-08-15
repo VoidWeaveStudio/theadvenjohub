@@ -1,2 +1,2 @@
 // src/core/blockchain/index.ts
-export { testConnection, verifyPurchaseOnChain, getTokenCreatorWallet, getTokenBalance } from "./solana";
+export { testConnection, getTokenCreatorWallet, getTokenBalance } from "./solana";

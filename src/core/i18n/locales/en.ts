@@ -792,6 +792,12 @@ export const en: Translations = {
   "promoCode.insufficientBalance": "You don't hold this faction's token.",
   "promoCode.balanceCheckFailed": "Couldn't verify your token balance, try again.",
   "promoCode.redeemFailed": "Failed to redeem code.",
+  "auth.switchAccount": "Sign in with the connected account",
+  "purchase.verifying": "Verifying payment...",
+  "purchase.retryVerification": "Retry verification",
+  "purchase.savedSignature": "Payment signature",
+  "errors.priceChanged": "The price changed, reload the page",
+  "marketplace.noDescription": "No description available",
 };
 
 export default en;

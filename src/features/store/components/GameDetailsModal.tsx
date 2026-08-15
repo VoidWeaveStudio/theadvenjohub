@@ -10,6 +10,7 @@ import { PurchaseButton } from "@/features/shared/PurchaseButton";
 import { LoginButton } from "@/core/auth/components/LoginButton";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { apiGet } from "@/core/api/client";
+import { isBrowserPlayable } from "@/core/lib/defaultGame";
 
 interface GameDetail {
   id: string;
@@ -51,15 +52,11 @@ export function GameDetailModal({
     setLoading(true);
     setError(null);
 
-    console.log("🔍 Loading game with slug:", slug);
-
     try {
       const data = await apiGet<GameDetail>(`/api/games/${slug}`);
-      console.log("📦 Game loaded:", data);
-      console.log("🎮 Game slug:", data.slug, "isOwned:", data.isOwned);
       setGame(data);
     } catch (err) {
-      console.error("❌ Failed to load game:", err);
+      console.error("Failed to load game:", err);
       setError(t("game.failedToLoad"));
     } finally {
       setLoading(false);
@@ -68,7 +65,6 @@ export function GameDetailModal({
 
   useEffect(() => {
     if (isOpen && slug) {
-      console.log("🚪 Modal opened for slug:", slug);
       loadGame();
     }
   }, [isOpen, slug, loadGame]);
@@ -85,7 +81,6 @@ export function GameDetailModal({
   }, [isOpen]);
 
   const handlePurchaseSuccess = useCallback(() => {
-    console.log("✅ Purchase successful, reloading game data");
     loadGame();
     onPurchaseSuccess?.();
   }, [loadGame, onPurchaseSuccess]);
@@ -202,12 +197,7 @@ export function GameDetailModal({
 
           <div className="sticky bottom-0 bg-zinc-900/95 backdrop-blur py-4 border-t border-zinc-700 -mx-2 px-2">
             {(() => {
-              console.log("🎯 Rendering bottom section - isOwned:", game.isOwned, "slug:", game.slug, "isAuthorized:", isAuthorized);
-              
               if (game.isOwned) {
-                console.log("✅ Game is owned! Checking if should show PLAY button...");
-                console.log("🎮 Is tanjo-shooter?", game.slug === "tanjo-shooter");
-                
                 return (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-green-400">
@@ -215,21 +205,19 @@ export function GameDetailModal({
                       <span className="font-medium">{t("game.inLibrary")}</span>
                     </div>
                     <div className="flex gap-2">
-                      {game.slug === "tanjo-shooter" && (
+                      {isBrowserPlayable(game.slug) && (
                         <button
                           onClick={() => {
-                            console.log("🎮 ИГРАТЬ button clicked! Navigating to:", `/game/${game.slug}`);
                             onClose();
                             router.push(`/game/${game.slug}`);
                           }}
                           className="btn-primary px-6 py-2"
                         >
-                          ИГРАТЬ
+                          {t("game.play")}
                         </button>
                       )}
                       <button
                         onClick={() => {
-                          console.log("📚 В библиотеку button clicked!");
                           onClose();
                           router.push("/profile?tab=library");
                         }}
@@ -241,7 +229,6 @@ export function GameDetailModal({
                   </div>
                 );
               } else if (isAuthorized) {
-                console.log("💰 Game not owned, showing PurchaseButton");
                 return (
                   <PurchaseButton
                     gameId={game.id}
@@ -250,7 +237,6 @@ export function GameDetailModal({
                   />
                 );
               } else {
-                console.log("🔒 Not authorized, showing LoginButton");
                 return (
                   <div className="space-y-2">
                     <LoginButton className="w-full" />

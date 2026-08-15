@@ -15,7 +15,9 @@ export function Header() {
 
   const router = useRouter();
   const { t } = useLanguage();
-  const { userWallet, isAuthorized, logout } = useAuth();
+  const { userWallet, isAuthorized, walletMismatch, logout } = useAuth();
+
+  const showAccount = isAuthorized && !!userWallet && !walletMismatch;
 
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -83,13 +85,13 @@ export function Header() {
               {t("header.downloadApp")}
             </a>
 
-            {isAuthorized && userWallet ? (
+            {showAccount ? (
               <div className="flex items-center gap-2">
                 <Link
                   href="/profile"
                   className="btn-primary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
                 >
-                  {truncateAddress(userWallet)}
+                  {truncateAddress(userWallet!)}
                 </Link>
                 <button
                   onClick={handleLogout}
@@ -148,14 +150,14 @@ export function Header() {
                   {t("header.downloadApp")}
                 </a>
 
-                {isAuthorized && userWallet ? (
+                {showAccount ? (
                   <div className="space-y-3 pt-2">
                     <Link
                       href="/profile"
                       className="block w-full text-center px-4 py-4 rounded-xl btn-primary font-semibold text-white"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      {truncateAddress(userWallet)}
+                      {truncateAddress(userWallet!)}
                     </Link>
                     <button
                       onClick={() => {

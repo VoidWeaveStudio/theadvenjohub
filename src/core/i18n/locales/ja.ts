@@ -799,6 +799,12 @@ export const ja: Translations = {
   "promoCode.insufficientBalance": "この陣営のトークンを保有していません。",
   "promoCode.balanceCheckFailed": "トークン残高を確認できませんでした。もう一度お試しください。",
   "promoCode.redeemFailed": "プロモコードの使用に失敗しました。",
+  "auth.switchAccount": "接続中のアカウントでサインイン",
+  "purchase.verifying": "支払いを確認中...",
+  "purchase.retryVerification": "確認をやり直す",
+  "purchase.savedSignature": "支払い署名",
+  "errors.priceChanged": "価格が変更されました。ページを再読み込みしてください",
+  "marketplace.noDescription": "説明はありません",
 };
 
 export default ja;

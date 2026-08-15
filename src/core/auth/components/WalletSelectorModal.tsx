@@ -26,7 +26,6 @@ const WALLET_LABELS: Record<string, string> = {
   "Bitget": "Bitget Wallet",
   "Clover": "Clover",
   "Coinhub": "Coinhub",
-  "MagicEden": "Magic Eden",
 };
 
 export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelectorModalProps) {
@@ -34,6 +33,11 @@ export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelecto
   const { t } = useLanguage();
   const [walletsList, setWalletsList] = useState<any[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setIsSelecting(false);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !wallets) return;
