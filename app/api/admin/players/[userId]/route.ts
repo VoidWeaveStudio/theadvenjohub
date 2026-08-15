@@ -182,7 +182,7 @@ export async function PATCH(
             return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
         }
 
-        const sigError = verifyAdminAction(req, body, isBanned ? "ban" : "unban", userId);
+        const sigError = await verifyAdminAction(req, body, isBanned ? "ban" : "unban", userId);
         if (sigError) return sigError;
 
         const [updated] = await db

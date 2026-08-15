@@ -7,24 +7,6 @@ const __dirname = path.dirname(__filename);
 
 const isDev = process.env.NODE_ENV !== 'production';
 
-const baseCsp = [
-  "default-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' https: blob: data:",
-  "connect-src 'self' blob: data: https://theadvenjo.online https://*.theadvenjo.online https://*.solana.com https://api.mainnet-beta.solana.com wss://*.solana.com https://mainnet.helius-rpc.com https://*.helius-rpc.com https://*.helius.dev wss://*.helius-rpc.com https://*.jup.ag http://localhost:3000 http://localhost:3001 ws://localhost:3001 wss://localhost:3001 https://*.onrender.com wss://*.onrender.com",
-  "frame-src 'self' https://*.solana.com https://pump.fun https://*.solflare.com",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-];
-
-const scriptSrc = isDev
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.solana.com https://*.helius.dev https://*.jup.ag http://localhost:3000"
-  : "script-src 'self' 'unsafe-inline' https://*.solana.com https://*.helius.dev https://*.jup.ag";
-
-const cspDirectives = [...baseCsp, scriptSrc].join("; ");
-
 const nextConfig = {
   reactStrictMode: false,
   compress: true, 
@@ -82,10 +64,6 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: [
-          {
-            key: "Content-Security-Policy",
-            value: cspDirectives,
-          },
           {
             key: "Strict-Transport-Security",
             value: isDev ? "max-age=0" : "max-age=31536000; includeSubDomains; preload",

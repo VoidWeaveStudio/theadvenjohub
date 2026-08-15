@@ -50,7 +50,7 @@ export async function POST(
       return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
     }
 
-    const sigError = verifyAdminAction(
+    const sigError = await verifyAdminAction(
       req,
       {
         wallet: formData.get("wallet"),

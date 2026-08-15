@@ -84,7 +84,7 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "invalid_price_usd" }, { status: 400 });
         }
 
-        const sigError = verifyAdminAction(req, body, "shop_price_set", itemId);
+        const sigError = await verifyAdminAction(req, body, "shop_price_set", itemId);
         if (sigError) return sigError;
 
         const gameId = await resolveGameId(typeof gameSlug === "string" ? gameSlug : null);

@@ -1,7 +1,7 @@
 // app/api/game/session/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { requireAuth } from "@/core/auth/lib/auth";
+import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { db } from "@/core/database";
 import { games, gameLicenses, users } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
@@ -30,6 +30,13 @@ export async function POST(req: NextRequest) {
             return authResult;
         }
         const { user } = authResult;
+
+        if (!verifyCSRF(req)) {
+            return NextResponse.json(
+                { error: "invalid_csrf_token" },
+                { status: 403, headers: formatRateLimitHeaders(rl) }
+            );
+        }
 
         if (user.wallet !== process.env.ADMIN_WALLET) {
             const maintenance = await getMaintenanceStatus();

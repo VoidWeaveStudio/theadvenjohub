@@ -2,19 +2,25 @@
 "use client";
 
 import { useWallet } from "@solana/wallet-adapter-react";
-import { buildAdminActionMessage } from "@/core/admin/adminActionMessage";
+import { buildAdminActionMessage, hashActionPayload } from "@/core/admin/adminActionMessage";
 import { getCsrfToken } from "@/core/lib/clientUtils";
 
 export function useAdminSignature() {
     const { publicKey, wallet } = useWallet();
 
-    async function signAction(action: string, target: string): Promise<{ wallet: string; signature: string; timestamp: number }> {
+    async function signAction(
+        action: string,
+        target: string,
+        payload: Record<string, unknown> = {}
+    ): Promise<{ wallet: string; signature: string; timestamp: number; nonce: string }> {
         if (!publicKey || !wallet?.adapter) {
             throw new Error("Connect your admin wallet first");
         }
 
         const timestamp = Date.now();
-        const message = buildAdminActionMessage(action, target, timestamp);
+        const nonce = crypto.randomUUID();
+        const payloadHash = await hashActionPayload(payload);
+        const message = buildAdminActionMessage({ action, target, timestamp, nonce, payloadHash });
         const messageBytes = new TextEncoder().encode(message);
 
         const signMessageFn = (wallet.adapter as any).signMessage;
@@ -26,11 +32,11 @@ export function useAdminSignature() {
         const signatureBytes = signed.signature || signed;
         const signature = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
 
-        return { wallet: publicKey.toBase58(), signature, timestamp };
+        return { wallet: publicKey.toBase58(), signature, timestamp, nonce };
     }
 
     async function signedFetch(url: string, action: string, target: string, extraBody: Record<string, unknown> = {}, method: string = "PATCH") {
-        const sig = await signAction(action, target);
+        const sig = await signAction(action, target, extraBody);
         const csrfToken = getCsrfToken();
 
         return fetch(url, {

@@ -23,7 +23,7 @@ export async function PATCH(
             return NextResponse.json({ error: "invalid_request" }, { status: 400 });
         }
 
-        const sigError = verifyAdminAction(req, body, delta > 0 ? "grantItem" : "takeItem", `${userId}:${itemId}`);
+        const sigError = await verifyAdminAction(req, body, delta > 0 ? "grantItem" : "takeItem", `${userId}:${itemId}`);
         if (sigError) return sigError;
 
         const row = await db.query.gameProgress.findFirst({ where: eq(gameProgress.userId, userId) });

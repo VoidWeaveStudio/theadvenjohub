@@ -22,7 +22,7 @@ export async function PATCH(
             return NextResponse.json({ error: "invalid_delta" }, { status: 400 });
         }
 
-        const sigError = verifyAdminAction(req, body, delta > 0 ? "grantAsh" : "takeAsh", userId);
+        const sigError = await verifyAdminAction(req, body, delta > 0 ? "grantAsh" : "takeAsh", userId);
         if (sigError) return sigError;
 
         const row = await db.query.gameProgress.findFirst({ where: eq(gameProgress.userId, userId) });

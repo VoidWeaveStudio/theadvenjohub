@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
         }
 
-        const sigError = verifyAdminAction(req, body, enabled ? "maintenance_on" : "maintenance_off", "global");
+        const sigError = await verifyAdminAction(req, body, enabled ? "maintenance_on" : "maintenance_off", "global");
         if (sigError) return sigError;
 
         await setMaintenanceStatus(enabled, typeof message === "string" ? message.slice(0, 500) : undefined);

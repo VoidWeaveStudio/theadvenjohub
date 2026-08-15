@@ -17,7 +17,7 @@ export async function PATCH(
         const { userId } = await params;
         const body = await req.json();
 
-        const sigError = verifyAdminAction(req, body, "resetSkin", userId);
+        const sigError = await verifyAdminAction(req, body, "resetSkin", userId);
         if (sigError) return sigError;
 
         const row = await db.query.gameProgress.findFirst({ where: eq(gameProgress.userId, userId) });

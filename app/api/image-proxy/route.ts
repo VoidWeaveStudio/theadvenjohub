@@ -5,6 +5,10 @@ import https from "node:https";
 import dns, { type LookupAllOptions, type LookupOneOptions } from "node:dns";
 import { isIP } from "node:net";
 import zlib from "node:zlib";
+import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
+
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const ALLOWED_CONTENT_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"];
 
 function isPrivateIp(ip: string): boolean {
     const version = isIP(ip);
@@ -107,16 +111,40 @@ function decompressBody(res: IncomingMessage): NodeJS.ReadableStream {
     }
 }
 
-function readBody(stream: NodeJS.ReadableStream): Promise<Buffer> {
+function readBody(stream: NodeJS.ReadableStream, maxBytes: number): Promise<Buffer> {
     return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
-        stream.on("data", (chunk) => chunks.push(chunk));
+        let received = 0;
+
+        stream.on("data", (chunk: Buffer) => {
+            received += chunk.length;
+            if (received > maxBytes) {
+                (stream as any).destroy?.();
+                reject(new Error("image_too_large"));
+                return;
+            }
+            chunks.push(chunk);
+        });
         stream.on("end", () => resolve(Buffer.concat(chunks)));
         stream.on("error", reject);
     });
 }
 
 export async function GET(request: Request) {
+    const ip = getClientIp(request);
+    const rl = await checkRateLimit(`image:proxy:${ip}`, {
+        maxAttempts: 120,
+        windowMs: 60_000,
+        prefix: "api:image-proxy",
+    });
+
+    if (!rl.allowed) {
+        return NextResponse.json(
+            { error: "too_many_attempts" },
+            { status: 429, headers: formatRateLimitHeaders(rl) }
+        );
+    }
+
     const { searchParams } = new URL(request.url);
     const imageUrl = searchParams.get("url");
 
@@ -150,14 +178,36 @@ export async function GET(request: Request) {
             return new NextResponse("Failed to fetch image", { status: 502 });
         }
 
-        const body = await readBody(decompressBody(response));
-        const headers = new Headers();
-        headers.set("Content-Type", response.headers["content-type"] || "image/png");
+        const upstreamType = (response.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+
+        if (!ALLOWED_CONTENT_TYPES.includes(upstreamType)) {
+            response.resume();
+            return new NextResponse("Unsupported content type", {
+                status: 415,
+                headers: formatRateLimitHeaders(rl),
+            });
+        }
+
+        const declaredLength = Number(response.headers["content-length"]);
+        if (Number.isFinite(declaredLength) && declaredLength > MAX_IMAGE_BYTES) {
+            response.resume();
+            return new NextResponse("Image too large", { status: 413, headers: formatRateLimitHeaders(rl) });
+        }
+
+        const body = await readBody(decompressBody(response), MAX_IMAGE_BYTES);
+        const headers = new Headers(formatRateLimitHeaders(rl));
+        headers.set("Content-Type", upstreamType);
+        headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
+        headers.set("Content-Disposition", "inline");
+        headers.set("X-Content-Type-Options", "nosniff");
         headers.set("Cache-Control", "public, max-age=31536000, immutable");
         headers.set("Access-Control-Allow-Origin", "*");
 
         return new NextResponse(new Uint8Array(body), { headers });
     } catch (error) {
+        if ((error as Error)?.message === "image_too_large") {
+            return new NextResponse("Image too large", { status: 413, headers: formatRateLimitHeaders(rl) });
+        }
         console.error(`[image-proxy] Failed for ${parsedUrl.hostname}:`, error);
         return new NextResponse("Failed to proxy image", { status: 500 });
     }

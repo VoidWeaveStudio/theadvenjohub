@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         }
         const trimmedCa = ca.trim().slice(0, 64);
 
-        const sigError = verifyAdminAction(req, body, "createFaction", trimmedCa);
+        const sigError = await verifyAdminAction(req, body, "createFaction", trimmedCa);
         if (sigError) return sigError;
 
         const existing = await db.query.factions.findFirst({ where: eq(factions.tokenCa, trimmedCa) });

@@ -1,6 +1,7 @@
 // app/layout.tsx
 import "@/core/init";
-import type { Metadata, Viewport } from "next"; 
+import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "@/core/styles/globals.css";
 import { Inter, Oxanium } from "next/font/google";
 import { Header } from "@/core/ui/Header";
@@ -43,11 +44,14 @@ export const viewport: Viewport = {
   colorScheme: "dark light", 
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") || undefined;
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               (function() {

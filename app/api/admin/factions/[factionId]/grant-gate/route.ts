@@ -17,7 +17,7 @@ export async function PATCH(
         const { factionId } = await params;
         const body = await req.json();
 
-        const sigError = verifyAdminAction(req, body, "grantFactionGate", factionId);
+        const sigError = await verifyAdminAction(req, body, "grantFactionGate", factionId);
         if (sigError) return sigError;
 
         const faction = await db.query.factions.findFirst({ where: eq(factions.id, factionId) });

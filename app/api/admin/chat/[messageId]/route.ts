@@ -17,7 +17,7 @@ export async function PATCH(
         const { messageId } = await params;
         const body = await req.json();
 
-        const sigError = verifyAdminAction(req, body, "deleteChatMessage", messageId);
+        const sigError = await verifyAdminAction(req, body, "deleteChatMessage", messageId);
         if (sigError) return sigError;
 
         const [row] = await db

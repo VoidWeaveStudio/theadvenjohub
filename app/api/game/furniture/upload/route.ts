@@ -1,6 +1,6 @@
 // app/api/game/furniture/upload/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/core/auth/lib/auth";
+import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders } from "@/core/lib/rateLimit";
 import { put } from "@vercel/blob";
 
@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
         return authResult;
     }
     const { user } = authResult;
+
+    if (!verifyCSRF(req)) {
+        return NextResponse.json({ error: "invalid_csrf_token" }, { status: 403 });
+    }
 
     const rl = await checkRateLimit(`game:furniture:upload:${user.userId}`, {
         maxAttempts: 10,

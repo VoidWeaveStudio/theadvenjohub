@@ -22,7 +22,7 @@ export async function PATCH(
             return NextResponse.json({ error: "invalid_slot" }, { status: 400 });
         }
 
-        const sigError = verifyAdminAction(req, body, "removeInventoryItem", `${userId}:${slot}`);
+        const sigError = await verifyAdminAction(req, body, "removeInventoryItem", `${userId}:${slot}`);
         if (sigError) return sigError;
 
         const [deleted] = await db

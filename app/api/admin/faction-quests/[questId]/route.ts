@@ -14,7 +14,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ q
         const { questId } = await params;
         const body = await req.json().catch(() => ({}));
 
-        const sigError = verifyAdminAction(req, body, "faction_quest_delete", questId);
+        const sigError = await verifyAdminAction(req, body, "faction_quest_delete", questId);
         if (sigError) return sigError;
 
         const quest = await db.query.factionQuests.findFirst({ where: eq(factionQuests.id, questId) });

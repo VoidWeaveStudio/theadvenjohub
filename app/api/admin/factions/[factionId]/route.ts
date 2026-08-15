@@ -81,7 +81,7 @@ export async function DELETE(
         const { factionId } = await params;
         const body = await req.json().catch(() => ({}));
 
-        const sigError = verifyAdminAction(req, body, "deleteFaction", factionId);
+        const sigError = await verifyAdminAction(req, body, "deleteFaction", factionId);
         if (sigError) return sigError;
 
         const [deleted] = await db.delete(factions).where(eq(factions.id, factionId)).returning();

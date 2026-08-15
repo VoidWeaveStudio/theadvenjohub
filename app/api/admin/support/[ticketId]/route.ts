@@ -23,7 +23,7 @@ export async function PATCH(
             return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
         }
 
-        const sigError = verifyAdminAction(req, body, "support_reply", ticketId);
+        const sigError = await verifyAdminAction(req, body, "support_reply", ticketId);
         if (sigError) return sigError;
 
         const trimmedReply = reply.trim().slice(0, 2000);

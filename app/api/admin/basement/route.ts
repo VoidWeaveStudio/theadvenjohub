@@ -64,7 +64,7 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "invalid_token_ca" }, { status: 400 });
         }
 
-        const sigError = verifyAdminAction(req, body, tokenCa ? "basement_set" : "basement_clear", `slot:${slot}`);
+        const sigError = await verifyAdminAction(req, body, tokenCa ? "basement_set" : "basement_clear", `slot:${slot}`);
         if (sigError) return sigError;
 
         const game = await resolveGame(typeof gameSlug === "string" ? gameSlug : null);
