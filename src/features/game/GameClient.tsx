@@ -31,10 +31,15 @@ import type { FactionGateData, ShardStateData } from "./network/NetworkManager";
 import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
 import { gameFetch, keepSessionAlive } from "./utils/gameFetch";
 import { QuestTracker } from "./ui/QuestTracker";
+import { LevelUpToast } from "./ui/LevelUpToast";
+import { SpecializationModal } from "./ui/SpecializationModal";
+import { SkillTreeWindow } from "./ui/SkillTreeWindow";
 import { CanyonMapPanel } from "./ui/CanyonMapPanel";
 import { AlaricPanel } from "./ui/AlaricPanel";
-import { EmoteWheel } from "./ui/EmoteWheel";
-import { EmoteKey } from "./data/emotes";
+import { RadialWheel, WheelPage } from "./ui/RadialWheel";
+import { AbilityBar } from "./ui/AbilityBar";
+import { EMOTES, isEmoteKey } from "./data/emotes";
+import { MEME_ABILITIES, TIERS } from "./data/progression";
 import { CosmeticId } from "./data/cosmetics";
 import { useCosmeticState } from "./ui/hooks/useCosmeticState";
 import { FactionsWindow } from "./ui/FactionsWindow";
@@ -55,7 +60,8 @@ import { TradeInvitePopup } from "./ui/TradeInvitePopup";
 import { NicknameMenuActions } from "./ui/shell/NicknameMenu";
 import { TradeSessionData } from "./network/NetworkManager";
 import { useHudState } from "./ui/hooks/useHudState";
-import { useQuestState, SOLA_QUEST_ID } from "./ui/hooks/useQuestState";
+import { useProgressionState } from "./ui/hooks/useProgressionState";
+import { useQuestState, SOLA_NPC_ID } from "./ui/hooks/useQuestState";
 import { useInventoryState } from "./ui/hooks/useInventoryState";
 import { useChatState } from "./ui/hooks/useChatState";
 import { usePrivateMessagesState } from "./ui/hooks/usePrivateMessagesState";
@@ -68,6 +74,14 @@ import { useProfileState } from "./ui/hooks/useProfileState";
 import { useSocialState } from "./ui/hooks/useSocialState";
 
 const SESSION_KEEPALIVE_MS = 9 * 60 * 1000;
+
+const ABILITY_KEY_MAP: Record<string, string> = {
+  KeyQ: "q",
+  KeyF: "f",
+  KeyC: "c",
+  KeyV: "v",
+  KeyX: "x",
+};
 
 interface GameClientProps {
   slug: string;
@@ -133,7 +147,9 @@ export function GameClient({ slug }: GameClientProps) {
   const [signEditorId, setSignEditorId] = useState<string | null>(null);
   const [viewingSign, setViewingSign] = useState<SignViewData | null>(null);
   const [isPlaceableMenuOpen, setIsPlaceableMenuOpen] = useState(false);
-  const [isEmoteWheelOpen, setIsEmoteWheelOpen] = useState(false);
+  const [isWheelOpen, setIsWheelOpen] = useState(false);
+  const [isSpecializationOpen, setIsSpecializationOpen] = useState(false);
+  const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
   const [spawnProtectionSeconds, setSpawnProtectionSeconds] = useState(0);
 
   const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
@@ -143,6 +159,7 @@ export function GameClient({ slug }: GameClientProps) {
 
   const hud = useHudState();
   const quest = useQuestState();
+  const progressionState = useProgressionState();
   const inventory = useInventoryState();
   const chat = useChatState();
   const pm = usePrivateMessagesState();
@@ -162,8 +179,8 @@ export function GameClient({ slug }: GameClientProps) {
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
     { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
-    { id: "blueprint", icon: "📐", name: "Blueprint", equipped: false },
-    { id: "emotes", icon: "emote", name: "Emotes", equipped: false },
+    { id: "slot2", icon: "", name: "", equipped: false },
+    { id: "slot3", icon: "", name: "", equipped: false },
     { id: "slot4", icon: "", name: "", equipped: false },
     { id: "slot5", icon: "", name: "", equipped: false },
   ]);
@@ -198,13 +215,99 @@ export function GameClient({ slug }: GameClientProps) {
 
     if (slot.id === "rifle") {
       gameRef.current?.setWeaponEquipped(!slot.equipped);
-    } else if (slot.id === "blueprint") {
-      gameRef.current?.setBlueprintEquipped(!slot.equipped);
-    } else if (slot.id === "emotes") {
-      setIsEmoteWheelOpen(true);
-      document.exitPointerLock();
     }
   };
+
+  const isBlueprintEquipped = hud.hudState.equippedTool === "blueprint";
+
+  const wheelPages: WheelPage[] = [
+    {
+      id: "actions",
+      label: "Actions",
+      items: [
+        ...EMOTES.map((emote) => ({
+          id: emote.key,
+          label: emote.label,
+          emoji: emote.emoji,
+          accent: emote.accent,
+          hint: emote.hint,
+        })),
+        {
+          id: "blueprint",
+          label: isBlueprintEquipped ? "Put Away" : "Blueprint",
+          emoji: "📐",
+          accent: "#4FD1FF",
+          hint: "Toggle the build tool",
+          locked: !!getSlotLockReason("blueprint", isBlueprintEquipped),
+          lockReason: getSlotLockReason("blueprint", isBlueprintEquipped) ?? undefined,
+        },
+        {
+          id: "placeables",
+          label: "Placeables",
+          emoji: "🪑",
+          accent: "#FFD166",
+          hint: "Choose what to place",
+          locked: !isBlueprintEquipped,
+          lockReason: "Equip the blueprint first",
+        },
+      ],
+    },
+    {
+      id: "degen",
+      label: "Degen",
+      items: MEME_ABILITIES.map((ability) => {
+        const unlocked = progressionState.progression?.memeAbilities.includes(ability.id) ?? false;
+        return {
+          id: ability.id,
+          label: ability.name,
+          emoji: ability.emoji,
+          accent: TIERS.find((t) => t.memeAbility === ability.id)?.accent ?? "#FFD166",
+          hint: ability.description,
+          locked: !unlocked,
+          lockReason: `Unlocks at level ${TIERS.find((t) => t.memeAbility === ability.id)?.minLevel ?? 1}`,
+        };
+      }),
+    },
+  ];
+
+  const closeWheel = (relock: boolean = true) => {
+    setIsWheelOpen(false);
+    if (relock) canvasRef.current?.requestPointerLock().catch(() => { });
+  };
+
+  const handleWheelSelect = (pageId: string, itemId: string) => {
+    if (pageId === "actions") {
+      if (itemId === "blueprint") {
+        gameRef.current?.setBlueprintEquipped(!isBlueprintEquipped);
+        closeWheel();
+        return;
+      }
+      if (itemId === "placeables") {
+        closeWheel(false);
+        setIsPlaceableMenuOpen(true);
+        return;
+      }
+      if (isEmoteKey(itemId)) {
+        gameRef.current?.playEmote(itemId);
+        closeWheel();
+      }
+      return;
+    }
+
+    if (pageId === "degen") {
+      notifications.addNotification("🚧 Degen abilities land in the next update", 2500);
+      closeWheel();
+    }
+  };
+
+  const branchChosen = progressionState.progression?.branch ?? null;
+  const branchUnlocked = progressionState.progression?.branchUnlocked ?? false;
+
+  useEffect(() => {
+    if (branchChosen !== null || !branchUnlocked) return;
+    setIsSpecializationOpen(true);
+    document.exitPointerLock();
+  }, [branchChosen, branchUnlocked]);
 
   useEffect(() => {
     void keepSessionAlive();
@@ -313,7 +416,7 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           quest.resetQuestInfo();
           setIsSolaOpen(true);
-          gameRef.current?.talkToQuestGiver(SOLA_QUEST_ID);
+          gameRef.current?.talkToQuestGiver(SOLA_NPC_ID);
           document.exitPointerLock();
         };
         game.onOpenAlfredoUI = () => {
@@ -401,6 +504,33 @@ export function GameClient({ slug }: GameClientProps) {
         game.onMySkinChange = (url) => { if (!cancelled) setMySkinUrl(url); };
         game.onQuestInfo = (data) => { if (!cancelled) quest.handleQuestInfo(data); };
         game.onQuestUpdate = (data) => { if (!cancelled) quest.handleQuestUpdate(data); };
+        game.onProgressionState = (data) => { if (!cancelled) progressionState.handleProgressionState(data); };
+        game.onBranchSelected = (branch) => {
+          if (cancelled) return;
+          setIsSpecializationOpen(false);
+          notifications.addNotification(`✨ Specialisation set: ${branch === "gunslinger" ? "Gunslinger" : "Arcanist"}`, 3500);
+        };
+        game.onSkillLearnRejected = (data) => {
+          if (cancelled) return;
+          const reasons: Record<string, string> = {
+            level_too_low: "🔒 Your level is too low for that skill",
+            column_points_too_low: "🔒 Invest more points in that column first",
+            no_points: "🔒 No skill points left",
+            max_rank: "Already at max rank",
+            wrong_branch: "🔒 That skill belongs to the other specialisation",
+          };
+          notifications.addNotification(reasons[data.reason] ?? "🔒 Cannot learn that skill", 2500);
+        };
+        game.onSkillsRespecced = (data) => {
+          if (cancelled) return;
+          notifications.addNotification(
+            data.costAsh > 0 ? `🌀 Skills reset for ${data.costAsh} Ash` : "🌀 Skills reset",
+            3500
+          );
+        };
+        game.onXpGain = (data) => { if (!cancelled) progressionState.handleXpGain(data); };
+        game.onLevelUp = (data) => { if (!cancelled) progressionState.handleLevelUp(data); };
+        game.onPlayerLevelUpdate = (data) => { if (!cancelled) progressionState.handlePlayerLevelUpdate(data); };
         game.onOpenCanyonMapUI = () => {
           if (cancelled) return;
           canyonMap.openWithReset();
@@ -622,8 +752,16 @@ export function GameClient({ slug }: GameClientProps) {
           setViewingSign(null);
           return;
         }
-        if (isEmoteWheelOpen) {
-          setIsEmoteWheelOpen(false);
+        if (isWheelOpen) {
+          setIsWheelOpen(false);
+          return;
+        }
+        if (isSpecializationOpen) {
+          setIsSpecializationOpen(false);
+          return;
+        }
+        if (isSkillTreeOpen) {
+          setIsSkillTreeOpen(false);
           return;
         }
         if (isPlaceableMenuOpen) {
@@ -658,7 +796,7 @@ export function GameClient({ slug }: GameClientProps) {
 
       if (buildEditorState?.active) return;
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || bubbleIndex !== null || factionBubbleId !== null || isRoomPortalOpen || isRoomConsoleOpen || isBubbleMapOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen || isEmoteWheelOpen || tradeSession !== null || pendingTradeInvite !== null) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || bubbleIndex !== null || factionBubbleId !== null || isRoomPortalOpen || isRoomConsoleOpen || isBubbleMapOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen || isWheelOpen || isSpecializationOpen || isSkillTreeOpen || tradeSession !== null || pendingTradeInvite !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -668,6 +806,17 @@ export function GameClient({ slug }: GameClientProps) {
         const activeTag = document.activeElement?.tagName;
         if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
         inventory.setIsInventoryOpen((prev) => {
+          const next = !prev;
+          if (next) document.exitPointerLock();
+          return next;
+        });
+        return;
+      }
+
+      if (e.code === "KeyK" && !showFloorSelector) {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+        setIsSkillTreeOpen((prev) => {
           const next = !prev;
           if (next) document.exitPointerLock();
           return next;
@@ -710,15 +859,26 @@ export function GameClient({ slug }: GameClientProps) {
           handleSlotClick(index);
         }
 
-        if (e.code === "KeyQ" && hud.hudState.equippedTool === "blueprint") {
-          setIsPlaceableMenuOpen(true);
+        if (e.code === "KeyT" && !e.repeat) {
+          setIsWheelOpen(true);
           document.exitPointerLock();
+          return;
+        }
+
+        const abilitySlot = ABILITY_KEY_MAP[e.code];
+        if (abilitySlot && !e.repeat) {
+          const abilityId = progressionState.progression?.loadout?.[abilitySlot];
+          if (!abilityId) {
+            notifications.addNotification("No skill bound to that slot — open the tree with [K]", 2000);
+            return;
+          }
+          gameRef.current?.castAbility(abilityId);
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, isEmoteWheelOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
+  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, isWheelOpen, isSpecializationOpen, isSkillTreeOpen, hud.hudState.equippedTool, tradeSession, pendingTradeInvite]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -897,6 +1057,24 @@ export function GameClient({ slug }: GameClientProps) {
         spawnProtectionSeconds={spawnProtectionSeconds}
         shardState={shardState}
         onSwitchShard={(instance) => gameRef.current?.switchShard(instance)}
+        progression={progressionState.progression}
+        xpPopups={progressionState.xpPopups}
+        onOpenSkills={() => {
+          setIsSkillTreeOpen(true);
+          document.exitPointerLock();
+        }}
+      />
+      <LevelUpToast event={progressionState.levelUp} onDismiss={progressionState.dismissLevelUp} />
+      <SkillTreeWindow
+        isOpen={isSkillTreeOpen}
+        onClose={() => setIsSkillTreeOpen(false)}
+        progression={progressionState.progression}
+        onLearn={(nodeId) => gameRef.current?.learnSkill(nodeId)}
+        onBind={(slot, abilityId) => gameRef.current?.bindAbility(slot, abilityId)}
+        onOpenSpecialization={() => {
+          setIsSkillTreeOpen(false);
+          setIsSpecializationOpen(true);
+        }}
       />
       <TopMenu
         active={activeTopWindow}
@@ -909,13 +1087,17 @@ export function GameClient({ slug }: GameClientProps) {
       />
       <Notifications notifications={notifications.notifications} onRemove={notifications.removeNotification} />
       <QuestTracker quest={quest.questTracker} />
-      <EmoteWheel
-        isOpen={isEmoteWheelOpen}
-        onClose={() => setIsEmoteWheelOpen(false)}
-        onSelect={(key: EmoteKey) => {
-          gameRef.current?.playEmote(key);
-          setIsEmoteWheelOpen(false);
-          canvasRef.current?.requestPointerLock().catch(() => { });
+      <RadialWheel
+        isOpen={isWheelOpen}
+        pages={wheelPages}
+        onClose={() => closeWheel()}
+        onSelect={handleWheelSelect}
+      />
+      <AbilityBar
+        progression={progressionState.progression}
+        onSlotClick={() => {
+          setIsSkillTreeOpen(true);
+          document.exitPointerLock();
         }}
       />
       <Inventory
@@ -1177,6 +1359,15 @@ export function GameClient({ slug }: GameClientProps) {
         onAccept={(questId) => gameRef.current?.acceptQuest(questId)}
         onTurnIn={(questId) => gameRef.current?.turnInQuest(questId)}
         onRequestTokenInfo={(ca) => gameRef.current?.requestTokenInfo(ca)}
+        progression={progressionState.progression}
+        ash={inventory.ash}
+        onRespec={() => gameRef.current?.respecSkills()}
+      />
+
+      <SpecializationModal
+        isOpen={isSpecializationOpen}
+        onClose={() => setIsSpecializationOpen(false)}
+        onSelect={(branch) => gameRef.current?.selectBranch(branch)}
       />
 
       <AlfredoPanel

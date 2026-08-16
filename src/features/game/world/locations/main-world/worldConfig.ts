@@ -20,6 +20,12 @@ export const PLAY_RADIUS = 466;
 export const SAFE_ZONE_RADIUS = 34;
 export const SPAWN_FLAT_RADIUS = 52;
 
+export const RAMPART_BAND_NEAR = 8;
+export const RAMPART_BAND_FAR = 34;
+export const RAMPART_FOG_NEAR = 36;
+export const RAMPART_FOG_FAR = 50;
+export const RAMPART_VISIBLE_MARGIN = 54;
+
 export const TOWER_X = 300;
 export const TOWER_Z = 0;
 export const TOWER_FLAT_RADIUS = 90;

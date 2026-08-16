@@ -7,9 +7,12 @@ import { RIFLE_GRIP_QUATERNION, RIFLE_GRIP_OFFSET } from "./Weapon";
 import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
+import { TIERS } from "../data/progression";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl, disposePaintableMaterial } from "./characterPaint";
 import type { PlayerNetData } from "../network/NetworkManager";
 import { EnergyWisp } from "./EnergyWisp";
+
+const TIERS_BY_ID = new Map(TIERS.map((t) => [t.id, t]));
 
 export class OtherPlayer extends Entity {
     public nickname: string;
@@ -56,6 +59,8 @@ export class OtherPlayer extends Entity {
     private wisp: EnergyWisp | null = null;
     private wispMode: boolean = false;
     private lastWispPosition = new THREE.Vector3();
+    private level: number = 1;
+    private tierEmoji: string | null = null;
 
     constructor(
         id: string,
@@ -210,7 +215,18 @@ export class OtherPlayer extends Entity {
     }
 
     private displayName(name: string): string {
-        return this.isAdmin ? `${name}  [ADMIN]` : name;
+        const rank = this.tierEmoji ? `${this.tierEmoji} ${this.level}  ` : "";
+        return this.isAdmin ? `${rank}${name}  [ADMIN]` : `${rank}${name}`;
+    }
+
+    public setProgression(level: number, tier: string | null) {
+        const emoji = tier ? TIERS_BY_ID.get(tier)?.emoji ?? null : null;
+        if (this.level === level && this.tierEmoji === emoji) return;
+
+        this.level = level;
+        this.tierEmoji = emoji;
+        this.drawNameTag(this.nickname);
+        if (this.nameTexture) this.nameTexture.needsUpdate = true;
     }
 
     private drawNameTag(name: string) {
@@ -452,6 +468,9 @@ export class OtherPlayer extends Entity {
         }
         if (data.health !== undefined) {
             this.setHealth(data.health);
+        }
+        if (typeof data.level === "number") {
+            this.setProgression(data.level, data.tier ?? null);
         }
     }
 

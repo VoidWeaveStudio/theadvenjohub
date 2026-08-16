@@ -10,6 +10,7 @@ import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
 import { SAFE_ZONE_RADIUS } from "../world/locations/main-world/worldConfig";
+import { syncWorldStatus } from "./GameWorldState";
 
 export function applyLocationMovementConfig(game: Game, location: Location) {
     game.player.setTerrain(location.terrain ?? null);
@@ -49,6 +50,8 @@ export function configureLocationSpecifics(game: Game, location: Location) {
             new THREE.Vector3(0, 0, 0),
             SAFE_ZONE_RADIUS
         );
+
+        syncWorldStatus(game, location);
     } else if (location instanceof Basement) {
         location.onInteractablesChanged = (added, removed) => {
             removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));

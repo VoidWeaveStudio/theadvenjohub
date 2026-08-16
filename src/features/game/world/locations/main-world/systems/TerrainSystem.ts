@@ -55,6 +55,7 @@ export class TerrainSystem {
     private readonly material: THREE.MeshStandardMaterial;
     private lastChunkX = Number.NaN;
     private lastChunkZ = Number.NaN;
+    private visibleRadius = Infinity;
 
     public readonly spawnLevel: number;
     public readonly towerLevel: number;
@@ -210,6 +211,26 @@ export class TerrainSystem {
         return height;
     }
 
+    public setVisibleRadius(radius: number | null) {
+        const value = radius ?? Infinity;
+        if (this.visibleRadius === value) return;
+
+        this.visibleRadius = value;
+        this.lastChunkX = Number.NaN;
+        this.lastChunkZ = Number.NaN;
+    }
+
+    private chunkVisible(chunkX: number, chunkZ: number): boolean {
+        if (!Number.isFinite(this.visibleRadius)) return true;
+
+        const minX = -WORLD_HALF + chunkX * CHUNK_SIZE;
+        const minZ = -WORLD_HALF + chunkZ * CHUNK_SIZE;
+        const nearestX = Math.max(minX, Math.min(minX + CHUNK_SIZE, 0));
+        const nearestZ = Math.max(minZ, Math.min(minZ + CHUNK_SIZE, 0));
+
+        return Math.hypot(nearestX, nearestZ) <= this.visibleRadius;
+    }
+
     public update(playerX: number, playerZ: number) {
         const chunkX = Math.floor((playerX + WORLD_HALF) / CHUNK_SIZE);
         const chunkZ = Math.floor((playerZ + WORLD_HALF) / CHUNK_SIZE);
@@ -226,6 +247,7 @@ export class TerrainSystem {
         for (let cx = centerChunkX - VIEW_CHUNK_RADIUS; cx <= centerChunkX + VIEW_CHUNK_RADIUS; cx++) {
             for (let cz = centerChunkZ - VIEW_CHUNK_RADIUS; cz <= centerChunkZ + VIEW_CHUNK_RADIUS; cz++) {
                 if (cx < 0 || cz < 0 || cx >= CHUNKS_PER_SIDE || cz >= CHUNKS_PER_SIDE) continue;
+                if (!this.chunkVisible(cx, cz)) continue;
 
                 const key = `${cx},${cz}`;
                 wanted.add(key);

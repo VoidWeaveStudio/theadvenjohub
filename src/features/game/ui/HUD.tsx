@@ -4,7 +4,9 @@ import { Crosshair } from "./Crosshair";
 import { OnlineCounter } from "./OnlineCounter";
 import { Heart, Shield, Activity, Mic, ShieldCheck } from "lucide-react";
 import { ShardSwitcher } from "./ShardSwitcher";
-import type { ShardStateData } from "../network/NetworkManager";
+import { XpBar } from "./XpBar";
+import type { ShardStateData, ProgressionStateData } from "../network/NetworkManager";
+import type { XpPopup } from "./hooks/useProgressionState";
 
 interface HUDProps {
     state: HUDState;
@@ -14,29 +16,36 @@ interface HUDProps {
     spawnProtectionSeconds?: number;
     shardState?: ShardStateData | null;
     onSwitchShard?: (instance: number) => void;
+    progression?: ProgressionStateData | null;
+    xpPopups?: XpPopup[];
+    onOpenSkills?: () => void;
 }
 
-export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false, spawnProtectionSeconds = 0, shardState = null, onSwitchShard }: HUDProps) {
+export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false, spawnProtectionSeconds = 0, shardState = null, onSwitchShard, progression = null, xpPopups = [], onOpenSkills }: HUDProps) {
     const healthPercentage = (state.health / state.maxHealth) * 100;
 
     return (
         <div className="absolute inset-0 pointer-events-none select-none font-oxanium">
             <div className="absolute top-6 left-6">
                 <div className="flex items-end gap-3">
-                    <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-4 min-w-[220px]">
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                                <Heart className="w-5 h-5 text-[#FF5757] fill-[#FF5757]" />
-                                <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">HEALTH</span>
+                    <div>
+                        <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-4 min-w-[220px]">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <Heart className="w-5 h-5 text-[#FF5757] fill-[#FF5757]" />
+                                    <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">HEALTH</span>
+                                </div>
+                                <span className="text-[#E5E7EB] text-lg font-bold">{state.health}</span>
                             </div>
-                            <span className="text-[#E5E7EB] text-lg font-bold">{state.health}</span>
+                            <div className="w-full h-2 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-gradient-to-r from-[#FF5757] to-[#FF7B7B] transition-all duration-300 ease-out"
+                                    style={{ width: `${healthPercentage}%` }}
+                                />
+                            </div>
                         </div>
-                        <div className="w-full h-2 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-gradient-to-r from-[#FF5757] to-[#FF7B7B] transition-all duration-300 ease-out"
-                                style={{ width: `${healthPercentage}%` }}
-                            />
-                        </div>
+
+                        <XpBar progression={progression} popups={xpPopups} onOpenSkills={onOpenSkills} />
                     </div>
 
                     {isTalking && (

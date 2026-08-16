@@ -2,22 +2,25 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Sparkles, ScrollText, Swords, Coins } from "lucide-react";
-import { QuestInfoData } from "../network/NetworkManager";
+import { X, Sparkles, ScrollText, Swords, Coins, Check, Circle, RotateCcw } from "lucide-react";
+import { QuestInfoData, ProgressionStateData } from "../network/NetworkManager";
 import { SoundManager } from "../core/SoundManager";
 
-type SolaTab = "quests" | "tokenInfo";
+type SolaTab = "quests" | "tokenInfo" | "respec";
 
 interface SolaPanelProps {
     isOpen: boolean;
     quest: QuestInfoData | null;
+    progression?: ProgressionStateData | null;
+    ash?: number;
     onClose: () => void;
     onAccept: (questId: string) => void;
     onTurnIn: (questId: string) => void;
     onRequestTokenInfo: (ca: string) => void;
+    onRespec?: () => void;
 }
 
-export function SolaPanel({ isOpen, quest, onClose, onAccept, onTurnIn, onRequestTokenInfo }: SolaPanelProps) {
+export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose, onAccept, onTurnIn, onRequestTokenInfo, onRespec }: SolaPanelProps) {
     const [tab, setTab] = useState<SolaTab>("quests");
     const [tokenCa, setTokenCa] = useState("");
     const [justSentCa, setJustSentCa] = useState(false);
@@ -69,6 +72,7 @@ export function SolaPanel({ isOpen, quest, onClose, onAccept, onTurnIn, onReques
                                 <div className="flex items-center gap-1.5 text-[#FFD166] font-bold text-sm mb-5">
                                     <Sparkles className="w-4 h-4" />
                                     Reward: {quest.rewardAsh} Ash
+                                    {quest.rewardXp ? <span className="text-[#7FE6CF]">+ {quest.rewardXp} XP</span> : null}
                                 </div>
 
                                 {quest.status === "not_started" && (
@@ -80,7 +84,37 @@ export function SolaPanel({ isOpen, quest, onClose, onAccept, onTurnIn, onReques
                                     </button>
                                 )}
 
-                                {quest.status === "active" && (
+                                {quest.status === "active" && quest.questType === "visit_npcs" && quest.targets && (
+                                    <div className="space-y-1.5">
+                                        {quest.targets.map((target) => {
+                                            const done = (quest.visited ?? []).includes(target.id);
+                                            return (
+                                                <div
+                                                    key={target.id}
+                                                    className={`flex items-center gap-2 px-3 py-2 rounded-[8px] border ${done
+                                                        ? "border-[#4ADE80]/40 bg-[#4ADE80]/10"
+                                                        : "border-white/10 bg-black/20"
+                                                        }`}
+                                                >
+                                                    {done ? (
+                                                        <Check className="w-4 h-4 text-[#4ADE80] flex-shrink-0" />
+                                                    ) : (
+                                                        <Circle className="w-4 h-4 text-[#6B7280] flex-shrink-0" />
+                                                    )}
+                                                    <span className={`text-sm font-bold ${done ? "text-[#4ADE80]" : "text-[#E5E7EB]"}`}>
+                                                        {target.name}
+                                                    </span>
+                                                    <span className="text-[#6B7280] text-[11px] ml-auto">{target.role}</span>
+                                                </div>
+                                            );
+                                        })}
+                                        <p className="text-[#8B8F98] text-xs pt-1">
+                                            {quest.progress}/{quest.targetCount} stewards met — the lift crystal takes you between floors.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {quest.status === "active" && quest.questType !== "visit_npcs" && (
                                     <div>
                                         <div className="flex items-center gap-2 text-[#E5E7EB] text-sm font-bold mb-2">
                                             <Swords className="w-4 h-4 text-[#4ADE80]" />
@@ -106,6 +140,39 @@ export function SolaPanel({ isOpen, quest, onClose, onAccept, onTurnIn, onReques
                                 )}
                             </>
                         )
+                    ) : tab === "respec" ? (
+                        <div>
+                            {!progression || progression.branch === null ? (
+                                <p className="text-[#8B8F98] text-sm text-center py-10">
+                                    You have not chosen a specialisation yet — nothing to unlearn.
+                                </p>
+                            ) : (
+                                <>
+                                    <p className="text-[#8B8F98] text-sm mb-4">
+                                        I can wipe your training clean. Every skill point comes back, and you pick a
+                                        specialisation from scratch.
+                                    </p>
+                                    <div className="flex items-center justify-between text-sm mb-4">
+                                        <span className="text-[#8B8F98]">Cost</span>
+                                        <span className="text-[#FFD166] font-bold">
+                                            {progression.respecCostAsh === 0 ? "Free" : `${progression.respecCostAsh} Ash`}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => onRespec?.()}
+                                        disabled={ash < progression.respecCostAsh}
+                                        className="w-full bg-gradient-to-r from-[#C79AE0] to-[#9F6FD0] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Reset specialisation
+                                    </button>
+                                    {ash < progression.respecCostAsh && (
+                                        <p className="text-[#FF5757] text-xs mt-3 text-center">
+                                            You need {progression.respecCostAsh - ash} more Ash.
+                                        </p>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     ) : (
                         <div>
                             <p className="text-[#8B8F98] text-sm mb-4">
@@ -152,6 +219,14 @@ export function SolaPanel({ isOpen, quest, onClose, onAccept, onTurnIn, onReques
                     >
                         <Coins className="w-3.5 h-3.5" />
                         Token Info (CA)
+                    </button>
+                    <button
+                        onClick={() => setTab("respec")}
+                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-[8px] text-xs font-bold transition-all ${tab === "respec" ? "bg-[#4ADE80]/15 text-[#4ADE80]" : "text-[#8B8F98] hover:text-[#E5E7EB]"
+                            }`}
+                    >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Respec
                     </button>
                 </div>
             </div>

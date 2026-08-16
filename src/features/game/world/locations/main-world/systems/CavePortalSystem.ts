@@ -231,6 +231,20 @@ export class CavePortalSystem {
         return mergeParts(parts);
     }
 
+    public setPosition(x: number, z: number) {
+        this.position.set(x, this.terrain.getHeightAt(x, z), z);
+
+        if (this.group) {
+            this.group.position.copy(this.position);
+            this.group.rotation.y = Math.atan2(x, z) + Math.PI;
+            this.group.updateMatrixWorld();
+        }
+    }
+
+    public setActive(active: boolean) {
+        if (this.group) this.group.visible = active;
+    }
+
     public create(): THREE.Object3D {
         const groundY = this.terrain.getHeightAt(CAVE_PORTAL_X, CAVE_PORTAL_Z);
         this.position.set(CAVE_PORTAL_X, groundY, CAVE_PORTAL_Z);
@@ -238,6 +252,7 @@ export class CavePortalSystem {
         const group = new THREE.Group();
         group.position.copy(this.position);
         group.rotation.y = Math.PI * 0.12;
+        group.visible = false;
         group.userData.interactionId = "cave-portal";
 
         const random = createRandom(5150);

@@ -8,6 +8,7 @@ import {
     gameBuildings,
     gameInventories,
     gameStatistics,
+    gameCharacterProgression,
 } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const [progress, nickname, buildings, inventory, statistics] = await Promise.all([
+        const [progress, nickname, buildings, inventory, statistics, progression] = await Promise.all([
             db.query.gameProgress.findFirst({
                 where: and(
                     eq(gameProgress.userId, userId),
@@ -67,6 +68,17 @@ export async function POST(req: NextRequest) {
                     eq(gameStatistics.gameId, gameId)
                 ),
             }),
+            db.query.gameCharacterProgression
+                .findFirst({
+                    where: and(
+                        eq(gameCharacterProgression.userId, userId),
+                        eq(gameCharacterProgression.gameId, gameId)
+                    ),
+                })
+                .catch((error) => {
+                    console.error("[internal/load-progress] progression read failed:", error);
+                    return null;
+                }),
         ]);
 
         return NextResponse.json({
@@ -104,6 +116,15 @@ export async function POST(req: NextRequest) {
                 shotsFired: statistics.shotsFired,
                 buildingsPlaced: statistics.buildingsPlaced,
                 lastPlayedAt: statistics.lastPlayedAt,
+            } : null,
+            progression: progression ? {
+                totalXp: progression.totalXp,
+                level: progression.level,
+                branch: progression.branch,
+                skills: safeJsonParse(progression.skills),
+                loadout: safeJsonParse(progression.loadout),
+                fireMode: progression.fireMode,
+                respecCount: progression.respecCount,
             } : null,
         });
 

@@ -20,6 +20,7 @@ export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
 export class Player extends Entity {
     private speed: number = 7;
+    private speedMultiplier: number = 1;
     private sprintMultiplier: number = 1.6;
     private weapon: Weapon;
     private time: number = 0;
@@ -96,6 +97,14 @@ export class Player extends Entity {
 
     public health: number = 100;
     public maxHealth: number = 100;
+
+    public applyCombatStats(stats: { maxHealth: number; moveSpeedMult: number; magSize: number; reloadMs: number }) {
+        this.maxHealth = stats.maxHealth;
+        this.speedMultiplier = Math.max(1, stats.moveSpeedMult);
+        this.weapon.maxAmmo = stats.magSize;
+        this.weapon.reloadTime = stats.reloadMs / 1000;
+        if (this.weapon.ammo > this.weapon.maxAmmo) this.weapon.ammo = this.weapon.maxAmmo;
+    }
 
     constructor() {
         super("local-player");
@@ -432,9 +441,10 @@ export class Player extends Entity {
         this.isShooting = this.inputManager.isMousePressed(0);
         const isFiringSlowdown = this.isShooting && this.weaponEquipped;
         const shouldFaceLookDirection = this.isShooting || isInteracting;
+        const scaledSpeed = this.speed * this.speedMultiplier;
         const baseSpeed = isFiringSlowdown
-            ? this.speed * this.SHOOTING_SPEED_MULTIPLIER
-            : this.speed * (isSprinting ? this.sprintMultiplier : 1);
+            ? scaledSpeed * this.SHOOTING_SPEED_MULTIPLIER
+            : scaledSpeed * (isSprinting ? this.sprintMultiplier : 1);
         const currentSpeed = this.swimming ? baseSpeed * Player.SWIM_SPEED_MULTIPLIER : baseSpeed;
 
         let moved = false;

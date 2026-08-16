@@ -2,7 +2,8 @@
 import * as THREE from "three";
 import type { TerrainSystem } from "./TerrainSystem";
 import { bakeTerrainDepthMap, createWaterNormalTexture, DepthMap } from "../utils/waterDepthMap";
-import { SEA_LEVEL, WORLD_SIZE } from "../worldConfig";
+import { SEA_LEVEL, SHORE_RADIUS, WORLD_SIZE } from "../worldConfig";
+import type { WorldLighting } from "../utils/worldLighting";
 
 const OCEAN_EXTENT = WORLD_SIZE * 2.6;
 const OCEAN_SEGMENTS = 200;
@@ -115,6 +116,9 @@ const waterFragmentShader = /* glsl */`
     uniform sampler2D uRippleTex;
     uniform vec4 uRippleBounds;
     uniform float uRippleStrength;
+    uniform vec2 uRadialFogRange;
+    uniform float uRadialFogStrength;
+    uniform vec3 uRadialFogColor;
 
     varying vec3 vWorldPos;
     varying vec3 vWaveNormal;
@@ -231,6 +235,10 @@ const waterFragmentShader = /* glsl */`
         float alpha = uOpacity * smoothstep(0.0, 0.85, depth) * bounds;
         alpha = clamp(alpha + fresnel * 0.35 + foam * 0.6, 0.0, 1.0);
 
+        float radialFog = smoothstep(uRadialFogRange.x, uRadialFogRange.y, length(vWorldPos.xz)) * uRadialFogStrength;
+        color = mix(color, uRadialFogColor, radialFog);
+        alpha = mix(alpha, 1.0, radialFog);
+
         gl_FragColor = vec4(color, alpha);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -246,7 +254,8 @@ export class WaterSystem {
 
     constructor(
         private readonly scene: THREE.Scene,
-        private readonly terrain: TerrainSystem
+        private readonly terrain: TerrainSystem,
+        lighting: WorldLighting
     ) {
         this.uniforms = {
             uTime: { value: 0 },
@@ -271,6 +280,9 @@ export class WaterSystem {
             uRippleTex: { value: null as THREE.Texture | null },
             uRippleBounds: { value: new THREE.Vector4(-45, -45, 90, 90) },
             uRippleStrength: { value: 2.2 },
+            uRadialFogRange: lighting.uniforms.uRadialFogRange,
+            uRadialFogStrength: lighting.uniforms.uRadialFogStrength,
+            uRadialFogColor: lighting.uniforms.uFogColor,
         };
 
         this.material = new THREE.ShaderMaterial({
@@ -324,6 +336,9 @@ export class WaterSystem {
             lakeMaterial.uniforms.uWaterLevel.value = lake.level;
             lakeMaterial.uniforms.uShallowColor.value = new THREE.Color(0x5a9b84);
             lakeMaterial.uniforms.uDeepColor.value = new THREE.Color(0x0e2b2c);
+            lakeMaterial.uniforms.uRadialFogRange = this.uniforms.uRadialFogRange;
+            lakeMaterial.uniforms.uRadialFogStrength = this.uniforms.uRadialFogStrength;
+            lakeMaterial.uniforms.uRadialFogColor = this.uniforms.uRadialFogColor;
 
             const disc = new THREE.Mesh(
                 new THREE.PlaneGeometry(lake.radius * 2.1, lake.radius * 2.1, LAKE_SEGMENTS, LAKE_SEGMENTS),
@@ -337,6 +352,21 @@ export class WaterSystem {
             disc.updateMatrix();
             this.scene.add(disc);
             this.meshes.push(disc);
+        }
+    }
+
+    public setVisibleRadius(radius: number | null) {
+        const limit = radius ?? Infinity;
+
+        for (const mesh of this.meshes) {
+            if (mesh.name === "ocean") {
+                mesh.visible = limit >= SHORE_RADIUS;
+                continue;
+            }
+
+            const bounds = (mesh.material as THREE.ShaderMaterial).uniforms.uBoundsRadius.value as number;
+            const center = (mesh.material as THREE.ShaderMaterial).uniforms.uBoundsCenter.value as THREE.Vector2;
+            mesh.visible = Math.hypot(center.x, center.y) - Math.max(0, bounds) <= limit;
         }
     }
 

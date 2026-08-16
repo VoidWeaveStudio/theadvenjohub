@@ -18,12 +18,18 @@ type OrientedBox = {
     maxY: number;
 };
 
+export type RingArc = {
+    angle: number;
+    halfAngle: number;
+};
+
 type RingWall = {
     radius: number;
     thickness: number;
     minY: number;
     maxY: number;
-    gaps: { angle: number; halfAngle: number }[];
+    gaps: RingArc[];
+    arc: RingArc | null;
 };
 
 type Platform = {
@@ -31,6 +37,7 @@ type Platform = {
     outerRadius: number;
     minY: number;
     maxY: number;
+    arc: RingArc | null;
 };
 
 const FEET_TOLERANCE = 0.1;
@@ -40,6 +47,17 @@ function normalizeAngle(value: number): number {
     while (result > Math.PI) result -= Math.PI * 2;
     while (result < -Math.PI) result += Math.PI * 2;
     return result;
+}
+
+export function ringAngle(x: number, z: number): number {
+    return Math.atan2(x, -z);
+}
+
+function withinArc(arc: RingArc | null, angle: number, distance: number, radius: number): boolean {
+    if (!arc) return true;
+
+    const spread = distance > 1e-3 ? Math.asin(Math.min(1, radius / distance)) : Math.PI;
+    return Math.abs(normalizeAngle(angle - arc.angle)) <= arc.halfAngle + spread;
 }
 
 export class CollisionGrid {
@@ -133,13 +151,20 @@ export class CollisionGrid {
         thickness: number,
         minY: number,
         maxY: number,
-        gaps: { angle: number; halfAngle: number }[] = []
+        gaps: RingArc[] = [],
+        arc: RingArc | null = null
     ) {
-        this.ringWalls.push({ radius, thickness, minY, maxY, gaps });
+        this.ringWalls.push({ radius, thickness, minY, maxY, gaps, arc });
     }
 
-    insertPlatform(innerRadius: number, outerRadius: number, minY: number, maxY: number) {
-        this.platforms.push({ innerRadius, outerRadius, minY, maxY });
+    insertPlatform(
+        innerRadius: number,
+        outerRadius: number,
+        minY: number,
+        maxY: number,
+        arc: RingArc | null = null
+    ) {
+        this.platforms.push({ innerRadius, outerRadius, minY, maxY, arc });
     }
 
     private overlapsOrientedBox(box: OrientedBox, x: number, z: number, radius: number): boolean {
@@ -162,8 +187,11 @@ export class CollisionGrid {
         const distance = Math.hypot(x, z);
         if (Math.abs(distance - wall.radius) > wall.thickness + radius) return false;
 
-        if (wall.gaps.length > 0) {
-            const angle = Math.atan2(x, -z);
+        if (wall.gaps.length > 0 || wall.arc) {
+            const angle = ringAngle(x, z);
+
+            if (!withinArc(wall.arc, angle, distance, radius)) return false;
+
             for (const gap of wall.gaps) {
                 if (Math.abs(normalizeAngle(angle - gap.angle)) < gap.halfAngle) return false;
             }
@@ -174,7 +202,9 @@ export class CollisionGrid {
 
     private overlapsPlatform(platform: Platform, x: number, z: number, radius: number): boolean {
         const distance = Math.hypot(x, z);
-        return distance >= platform.innerRadius - radius && distance <= platform.outerRadius + radius;
+        if (distance < platform.innerRadius - radius || distance > platform.outerRadius + radius) return false;
+
+        return withinArc(platform.arc, ringAngle(x, z), distance, radius);
     }
 
     private blocksHorizontally(minY: number, maxY: number, feetY: number, headY: number, stepUp: number): boolean {

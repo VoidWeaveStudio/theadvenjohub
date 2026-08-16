@@ -1,6 +1,6 @@
 // src/features/game/world/locations/main-world/MainWorld.ts
 import * as THREE from "three";
-import { Location } from "../../Location";
+import { Location, Portal } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";
 import { CollisionGrid } from "../../CollisionGrid";
 import { LiftCrystal } from "../../liftCrystal";
@@ -18,7 +18,28 @@ import { UndergrowthSystem } from "./systems/UndergrowthSystem";
 import { WaterAmbienceSystem } from "./systems/WaterAmbienceSystem";
 import { WorldLighting } from "./utils/worldLighting";
 import { HarborSystem } from "./systems/HarborSystem";
-import { PLAY_RADIUS, SAFE_ZONE_RADIUS, SEA_LEVEL, WORLD_SIZE } from "./worldConfig";
+import { RampartSystem } from "./systems/RampartSystem";
+import { HoloTerminalSystem } from "./systems/HoloTerminalSystem";
+import { FogCurtainSystem } from "./systems/FogCurtainSystem";
+import type { WorldStatusData } from "../../../network/NetworkManager";
+import { applyRadialFogAll } from "./utils/radialFog";
+import {
+  COVE_CENTER_RADIUS,
+  PLAY_RADIUS,
+  RAMPART_FOG_FAR,
+  RAMPART_FOG_NEAR,
+  RAMPART_VISIBLE_MARGIN,
+  RING_INNER,
+  SAFE_ZONE_RADIUS,
+  SEA_LEVEL,
+  TOWER_FLAT_RADIUS,
+  TOWER_X,
+  WORLD_SIZE,
+} from "./worldConfig";
+
+const HARBOR_ANCHOR_RADIUS = COVE_CENTER_RADIUS - 152;
+
+const RAMPART_STAND_MARGIN = 1;
 
 export class MainWorld extends Location {
   public readonly size = WORLD_SIZE;
@@ -33,6 +54,9 @@ export class MainWorld extends Location {
   public rockRing: RockRingSystem;
   public cavePortal: CavePortalSystem;
   public harbor: HarborSystem;
+  public rampart: RampartSystem;
+  public holoTerminal: HoloTerminalSystem;
+  public fogCurtain: FogCurtainSystem;
   public grass: GrassField;
   public ripples: RippleSimulation | null = null;
   public trees: TreeScatterSystem;
@@ -41,6 +65,8 @@ export class MainWorld extends Location {
   public readonly lighting = new WorldLighting();
 
   private crystal: LiftCrystal | null = null;
+  private cavePortalMesh: THREE.Object3D | null = null;
+  private cavePortalEntry: Portal | null = null;
   private crystalBaseY = 0;
   private staticColliders: THREE.Box3[] = [];
   private solidPillars: { x: number; y: number; z: number; radius: number; height: number }[] = [];
@@ -65,10 +91,13 @@ export class MainWorld extends Location {
     this.terrain = new TerrainSystem(this.scene);
     this.atmosphere = new AtmosphereSystem(this);
     this.features = new FeatureSystem(this);
-    this.water = new WaterSystem(this.scene, this.terrain);
+    this.water = new WaterSystem(this.scene, this.terrain, this.lighting);
     this.rockRing = new RockRingSystem(this.scene, this.terrain);
     this.cavePortal = new CavePortalSystem(this.scene, this.terrain);
     this.harbor = new HarborSystem(this.scene, this.terrain, this.isLowEnd);
+    this.rampart = new RampartSystem(this.scene, this.terrain, this.lighting.uniforms);
+    this.holoTerminal = new HoloTerminalSystem(this.scene, this.terrain);
+    this.fogCurtain = new FogCurtainSystem(this.scene, this.terrain, this.lighting.uniforms.uFogColor.value);
     this.grass = new GrassField(this.scene, this.terrain, this.lighting, this.isLowEnd);
     this.trees = new TreeScatterSystem(this.scene, this.terrain, this.isLowEnd);
     this.undergrowth = new UndergrowthSystem(this.scene, this.terrain, this.isLowEnd);
@@ -111,16 +140,9 @@ export class MainWorld extends Location {
 
     this.features.createGloomyTower();
     this.createLiftCrystal();
+    this.holoTerminal.create();
 
-    const portal = this.cavePortal.create();
-    this.addPortal({
-      id: "main-to-cave",
-      position: this.cavePortal.position.clone(),
-      radius: 3.4,
-      targetLocationId: "cave",
-      targetSpawnPoint: new THREE.Vector3(0, 0, 0),
-      mesh: portal,
-    });
+    this.cavePortalMesh = this.cavePortal.create();
 
     this.buildStaticColliders();
 
@@ -129,6 +151,8 @@ export class MainWorld extends Location {
 
     this.rebuildColliders();
     this.rebuildCameraColliders();
+
+    applyRadialFogAll(this.scene, this.lighting.uniforms);
   }
 
   private createLiftCrystal() {
@@ -143,12 +167,87 @@ export class MainWorld extends Location {
   }
 
   private buildStaticColliders() {
+    const terminal = this.holoTerminal.position;
+
     this.staticColliders = [
       new THREE.Box3(
         new THREE.Vector3(-1, this.crystalBaseY, -1),
         new THREE.Vector3(1, this.crystalBaseY + 3, 1)
       ),
+      new THREE.Box3(
+        new THREE.Vector3(terminal.x - 0.9, terminal.y, terminal.z - 0.9),
+        new THREE.Vector3(terminal.x + 0.9, terminal.y + 1.6, terminal.z + 0.9)
+      ),
     ];
+  }
+
+  public applyWorldStatus(status: WorldStatusData | null) {
+    this.holoTerminal.setStatus(status);
+    this.setWallRadius(status?.radius ?? null);
+
+    const portal = status?.portal;
+    this.setCavePortal(portal?.status === "active", portal?.x ?? 0, portal?.z ?? 0);
+  }
+
+  private setCavePortal(active: boolean, x: number, z: number) {
+    this.cavePortal.setActive(active);
+    this.trees.setPortalPosition(active ? x : null, active ? z : null);
+    this.undergrowth.setPortalPosition(active ? x : null, active ? z : null);
+
+    if (!active) {
+      if (this.cavePortalEntry) {
+        this.portals = this.portals.filter((entry) => entry !== this.cavePortalEntry);
+        this.cavePortalEntry = null;
+      }
+      return;
+    }
+
+    this.cavePortal.setPosition(x, z);
+
+    if (!this.cavePortalEntry && this.cavePortalMesh) {
+      this.cavePortalEntry = {
+        id: "main-to-cave",
+        position: this.cavePortal.position.clone(),
+        radius: 3.4,
+        targetLocationId: "cave",
+        targetSpawnPoint: new THREE.Vector3(0, 0, 0),
+        mesh: this.cavePortalMesh,
+      };
+      this.portals.push(this.cavePortalEntry);
+    }
+
+    this.cavePortalEntry?.position.copy(this.cavePortal.position);
+  }
+
+  private setWallRadius(radius: number | null) {
+    if (this.rampart.radius === radius) return;
+
+    this.rampart.setRadius(radius);
+    this.maxPlayerRadius = radius === null ? PLAY_RADIUS : radius + RAMPART_STAND_MARGIN;
+
+    this.lighting.setRadialFog(
+      radius === null ? null : radius + RAMPART_FOG_NEAR,
+      radius === null ? null : radius + RAMPART_FOG_FAR
+    );
+
+    this.fogCurtain.setRadius(radius === null ? null : radius + RAMPART_FOG_FAR);
+    this.setVisibleRadius(radius === null ? null : radius + RAMPART_VISIBLE_MARGIN);
+
+    this.rebuildColliders();
+    this.rebuildCameraColliders();
+  }
+
+  private setVisibleRadius(radius: number | null) {
+    this.terrain.setVisibleRadius(radius);
+    this.trees.setVisibleRadius(radius);
+    this.undergrowth.setVisibleRadius(radius);
+    this.grass.setVisibleRadius(radius);
+    this.water.setVisibleRadius(radius);
+
+    const limit = radius ?? Infinity;
+    this.rockRing.setVisible(limit >= RING_INNER);
+    this.harbor.setVisible(limit >= HARBOR_ANCHOR_RADIUS);
+    this.features.setVisible(limit >= TOWER_X - TOWER_FLAT_RADIUS);
   }
 
   public addSolidPillar(x: number, y: number, z: number, radius: number, height: number) {
@@ -183,6 +282,8 @@ export class MainWorld extends Location {
     for (const collider of this.trees.getColliders()) {
       this.collisionGrid.insert(collider);
     }
+
+    this.rampart.applyColliders(this.collisionGrid);
   }
 
   private rebuildCameraColliders() {
@@ -195,14 +296,17 @@ export class MainWorld extends Location {
     for (const collider of this.terrain.getCameraColliders()) {
       this.terrainCollisionGrid.insert(collider);
     }
+
+    this.rampart.applyColliders(this.terrainCollisionGrid);
   }
 
   public update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean, dayTime?: number) {
     this.time += delta;
 
+    const limit = this.maxPlayerRadius ?? PLAY_RADIUS;
     const distance = Math.hypot(playerPosition.x, playerPosition.z);
-    if (distance > PLAY_RADIUS) {
-      const scale = PLAY_RADIUS / distance;
+    if (distance > limit) {
+      const scale = limit / distance;
       playerPosition.x *= scale;
       playerPosition.z *= scale;
     }
@@ -215,6 +319,8 @@ export class MainWorld extends Location {
     this.waterAmbience.update(delta, playerPosition);
     this.harbor.update(delta);
     this.cavePortal.update(delta);
+    this.holoTerminal.update(delta);
+    this.fogCurtain.update(delta);
 
     if (this.atmosphere.sun) {
       this.water.setSunDirection(
@@ -290,11 +396,13 @@ export class MainWorld extends Location {
   }
 
   public getInteractionPrompt(playerPosition: THREE.Vector3): string | null {
-    const toPortal = Math.hypot(
-      playerPosition.x - this.cavePortal.position.x,
-      playerPosition.z - this.cavePortal.position.z
-    );
-    if (toPortal < 6) return "Step into the rift to descend";
+    if (this.cavePortalEntry) {
+      const toPortal = Math.hypot(
+        playerPosition.x - this.cavePortal.position.x,
+        playerPosition.z - this.cavePortal.position.z
+      );
+      if (toPortal < 6) return "Step into the rift to descend";
+    }
 
     return this.features.getInteractionPrompt(playerPosition);
   }
@@ -313,6 +421,9 @@ export class MainWorld extends Location {
 
   dispose() {
     this.rockRing.dispose();
+    this.rampart.dispose();
+    this.holoTerminal.dispose();
+    this.fogCurtain.dispose();
     this.harbor.dispose();
     this.grass.dispose();
     this.trees.dispose();

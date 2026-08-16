@@ -23,8 +23,13 @@ import {
     CosmeticStateData,
     FactionGateData,
     ShardStateData,
+    ProgressionStateData,
+    XpGainData,
+    LevelUpData,
+    PlayerLevelUpdateData,
 } from "../network/NetworkManager";
 import type { HUDState, DamageEvent } from "./Game";
+import type { BranchId } from "../data/progression";
 
 export interface GameCallbacks {
     onHitMark?: () => void;
@@ -69,6 +74,14 @@ export interface GameCallbacks {
     onSellResult?: (data: { address: string; quantitySold: number; ashEarned: number; marketCap: number }) => void;
     onQuestInfo?: (data: QuestInfoData) => void;
     onQuestUpdate?: (data: QuestUpdateData) => void;
+    onProgressionState?: (data: ProgressionStateData) => void;
+    onXpGain?: (data: XpGainData) => void;
+    onLevelUp?: (data: LevelUpData) => void;
+    onPlayerLevelUpdate?: (data: PlayerLevelUpdateData) => void;
+    onBranchSelected?: (branch: BranchId) => void;
+    onSkillsRespecced?: (data: { costAsh: number }) => void;
+    onSkillLearned?: (data: { nodeId: string; rank: number }) => void;
+    onSkillLearnRejected?: (data: { nodeId: string; reason: string }) => void;
     onCanyonSegment?: (data: CanyonSegmentData) => void;
     onCanyonMap?: (data: CanyonMapData) => void;
 

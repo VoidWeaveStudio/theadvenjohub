@@ -12,6 +12,7 @@ import { AdminFactionQuestsTable } from "./AdminFactionQuestsTable";
 import { AdminBasementTable } from "./AdminBasementTable";
 import { AdminShopPricesTable } from "./AdminShopPricesTable";
 import { AdminMaintenanceToggle } from "./AdminMaintenanceToggle";
+import { AdminWorldPanel } from "./AdminWorldPanel";
 import { AdminTableRef } from "./AdminTableRef";
 
 type AdminTab = "players" | "factions" | "quests" | "shop" | "basement" | "support" | "chat" | "trades";
@@ -28,6 +29,7 @@ export function AdminDashboard() {
     const basementRef = useRef<AdminTableRef>(null);
     const shopRef = useRef<AdminTableRef>(null);
     const maintenanceRef = useRef<AdminTableRef>(null);
+    const worldRef = useRef<AdminTableRef>(null);
 
     const tabs: { id: AdminTab; label: string }[] = [
         { id: "players", label: "Players" },
@@ -42,6 +44,7 @@ export function AdminDashboard() {
 
     const handleRefresh = () => {
         maintenanceRef.current?.refresh();
+        worldRef.current?.refresh();
         const activeRef = { players: playersRef, factions: factionsRef, quests: questsRef, shop: shopRef, basement: basementRef, support: supportRef, chat: chatRef, trades: tradesRef }[tab];
         activeRef.current?.refresh();
     };
@@ -49,6 +52,7 @@ export function AdminDashboard() {
     return (
         <div className="space-y-6">
             <AdminMaintenanceToggle ref={maintenanceRef} />
+            <AdminWorldPanel ref={worldRef} />
 
             <div className="flex items-center justify-between border-b border-white/10">
                 <div className="flex gap-2">

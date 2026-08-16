@@ -22,6 +22,10 @@ export class RockRingSystem {
         private readonly terrain: TerrainSystem
     ) { }
 
+    public setVisible(visible: boolean) {
+        if (this.mesh) this.mesh.visible = visible;
+    }
+
     public isPortAngle(angle: number): boolean {
         return this.portOpenness(angle) > 0.35;
     }

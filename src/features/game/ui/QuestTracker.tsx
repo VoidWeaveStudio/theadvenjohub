@@ -28,7 +28,9 @@ export function QuestTracker({ quest }: QuestTrackerProps) {
                                 style={{ width: `${Math.min(100, (quest.progress / quest.targetCount) * 100)}%` }}
                             />
                         </div>
-                        <div className="text-[#8B8F98] text-[11px]">{quest.progress}/{quest.targetCount} enemies</div>
+                        <div className="text-[#8B8F98] text-[11px]">
+                            {quest.progress}/{quest.targetCount} {quest.visited ? "stewards met" : "enemies"}
+                        </div>
                     </>
                 )}
             </div>

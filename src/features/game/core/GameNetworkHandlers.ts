@@ -10,6 +10,7 @@ import { Cave } from "../world/locations/cave/Cave";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
 import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, beginTeleportGrace } from "./GameLocationOrchestration";
+import { applyWorldStatus } from "./GameWorldState";
 import { isBodyEmote } from "../data/emotes";
 
 let systemMessageCounter = 0;
@@ -474,6 +475,10 @@ export function registerNetworkHandlers(game: Game) {
         game.dayNightConfig = data;
     };
 
+    game.networkManager.onWorldStatus = (data) => {
+        applyWorldStatus(game, data);
+    };
+
     game.networkManager.onEnemyState = (list) => {
         game.enemySystem.handleEnemyState(list);
     };
@@ -686,18 +691,68 @@ export function registerNetworkHandlers(game: Game) {
         op?.setSkinTexture(data.url);
     };
 
+    game.networkManager.onProgressionState = (data) => {
+        game.progression = data;
+        if (data.stats) {
+            game.player.applyCombatStats(data.stats);
+            game.hudState.maxHealth = data.stats.maxHealth;
+            game.emitState(true);
+        }
+        game.onProgressionState?.(data);
+    };
+
+    game.networkManager.onSkillLearned = (data) => {
+        game.onSkillLearned?.(data);
+    };
+
+    game.networkManager.onSkillLearnRejected = (data) => {
+        game.onSkillLearnRejected?.(data);
+    };
+
+    game.networkManager.onPlayerHealed = (data) => {
+        game.player.health = data.health;
+        game.player.maxHealth = data.maxHealth;
+        game.emitState(true);
+    };
+
+    game.networkManager.onXpGain = (data) => {
+        game.onXpGain?.(data);
+    };
+
+    game.networkManager.onLevelUp = (data) => {
+        game.onLevelUp?.(data);
+    };
+
+    game.networkManager.onPlayerLevelUpdate = (data) => {
+        game.otherPlayers.get(data.playerId)?.setProgression(data.level, data.tier);
+        game.onPlayerLevelUpdate?.(data);
+    };
+
+    game.networkManager.onBranchSelected = (branch) => {
+        game.onBranchSelected?.(branch);
+    };
+
+    game.networkManager.onSkillsRespecced = (data) => {
+        game.onSkillsRespecced?.(data);
+    };
+
     game.networkManager.onQuestInfo = (data) => {
         game.onQuestInfo?.(data);
     };
 
     game.networkManager.onQuestUpdate = (data) => {
         game.onQuestUpdate?.(data);
-        if (data.status === "active" && data.progress === 0) {
+        if (data.visitedName) {
+            game.onNotification?.(`🤝 Met ${data.visitedName} (${data.progress}/${data.targetCount})`, 2500);
+        } else if (data.status === "active" && data.progress === 0) {
             game.onNotification?.(`📜 Quest accepted: kill ${data.targetCount} slimes in Slime Valley`, 3000);
-        } else if (data.status === "ready_to_turn_in") {
+        }
+
+        if (data.status === "ready_to_turn_in") {
             game.onNotification?.("✨ Quest complete! Return to Sola for your reward", 3000);
         } else if (data.status === "completed") {
-            game.onNotification?.(`🎉 Quest turned in: +${data.rewardAsh ?? 0} ash`, 3000);
+            const xp = data.rewardXp ? ` and ${data.rewardXp} XP` : "";
+            game.onNotification?.(`🎉 Quest turned in: +${data.rewardAsh ?? 0} ash${xp}`, 3000);
         }
     };
 

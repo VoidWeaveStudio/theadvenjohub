@@ -5,8 +5,6 @@ import { createTree, TREE_LODS, TREE_SPECIES, TreeSpecies } from "../utils/proce
 import { createLeafTexture } from "../utils/leafTexture";
 import type { TerrainSystem } from "./TerrainSystem";
 import {
-    CAVE_PORTAL_X,
-    CAVE_PORTAL_Z,
     CHUNKS_PER_SIDE,
     CHUNK_SIZE,
     SAFE_ZONE_RADIUS,
@@ -73,6 +71,9 @@ export class TreeScatterSystem {
     private lastChunkZ = Number.NaN;
     private lastRebuildX = Number.NaN;
     private lastRebuildZ = Number.NaN;
+    private visibleRadius = Infinity;
+    private portalX: number | null = null;
+    private portalZ: number | null = null;
 
     public onCollidersChanged: (() => void) | null = null;
 
@@ -227,6 +228,25 @@ export class TreeScatterSystem {
         this.windUniforms.uWindStrength.value = strength;
     }
 
+    public setVisibleRadius(radius: number | null) {
+        const value = radius ?? Infinity;
+        if (this.visibleRadius === value) return;
+
+        this.visibleRadius = value;
+        this.lastRebuildX = Number.NaN;
+        this.lastRebuildZ = Number.NaN;
+    }
+
+    public setPortalPosition(x: number | null, z: number | null) {
+        if (this.portalX === x && this.portalZ === z) return;
+
+        this.portalX = x;
+        this.portalZ = z;
+        this.chunkCache.clear();
+        this.lastRebuildX = Number.NaN;
+        this.lastRebuildZ = Number.NaN;
+    }
+
     public update(delta: number, playerX: number, playerZ: number) {
         this.windUniforms.uTime.value += delta;
 
@@ -258,6 +278,8 @@ export class TreeScatterSystem {
                 if (this.chunkTooFar(cx, cz, playerX, playerZ)) continue;
 
                 for (const tree of this.getChunkTrees(cx, cz)) {
+                    if (Math.hypot(tree.x, tree.z) > this.visibleRadius) continue;
+
                     const distance = Math.hypot(tree.x - playerX, tree.z - playerZ);
                     if (distance > LOD_BANDS[LOD_BANDS.length - 1]) continue;
 
@@ -359,7 +381,7 @@ export class TreeScatterSystem {
             if (spawnDistance < SAFE_ZONE_RADIUS + 6) continue;
             if (Math.hypot(x - TOWER_X, z - TOWER_Z) < TOWER_FLAT_RADIUS * 0.8) continue;
             if (insideTowerPlaza(x, z)) continue;
-            if (Math.hypot(x - CAVE_PORTAL_X, z - CAVE_PORTAL_Z) < 18) continue;
+            if (this.portalX !== null && Math.hypot(x - this.portalX, z - this.portalZ!) < 18) continue;
 
             if (this.nearWater(x, z, isShrub ? SHRUB_WATER_MARGIN : TREE_WATER_MARGIN)) continue;
 

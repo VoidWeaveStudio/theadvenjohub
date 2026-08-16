@@ -51,6 +51,7 @@ const grassVertexShader = /* glsl */`
     uniform float uWindStrength;
     uniform vec2 uCamForward;
     uniform float uCullCos;
+    uniform float uWorldLimit;
     uniform vec3 uPlayerPos;
     uniform vec2 uPlayerVel;
     uniform float uPlayerPush;
@@ -106,6 +107,7 @@ const grassVertexShader = /* glsl */`
 
         float dist = distance(wpos, uCamPos.xz);
         if (dist > uRadius) { reject(); return; }
+        if (length(wpos) > uWorldLimit) { reject(); return; }
 
         if (uCullCos > -0.999 && dist > 2.5) {
             vec2 toBlade = (wpos - uCamPos.xz) / max(dist, 1e-4);
@@ -242,7 +244,7 @@ const grassFragmentShader = /* glsl */`
         float rim = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 4.0);
         color += GRASS_TIP * uSunColor * rim * 0.2 * smoothstep(0.5, 1.0, h) * (1.0 - uNightFactor);
 
-        color = applyWorldFog(color, vDistance, vWorldPos.y);
+        color = applyWorldFog(color, vDistance, vWorldPos);
 
         gl_FragColor = vec4(color, 1.0);
         #include <tonemapping_fragment>
@@ -393,6 +395,7 @@ export class GrassField {
                 uCamCell: { value: new THREE.Vector2() },
                 uCell: { value: config.cell },
                 uRadius: { value: config.radius },
+                uWorldLimit: { value: 1e6 },
                 uPerCell: { value: config.perCell },
                 uHeightRange: { value: new THREE.Vector2(config.minHeight, config.maxHeight) },
                 uWidth: { value: config.width },
@@ -428,6 +431,13 @@ export class GrassField {
         this.scene.add(mesh);
 
         return { mesh, material, config };
+    }
+
+    public setVisibleRadius(radius: number | null) {
+        const value = radius ?? 1e6;
+        for (const layer of this.layers) {
+            layer.material.uniforms.uWorldLimit.value = value;
+        }
     }
 
     public update(delta: number, camera: THREE.Camera, playerPosition: THREE.Vector3) {

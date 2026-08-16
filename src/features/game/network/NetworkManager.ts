@@ -1,6 +1,7 @@
 // src/features/game/network/NetworkManager.ts
 import { EmoteKey, isEmoteKey } from "../data/emotes";
 import { CosmeticId, normalizeLoadout } from "../data/cosmetics";
+import { BranchId, isBranchId } from "../data/progression";
 
 export type PlayerNetData = {
   id: string;
@@ -23,6 +24,70 @@ export type PlayerNetData = {
   skinTextureUrl?: string | null;
   cosmeticSkinId?: string | null;
   cosmeticAccessoryId?: string | null;
+  level?: number;
+  tier?: string;
+  branch?: BranchId | null;
+  weaponTier?: number;
+};
+
+export type CombatStatsData = {
+  maxHealth: number;
+  magSize: number;
+  reloadMs: number;
+  moveSpeedMult: number;
+  maxEnergy: number;
+  energyRegen: number;
+};
+
+export type ProgressionStateData = {
+  level: number;
+  totalXp: number;
+  xpIntoLevel: number;
+  xpForLevel: number;
+  branch: BranchId | null;
+  branchUnlocked: boolean;
+  skills: Record<string, number>;
+  loadout: Record<string, string>;
+  fireMode: string;
+  respecCount: number;
+  respecCostAsh: number;
+  skillPoints: number;
+  skillPointsTotal: number;
+  tier: string;
+  tierIndex: number;
+  weaponTier: number;
+  memeAbilities: string[];
+  stats: CombatStatsData;
+  health: number;
+};
+
+export type XpGainData = {
+  amount: number;
+  source: string;
+  totalXp: number;
+  level: number;
+  xpIntoLevel: number;
+  xpForLevel: number;
+};
+
+export type LevelUpData = {
+  level: number;
+  previousLevel: number;
+  skillPoints: number;
+  tier: string;
+  tierName: string;
+  tierChanged: boolean;
+  newMemeAbility: string | null;
+  weaponTier: number;
+  weaponTierChanged: boolean;
+  branchUnlocked: boolean;
+};
+
+export type PlayerLevelUpdateData = {
+  playerId: string;
+  level: number;
+  tier: string;
+  weaponTier: number;
 };
 
 export type CosmeticStateData = {
@@ -45,6 +110,39 @@ export type EnemyNetData = {
   maxHealth: number;
   alive: boolean;
   targetId: string | null;
+};
+
+export type WorldPortalStatus = "locked" | "active" | "cooldown";
+
+export type WorldMonsterStatus = "dormant" | "stalking" | "hunting";
+
+export type WorldUnlock = {
+  id: string;
+  mc: number;
+  unlocked: boolean;
+};
+
+export type WorldStatusData = {
+  mc: number;
+  mcPeak: number;
+  tier: number;
+  maxTier: number;
+  radius: number | null;
+  tierMc: number;
+  nextTierMc: number | null;
+  portal: {
+    status: WorldPortalStatus;
+    x: number;
+    z: number;
+    cooldownUntil: number;
+  };
+  monster: {
+    id: string;
+    status: WorldMonsterStatus;
+    nextWindowAt: number | null;
+  };
+  unlocks: WorldUnlock[];
+  traders: number;
 };
 
 export type CanyonSegmentData = {
@@ -123,17 +221,28 @@ export type ShardStateData = {
   shards: Array<{ instance: number; count: number }>;
 };
 
-export type QuestStatus = "not_started" | "active" | "ready_to_turn_in" | "completed";
+export type QuestStatus = "not_started" | "active" | "ready_to_turn_in" | "completed" | "none";
+
+export type QuestTarget = {
+  id: string;
+  name: string;
+  role: string;
+  locationId: string;
+};
 
 export type QuestInfoData = {
   questId: string;
   npc: string;
+  questType?: "kill_enemies" | "visit_npcs";
   title: string;
   description: string;
   targetCount: number;
   rewardAsh: number;
+  rewardXp?: number;
   status: QuestStatus;
   progress: number;
+  targets?: QuestTarget[] | null;
+  visited?: string[];
 };
 
 export type QuestUpdateData = {
@@ -142,6 +251,9 @@ export type QuestUpdateData = {
   progress: number;
   targetCount: number;
   rewardAsh?: number;
+  rewardXp?: number;
+  visited?: string[];
+  visitedName?: string;
 };
 
 export type InventoryEntry = {
@@ -479,6 +591,7 @@ export class NetworkManager {
   }) => void;
 
   public onDayNightSync?: (data: DayNightSyncData) => void;
+  public onWorldStatus?: (data: WorldStatusData) => void;
 
   public onEnemyState?: (enemies: EnemyNetData[]) => void;
   public onEnemyDamaged?: (data: {
@@ -522,6 +635,15 @@ export class NetworkManager {
   }) => void;
   public onQuestInfo?: (data: QuestInfoData) => void;
   public onQuestUpdate?: (data: QuestUpdateData) => void;
+  public onProgressionState?: (data: ProgressionStateData) => void;
+  public onXpGain?: (data: XpGainData) => void;
+  public onLevelUp?: (data: LevelUpData) => void;
+  public onPlayerLevelUpdate?: (data: PlayerLevelUpdateData) => void;
+  public onBranchSelected?: (branch: BranchId) => void;
+  public onSkillsRespecced?: (data: { costAsh: number }) => void;
+  public onSkillLearned?: (data: { nodeId: string; rank: number }) => void;
+  public onSkillLearnRejected?: (data: { nodeId: string; reason: string }) => void;
+  public onPlayerHealed?: (data: { health: number; maxHealth: number }) => void;
   public onCanyonSegment?: (data: CanyonSegmentData) => void;
   public onCanyonCleared?: (data: CanyonClearedData) => void;
   public onCanyonMap?: (data: CanyonMapData) => void;
@@ -831,6 +953,30 @@ export class NetworkManager {
       case "shoot":
         this.onShoot?.(data);
         break;
+      case "worldStatus":
+        this.onWorldStatus?.({
+          mc: data.mc ?? 0,
+          mcPeak: data.mcPeak ?? 0,
+          tier: data.tier ?? 0,
+          maxTier: data.maxTier ?? 0,
+          radius: data.radius ?? null,
+          tierMc: data.tierMc ?? 0,
+          nextTierMc: data.nextTierMc ?? null,
+          portal: {
+            status: data.portal?.status ?? "locked",
+            x: data.portal?.x ?? 0,
+            z: data.portal?.z ?? 0,
+            cooldownUntil: data.portal?.cooldownUntil ?? 0,
+          },
+          monster: {
+            id: data.monster?.id ?? "redwick",
+            status: data.monster?.status ?? "dormant",
+            nextWindowAt: data.monster?.nextWindowAt ?? null,
+          },
+          unlocks: Array.isArray(data.unlocks) ? data.unlocks : [],
+          traders: data.traders ?? 0,
+        });
+        break;
       case "enemyState":
         if (Array.isArray(data.enemies)) {
           this.onEnemyState?.(data.enemies);
@@ -933,6 +1079,39 @@ export class NetworkManager {
         break;
       case "questUpdate":
         this.onQuestUpdate?.(data);
+        break;
+      case "progressionState":
+        this.onProgressionState?.({
+          ...data,
+          branch: isBranchId(data.branch) ? data.branch : null,
+          skills: data.skills && typeof data.skills === "object" ? data.skills : {},
+          loadout: data.loadout && typeof data.loadout === "object" ? data.loadout : {},
+          memeAbilities: Array.isArray(data.memeAbilities) ? data.memeAbilities : [],
+        });
+        break;
+      case "xpGain":
+        this.onXpGain?.(data);
+        break;
+      case "levelUp":
+        this.onLevelUp?.(data);
+        break;
+      case "playerLevelUpdate":
+        this.onPlayerLevelUpdate?.(data);
+        break;
+      case "branchSelected":
+        if (isBranchId(data.branch)) this.onBranchSelected?.(data.branch);
+        break;
+      case "skillsRespecced":
+        this.onSkillsRespecced?.({ costAsh: data.costAsh ?? 0 });
+        break;
+      case "skillLearned":
+        this.onSkillLearned?.({ nodeId: data.nodeId, rank: data.rank ?? 1 });
+        break;
+      case "skillLearnRejected":
+        this.onSkillLearnRejected?.({ nodeId: data.nodeId, reason: data.reason ?? "unknown" });
+        break;
+      case "playerHealed":
+        this.onPlayerHealed?.({ health: data.health ?? 0, maxHealth: data.maxHealth ?? 100 });
         break;
       case "canyonSegment":
         this.onCanyonSegment?.(data);
@@ -1271,6 +1450,41 @@ export class NetworkManager {
   sendQuestInteract(questId: string) {
     if (!this.authenticated) return;
     this.send({ type: "questInteract", questId });
+  }
+
+  sendNpcQuestInteract(npc: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "questInteract", npc });
+  }
+
+  sendNpcVisit(npcId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "npcVisit", npcId });
+  }
+
+  sendBranchSelect(branch: BranchId) {
+    if (!this.authenticated) return;
+    this.send({ type: "branchSelect", branch });
+  }
+
+  sendSkillRespec() {
+    if (!this.authenticated) return;
+    this.send({ type: "skillRespec" });
+  }
+
+  sendSkillLearn(nodeId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "skillLearn", nodeId });
+  }
+
+  sendAbilityBind(slot: string, abilityId: string | null) {
+    if (!this.authenticated) return;
+    this.send({ type: "abilityBind", slot, abilityId });
+  }
+
+  sendAbilityCast(abilityId: string, aim: { origin: number[]; direction: number[] } | null) {
+    if (!this.authenticated) return;
+    this.send({ type: "abilityCast", abilityId, aim });
   }
 
   sendQuestAccept(questId: string) {

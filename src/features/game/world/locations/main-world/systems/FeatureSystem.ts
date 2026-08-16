@@ -33,6 +33,13 @@ export class FeatureSystem {
 
     }
 
+    setVisible(visible: boolean) {
+        if (this.towerGroup) this.towerGroup.visible = visible;
+        for (const light of this.towerLights) {
+            light.visible = visible;
+        }
+    }
+
     update(delta: number, playerPosition: THREE.Vector3, isEPressed: boolean) {
         const dx = playerPosition.x - this.towerEntrancePos.x;
         const dz = playerPosition.z - this.towerEntrancePos.z;

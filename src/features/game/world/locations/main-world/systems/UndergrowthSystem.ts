@@ -4,8 +4,6 @@ import { loadPropSet, type PropModel } from "../utils/propModels";
 import { createRandom, fbm, smoothstep } from "../utils/worldNoise";
 import type { TerrainSystem } from "./TerrainSystem";
 import {
-    CAVE_PORTAL_X,
-    CAVE_PORTAL_Z,
     CHUNKS_PER_SIDE,
     CHUNK_SIZE,
     SAFE_ZONE_RADIUS,
@@ -86,6 +84,9 @@ export class UndergrowthSystem {
     private colliders: THREE.Box3[] = [];
     private lastChunkX = Number.NaN;
     private lastChunkZ = Number.NaN;
+    private visibleRadius = Infinity;
+    private portalX: number | null = null;
+    private portalZ: number | null = null;
     private pendingX = Number.NaN;
     private pendingZ = Number.NaN;
     private readyPromise: Promise<void> = Promise.resolve();
@@ -149,6 +150,25 @@ export class UndergrowthSystem {
         });
     }
 
+    public setVisibleRadius(radius: number | null) {
+        const value = radius ?? Infinity;
+        if (this.visibleRadius === value) return;
+
+        this.visibleRadius = value;
+        this.lastChunkX = Number.NaN;
+        this.lastChunkZ = Number.NaN;
+    }
+
+    public setPortalPosition(x: number | null, z: number | null) {
+        if (this.portalX === x && this.portalZ === z) return;
+
+        this.portalX = x;
+        this.portalZ = z;
+        this.chunkCache.clear();
+        this.lastChunkX = Number.NaN;
+        this.lastChunkZ = Number.NaN;
+    }
+
     public update(playerX: number, playerZ: number) {
         this.pendingX = playerX;
         this.pendingZ = playerZ;
@@ -176,6 +196,7 @@ export class UndergrowthSystem {
 
                 for (const rock of props.rocks) {
                     if (this.rockGroups.length === 0) break;
+                    if (Math.hypot(rock.x, rock.z) > this.visibleRadius) continue;
                     const index = Math.floor(rock.pick * this.rockGroups.length) % this.rockGroups.length;
                     const bucket = rocks[index];
                     if (bucket.length >= this.capacity(MAX_ROCKS)) continue;
@@ -187,6 +208,7 @@ export class UndergrowthSystem {
 
                 for (const plant of props.plants) {
                     if (this.plantGroups.length === 0) break;
+                    if (Math.hypot(plant.x, plant.z) > this.visibleRadius) continue;
                     const index = Math.floor(plant.pick * this.plantGroups.length) % this.plantGroups.length;
                     const bucket = plants[index];
                     if (bucket.length >= this.capacity(MAX_PLANTS)) continue;
@@ -265,7 +287,7 @@ export class UndergrowthSystem {
         if (Math.hypot(x, z) < SAFE_ZONE_RADIUS + 5) return false;
         if (Math.hypot(x - TOWER_X, z - TOWER_Z) < TOWER_FLAT_RADIUS * 0.8) return false;
         if (insideTowerPlaza(x, z)) return false;
-        if (Math.hypot(x - CAVE_PORTAL_X, z - CAVE_PORTAL_Z) < 16) return false;
+        if (this.portalX !== null && Math.hypot(x - this.portalX, z - this.portalZ!) < 16) return false;
 
         return !this.nearWater(x, z, WATER_MARGIN);
     }

@@ -128,6 +128,12 @@ export class HarborSystem {
         this.push(buildBatch(metal, iron, "harbor-metal"));
     }
 
+    public setVisible(visible: boolean) {
+        for (const mesh of this.meshes) {
+            mesh.visible = visible;
+        }
+    }
+
     private push(mesh: THREE.Mesh | null) {
         if (!mesh) return;
         this.scene.add(mesh);

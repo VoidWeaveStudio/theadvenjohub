@@ -2,13 +2,18 @@
 import { useCallback, useState } from "react";
 import { QuestInfoData, QuestUpdateData } from "../../network/NetworkManager";
 
-export const SOLA_QUEST_ID = "sola_kill_10";
+export const SOLA_NPC_ID = "sola";
 
 export function useQuestState() {
   const [questInfo, setQuestInfo] = useState<QuestInfoData | null>(null);
   const [questTracker, setQuestTracker] = useState<(QuestUpdateData & { title: string }) | null>(null);
 
   const handleQuestInfo = useCallback((data: QuestInfoData) => {
+    if (!data.questId || data.status === "none") {
+      setQuestInfo(null);
+      return;
+    }
+
     setQuestInfo(data);
     if (data.status === "active" || data.status === "ready_to_turn_in") {
       setQuestTracker({
@@ -16,6 +21,7 @@ export function useQuestState() {
         status: data.status,
         progress: data.progress,
         targetCount: data.targetCount,
+        visited: data.visited,
         title: data.title,
       });
     }
@@ -24,7 +30,7 @@ export function useQuestState() {
   const handleQuestUpdate = useCallback((data: QuestUpdateData) => {
     setQuestInfo((prev) =>
       prev && prev.questId === data.questId
-        ? { ...prev, status: data.status, progress: data.progress }
+        ? { ...prev, status: data.status, progress: data.progress, visited: data.visited ?? prev.visited }
         : prev
     );
     setQuestTracker((prev) => {
@@ -34,6 +40,7 @@ export function useQuestState() {
           status: data.status,
           progress: data.progress,
           targetCount: data.targetCount,
+          visited: data.visited,
           title: prev && prev.questId === data.questId ? prev.title : "Sola's Task",
         };
       }

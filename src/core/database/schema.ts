@@ -354,6 +354,24 @@ export const gameStatistics = pgTable("game_statistics", {
   uniqueIndex("idx_game_statistics_user_game").on(table.userId, table.gameId),
 ]);
 
+export const gameCharacterProgression = pgTable("game_character_progression", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  totalXp: integer("total_xp").default(0).notNull(),
+  level: integer("level").default(1).notNull(),
+  branch: varchar("branch", { length: 20 }),
+  skills: text("skills").default("{}").notNull(),
+  loadout: text("loadout").default("{}").notNull(),
+  fireMode: varchar("fire_mode", { length: 20 }).default("single").notNull(),
+  respecCount: integer("respec_count").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_character_progression_user_game").on(table.userId, table.gameId),
+  index("idx_character_progression_game_level").on(table.gameId, table.level),
+]);
+
 export const factions = pgTable("factions", {
   id: uuid("id").primaryKey().defaultRandom(),
   number: serial("number").unique(),
@@ -696,6 +714,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   gameBuildings: many(gameBuildings),
   gameInventories: many(gameInventories),
   gameStatistics: many(gameStatistics),
+  characterProgression: many(gameCharacterProgression),
   achievements: many(userAchievements),
 }));
 
@@ -1015,6 +1034,9 @@ export type NewMailMessage = typeof mailMessages.$inferInsert;
 
 export type UserAchievement = typeof userAchievements.$inferSelect;
 export type NewUserAchievement = typeof userAchievements.$inferInsert;
+
+export type GameCharacterProgression = typeof gameCharacterProgression.$inferSelect;
+export type NewGameCharacterProgression = typeof gameCharacterProgression.$inferInsert;
 
 export type AppSetting = typeof appSettings.$inferSelect;
 export type NewAppSetting = typeof appSettings.$inferInsert;

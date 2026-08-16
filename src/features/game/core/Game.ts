@@ -3,7 +3,8 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry } from "../network/NetworkManager";
+import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData } from "../network/NetworkManager";
+import { BranchId } from "../data/progression";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -130,6 +131,7 @@ export class Game {
     public gateFactionIds: string[] = [];
     public factionGates: FactionGateData[] = [];
     public caveBossDefeated: boolean = false;
+    public worldStatus: WorldStatusData | null = null;
     public leaderboard: LeaderboardEntry[] = [];
     public factionLeaderboard: FactionSummary[] = [];
     public factionQuests: FactionQuestEntry[] = [];
@@ -162,6 +164,7 @@ export class Game {
 
     private showFloorSelector: boolean = false;
     public localPlayerNetId: string | null = null;
+    public progression: ProgressionStateData | null = null;
     public dayNightConfig: DayNightConfig | null = null;
     public hasRestoredLocation: boolean = false;
     public restoreResolver: (() => void) | null = null;
@@ -531,6 +534,7 @@ export class Game {
                 };
 
                 this.interactionSystem.onOpenVendor = () => {
+                    this.networkManager.sendNpcVisit("token-vendor");
                     this.onOpenVendorUI?.();
                 };
 
@@ -539,18 +543,22 @@ export class Game {
                 };
 
                 this.interactionSystem.onOpenCanyonMap = () => {
+                    this.networkManager.sendNpcVisit("canyon-dispatcher");
                     this.onOpenCanyonMapUI?.();
                 };
 
                 this.interactionSystem.onOpenFactionBroker = () => {
+                    this.networkManager.sendNpcVisit("faction-broker");
                     this.onOpenFactionBrokerUI?.();
                 };
 
                 this.interactionSystem.onOpenAlfredo = () => {
+                    this.networkManager.sendNpcVisit("npc-alfredo");
                     this.onOpenAlfredoUI?.();
                 };
 
                 this.interactionSystem.onOpenGateSteward = () => {
+                    this.networkManager.sendNpcVisit("gate-steward");
                     this.onOpenGateStewardUI?.();
                 };
 
@@ -898,6 +906,7 @@ export class Game {
         this.lastStateEmit = now;
         const ammoState = this.shootingSystem.getAmmoState();
         this.hudState.health = this.player.health;
+        this.hudState.maxHealth = this.player.maxHealth;
         this.hudState.ammo = ammoState.ammo;
         this.hudState.maxAmmo = ammoState.maxAmmo;
         this.hudState.reserve = ammoState.reserve;
@@ -960,10 +969,11 @@ export class Game {
             this.updateAudioListener();
 
             perf.begin("combat");
+            this.enemySystem.update(delta);
+            this.bossProjectiles.update(delta);
+
             if (!inSafe) {
                 this.shootingSystem.update(delta);
-                this.enemySystem.update(delta);
-                this.bossProjectiles.update(delta);
             } else {
                 this.player.getWeapon().update(delta);
             }
@@ -1162,8 +1172,33 @@ export class Game {
         }
     }
 
-    talkToQuestGiver(questId: string) {
-        this.networkManager.sendQuestInteract(questId);
+    talkToQuestGiver(npc: string) {
+        this.networkManager.sendNpcQuestInteract(npc);
+    }
+
+    selectBranch(branch: BranchId) {
+        this.networkManager.sendBranchSelect(branch);
+    }
+
+    learnSkill(nodeId: string) {
+        this.networkManager.sendSkillLearn(nodeId);
+    }
+
+    bindAbility(slot: string, abilityId: string | null) {
+        this.networkManager.sendAbilityBind(slot, abilityId);
+    }
+
+    castAbility(abilityId: string) {
+        const origin = this.cameraController.camera.getWorldPosition(new THREE.Vector3());
+        const direction = this.cameraController.getForwardDirection();
+        this.networkManager.sendAbilityCast(abilityId, {
+            origin: origin.toArray(),
+            direction: direction.toArray(),
+        });
+    }
+
+    respecSkills() {
+        this.networkManager.sendSkillRespec();
     }
 
     acceptQuest(questId: string) {

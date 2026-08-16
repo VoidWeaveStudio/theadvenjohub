@@ -8,10 +8,12 @@ import {
     gameBuildings,
     gameInventories,
     gameStatistics,
+    gameCharacterProgression,
     factionMembers,
 } from "@/core/database/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { evaluateAndUnlockAchievements } from "@/core/lib/achievementEngine";
+import { MAX_LEVEL, isBranchId } from "@/features/game/data/progression";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
             buildings,
             inventory,
             statistics,
+            progression,
         } = body;
 
         if (!userId || !gameId) {
@@ -39,9 +42,10 @@ export async function POST(req: NextRequest) {
 
         const queries: any[] = [];
 
+        const num = (v: unknown, fallback: number) =>
+            typeof v === "number" && Number.isFinite(v) ? v : fallback;
+
         if (progress) {
-            const num = (v: unknown, fallback: number) =>
-                typeof v === "number" && Number.isFinite(v) ? v : fallback;
             const numStr = (v: unknown, fallback: number) => num(v, fallback).toFixed(6).slice(0, 20);
 
             const locationId =
@@ -191,8 +195,57 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        const progressionQueries: any[] = [];
+
+        if (progression) {
+            const totalXp = Math.max(0, Math.floor(num(progression.totalXp, 0)));
+            const level = Math.max(1, Math.min(MAX_LEVEL, Math.floor(num(progression.level, 1))));
+            const branch = isBranchId(progression.branch) ? progression.branch : null;
+            const skills = JSON.stringify(progression.skills ?? {}).slice(0, 8000);
+            const loadout = JSON.stringify(progression.loadout ?? {}).slice(0, 2000);
+            const fireMode =
+                typeof progression.fireMode === "string" ? progression.fireMode.slice(0, 20) : "single";
+            const respecCount = Math.max(0, Math.floor(num(progression.respecCount, 0)));
+
+            progressionQueries.push(
+                db
+                    .insert(gameCharacterProgression)
+                    .values({
+                        userId,
+                        gameId,
+                        totalXp,
+                        level,
+                        branch,
+                        skills,
+                        loadout,
+                        fireMode,
+                        respecCount,
+                        updatedAt: new Date(),
+                    })
+                    .onConflictDoUpdate({
+                        target: [gameCharacterProgression.userId, gameCharacterProgression.gameId],
+                        set: {
+                            totalXp,
+                            level,
+                            branch,
+                            skills,
+                            loadout,
+                            fireMode,
+                            respecCount,
+                            updatedAt: new Date(),
+                        },
+                    })
+            );
+        }
+
         if (queries.length > 0) {
             await db.batch(queries as [any, ...any[]]);
+        }
+
+        if (progressionQueries.length > 0) {
+            await db.batch(progressionQueries as [any, ...any[]]).catch((error) => {
+                console.error("[internal/save-progress] progression write failed:", error);
+            });
         }
 
         let unlockedAchievements: { key: string; label: string }[] = [];

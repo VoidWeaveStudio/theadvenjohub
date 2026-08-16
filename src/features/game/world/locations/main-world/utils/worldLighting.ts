@@ -47,6 +47,14 @@ export const WORLD_LIGHTING_UNIFORMS_GLSL = /* glsl */`
     uniform float uNightFactor;
     uniform float uTime;
     uniform vec3 uCamPos;
+    uniform vec2 uRadialFogRange;
+    uniform float uRadialFogStrength;
+`;
+
+export const RADIAL_FOG_GLSL = /* glsl */`
+    float radialFogAmount(vec2 worldXZ, vec2 range, float strength) {
+        return smoothstep(range.x, range.y, length(worldXZ)) * strength;
+    }
 `;
 
 export const WORLD_LIGHTING_FUNCTIONS_GLSL = /* glsl */`
@@ -64,10 +72,11 @@ export const WORLD_LIGHTING_FUNCTIONS_GLSL = /* glsl */`
         return pow(clamp(dot(-v, l), 0.0, 1.0), power);
     }
 
-    vec3 applyWorldFog(vec3 color, float dist, float worldY) {
-        float heightFade = exp(-max(worldY, 0.0) * uFogHeightFalloff);
+    vec3 applyWorldFog(vec3 color, float dist, vec3 worldPos) {
+        float heightFade = exp(-max(worldPos.y, 0.0) * uFogHeightFalloff);
         float amount = 1.0 - exp(-dist * uFogDensity * heightFade);
-        return mix(color, uFogColor, clamp(amount, 0.0, 1.0));
+        float radial = smoothstep(uRadialFogRange.x, uRadialFogRange.y, length(worldPos.xz)) * uRadialFogStrength;
+        return mix(color, uFogColor, clamp(max(amount, radial), 0.0, 1.0));
     }
 `;
 
@@ -84,6 +93,8 @@ export class WorldLighting {
         uNightFactor: { value: 0 },
         uTime: { value: 0 },
         uCamPos: { value: new THREE.Vector3() },
+        uRadialFogRange: { value: new THREE.Vector2(1e6, 1e6 + 1) },
+        uRadialFogStrength: { value: 0 },
     };
 
     public sunIntensity = 1.85;
@@ -91,6 +102,17 @@ export class WorldLighting {
 
     private readonly colorA = new THREE.Color();
     private readonly colorB = new THREE.Color();
+
+    public setRadialFog(near: number | null, far: number | null) {
+        if (near === null || far === null) {
+            this.uniforms.uRadialFogRange.value.set(1e6, 1e6 + 1);
+            this.uniforms.uRadialFogStrength.value = 0;
+            return;
+        }
+
+        this.uniforms.uRadialFogRange.value.set(near, Math.max(far, near + 1));
+        this.uniforms.uRadialFogStrength.value = 1;
+    }
 
     public update(delta: number, sunDirection: THREE.Vector3, cameraPosition: THREE.Vector3) {
         this.uniforms.uTime.value += delta;
