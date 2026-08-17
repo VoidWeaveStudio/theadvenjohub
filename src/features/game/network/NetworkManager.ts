@@ -723,6 +723,7 @@ export class NetworkManager {
   }) => void;
   public onQuestInfo?: (data: QuestInfoData) => void;
   public onQuestUpdate?: (data: QuestUpdateData) => void;
+  public onNpcMet?: (metNpcs: string[]) => void;
   public onProgressionState?: (data: ProgressionStateData) => void;
   public onXpGain?: (data: XpGainData) => void;
   public onLevelUp?: (data: LevelUpData) => void;
@@ -1176,6 +1177,9 @@ export class NetworkManager {
       case "questUpdate":
         this.onQuestUpdate?.(data);
         break;
+      case "npcMetState":
+        this.onNpcMet?.(Array.isArray(data.metNpcs) ? data.metNpcs : []);
+        break;
       case "progressionState":
         this.onProgressionState?.({
           ...data,
@@ -1615,6 +1619,11 @@ export class NetworkManager {
   sendNpcVisit(npcId: string) {
     if (!this.authenticated) return;
     this.send({ type: "npcVisit", npcId });
+  }
+
+  sendNpcMet(npcId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "npcMet", npcId });
   }
 
   sendBranchSelect(branch: BranchId) {

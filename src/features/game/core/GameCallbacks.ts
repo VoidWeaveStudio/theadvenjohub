@@ -78,6 +78,7 @@ export interface GameCallbacks {
     onSellResult?: (data: { address: string; quantitySold: number; ashEarned: number; marketCap: number }) => void;
     onQuestInfo?: (data: QuestInfoData) => void;
     onQuestUpdate?: (data: QuestUpdateData) => void;
+    onNpcMet?: (metNpcs: string[]) => void;
     onProgressionState?: (data: ProgressionStateData) => void;
     onXpGain?: (data: XpGainData) => void;
     onLevelUp?: (data: LevelUpData) => void;

@@ -1257,6 +1257,10 @@ export class Game {
         this.networkManager.sendNpcQuestInteract(npc);
     }
 
+    markNpcMet(npcId: string) {
+        this.networkManager.sendNpcMet(npcId);
+    }
+
     selectBranch(branch: BranchId) {
         this.networkManager.sendBranchSelect(branch);
     }

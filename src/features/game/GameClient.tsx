@@ -1,7 +1,7 @@
 // src/features/game/GameClient.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Game } from "./core/Game";
 import { HUD } from "./ui/HUD";
 import { TopMenu, TopWindowId } from "./ui/TopMenu";
@@ -39,6 +39,7 @@ import { AlaricPanel } from "./ui/AlaricPanel";
 import { RadialWheel, WheelPage } from "./ui/RadialWheel";
 import { NpcDialogueModal } from "./ui/NpcDialogueModal";
 import { useNpcDialogue } from "./ui/hooks/useNpcDialogue";
+import { NpcId } from "./data/npcDialogues";
 import { QuestMarkerKind } from "./entities/questMarker";
 import { AbilityBar } from "./ui/AbilityBar";
 import { EMOTES, isEmoteKey } from "./data/emotes";
@@ -175,7 +176,9 @@ export function GameClient({ slug }: GameClientProps) {
 
   const hud = useHudState();
   const quest = useQuestState();
-  const npcDialogue = useNpcDialogue();
+  const npcDialogue = useNpcDialogue(useCallback((npcId: NpcId) => {
+    gameRef.current?.markNpcMet(npcId);
+  }, []));
   const progressionState = useProgressionState();
   const abilityState = useAbilityState(progressionState.progression);
   const inventory = useInventoryState();
@@ -482,6 +485,10 @@ export function GameClient({ slug }: GameClientProps) {
         game.onOpenTokenUI = (tokenData) => {
           if (cancelled) return;
           inventory.handleOpenTokenUI(tokenData);
+        };
+        game.onNpcMet = (metNpcs) => {
+          if (cancelled) return;
+          npcDialogue.handleMetNpcs(metNpcs);
         };
         game.onOpenVendorUI = () => {
           if (cancelled) return;

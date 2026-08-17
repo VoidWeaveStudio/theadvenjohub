@@ -861,6 +861,10 @@ export function registerNetworkHandlers(game: Game) {
         game.onQuestInfo?.(data);
     };
 
+    game.networkManager.onNpcMet = (metNpcs) => {
+        game.onNpcMet?.(metNpcs);
+    };
+
     game.networkManager.onQuestUpdate = (data) => {
         game.onQuestUpdate?.(data);
         if (data.visitedName) {
