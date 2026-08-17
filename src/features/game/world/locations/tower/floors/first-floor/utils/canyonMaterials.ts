@@ -124,6 +124,32 @@ export function getCanyonFloorMaterial(biome: CanyonBiome = DEFAULT_BIOME): THRE
     return material;
 }
 
+const propTrunkCache = new Map<string, THREE.MeshStandardMaterial>();
+export function getCanyonPropTrunkMaterial(biome: CanyonBiome): THREE.MeshStandardMaterial {
+    const cached = propTrunkCache.get(biome.key);
+    if (cached) return cached;
+
+    const material = new THREE.MeshStandardMaterial({ color: biome.groundColor, roughness: 0.9 });
+    propTrunkCache.set(biome.key, material);
+    return material;
+}
+
+const propAccentCache = new Map<string, THREE.MeshStandardMaterial>();
+export function getCanyonPropAccentMaterial(biome: CanyonBiome): THREE.MeshStandardMaterial {
+    const cached = propAccentCache.get(biome.key);
+    if (cached) return cached;
+
+    const accent = new THREE.Color(biome.accent);
+    const material = new THREE.MeshStandardMaterial({
+        color: accent,
+        emissive: accent,
+        emissiveIntensity: biome.propStyle === "cactus" ? 0.15 : 1.5,
+        roughness: 0.5,
+    });
+    propAccentCache.set(biome.key, material);
+    return material;
+}
+
 let arrowGeometryCache: THREE.ShapeGeometry | null = null;
 export function getArrowGeometry(): THREE.ShapeGeometry {
     if (arrowGeometryCache) return arrowGeometryCache;
@@ -156,9 +182,52 @@ export function getArrowMaterial(): THREE.MeshBasicMaterial {
 export function isCachedMaterial(mat: THREE.Material): boolean {
     for (const cached of rockMaterialCache.values()) if (cached === mat) return true;
     for (const cached of floorMaterialCache.values()) if (cached === mat) return true;
+    for (const cached of propTrunkCache.values()) if (cached === mat) return true;
+    for (const cached of propAccentCache.values()) if (cached === mat) return true;
     return mat === arrowMaterialCache;
 }
 
+const unitGeometryCache = new Map<string, THREE.BufferGeometry>();
+
+function cacheUnit<T extends THREE.BufferGeometry>(key: string, make: () => T): T {
+    const cached = unitGeometryCache.get(key);
+    if (cached) return cached as T;
+
+    const geometry = make();
+    unitGeometryCache.set(key, geometry);
+    return geometry;
+}
+
+export function getUnitBox(): THREE.BoxGeometry {
+    return cacheUnit("box", () => new THREE.BoxGeometry(1, 1, 1));
+}
+
+export function getUnitCone(segments: number): THREE.ConeGeometry {
+    return cacheUnit(`cone:${segments}`, () => new THREE.ConeGeometry(1, 1, segments));
+}
+
+export function getUnitDodecahedron(): THREE.DodecahedronGeometry {
+    return cacheUnit("dodeca", () => new THREE.DodecahedronGeometry(1, 0));
+}
+
+export function getUnitOctahedron(): THREE.OctahedronGeometry {
+    return cacheUnit("octa", () => new THREE.OctahedronGeometry(1, 0));
+}
+
+export function getUnitIcosahedron(): THREE.IcosahedronGeometry {
+    return cacheUnit("icosa", () => new THREE.IcosahedronGeometry(1, 0));
+}
+
+export function getUnitCylinder(segments: number): THREE.CylinderGeometry {
+    return cacheUnit(`cyl:${segments}`, () => new THREE.CylinderGeometry(1, 1, 1, segments));
+}
+
+export function getUnitSphereCap(): THREE.SphereGeometry {
+    return cacheUnit("cap", () => new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2));
+}
+
 export function isCachedGeometry(geo: THREE.BufferGeometry): boolean {
-    return geo === arrowGeometryCache;
+    if (geo === arrowGeometryCache) return true;
+    for (const cached of unitGeometryCache.values()) if (cached === geo) return true;
+    return false;
 }

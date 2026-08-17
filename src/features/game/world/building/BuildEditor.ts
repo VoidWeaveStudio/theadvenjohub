@@ -64,6 +64,7 @@ export class BuildEditor {
 
     private hasCursor = false;
     private cursorCell = { x: 0, z: 0 };
+    private pickRoot: THREE.Object3D | null = null;
     private orbiting = false;
     private lastMouse = { x: 0, y: 0 };
     private keys = new Set<string>();
@@ -194,9 +195,10 @@ export class BuildEditor {
         this.canvas = null;
     }
 
-    public activate(scene: THREE.Scene, layout: BuildLayout) {
+    public activate(scene: THREE.Scene, layout: BuildLayout, pickRoot: THREE.Object3D | null = null) {
         this.scene = scene;
         this.layout = layout;
+        this.pickRoot = pickRoot;
         this.active = true;
         this.level = 0;
         this.rotation = 0;
@@ -462,7 +464,7 @@ export class BuildEditor {
         }
 
         if (this.tool === "select") {
-            const found = this.layout.findAt(this.level, this.cursorCell.x, this.cursorCell.z, this.rotation);
+            const found = this.findTargetPiece();
             this.selection = found ? { key: found.key, piece: found.piece } : null;
             this.callbacks.onStateChange();
             return;
@@ -473,10 +475,36 @@ export class BuildEditor {
         this.callbacks.onPlace(piece);
     }
 
+    private pickedCell(): { x: number; z: number } | null {
+        if (!this.pickRoot || !this.layout) return null;
+
+        this.raycaster.setFromCamera(this.pointer, this.camera.camera);
+        const hits = this.raycaster.intersectObject(this.pickRoot, true);
+        if (hits.length === 0) return null;
+
+        const point = hits[0].point;
+        return {
+            x: worldToCell(point.x, this.layout.plotSize),
+            z: worldToCell(point.z, this.layout.plotSize),
+        };
+    }
+
+    private findTargetPiece(): { key: string; piece: BuildPiece } | null {
+        if (!this.layout) return null;
+
+        const picked = this.pickedCell();
+        if (picked) {
+            const onGeometry = this.layout.findAt(this.level, picked.x, picked.z, this.rotation);
+            if (onGeometry) return onGeometry;
+        }
+
+        return this.layout.findAt(this.level, this.cursorCell.x, this.cursorCell.z, this.rotation);
+    }
+
     private eraseAtCursor(): boolean {
         if (!this.layout) return false;
 
-        const found = this.layout.findAt(this.level, this.cursorCell.x, this.cursorCell.z, this.rotation);
+        const found = this.findTargetPiece();
         if (!found) return false;
         if (!this.callbacks.canRemove(found.key, found.piece)) return false;
 

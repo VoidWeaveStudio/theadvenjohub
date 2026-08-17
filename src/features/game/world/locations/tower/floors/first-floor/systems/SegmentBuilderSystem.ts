@@ -1,7 +1,23 @@
 // src/features/game/world/locations/tower/floors/first-floor/systems/SegmentBuilderSystem.ts
 import * as THREE from "three";
 import { CANYON_START_Z, COMBAT_DEPTH, FLOOR_HALF_WIDTH, RETURN_PAD_OFFSET, SAFE_ENTRANCE_DEPTH, SEGMENT_LENGTH, pathOffsetX, halfWidthAt, segmentStartZ } from "../utils/canyonMath";
-import { getArrowGeometry, getArrowMaterial, getCanyonFloorMaterial, getCanyonRockMaterial, isCachedGeometry, isCachedMaterial } from "../utils/canyonMaterials";
+import {
+    getArrowGeometry,
+    getArrowMaterial,
+    getCanyonFloorMaterial,
+    getCanyonPropAccentMaterial,
+    getCanyonPropTrunkMaterial,
+    getCanyonRockMaterial,
+    getUnitBox,
+    getUnitCone,
+    getUnitCylinder,
+    getUnitDodecahedron,
+    getUnitIcosahedron,
+    getUnitOctahedron,
+    getUnitSphereCap,
+    isCachedGeometry,
+    isCachedMaterial,
+} from "../utils/canyonMaterials";
 import { CanyonBiome, biomeForSegment } from "../utils/canyonBiomes";
 import type { FirstFloor } from "../FirstFloor";
 import { createNpcModel, NpcHandle, isSharedNpcGeometry } from "../../../../../../entities/npcModel";
@@ -78,16 +94,10 @@ export class SegmentBuilderSystem {
 
     private buildBiomeProps(content: SegmentContent, startZ: number, endZ: number) {
         const biome = this.activeBiome;
-        const accent = new THREE.Color(biome.accent);
         const count = 46;
 
-        const trunkMat = new THREE.MeshStandardMaterial({ color: biome.groundColor, roughness: 0.9 });
-        const accentMat = new THREE.MeshStandardMaterial({
-            color: accent,
-            emissive: accent,
-            emissiveIntensity: biome.propStyle === "cactus" ? 0.15 : 1.5,
-            roughness: 0.5,
-        });
+        const trunkMat = getCanyonPropTrunkMaterial(biome);
+        const accentMat = getCanyonPropAccentMaterial(biome);
 
         for (let i = 0; i < count; i++) {
             const z = startZ + 40 + Math.random() * (endZ - startZ - 80);
@@ -100,44 +110,50 @@ export class SegmentBuilderSystem {
 
             if (biome.propStyle === "cactus") {
                 const h = 3 + Math.random() * 3;
-                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, h, 8), accentMat);
+                const body = new THREE.Mesh(getUnitCylinder(8), accentMat);
+                body.scale.set(0.5, h, 0.5);
                 body.position.y = h / 2;
                 body.castShadow = true;
                 prop.add(body);
-                const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, h * 0.45, 8), accentMat);
+                const arm = new THREE.Mesh(getUnitCylinder(8), accentMat);
+                arm.scale.set(0.29, h * 0.45, 0.29);
                 arm.position.set(0.6, h * 0.65, 0);
                 arm.rotation.z = -0.6;
                 prop.add(arm);
             } else if (biome.propStyle === "ember") {
                 const h = 2 + Math.random() * 4;
-                const spire = new THREE.Mesh(new THREE.ConeGeometry(0.9, h, 7), trunkMat);
+                const spire = new THREE.Mesh(getUnitCone(7), trunkMat);
+                spire.scale.set(0.9, h, 0.9);
                 spire.position.y = h / 2;
                 spire.castShadow = true;
                 prop.add(spire);
-                const coal = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 0), accentMat);
+                const coal = new THREE.Mesh(getUnitIcosahedron(), accentMat);
+                coal.scale.setScalar(0.42);
                 coal.position.y = h * 0.15;
                 prop.add(coal);
             } else if (biome.propStyle === "ice") {
                 const h = 3 + Math.random() * 5;
-                const shard = new THREE.Mesh(new THREE.ConeGeometry(0.7, h, 6), accentMat);
+                const shard = new THREE.Mesh(getUnitCone(6), accentMat);
+                shard.scale.set(0.7, h, 0.7);
                 shard.position.y = h / 2;
                 shard.rotation.z = (Math.random() - 0.5) * 0.35;
                 shard.castShadow = true;
                 prop.add(shard);
             } else if (biome.propStyle === "mushroom") {
                 const h = 1.5 + Math.random() * 2.5;
-                const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, h, 8), trunkMat);
+                const stalk = new THREE.Mesh(getUnitCylinder(8), trunkMat);
+                stalk.scale.set(0.26, h, 0.26);
                 stalk.position.y = h / 2;
                 prop.add(stalk);
-                const cap = new THREE.Mesh(new THREE.SphereGeometry(0.95, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), accentMat);
+                const cap = new THREE.Mesh(getUnitSphereCap(), accentMat);
+                cap.scale.set(0.95, 0.95 * 0.62, 0.95);
                 cap.position.y = h;
-                cap.scale.y = 0.62;
                 cap.castShadow = true;
                 prop.add(cap);
             } else {
                 const h = 2.5 + Math.random() * 4.5;
-                const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.8, 0), accentMat);
-                shard.scale.set(0.5, h / 1.6, 0.5);
+                const shard = new THREE.Mesh(getUnitOctahedron(), accentMat);
+                shard.scale.set(0.4, 0.8 * h / 1.6, 0.4);
                 shard.position.y = h / 2;
                 shard.rotation.z = (Math.random() - 0.5) * 0.6;
                 prop.add(shard);
@@ -192,7 +208,8 @@ export class SegmentBuilderSystem {
                 const thickness = 6 + Math.random() * 6;
                 const overhang = Math.random() > 0.75 ? Math.random() * 3 : 0;
 
-                const chunk = new THREE.Mesh(new THREE.BoxGeometry(thickness, height, chunkDepth + 1), mat);
+                const chunk = new THREE.Mesh(getUnitBox(), mat);
+                chunk.scale.set(thickness, height, chunkDepth + 1);
                 const xBase = centerX + side * (halfWidth + thickness / 2 - overhang);
                 chunk.position.set(xBase - side * jitter, height / 2, z);
                 chunk.rotation.y = (Math.random() - 0.5) * 0.12;
@@ -209,14 +226,17 @@ export class SegmentBuilderSystem {
 
                 if (Math.random() > 0.8) {
                     const spireHeight = 14 + Math.random() * 22;
-                    const spire = new THREE.Mesh(new THREE.ConeGeometry(2.5 + Math.random() * 2, spireHeight, 6), mat);
+                    const spireRadius = 2.5 + Math.random() * 2;
+                    const spire = new THREE.Mesh(getUnitCone(6), mat);
+                    spire.scale.set(spireRadius, spireHeight, spireRadius);
                     spire.position.set(chunk.position.x, height + spireHeight / 2 - 4, z);
                     spire.castShadow = true;
                     content.group.add(spire);
                 }
 
                 if (Math.random() > 0.88) {
-                    const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(2 + Math.random() * 2.5, 0), mat);
+                    const boulder = new THREE.Mesh(getUnitDodecahedron(), mat);
+                    boulder.scale.setScalar(2 + Math.random() * 2.5);
                     boulder.position.set(
                         centerX + side * (halfWidth - 2 + Math.random() * 4),
                         1 + Math.random() * 2,
@@ -231,7 +251,8 @@ export class SegmentBuilderSystem {
                     const ledgeWidth = 3 + Math.random() * 4;
                     const ledgeThickness = 1.5 + Math.random() * 1.5;
                     const ledgeY = 4 + Math.random() * (height - 10);
-                    const ledge = new THREE.Mesh(new THREE.BoxGeometry(ledgeWidth, ledgeThickness, chunkDepth * 0.7), mat);
+                    const ledge = new THREE.Mesh(getUnitBox(), mat);
+                    ledge.scale.set(ledgeWidth, ledgeThickness, chunkDepth * 0.7);
                     ledge.position.set(chunk.position.x - side * (ledgeWidth / 2 - 1), ledgeY, z);
                     ledge.rotation.y = (Math.random() - 0.5) * 0.2;
                     ledge.castShadow = true;
@@ -245,7 +266,8 @@ export class SegmentBuilderSystem {
     buildDeadEnd(content: SegmentContent, z: number) {
         const centerX = pathOffsetX(z);
         const halfWidth = halfWidthAt(z);
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(halfWidth * 2 + 10, 40, 8), getCanyonRockMaterial(this.activeBiome));
+        const wall = new THREE.Mesh(getUnitBox(), getCanyonRockMaterial(this.activeBiome));
+        wall.scale.set(halfWidth * 2 + 10, 40, 8);
         wall.position.set(centerX, 20, z - 4);
         wall.castShadow = true;
         wall.receiveShadow = true;
@@ -311,15 +333,11 @@ export class SegmentBuilderSystem {
         pad.position.y = 0.15;
         group.add(pad);
 
-        const ringMaterial = new THREE.MeshStandardMaterial({ color: 0x35506b, emissive: 0x4fd1ff, emissiveIntensity: 0 });
+        const ringMaterial = new THREE.MeshStandardMaterial({ color: 0x35506b, emissive: 0x4fd1ff, emissiveIntensity: 0, toneMapped: false });
         const ring = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.15, 8, 32), ringMaterial);
         ring.rotation.x = Math.PI / 2;
         ring.position.y = 0.3;
         group.add(ring);
-
-        const light = new THREE.PointLight(0x4fd1ff, 0, 16);
-        light.position.y = 2;
-        group.add(light);
 
         group.userData.interactionId = "canyon-return";
         content.group.add(group);
@@ -330,10 +348,9 @@ export class SegmentBuilderSystem {
             setActive(active: boolean) {
                 if (this.active === active) return;
                 this.active = active;
-                padMaterial.emissiveIntensity = active ? 0.5 : 0;
+                padMaterial.emissiveIntensity = active ? 1.2 : 0;
                 ringMaterial.color.setHex(active ? 0x4fd1ff : 0x35506b);
-                ringMaterial.emissiveIntensity = active ? 2 : 0;
-                light.intensity = active ? 3 : 0;
+                ringMaterial.emissiveIntensity = active ? 3.5 : 0;
             },
         };
 
@@ -349,7 +366,8 @@ export class SegmentBuilderSystem {
         const group = new THREE.Group();
         group.position.set(centerX, 0, z);
 
-        const slab = new THREE.Mesh(new THREE.BoxGeometry(width, 44, 10), mat);
+        const slab = new THREE.Mesh(getUnitBox(), mat);
+        slab.scale.set(width, 44, 10);
         slab.position.y = 22;
         slab.castShadow = true;
         slab.receiveShadow = true;
@@ -357,15 +375,19 @@ export class SegmentBuilderSystem {
 
         for (let i = 0; i < 6; i++) {
             const bx = (Math.random() * 2 - 1) * (width / 2 - 6);
-            const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(3 + Math.random() * 3, 0), mat);
+            const boulder = new THREE.Mesh(getUnitDodecahedron(), mat);
+            boulder.scale.setScalar(3 + Math.random() * 3);
             boulder.position.set(bx, 2 + Math.random() * 3, (Math.random() - 0.5) * 6);
             boulder.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
             boulder.castShadow = true;
             group.add(boulder);
         }
 
-        const glow = new THREE.PointLight(0x7a2fd9, 2, 35);
-        glow.position.set(0, 16, -6);
+        const glow = new THREE.Mesh(
+            new THREE.PlaneGeometry(width * 0.9, 26),
+            new THREE.MeshBasicMaterial({ color: 0x7a2fd9, transparent: true, opacity: 0.16, depthWrite: false, toneMapped: false })
+        );
+        glow.position.set(0, 18, 5.2);
         group.add(glow);
 
         content.group.add(group);

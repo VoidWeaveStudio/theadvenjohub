@@ -7,6 +7,7 @@ import { DeathCrate } from "../entities/DeathCrate";
 import { NetworkManager, LootDropData, DeathCrateData } from "../network/NetworkManager";
 import { SoundManager } from "../core/SoundManager";
 import { tokenTextureCache } from "../utils/TokenTextureCache";
+import { fetchJsonShared } from "../utils/apiCache";
 import type { InteractionSystem } from "./InteractionSystem";
 
 const WARMUP_PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -64,8 +65,7 @@ export class LootSystem extends System {
 
     public async preloadTokenTextures() {
         try {
-            const res = await fetch("/api/new-tokens");
-            const tokens = await res.json();
+            const tokens = await fetchJsonShared<unknown>("/api/new-tokens");
             if (Array.isArray(tokens)) {
                 tokenTextureCache.preload(
                     tokens

@@ -57,7 +57,6 @@ export class DeathCrate {
     private seamMaterial: THREE.MeshStandardMaterial;
     private markerMaterial: THREE.MeshStandardMaterial;
     private marker: THREE.Mesh;
-    private light: THREE.PointLight;
     private phase = Math.random() * Math.PI * 2;
 
     constructor(id: string) {
@@ -97,10 +96,6 @@ export class DeathCrate {
         this.marker.position.y = MARKER_HEIGHT;
         this.mesh.add(this.marker);
 
-        this.light = new THREE.PointLight(0xffa02a, 2.2, 7);
-        this.light.position.y = CRATE_HEIGHT;
-        this.mesh.add(this.light);
-
         this.anchor = new THREE.Object3D();
         this.anchor.position.y = CRATE_HEIGHT / 2;
         this.anchor.userData.interactionId = `${DEATH_CRATE_PREFIX}${id}`;
@@ -119,9 +114,9 @@ export class DeathCrate {
         this.marker.rotation.y += delta * 1.4;
         this.marker.position.y = MARKER_HEIGHT + Math.sin(this.phase) * 0.12;
 
-        const pulse = 2 + Math.sin(this.phase * 0.8) * 0.8;
+        const pulse = 2.6 + Math.sin(this.phase * 0.8) * 0.9;
         this.seamMaterial.emissiveIntensity = pulse;
-        this.light.intensity = pulse;
+        this.markerMaterial.emissiveIntensity = pulse + 0.6;
     }
 
     public dispose(scene: THREE.Scene) {

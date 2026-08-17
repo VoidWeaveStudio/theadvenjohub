@@ -16,10 +16,11 @@ const PEDESTAL_RADIUS = 0.86;
 
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 768;
+const CANVAS_SCALE = 2;
 const PADDING = 48;
 
-const ACCENT = "#8ceaff";
-const DIM = "#3d8fa8";
+const ACCENT = "#b8f2ff";
+const DIM = "#7fc4da";
 const WARN = "#ffb454";
 const GOOD = "#7dffb0";
 
@@ -139,12 +140,17 @@ export class HoloTerminalSystem {
         group.position.copy(this.position);
 
         this.canvas = document.createElement("canvas");
-        this.canvas.width = CANVAS_WIDTH;
-        this.canvas.height = CANVAS_HEIGHT;
+        this.canvas.width = CANVAS_WIDTH * CANVAS_SCALE;
+        this.canvas.height = CANVAS_HEIGHT * CANVAS_SCALE;
         this.ctx = this.canvas.getContext("2d");
+        this.ctx?.scale(CANVAS_SCALE, CANVAS_SCALE);
 
         this.texture = new THREE.CanvasTexture(this.canvas);
         this.texture.colorSpace = THREE.SRGBColorSpace;
+        this.texture.anisotropy = 8;
+        this.texture.minFilter = THREE.LinearMipmapLinearFilter;
+        this.texture.magFilter = THREE.LinearFilter;
+        this.texture.generateMipmaps = true;
         this.uniforms.uPanel.value = this.texture;
 
         this.material = new THREE.ShaderMaterial({
@@ -281,9 +287,17 @@ export class HoloTerminalSystem {
         };
 
         const label = (text: string, x: number, y: number, size: number, color: string, align: CanvasTextAlign = "left") => {
-            ctx.font = `bold ${size}px Arial`;
-            ctx.fillStyle = color;
+            ctx.font = `bold ${size}px Oxanium, Arial, sans-serif`;
             ctx.textAlign = align;
+
+            ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+            ctx.shadowBlur = Math.max(4, size * 0.18);
+            ctx.fillStyle = "rgba(4, 12, 18, 0.9)";
+            ctx.fillText(text, x, y);
+
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = "transparent";
+            ctx.fillStyle = color;
             ctx.fillText(text, x, y);
         };
 
@@ -297,8 +311,9 @@ export class HoloTerminalSystem {
             return;
         }
 
+        const hasMarketCap = Number.isFinite(status.mc) && status.mc > 0;
         label("MARKET CAP", PADDING, 138, 24, DIM);
-        label(formatUsd(status.mc), PADDING, 208, 72, ACCENT);
+        label(hasMarketCap ? formatUsd(status.mc) : "NO FEED", PADDING, 208, 72, hasMarketCap ? ACCENT : WARN);
 
         const barY = 232;
         const barWidth = CANVAS_WIDTH - PADDING * 2;

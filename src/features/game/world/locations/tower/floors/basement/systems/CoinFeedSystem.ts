@@ -1,6 +1,7 @@
 // src/features/game/world/locations/tower/floors/basement/systems/CoinFeedSystem.ts
 import * as THREE from "three";
 import { tokenTextureCache } from "../../../../../../utils/TokenTextureCache";
+import { fetchJsonShared } from "../../../../../../utils/apiCache";
 import { createCoinMesh, disposeCoinMesh, disposeSharedCoinAssets } from "../utils/meshFactory";
 import type { Basement } from "../Basement";
 
@@ -128,9 +129,7 @@ export class CoinFeedSystem {
 
     private async pollMemeCoinsOnce() {
         try {
-            const res = await fetch("/api/new-tokens");
-            if (!res.ok) throw new Error("API request failed");
-            const tokens: MemeToken[] = await res.json();
+            const tokens = await fetchJsonShared<MemeToken[]>("/api/new-tokens", 10000);
             for (const token of tokens) {
                 if (this.tokenQueue.length >= this.MAX_QUEUE_SIZE) break;
                 this.tokenQueue.push(token);

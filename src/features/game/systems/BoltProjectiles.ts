@@ -34,8 +34,11 @@ export class Bolt {
 
     private readonly core: THREE.Mesh;
     private readonly coreMaterial: THREE.MeshBasicMaterial;
+    private readonly shell: THREE.Mesh;
+    private readonly shellMaterial: THREE.MeshBasicMaterial;
     private readonly trail: THREE.Mesh;
     private readonly trailMaterial: THREE.MeshBasicMaterial;
+    private flicker = Math.random() * Math.PI * 2;
 
     constructor(spawn: BoltSpawn) {
         this.position = spawn.origin.clone();
@@ -48,23 +51,37 @@ export class Bolt {
         const scale = spawn.charged ? 1.7 : 1;
 
         this.coreMaterial = new THREE.MeshBasicMaterial({
+            color: 0xfff2c4,
+            transparent: true,
+            opacity: 1,
+            depthWrite: false,
+            toneMapped: false,
+        });
+        this.core = new THREE.Mesh(new THREE.SphereGeometry(0.1 * scale, 10, 8), this.coreMaterial);
+        this.object.add(this.core);
+
+        this.shellMaterial = new THREE.MeshBasicMaterial({
             color: spawn.accent,
             transparent: true,
-            opacity: 0.95,
+            opacity: 0.55,
             depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
         });
-        this.core = new THREE.Mesh(new THREE.SphereGeometry(0.09 * scale, 10, 8), this.coreMaterial);
-        this.object.add(this.core);
+        this.shell = new THREE.Mesh(new THREE.SphereGeometry(0.21 * scale, 12, 10), this.shellMaterial);
+        this.object.add(this.shell);
 
         this.trailMaterial = new THREE.MeshBasicMaterial({
             color: spawn.accent,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.4,
             depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
         });
-        this.trail = new THREE.Mesh(new THREE.CylinderGeometry(0.035 * scale, 0.001, 0.9 * scale, 6), this.trailMaterial);
-        this.trail.rotation.x = Math.PI / 2;
-        this.trail.position.z = -0.45 * scale;
+        this.trail = new THREE.Mesh(new THREE.ConeGeometry(0.16 * scale, 1.3 * scale, 8, 1, true), this.trailMaterial);
+        this.trail.rotation.x = -Math.PI / 2;
+        this.trail.position.z = -0.65 * scale;
         this.object.add(this.trail);
 
         this.object.position.copy(this.position);
@@ -74,6 +91,13 @@ export class Bolt {
     advance(delta: number): THREE.Vector3 {
         const step = Math.min(this.speed * delta, this.maxRange - this.travelled);
         this.travelled += step;
+
+        this.flicker += delta * 26;
+        const pulse = 1 + Math.sin(this.flicker) * 0.18;
+        this.shell.scale.setScalar(pulse);
+        this.shellMaterial.opacity = 0.45 + Math.sin(this.flicker * 0.7) * 0.14;
+        this.trail.scale.set(pulse, 1, pulse);
+        this.object.rotateZ(delta * 7);
 
         const next = this.position.clone().addScaledVector(this.direction, step);
         return next;
@@ -92,6 +116,8 @@ export class Bolt {
         this.object.removeFromParent();
         this.core.geometry.dispose();
         this.coreMaterial.dispose();
+        this.shell.geometry.dispose();
+        this.shellMaterial.dispose();
         this.trail.geometry.dispose();
         this.trailMaterial.dispose();
     }

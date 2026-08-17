@@ -6,6 +6,7 @@ import { tokenTextureCache } from "../utils/TokenTextureCache";
 interface Coin {
     mesh: THREE.Mesh;
     faceMaterial: THREE.MeshStandardMaterial;
+    sharedFace: boolean;
     baseY: number;
     bobPhase: number;
     spinRate: THREE.Vector3;
@@ -19,6 +20,39 @@ const FLOAT_BOB = 0.1;
 
 let sharedGeometry: THREE.CylinderGeometry | null = null;
 let sharedSideMaterial: THREE.MeshStandardMaterial | null = null;
+const MAX_CACHED_FACES = 192;
+const faceMaterials = new Map<string, THREE.MeshStandardMaterial>();
+
+function faceMaterialFor(token: LootTokenData): { material: THREE.MeshStandardMaterial; shared: boolean } {
+    const key = token.image || "__blank__";
+    const existing = faceMaterials.get(key);
+    if (existing) return { material: existing, shared: true };
+
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xffd700,
+        emissive: 0x8a5c00,
+        emissiveIntensity: 1.1,
+        metalness: 0.2,
+        roughness: 0.4,
+        toneMapped: false,
+    });
+
+    if (token.image) {
+        const url = token.image.startsWith("data:")
+            ? token.image
+            : `/api/image-proxy?url=${encodeURIComponent(token.image)}`;
+        tokenTextureCache.load(url, (tex) => {
+            material.map = tex;
+            material.emissiveMap = tex;
+            material.needsUpdate = true;
+        });
+    }
+
+    const shared = faceMaterials.size < MAX_CACHED_FACES;
+    if (shared) faceMaterials.set(key, material);
+
+    return { material, shared };
+}
 
 function getSharedGeometry(): THREE.CylinderGeometry {
     if (!sharedGeometry) {
@@ -60,42 +94,21 @@ export class LootDrop {
             this.mesh.add(coin.mesh);
             this.coins.push(coin);
         });
-
-        const light = new THREE.PointLight(0xffcc44, 2, 5);
-        light.position.y = FLOAT_HEIGHT;
-        this.mesh.add(light);
     }
 
     private createCoin(token: LootTokenData): Coin {
-        const faceMaterial = new THREE.MeshStandardMaterial({
-            color: 0xffd700,
-            emissive: 0x664400,
-            emissiveIntensity: 0.5,
-            metalness: 0.2,
-            roughness: 0.4,
-            toneMapped: false,
-        });
+        const { material: faceMaterial, shared } = faceMaterialFor(token);
 
         const mesh = new THREE.Mesh(
             getSharedGeometry(),
             [getSharedSideMaterial(), faceMaterial, faceMaterial]
         );
-        mesh.castShadow = true;
-
-        if (token.image) {
-            const url = token.image.startsWith("data:")
-                ? token.image
-                : `/api/image-proxy?url=${encodeURIComponent(token.image)}`;
-            tokenTextureCache.load(url, (tex) => {
-                faceMaterial.map = tex;
-                faceMaterial.emissiveMap = tex;
-                faceMaterial.needsUpdate = true;
-            });
-        }
+        mesh.castShadow = false;
 
         return {
             mesh,
             faceMaterial,
+            sharedFace: shared,
             baseY: 0,
             bobPhase: Math.random() * Math.PI * 2,
             spinRate: new THREE.Vector3(
@@ -120,7 +133,7 @@ export class LootDrop {
 
     dispose(scene: THREE.Scene) {
         for (const coin of this.coins) {
-            coin.faceMaterial.dispose();
+            if (!coin.sharedFace) coin.faceMaterial.dispose();
         }
         scene.remove(this.mesh);
     }

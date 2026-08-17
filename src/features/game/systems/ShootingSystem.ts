@@ -348,6 +348,7 @@ export class ShootingSystem extends System {
     }
 
     private fireStaff() {
+        const cameraPos = this.camera.camera.getWorldPosition(new THREE.Vector3());
         const cameraDir = this.camera.getForwardDirection();
         const weapon = this.player.getWeapon();
         const muzzlePos = weapon.getWorldMuzzle();
@@ -358,7 +359,9 @@ export class ShootingSystem extends System {
         const charged = modeNumber(this.fireMode, "chargeMs", 0) > 0;
         const accent = accentForTier(this.weaponTier);
 
-        const directions = this.spreadDirections(cameraDir, count, spread);
+        const aimPoint = cameraPos.addScaledVector(cameraDir, this.boltRange);
+        const aimDir = aimPoint.sub(muzzlePos).normalize();
+        const directions = this.spreadDirections(aimDir, count, spread);
 
         this.onShotFired?.();
         this.network.sendShoot({

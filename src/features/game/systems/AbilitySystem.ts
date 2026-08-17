@@ -54,6 +54,11 @@ class Burst {
     private readonly ringMaterial: THREE.MeshBasicMaterial;
     private readonly core: THREE.Mesh;
     private readonly coreMaterial: THREE.MeshBasicMaterial;
+    private readonly wave: THREE.Mesh;
+    private readonly waveMaterial: THREE.MeshBasicMaterial;
+    private readonly sparks: THREE.Points;
+    private readonly sparkMaterial: THREE.PointsMaterial;
+    private readonly sparkVelocities: THREE.Vector3[];
     private readonly radius: number;
 
     private elapsed = 0;
@@ -68,19 +73,61 @@ class Burst {
             transparent: true,
             side: THREE.DoubleSide,
             depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
         });
         this.ring = new THREE.Mesh(ringGeometry(this.radius), this.ringMaterial);
         this.ring.rotation.x = -Math.PI / 2;
         this.object.add(this.ring);
 
+        this.waveMaterial = new THREE.MeshBasicMaterial({
+            color,
+            transparent: true,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
+        });
+        this.wave = new THREE.Mesh(ringGeometry(this.radius), this.waveMaterial);
+        this.wave.rotation.x = -Math.PI / 2;
+        this.object.add(this.wave);
+
         this.coreMaterial = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
             depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
         });
         this.core = new THREE.Mesh(new THREE.SphereGeometry(this.radius * 0.35, 16, 12), this.coreMaterial);
         this.core.position.y = this.radius * 0.3;
         this.object.add(this.core);
+
+        const count = 18;
+        const positions = new Float32Array(count * 3);
+        this.sparkVelocities = [];
+
+        for (let i = 0; i < count; i++) {
+            const yaw = Math.random() * Math.PI * 2;
+            const lift = 0.35 + Math.random() * 0.9;
+            const push = this.radius * (0.7 + Math.random() * 0.8);
+            this.sparkVelocities.push(new THREE.Vector3(Math.cos(yaw) * push, lift * this.radius, Math.sin(yaw) * push));
+            positions[i * 3 + 1] = this.radius * 0.2;
+        }
+
+        const sparkGeometry = new THREE.BufferGeometry();
+        sparkGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+        this.sparkMaterial = new THREE.PointsMaterial({
+            color,
+            size: Math.max(0.12, this.radius * 0.14),
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
+        });
+        this.sparks = new THREE.Points(sparkGeometry, this.sparkMaterial);
+        this.object.add(this.sparks);
     }
 
     update(delta: number): boolean {
@@ -95,6 +142,25 @@ class Burst {
         this.core.scale.setScalar(1 + progress * 0.6);
         this.coreMaterial.opacity = 0.5 * (1 - progress * 1.4);
 
+        const waveScale = 0.2 + progress * 1.5;
+        this.wave.scale.setScalar(waveScale);
+        this.wave.position.y = progress * this.radius * 0.75;
+        this.waveMaterial.opacity = 0.5 * (1 - progress) * (1 - progress);
+
+        const attribute = this.sparks.geometry.getAttribute("position") as THREE.BufferAttribute;
+        const drag = 1 - progress * 0.65;
+        for (let i = 0; i < this.sparkVelocities.length; i++) {
+            const velocity = this.sparkVelocities[i];
+            attribute.setXYZ(
+                i,
+                velocity.x * progress * drag,
+                this.radius * 0.2 + velocity.y * progress * drag - progress * progress * this.radius * 0.9,
+                velocity.z * progress * drag
+            );
+        }
+        attribute.needsUpdate = true;
+        this.sparkMaterial.opacity = 1 - progress;
+
         return true;
     }
 
@@ -104,6 +170,10 @@ class Burst {
         this.ringMaterial.dispose();
         this.core.geometry.dispose();
         this.coreMaterial.dispose();
+        this.wave.geometry.dispose();
+        this.waveMaterial.dispose();
+        this.sparks.geometry.dispose();
+        this.sparkMaterial.dispose();
     }
 }
 

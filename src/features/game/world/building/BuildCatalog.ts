@@ -67,6 +67,7 @@ export interface BuildEntry {
     walkableTop: number | null;
     blockHeight?: number;
     blockRadius?: number;
+    attachesToWall?: boolean;
     opening?: BuildOpening;
     ramp?: boolean;
     hinged?: boolean;
@@ -1383,7 +1384,7 @@ const ENTRIES: BuildEntry[] = [
     { id: "wall-half", name: "Half Wall", icon: "▂", category: "structure", slot: "edge", layer: "floor", blocking: true, walkableTop: null, blockHeight: LEVEL_HEIGHT * 0.45, build: () => [part("plaster", [wallBody(LEVEL_HEIGHT * 0.45, 0)]), part("plank", [box(CELL_SIZE, 0.09, WALL_THICKNESS * 1.6, 0, LEVEL_HEIGHT * 0.45, -HALF + WALL_THICKNESS / 2)])] },
     { id: "railing", name: "Railing", icon: "🛡️", category: "structure", slot: "edge", layer: "floor", blocking: true, walkableTop: null, blockHeight: 1.1, build: railingParts },
     { id: "pillar", name: "Pillar", icon: "🏛️", category: "structure", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockRadius: 0.42, build: pillarParts },
-    { id: "ceiling", name: "Ceiling", icon: "⬛", category: "structure", slot: "tile", layer: "ceiling", blocking: false, walkableTop: null, build: () => slab("plaster", 0.14, LEVEL_HEIGHT - 0.14) },
+    { id: "ceiling", name: "Ceiling", icon: "⬛", category: "structure", slot: "tile", layer: "ceiling", blocking: false, walkableTop: LEVEL_HEIGHT, build: () => slab("plaster", 0.14, LEVEL_HEIGHT - 0.14) },
     { id: "stairs", name: "Wooden Stairs", icon: "🪜", category: "structure", slot: "tile", layer: "stairs", blocking: false, walkableTop: LEVEL_HEIGHT, ramp: true, build: () => stairParts("plank", "metal") },
     { id: "stairs-stone", name: "Stone Stairs", icon: "🧗", category: "structure", slot: "tile", layer: "stairs", blocking: false, walkableTop: LEVEL_HEIGHT, ramp: true, build: () => stairParts("stone", "metal") },
 
@@ -1449,8 +1450,8 @@ const ENTRIES: BuildEntry[] = [
     { id: "street-lamp", name: "Street Lamp", icon: "🏮", category: "lighting", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 3.9, blockRadius: 0.25, light: { color: 0xffdba8, intensity: 30, distance: 18, x: 0, y: 3.4, z: -0.56, nightOnly: true }, build: streetLampParts },
     { id: "classic-lamp", name: "Classic Lamp", icon: "🕯️", category: "lighting", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 3.6, blockRadius: 0.25, light: { color: 0xffd7a0, intensity: 24, distance: 15, x: 0, y: 3.28, z: 0, nightOnly: true }, build: classicLampParts },
     { id: "garden-lamp", name: "Garden Lantern", icon: "🔦", category: "lighting", slot: "object", layer: "floor", blocking: false, walkableTop: null, light: { color: 0xffd08a, intensity: 11, distance: 9, x: 0, y: 1.14, z: 0 }, build: gardenLampParts },
-    { id: "wall-lamp", name: "Wall Sconce", icon: "💡", category: "lighting", slot: "edge", layer: "floor", blocking: false, walkableTop: null, light: { color: 0xffe0b0, intensity: 9, distance: 9, x: 0, y: 2.14, z: -HALF + WALL_THICKNESS + 0.34 }, build: wallLampParts },
-    { id: "torch", name: "Wall Torch", icon: "🔥", category: "lighting", slot: "edge", layer: "floor", blocking: false, walkableTop: null, light: { color: 0xff9a4a, intensity: 12, distance: 10, x: 0, y: 2.5, z: -HALF + WALL_THICKNESS + 0.19, flicker: 0.28 }, build: torchParts },
+    { id: "wall-lamp", name: "Wall Sconce", icon: "💡", category: "lighting", slot: "edge", layer: "floor", blocking: false, walkableTop: null, attachesToWall: true, light: { color: 0xffe0b0, intensity: 9, distance: 9, x: 0, y: 2.14, z: -HALF + WALL_THICKNESS + 0.34 }, build: wallLampParts },
+    { id: "torch", name: "Wall Torch", icon: "🔥", category: "lighting", slot: "edge", layer: "floor", blocking: false, walkableTop: null, attachesToWall: true, light: { color: 0xff9a4a, intensity: 12, distance: 10, x: 0, y: 2.5, z: -HALF + WALL_THICKNESS + 0.19, flicker: 0.28 }, build: torchParts },
     { id: "campfire", name: "Campfire", icon: "🔥", category: "lighting", slot: "object", layer: "floor", blocking: false, walkableTop: null, light: { color: 0xff8a3c, intensity: 16, distance: 12, x: 0, y: 0.7, z: 0, flicker: 0.35 }, build: campfireParts },
     { id: "chandelier", name: "Chandelier", icon: "✨", category: "lighting", slot: "object", layer: "ceiling", blocking: false, walkableTop: null, light: { color: 0xfff0cf, intensity: 16, distance: 12, x: 0, y: LEVEL_HEIGHT - 0.85, z: 0 }, build: chandelierParts },
     { id: "lamp", name: "Floor Lamp", icon: "🛋️", category: "lighting", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 1.2, blockRadius: 0.3, light: { color: 0xffe4bc, intensity: 11, distance: 10, x: 0, y: 1.98, z: 0 }, build: floorLampParts },
@@ -1462,9 +1463,9 @@ const ENTRIES: BuildEntry[] = [
     { id: "shelf", name: "Shelf", icon: "📚", category: "furniture", slot: "object", layer: "floor", blocking: true, walkableTop: null, build: shelfParts },
     { id: "plant", name: "Potted Plant", icon: "🪴", category: "furniture", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 1.4, blockRadius: 0.36, build: plantParts },
 
-    { id: "poster", name: "Poster", icon: "🖼️", category: "decor", slot: "edge", layer: "floor", blocking: false, walkableTop: null, paint: { width: 1.3, height: 0.9, y: 1.7, z: -HALF + WALL_THICKNESS + 0.055 }, build: () => posterParts(1.3, 0.9, 1.7) },
-    { id: "poster-tall", name: "Tall Poster", icon: "🖌️", category: "decor", slot: "edge", layer: "floor", blocking: false, walkableTop: null, paint: { width: 0.9, height: 1.4, y: 1.6, z: -HALF + WALL_THICKNESS + 0.055 }, build: () => posterParts(0.9, 1.4, 1.6) },
-    { id: "poster-wide", name: "Wide Canvas", icon: "🎨", category: "decor", slot: "edge", layer: "floor", blocking: false, walkableTop: null, paint: { width: 1.76, height: 0.86, y: 1.75, z: -HALF + WALL_THICKNESS + 0.055 }, build: () => posterParts(1.76, 0.86, 1.75) },
+    { id: "poster", name: "Poster", icon: "🖼️", category: "decor", slot: "edge", layer: "floor", blocking: false, walkableTop: null, attachesToWall: true, paint: { width: 1.3, height: 0.9, y: 1.7, z: -HALF + WALL_THICKNESS + 0.055 }, build: () => posterParts(1.3, 0.9, 1.7) },
+    { id: "poster-tall", name: "Tall Poster", icon: "🖌️", category: "decor", slot: "edge", layer: "floor", blocking: false, walkableTop: null, attachesToWall: true, paint: { width: 0.9, height: 1.4, y: 1.6, z: -HALF + WALL_THICKNESS + 0.055 }, build: () => posterParts(0.9, 1.4, 1.6) },
+    { id: "poster-wide", name: "Wide Canvas", icon: "🎨", category: "decor", slot: "edge", layer: "floor", blocking: false, walkableTop: null, attachesToWall: true, paint: { width: 1.76, height: 0.86, y: 1.75, z: -HALF + WALL_THICKNESS + 0.055 }, build: () => posterParts(1.76, 0.86, 1.75) },
     { id: "billboard", name: "Billboard", icon: "📋", category: "decor", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 2.4, paint: { width: 1.7, height: 1.26, y: 1.7, z: 0.045 }, build: billboardParts },
 
     { id: SPAWN_BEACON_PIECE, name: "Spawn Beacon", icon: "🌟", category: "decor", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 2.4, blockRadius: 0.5, light: { color: 0x8ad4ff, intensity: 14, distance: 13, x: 0, y: 2.05, z: 0 }, interact: { id: SPAWN_BEACON_INTERACTION, y: 1.4 }, build: spawnBeaconParts },

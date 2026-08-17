@@ -1,7 +1,7 @@
 // src/features/game/ui/Hotbar.tsx
 "use client";
 
-import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack, Lock, Smile } from "lucide-react";
+import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack, Lock, Smile, Sparkles } from "lucide-react";
 
 interface HotbarSlot {
     id: string;
@@ -16,6 +16,8 @@ interface HotbarSlot {
 interface HotbarProps {
     slots: HotbarSlot[];
     onSlotClick?: (index: number) => void;
+    onOpenEmotes?: () => void;
+    onOpenDegen?: () => void;
 }
 
 const SLOT_KEYS = ["Q", "F", "C", "V", "X"];
@@ -31,9 +33,9 @@ const iconMap: Record<string, React.ReactNode> = {
     'emote': <Smile className="w-8 h-8" />,
 };
 
-export function Hotbar({ slots, onSlotClick }: HotbarProps) {
+export function Hotbar({ slots, onSlotClick, onOpenEmotes, onOpenDegen }: HotbarProps) {
     return (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 pointer-events-auto font-oxanium">
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-auto font-oxanium">
             {slots.map((slot, i) => {
                 const IconComponent = iconMap[slot.icon.toLowerCase()] || null;
 
@@ -95,6 +97,26 @@ export function Hotbar({ slots, onSlotClick }: HotbarProps) {
                     </div>
                 );
             })}
+
+            <div className="mt-1 flex flex-col gap-2">
+                <button
+                    onClick={onOpenEmotes}
+                    title="Emotes"
+                    className="w-16 h-16 p-0 rounded-[10px] border-2 border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[#FFD166] hover:bg-[rgba(12,12,14,0.75)] flex flex-col items-center justify-center gap-0.5 transition-colors"
+                >
+                    <Smile className="w-7 h-7 text-[#FFD166]" />
+                    <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">EMOTES</span>
+                </button>
+
+                <button
+                    onClick={onOpenDegen}
+                    title="Degen abilities"
+                    className="w-16 h-16 p-0 rounded-[10px] border-2 border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[#A855F7] hover:bg-[rgba(12,12,14,0.75)] flex flex-col items-center justify-center gap-0.5 transition-colors"
+                >
+                    <Sparkles className="w-7 h-7 text-[#A855F7]" />
+                    <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">DEGEN</span>
+                </button>
+            </div>
         </div>
     );
 }

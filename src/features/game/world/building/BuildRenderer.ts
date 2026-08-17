@@ -57,12 +57,33 @@ interface LightSource {
     y: number;
     z: number;
     level: number;
+    overhead: boolean;
     phase: number;
     spec: BuildLightSpec;
 }
 
+function isOverhead(piece: BuildPiece): boolean {
+    const layer = getBuildEntry(piece.t)?.layer;
+    return layer === "ceiling" || layer === "roof";
+}
+
 function chunkIdOf(piece: BuildPiece): string {
-    return `${Math.floor(piece.x / CHUNK_CELLS)}:${Math.floor(piece.z / CHUNK_CELLS)}:${piece.l}`;
+    const kind = isOverhead(piece) ? "o" : "b";
+    return `${Math.floor(piece.x / CHUNK_CELLS)}:${Math.floor(piece.z / CHUNK_CELLS)}:${piece.l}:${kind}`;
+}
+
+function visibleUnderCap(level: number, overhead: boolean, cap: number | null): boolean {
+    if (cap === null) return true;
+    if (!Number.isFinite(level)) return true;
+
+    if (level > cap) return false;
+    if (level < cap) return true;
+    return !overhead;
+}
+
+function chunkVisibleUnderCap(chunkId: string, cap: number | null): boolean {
+    const parts = chunkId.split(":");
+    return visibleUnderCap(Number(parts[2]), parts[3] === "o", cap);
 }
 
 function cellIdOf(x: number, z: number): string {
@@ -146,6 +167,7 @@ export class BuildRenderer {
         }
 
         this.dirty.clear();
+        this.applyLevelVisibility();
         this.syncDoors();
         this.syncPaintings();
         this.syncPaintAnchors();
@@ -406,6 +428,7 @@ export class BuildRenderer {
                 y: levelBaseY(piece.l) + spec.y,
                 z: cellToWorld(piece.z, this.layout.plotSize) - spec.x * sin + spec.z * cos,
                 level: piece.l,
+                overhead: isOverhead(piece),
                 phase: (piece.x * 7 + piece.z * 13 + piece.l * 3) % 17,
                 spec,
             });
@@ -443,7 +466,7 @@ export class BuildRenderer {
         if (this.lightPool.length === 0) return;
 
         const visible = this.lightSources.filter(
-            (source) => this.visibleLevel === null || source.level <= this.visibleLevel
+            (source) => visibleUnderCap(source.level, source.overhead, this.visibleLevel)
         );
 
         visible.sort((a, b) => {
@@ -707,9 +730,12 @@ export class BuildRenderer {
 
     public setLevelVisibility(maxLevel: number | null) {
         this.visibleLevel = maxLevel;
+        this.applyLevelVisibility();
+    }
+
+    private applyLevelVisibility() {
         this.chunks.forEach((chunk, chunkId) => {
-            const level = Number(chunkId.split(":")[2]);
-            chunk.group.visible = maxLevel === null || level <= maxLevel;
+            chunk.group.visible = chunkVisibleUnderCap(chunkId, this.visibleLevel);
         });
         this.lightTimer = 0;
     }

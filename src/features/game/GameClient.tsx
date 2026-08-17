@@ -98,7 +98,7 @@ const ABILITY_KEY_MAP: Record<string, string> = {
 
 const HOTBAR_KEYS = ["KeyQ", "KeyF", "KeyC", "KeyV", "KeyX"];
 
-type WheelMode = "tools" | "emotes" | null;
+type WheelMode = "tools" | "emotes" | "degen" | null;
 
 const SOLA_INTERACTION_ID = "quest-giver-sola";
 
@@ -352,6 +352,8 @@ export function GameClient({ slug }: GameClientProps) {
       }),
     },
   ];
+
+  const degenWheelPages: WheelPage[] = [emoteWheelPages[1], emoteWheelPages[0]];
 
   const closeWheel = (relock: boolean = true) => {
     setWheelMode(null);
@@ -1283,6 +1285,8 @@ export function GameClient({ slug }: GameClientProps) {
       <Hotbar
         slots={displayHotbarSlots}
         onSlotClick={handleSlotClick}
+        onOpenEmotes={() => openWheel("emotes")}
+        onOpenDegen={() => openWheel("degen")}
       />
       <Notifications notifications={notifications.notifications} onRemove={notifications.removeNotification} />
       <QuestTracker quest={quest.questTracker} />
@@ -1293,7 +1297,7 @@ export function GameClient({ slug }: GameClientProps) {
       />
       <RadialWheel
         isOpen={wheelMode !== null}
-        pages={wheelMode === "emotes" ? emoteWheelPages : toolWheelPages}
+        pages={wheelMode === "tools" ? toolWheelPages : wheelMode === "degen" ? degenWheelPages : emoteWheelPages}
         onClose={() => closeWheel()}
         onSelect={handleWheelSelect}
       />

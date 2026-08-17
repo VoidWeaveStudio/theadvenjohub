@@ -7,6 +7,7 @@ import { SafeZone } from "../world/SafeZone";
 import { PAINT_PREFIX } from "../world/building/BuildRenderer";
 import { SPAWN_BEACON_INTERACTION, STORAGE_INTERACTION } from "../world/building/BuildCatalog";
 import { DEATH_CRATE_PREFIX } from "../entities/DeathCrate";
+import { EVENT_DOORS_BY_ID, EVENT_DOOR_PREFIX } from "../data/eventDoors";
 
 const ARENA_REVIVE_PREFIX = "arena-revive:";
 
@@ -205,10 +206,13 @@ export class InteractionSystem extends System {
                 if (isEJustPressed === true) {
                     this.onArenaRevive?.(id.slice(ARENA_REVIVE_PREFIX.length));
                 }
-            } else if (id === "arena-terminal") {
-                this.onPrompt?.("[E] Candle Defence");
-                if (isEJustPressed === true) {
-                    this.onOpenArena?.();
+            } else if (id?.startsWith(EVENT_DOOR_PREFIX)) {
+                const event = EVENT_DOORS_BY_ID.get(id.slice(EVENT_DOOR_PREFIX.length));
+                if (event?.live) {
+                    this.onPrompt?.(`[E] ${event.name}`);
+                    if (isEJustPressed === true) this.onOpenArena?.();
+                } else {
+                    this.onPrompt?.(event ? `${event.name} — sealed. ${event.teaser}` : "This door is sealed");
                 }
             } else if (id?.startsWith(DEATH_CRATE_PREFIX)) {
                 this.onPrompt?.("[E] Loot the crate");

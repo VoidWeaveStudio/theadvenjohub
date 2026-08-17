@@ -49,6 +49,8 @@ export class Player extends Entity {
     public footstepSurface: "soft" | "stone" = "soft";
     private static readonly SWIM_SUBMERSION = 0.85;
     private static readonly SWIM_SPEED_MULTIPLIER = 0.52;
+    private static readonly MAX_COLLISION_STEP = 0.18;
+    private static readonly MAX_COLLISION_SUBSTEPS = 12;
 
     private maxRadius: number | null = null;
     private bounds: { min: THREE.Vector3; max: THREE.Vector3 } | null = null;
@@ -577,12 +579,33 @@ export class Player extends Entity {
             let nextX = fromX;
             let nextZ = fromZ;
 
-            if (this.canMoveTo(targetX, targetZ, trapped)) {
-                nextX = targetX;
-                nextZ = targetZ;
-            } else {
-                if (step.x !== 0 && this.canMoveTo(targetX, fromZ, trapped)) nextX = targetX;
-                if (step.z !== 0 && this.canMoveTo(nextX, targetZ, trapped)) nextZ = targetZ;
+            const stepLength = Math.hypot(step.x, step.z);
+            const reach = Math.min(stepLength, Player.MAX_COLLISION_STEP * Player.MAX_COLLISION_SUBSTEPS);
+            const substeps = Math.max(1, Math.ceil(reach / Player.MAX_COLLISION_STEP));
+            const shrink = stepLength > 0 ? reach / stepLength : 1;
+            const stepX = (step.x * shrink) / substeps;
+            const stepZ = (step.z * shrink) / substeps;
+
+            for (let i = 0; i < substeps; i++) {
+                const tryX = nextX + stepX;
+                const tryZ = nextZ + stepZ;
+
+                if (this.canMoveTo(tryX, tryZ, trapped)) {
+                    nextX = tryX;
+                    nextZ = tryZ;
+                    continue;
+                }
+
+                let slid = false;
+                if (stepX !== 0 && this.canMoveTo(tryX, nextZ, trapped)) {
+                    nextX = tryX;
+                    slid = true;
+                }
+                if (stepZ !== 0 && this.canMoveTo(nextX, tryZ, trapped)) {
+                    nextZ = tryZ;
+                    slid = true;
+                }
+                if (!slid) break;
             }
 
             if (nextX !== fromX || nextZ !== fromZ) {

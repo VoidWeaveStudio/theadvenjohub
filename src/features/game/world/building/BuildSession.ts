@@ -82,6 +82,7 @@ export class BuildSession {
     }
 
     private emit() {
+        this.plot?.renderer.setLevelVisibility(this.editor.active ? this.editor.level : null);
         this.onStateChange?.(this.getState());
     }
 
@@ -145,7 +146,7 @@ export class BuildSession {
     public enter(scene: Parameters<BuildEditor["activate"]>[0]): boolean {
         if (!this.plot || !this.canEdit) return false;
 
-        this.editor.activate(scene, this.plot.layout);
+        this.editor.activate(scene, this.plot.layout, this.plot.renderer.group);
         this.plot.setEditorMode(true);
         this.plot.setViewerOverride(this.editor.camera.focus);
         this.emit();
@@ -179,6 +180,12 @@ export class BuildSession {
         if (!this.plot) return null;
 
         const key = pieceKey(piece);
+
+        if (getBuildEntry(piece.t)?.attachesToWall) {
+            const host = this.plot.layout.at(`e:${piece.l}:${piece.x}:${piece.z}:${piece.r}`);
+            if (!host) return "🧱 This hangs on a wall — put a wall on this side first";
+        }
+
         const personalOnly = piece.t === LIMITED_BUILD_PIECES.beacon || piece.t === LIMITED_BUILD_PIECES.storage;
         if (personalOnly && this.identity?.ownerType !== "personal") {
             return "🏠 This only works in your own room";

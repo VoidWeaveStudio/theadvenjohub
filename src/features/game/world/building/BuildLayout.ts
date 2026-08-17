@@ -60,6 +60,7 @@ export function pieceKey(piece: BuildPiece): string {
     const entry = getBuildEntry(piece.t);
     if (!entry) return `x:${piece.t}:${piece.l}:${piece.x}:${piece.z}:${piece.r}`;
 
+    if (entry.attachesToWall) return `a:${piece.l}:${piece.x}:${piece.z}:${piece.r}`;
     if (entry.slot === "edge") return `e:${piece.l}:${piece.x}:${piece.z}:${piece.r}`;
     if (entry.slot === "object") return `o:${piece.l}:${piece.x}:${piece.z}`;
     return `t:${entry.layer}:${piece.l}:${piece.x}:${piece.z}`;
@@ -120,7 +121,12 @@ export class BuildLayout {
     }
 
     public findAt(level: number, x: number, z: number, rotation: number): { key: string; piece: BuildPiece } | null {
-        const probes = [`e:${level}:${x}:${z}:${rotation}`, `o:${level}:${x}:${z}`];
+        const probes = [
+            `a:${level}:${x}:${z}:${rotation}`,
+            `e:${level}:${x}:${z}:${rotation}`,
+            `o:${level}:${x}:${z}`,
+        ];
+        for (let r = 0; r < 4; r++) probes.push(`a:${level}:${x}:${z}:${r}`);
         for (let r = 0; r < 4; r++) probes.push(`e:${level}:${x}:${z}:${r}`);
         for (const layer of TILE_LAYERS) probes.push(`t:${layer}:${level}:${x}:${z}`);
 

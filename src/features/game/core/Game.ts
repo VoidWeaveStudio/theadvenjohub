@@ -61,7 +61,7 @@ const ASSET_STAGE_END = 0.4;
 const CONNECT_TIMEOUT_MS = 8000;
 const LOCATION_READY_TIMEOUT_MS = 10000;
 const ABILITY_CAST_HEIGHT = 1.5;
-const ABILITY_AIM_RANGE = 60;
+const ABILITY_AIM_RANGE = 85;
 const PROGRAM_READY_POLL_MS = 10;
 
 interface CompilingProgram {

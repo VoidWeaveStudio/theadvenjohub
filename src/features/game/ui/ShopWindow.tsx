@@ -82,7 +82,7 @@ export function ShopWindow({ isOpen, gameSlug, onClose, ash, placeables, onBuyIt
                                         <button
                                             onClick={() => setQuantity(quantity - 1)}
                                             disabled={quantity <= 1}
-                                            className="w-6 h-6 flex items-center justify-center text-[#C5C9D1] hover:text-[#E5E7EB] disabled:opacity-30"
+                                            className="w-6 h-6 p-0 border-0 bg-transparent rounded flex items-center justify-center text-[#C5C9D1] hover:text-[#E5E7EB] disabled:opacity-30"
                                         >
                                             <Minus className="w-3.5 h-3.5" />
                                         </button>
@@ -90,7 +90,7 @@ export function ShopWindow({ isOpen, gameSlug, onClose, ash, placeables, onBuyIt
                                         <button
                                             onClick={() => setQuantity(quantity + 1)}
                                             disabled={quantity >= maxBuyable}
-                                            className="w-6 h-6 flex items-center justify-center text-[#C5C9D1] hover:text-[#E5E7EB] disabled:opacity-30"
+                                            className="w-6 h-6 p-0 border-0 bg-transparent rounded flex items-center justify-center text-[#C5C9D1] hover:text-[#E5E7EB] disabled:opacity-30"
                                         >
                                             <Plus className="w-3.5 h-3.5" />
                                         </button>

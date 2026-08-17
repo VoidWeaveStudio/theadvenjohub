@@ -11,7 +11,7 @@ import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { Cave } from "../world/locations/cave/Cave";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
-import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, applyStuckTeleport, beginTeleportGrace, moveToServerPlacement } from "./GameLocationOrchestration";
+import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, applyStuckTeleport, beginTeleportGrace, moveToServerPlacement, placeAtPoint } from "./GameLocationOrchestration";
 import { applyWorldStatus } from "./GameWorldState";
 import { isBodyEmote } from "../data/emotes";
 import { STORAGE_CRATE_PIECE } from "@/core/lib/roomLayoutGrid";
@@ -933,6 +933,10 @@ export function registerNetworkHandlers(game: Game) {
         }
 
         if (data.ok && data.position) {
+            const from = game.player.mesh.position.toArray();
+
+            if (data.kind === "dash") placeAtPoint(game, data.position);
+
             game.abilitySystem.playEffect({
                 casterId: game.player.id,
                 abilityId: data.abilityId,
@@ -940,7 +944,7 @@ export function registerNetworkHandlers(game: Game) {
                 position: data.position,
                 radius: data.radius ?? 0,
                 targetId: data.targetId ?? null,
-                chain: data.chain ?? null,
+                chain: data.kind === "dash" ? [from, data.position] : (data.chain ?? null),
             });
         }
         game.onAbilityResult?.(data);
