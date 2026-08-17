@@ -270,6 +270,13 @@ export type LootDropData = {
   tokens: LootTokenData[];
 };
 
+export type DeathCrateData = {
+  id: string;
+  position: number[];
+  stacks: number;
+  ownerNickname: string;
+};
+
 export type SignData = {
   id: string;
   ownerId: string;
@@ -347,6 +354,85 @@ export type InventoryEntry = {
   symbol: string;
   image: string;
   quantity: number;
+};
+
+export type StorageEntry = InventoryEntry;
+
+export type RespawnTarget = "hall" | "home" | "canyon_hub";
+
+export type RespawnOptions = Record<RespawnTarget, boolean>;
+
+export type PartyMemberData = {
+  id: string;
+  nickname: string;
+  level: number;
+  health: number;
+  maxHealth: number;
+  alive: boolean;
+  locationId: string | null;
+};
+
+export type PartyStateData = {
+  partyId: string | null;
+  leaderId: string | null;
+  members: PartyMemberData[];
+};
+
+export type PartyVitalsData = {
+  id: string;
+  health: number;
+  maxHealth: number;
+  alive: boolean;
+  locationId: string | null;
+};
+
+export type PartyInviteData = {
+  fromId: string;
+  fromNickname: string;
+  expiresAt: number;
+};
+
+export type ArenaPhase = "prep" | "wave" | "pause" | "over";
+
+export type ArenaMemberData = {
+  id: string;
+  nickname: string;
+  down: boolean;
+  left: boolean;
+};
+
+export type ArenaStateData = {
+  runId: string;
+  phase: ArenaPhase;
+  wave: number;
+  phaseUntil: number;
+  candleHealth: number;
+  candleMaxHealth: number;
+  members: ArenaMemberData[];
+};
+
+export type ArenaEndedData = {
+  reason: string;
+  wavesCleared: number;
+  ash: number;
+  xp: number;
+  bestWave: number;
+  cooldownUntil: number;
+};
+
+export type ArenaReviveState = {
+  channelling: boolean;
+  targetId: string | null;
+  channelMs: number;
+};
+
+export type DeathLootOutcome = "empty" | "kept" | "insured" | "crate";
+
+export type DeathLootInfo = {
+  outcome: DeathLootOutcome;
+  stacks?: number;
+  expiresAt?: number;
+  segment?: number | null;
 };
 
 export type TradePhase =
@@ -668,8 +754,10 @@ export class NetworkManager {
 
   public onPlayerDeath?: (data: {
     playerId: string;
-    killerId: string;
+    killerId: string | null;
     position: number[];
+    options?: RespawnOptions;
+    loot?: DeathLootInfo;
   }) => void;
 
   public onPlayerRespawn?: (data: {
@@ -681,6 +769,35 @@ export class NetworkManager {
   public onRespawn?: (data: {
     position: number[];
     health: number;
+  }) => void;
+
+  public onCombatState?: (data: { until: number }) => void;
+
+  public onHomeTeleportResult?: (data: {
+    casting: boolean;
+    done?: boolean;
+    cancelled?: boolean;
+    reason?: string | null;
+    castMs?: number;
+    cooldownUntil?: number;
+    charges?: number;
+    locationId?: string;
+    position?: number[];
+    sameRoom?: boolean;
+  }) => void;
+
+  public onStorageState?: (data: {
+    key: string | null;
+    slots: number;
+    entries: StorageEntry[];
+    filled: string[];
+  }) => void;
+
+  public onStuckResult?: (data: {
+    ok: boolean;
+    reason: string | null;
+    cooldownUntil: number;
+    locationId?: string;
   }) => void;
 
   public onDayNightSync?: (data: DayNightSyncData) => void;
@@ -702,6 +819,25 @@ export class NetworkManager {
   public onLootState?: (loot: LootDropData[]) => void;
   public onLootSpawn?: (loot: LootDropData) => void;
   public onLootDespawn?: (id: string) => void;
+  public onCrateState?: (crates: DeathCrateData[]) => void;
+  public onCrateSpawn?: (crate: DeathCrateData) => void;
+  public onCrateDespawn?: (id: string) => void;
+  public onCrateLootResult?: (data: { id: string; moved: number; remaining: number }) => void;
+  public onInsuranceConsumed?: () => void;
+  public onPartyState?: (state: PartyStateData) => void;
+  public onPartyVitals?: (members: PartyVitalsData[]) => void;
+  public onPartyInviteReceived?: (invite: PartyInviteData) => void;
+  public onPartyInviteExpired?: (data: { fromId: string }) => void;
+  public onPartyDisbanded?: (data: { reason: string }) => void;
+  public onArenaState?: (state: ArenaStateData) => void;
+  public onArenaStartResult?: (data: { ok: boolean; reason: string | null; cooldownUntil: number }) => void;
+  public onArenaWaveStart?: (data: { wave: number; boss: boolean; biome: string; enemies: number }) => void;
+  public onArenaWaveEnd?: (data: { wave: number; pauseUntil: number }) => void;
+  public onArenaCandleDamage?: (data: { damage: number; health: number; maxHealth: number }) => void;
+  public onArenaPlayerDown?: (data: { playerId: string }) => void;
+  public onArenaPlayerRevived?: (data: { playerId: string; byId: string }) => void;
+  public onArenaReviveResult?: (data: { channelling: boolean; targetId?: string; channelMs?: number; done?: boolean; cancelled?: boolean; reason?: string }) => void;
+  public onArenaEnded?: (data: ArenaEndedData) => void;
   public onFactionGatesState?: (gates: FactionGateData[]) => void;
   public onAccountCount?: (count: number) => void;
   public onShardState?: (state: ShardStateData) => void;
@@ -926,6 +1062,9 @@ export class NetworkManager {
             nightDurationMs: data.nightDurationMs,
           });
         }
+        if (typeof data.stuckCooldownUntil === "number") {
+          this.onStuckResult?.({ ok: false, reason: "state", cooldownUntil: data.stuckCooldownUntil });
+        }
         break;
       case "auth_error":
         this.onAuthError?.(data.error || "Authentication failed");
@@ -1050,6 +1189,28 @@ export class NetworkManager {
       case "respawn":
         this.onRespawn?.(data);
         break;
+      case "combatState":
+        this.onCombatState?.({ until: typeof data.until === "number" ? data.until : 0 });
+        break;
+      case "homeTeleportResult":
+        this.onHomeTeleportResult?.(data);
+        break;
+      case "storageState":
+        this.onStorageState?.({
+          key: typeof data.key === "string" ? data.key : null,
+          slots: typeof data.slots === "number" ? data.slots : 0,
+          entries: Array.isArray(data.entries) ? data.entries : [],
+          filled: Array.isArray(data.filled) ? data.filled : [],
+        });
+        break;
+      case "stuckResult":
+        this.onStuckResult?.({
+          ok: data.ok === true,
+          reason: typeof data.reason === "string" ? data.reason : null,
+          cooldownUntil: typeof data.cooldownUntil === "number" ? data.cooldownUntil : 0,
+          locationId: typeof data.locationId === "string" ? data.locationId : undefined,
+        });
+        break;
       case "shoot":
         this.onShoot?.(data);
         break;
@@ -1145,6 +1306,103 @@ export class NetworkManager {
         break;
       case "lootDespawn":
         this.onLootDespawn?.(data.id);
+        break;
+      case "crateState":
+        if (Array.isArray(data.crates)) {
+          this.onCrateState?.(data.crates);
+        }
+        break;
+      case "crateSpawn":
+        this.onCrateSpawn?.(data.crate);
+        break;
+      case "crateDespawn":
+        this.onCrateDespawn?.(data.id);
+        break;
+      case "crateLootResult":
+        this.onCrateLootResult?.({
+          id: data.id,
+          moved: typeof data.moved === "number" ? data.moved : 0,
+          remaining: typeof data.remaining === "number" ? data.remaining : 0,
+        });
+        break;
+      case "insuranceConsumed":
+        this.onInsuranceConsumed?.();
+        break;
+      case "partyState":
+        this.onPartyState?.({
+          partyId: typeof data.partyId === "string" ? data.partyId : null,
+          leaderId: typeof data.leaderId === "string" ? data.leaderId : null,
+          members: Array.isArray(data.members) ? data.members : [],
+        });
+        break;
+      case "partyVitals":
+        if (Array.isArray(data.members)) {
+          this.onPartyVitals?.(data.members);
+        }
+        break;
+      case "partyInviteReceived":
+        this.onPartyInviteReceived?.({
+          fromId: data.fromId,
+          fromNickname: data.fromNickname,
+          expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : 0,
+        });
+        break;
+      case "partyInviteExpired":
+        this.onPartyInviteExpired?.({ fromId: data.fromId });
+        break;
+      case "partyDisbanded":
+        this.onPartyDisbanded?.({ reason: typeof data.reason === "string" ? data.reason : "disbanded" });
+        break;
+      case "arenaState":
+        this.onArenaState?.({
+          runId: data.runId,
+          phase: data.phase,
+          wave: typeof data.wave === "number" ? data.wave : 0,
+          phaseUntil: typeof data.phaseUntil === "number" ? data.phaseUntil : 0,
+          candleHealth: typeof data.candleHealth === "number" ? data.candleHealth : 0,
+          candleMaxHealth: typeof data.candleMaxHealth === "number" ? data.candleMaxHealth : 1,
+          members: Array.isArray(data.members) ? data.members : [],
+        });
+        break;
+      case "arenaStartResult":
+        this.onArenaStartResult?.({
+          ok: data.ok === true,
+          reason: typeof data.reason === "string" ? data.reason : null,
+          cooldownUntil: typeof data.cooldownUntil === "number" ? data.cooldownUntil : 0,
+        });
+        break;
+      case "arenaWaveStart":
+        this.onArenaWaveStart?.({
+          wave: data.wave,
+          boss: data.boss === true,
+          biome: typeof data.biome === "string" ? data.biome : "",
+          enemies: typeof data.enemies === "number" ? data.enemies : 0,
+        });
+        break;
+      case "arenaWaveEnd":
+        this.onArenaWaveEnd?.({ wave: data.wave, pauseUntil: data.pauseUntil });
+        break;
+      case "arenaCandleDamage":
+        this.onArenaCandleDamage?.({ damage: data.damage, health: data.health, maxHealth: data.maxHealth });
+        break;
+      case "arenaPlayerDown":
+        this.onArenaPlayerDown?.({ playerId: data.playerId });
+        break;
+      case "arenaPlayerRevived":
+        this.onArenaPlayerRevived?.({ playerId: data.playerId, byId: data.byId });
+        break;
+      case "arenaReviveResult":
+        this.onArenaReviveResult?.(data);
+        break;
+      case "arenaEnded":
+        this.onArenaEnded?.({
+          reason: typeof data.reason === "string" ? data.reason : "over",
+          wavesCleared: typeof data.wavesCleared === "number" ? data.wavesCleared : 0,
+          ash: typeof data.ash === "number" ? data.ash : 0,
+          xp: typeof data.xp === "number" ? data.xp : 0,
+          bestWave: typeof data.bestWave === "number" ? data.bestWave : 0,
+          cooldownUntil: typeof data.cooldownUntil === "number" ? data.cooldownUntil : 0,
+        });
         break;
       case "signState":
         if (Array.isArray(data.signs)) {
@@ -1571,6 +1829,56 @@ export class NetworkManager {
     this.send({ type: "lootPickup", id });
   }
 
+  sendCrateLoot(id: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "crateLoot", id });
+  }
+
+  sendPartyInvite(toWallet: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "partyInvite", toWallet });
+  }
+
+  sendPartyAccept(fromId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "partyAccept", fromId });
+  }
+
+  sendPartyDecline(fromId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "partyDecline", fromId });
+  }
+
+  sendPartyLeave() {
+    if (!this.authenticated) return;
+    this.send({ type: "partyLeave" });
+  }
+
+  sendPartyKick(targetId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "partyKick", targetId });
+  }
+
+  sendArenaStart() {
+    if (!this.authenticated) return;
+    this.send({ type: "arenaStart" });
+  }
+
+  sendArenaJoin() {
+    if (!this.authenticated) return;
+    this.send({ type: "arenaJoin" });
+  }
+
+  sendArenaLeave() {
+    if (!this.authenticated) return;
+    this.send({ type: "arenaLeave" });
+  }
+
+  sendArenaRevive(targetId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "arenaRevive", targetId });
+  }
+
   sendSellToken(address: string, quantity?: number) {
     if (!this.authenticated) return;
     this.send({ type: "sellToken", address, quantity });
@@ -1850,9 +2158,34 @@ export class NetworkManager {
     this.send({ type: "mailMarkRead", mailId });
   }
 
-  sendRespawnRequest() {
+  sendRespawnRequest(target: RespawnTarget = "hall") {
     if (!this.authenticated) return;
-    this.send({ type: "respawnRequest" });
+    this.send({ type: "respawnRequest", target });
+  }
+
+  sendStuckTeleport() {
+    if (!this.authenticated) return;
+    this.send({ type: "stuckTeleport" });
+  }
+
+  sendHomeTeleport() {
+    if (!this.authenticated) return;
+    this.send({ type: "homeTeleport" });
+  }
+
+  sendStorageOpen(key: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "storageOpen", key });
+  }
+
+  sendStorageDeposit(key: string, address: string, quantity: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "storageDeposit", key, address, quantity });
+  }
+
+  sendStorageWithdraw(key: string, address: string, quantity: number) {
+    if (!this.authenticated) return;
+    this.send({ type: "storageWithdraw", key, address, quantity });
   }
 
   sendEmote(key: EmoteKey) {

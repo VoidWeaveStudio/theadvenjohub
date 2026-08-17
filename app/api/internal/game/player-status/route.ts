@@ -2,8 +2,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
-import { gameProgress, users } from "@/core/database/schema";
-import { inArray } from "drizzle-orm";
+import { gameProgress, roomLayouts, users } from "@/core/database/schema";
+import { and, eq, inArray } from "drizzle-orm";
+import { readLayoutFixtures, type StorageFixture, type WorldPoint } from "@/core/lib/roomLayoutGrid";
 
 interface PlayerStatus {
     id: string;
@@ -12,6 +13,9 @@ interface PlayerStatus {
     skinTextureUrl: string | null;
     ash: number;
     placeables: Record<string, number>;
+    fixtures: boolean;
+    homeSpawn: WorldPoint | null;
+    storages: StorageFixture[];
 }
 
 export async function POST(req: NextRequest) {
@@ -21,15 +25,16 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { userIds } = body;
+        const { userIds, gameId } = body;
 
         if (!Array.isArray(userIds) || userIds.length === 0) {
             return NextResponse.json({ statuses: [] });
         }
 
         const ids = userIds.slice(0, 500);
+        const hasLayoutAccess = typeof gameId === "string" && gameId.length > 0;
 
-        const [accountRows, progressRows] = await Promise.all([
+        const [accountRows, progressRows, layoutRows] = await Promise.all([
             db
                 .select({ id: users.id, mutedUntil: users.mutedUntil, isBanned: users.isBanned })
                 .from(users)
@@ -38,9 +43,20 @@ export async function POST(req: NextRequest) {
                 .select({ userId: gameProgress.userId, data: gameProgress.data })
                 .from(gameProgress)
                 .where(inArray(gameProgress.userId, ids)),
+            hasLayoutAccess
+                ? db
+                    .select({ ownerId: roomLayouts.ownerId, data: roomLayouts.data })
+                    .from(roomLayouts)
+                    .where(and(
+                        eq(roomLayouts.gameId, gameId),
+                        eq(roomLayouts.ownerType, "personal"),
+                        inArray(roomLayouts.ownerId, ids)
+                    ))
+                : Promise.resolve([]),
         ]);
 
         const progressByUserId = new Map(progressRows.map((row) => [row.userId, row.data]));
+        const layoutByOwnerId = new Map(layoutRows.map((row) => [row.ownerId, row.data]));
 
         const statuses: PlayerStatus[] = accountRows.map((account) => {
             let skinTextureUrl: string | null = null;
@@ -63,6 +79,8 @@ export async function POST(req: NextRequest) {
                 }
             }
 
+            const fixtures = readLayoutFixtures(layoutByOwnerId.get(account.id));
+
             return {
                 id: account.id,
                 mutedUntil: account.mutedUntil,
@@ -70,6 +88,9 @@ export async function POST(req: NextRequest) {
                 skinTextureUrl,
                 ash,
                 placeables,
+                fixtures: hasLayoutAccess,
+                homeSpawn: fixtures.homeSpawn,
+                storages: fixtures.storages,
             };
         });
 

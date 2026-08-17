@@ -1,6 +1,6 @@
 // src/features/game/world/locations/tower/floors/first-floor/systems/SegmentBuilderSystem.ts
 import * as THREE from "three";
-import { CANYON_START_Z, FLOOR_HALF_WIDTH, SEGMENT_LENGTH, pathOffsetX, halfWidthAt, segmentStartZ } from "../utils/canyonMath";
+import { CANYON_START_Z, COMBAT_DEPTH, FLOOR_HALF_WIDTH, RETURN_PAD_OFFSET, SAFE_ENTRANCE_DEPTH, SEGMENT_LENGTH, pathOffsetX, halfWidthAt, segmentStartZ } from "../utils/canyonMath";
 import { getArrowGeometry, getArrowMaterial, getCanyonFloorMaterial, getCanyonRockMaterial, isCachedGeometry, isCachedMaterial } from "../utils/canyonMaterials";
 import { CanyonBiome, biomeForSegment } from "../utils/canyonBiomes";
 import type { FirstFloor } from "../FirstFloor";
@@ -12,6 +12,12 @@ export interface GateWall {
     collider: THREE.Box3;
 }
 
+export interface ReturnPad {
+    group: THREE.Group;
+    active: boolean;
+    setActive(active: boolean): void;
+}
+
 export interface SegmentContent {
     group: THREE.Group;
     colliders: THREE.Box3[];
@@ -20,6 +26,7 @@ export interface SegmentContent {
     crystal?: THREE.Group;
     dispatcher?: NpcHandle;
     arrow?: THREE.Mesh;
+    returnPad?: ReturnPad;
 }
 
 export class SegmentBuilderSystem {
@@ -61,7 +68,7 @@ export class SegmentBuilderSystem {
 
         this.buildFloor(content, startZ, endZ);
         this.buildCorridorWalls(content, startZ, endZ);
-        this.buildReturnTeleporter(content, startZ + 15);
+        this.buildReturnTeleporter(content, startZ + SAFE_ENTRANCE_DEPTH + COMBAT_DEPTH + RETURN_PAD_OFFSET);
         this.buildArrowIndicator(content, startZ + 30, false);
         this.buildBiomeProps(content, startZ, endZ);
         content.farGate = this.buildGateWallInto(content, endZ);
@@ -294,33 +301,44 @@ export class SegmentBuilderSystem {
         ));
     }
 
-    buildReturnTeleporter(content: SegmentContent, z: number) {
+    buildReturnTeleporter(content: SegmentContent, z: number): ReturnPad {
         const centerX = pathOffsetX(z);
         const group = new THREE.Group();
         group.position.set(centerX, 0, z);
 
-        const pad = new THREE.Mesh(
-            new THREE.CylinderGeometry(3, 3, 0.3, 24),
-            new THREE.MeshStandardMaterial({ color: 0x2a3a5a, emissive: 0x4fd1ff, emissiveIntensity: 0.5, roughness: 0.5 })
-        );
+        const padMaterial = new THREE.MeshStandardMaterial({ color: 0x2a3a5a, emissive: 0x4fd1ff, emissiveIntensity: 0, roughness: 0.5 });
+        const pad = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.3, 24), padMaterial);
         pad.position.y = 0.15;
         group.add(pad);
 
-        const ring = new THREE.Mesh(
-            new THREE.TorusGeometry(2.6, 0.15, 8, 32),
-            new THREE.MeshStandardMaterial({ color: 0x4fd1ff, emissive: 0x4fd1ff, emissiveIntensity: 2 })
-        );
+        const ringMaterial = new THREE.MeshStandardMaterial({ color: 0x35506b, emissive: 0x4fd1ff, emissiveIntensity: 0 });
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.15, 8, 32), ringMaterial);
         ring.rotation.x = Math.PI / 2;
         ring.position.y = 0.3;
         group.add(ring);
 
-        const light = new THREE.PointLight(0x4fd1ff, 3, 16);
+        const light = new THREE.PointLight(0x4fd1ff, 0, 16);
         light.position.y = 2;
         group.add(light);
 
         group.userData.interactionId = "canyon-return";
         content.group.add(group);
-        content.interactables.push(group);
+
+        const handle: ReturnPad = {
+            group,
+            active: false,
+            setActive(active: boolean) {
+                if (this.active === active) return;
+                this.active = active;
+                padMaterial.emissiveIntensity = active ? 0.5 : 0;
+                ringMaterial.color.setHex(active ? 0x4fd1ff : 0x35506b);
+                ringMaterial.emissiveIntensity = active ? 2 : 0;
+                light.intensity = active ? 3 : 0;
+            },
+        };
+
+        content.returnPad = handle;
+        return handle;
     }
 
     buildGateWallInto(content: SegmentContent, z: number): GateWall {

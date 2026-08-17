@@ -48,7 +48,7 @@ export function ShopWindow({ isOpen, gameSlug, onClose, ash, placeables, onBuyIt
                     if (live && live.enabled === false) return null;
                     const item = { ...definition, price: live && live.currency === "ash" ? live.priceAsh : definition.price };
                     const owned = placeables[item.id] || 0;
-                    const capRemaining = Math.max(0, item.maxOwned - owned);
+                    const capRemaining = item.maxOwned === null ? Number.MAX_SAFE_INTEGER : Math.max(0, item.maxOwned - owned);
                     const affordable = item.price > 0 ? Math.floor(ash / item.price) : 0;
                     const maxBuyable = Math.min(capRemaining, affordable);
                     const quantity = Math.min(Math.max(1, quantities[item.id] || 1), Math.max(1, maxBuyable));
@@ -67,7 +67,10 @@ export function ShopWindow({ isOpen, gameSlug, onClose, ash, placeables, onBuyIt
                                 <div>
                                     <div className="text-[#E5E7EB] font-bold text-sm">{item.name}</div>
                                     <div className="text-[#8B8F98] text-xs">{item.price} ash</div>
-                                    <div className="text-[#8B8F98] text-xs">Owned: {owned}/{item.maxOwned}</div>
+                                    {item.hint && <div className="text-[#6B7280] text-xs">{item.hint}</div>}
+                                    <div className="text-[#8B8F98] text-xs">
+                                        Owned: {owned}{item.maxOwned === null ? "" : `/${item.maxOwned}`}
+                                    </div>
                                 </div>
                             </div>
 

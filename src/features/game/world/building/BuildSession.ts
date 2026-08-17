@@ -3,7 +3,7 @@ import type { NetworkManager, RoomBuildOp } from "../../network/NetworkManager";
 import { BuildEditor, type EditorTool } from "./BuildEditor";
 import type { BuildPlot } from "./BuildPlot";
 import { pieceKey, type BuildPiece } from "./BuildLayout";
-import { getBuildEntry } from "./BuildCatalog";
+import { LIMITED_BUILD_PIECES, getBuildEntry } from "./BuildCatalog";
 import { gameFetch } from "../../utils/gameFetch";
 
 export type LotOwnerType = "personal" | "faction";
@@ -33,6 +33,8 @@ export interface BuildSessionState {
 
 export class BuildSession {
     public readonly editor: BuildEditor;
+    public ownedCrates = 0;
+    public filledStorageKeys = new Set<string>();
 
     private plot: BuildPlot | null = null;
     private identity: LotIdentity | null = null;
@@ -49,6 +51,7 @@ export class BuildSession {
         this.editor = new BuildEditor(aspect, {
             onPlace: (piece) => this.place(piece),
             onErase: (key) => this.erase(key),
+            canRemove: (key, piece) => this.canRemove(key, piece),
             onStateChange: () => this.emit(),
             onRequestExit: () => this.onRequestExit?.(),
         });
@@ -162,11 +165,59 @@ export class BuildSession {
         this.editor.update(delta);
     }
 
+    private isFilledCrate(key: string, piece: BuildPiece | undefined): boolean {
+        return piece?.t === LIMITED_BUILD_PIECES.storage && this.filledStorageKeys.has(key);
+    }
+
+    public canRemove(key: string, piece: BuildPiece): boolean {
+        if (!this.isFilledCrate(key, piece)) return true;
+        this.onNotification?.("📦 Take the tokens out before removing this crate", 3000);
+        return false;
+    }
+
+    private placementRefusal(piece: BuildPiece): string | null {
+        if (!this.plot) return null;
+
+        const key = pieceKey(piece);
+        const personalOnly = piece.t === LIMITED_BUILD_PIECES.beacon || piece.t === LIMITED_BUILD_PIECES.storage;
+        if (personalOnly && this.identity?.ownerType !== "personal") {
+            return "🏠 This only works in your own room";
+        }
+
+        if (piece.t === LIMITED_BUILD_PIECES.beacon) {
+            const elsewhere = this.plot.layout.list().some((other) => other.t === piece.t && pieceKey(other) !== key);
+            if (elsewhere) return "🌟 One spawn beacon per lot — move the one you already have";
+        }
+
+        if (piece.t === LIMITED_BUILD_PIECES.storage) {
+            const placed = this.plot.layout.list().filter((other) => other.t === piece.t && pieceKey(other) !== key).length;
+            if (placed >= this.ownedCrates) {
+                return this.ownedCrates === 0
+                    ? "📦 Buy a storage crate in the Shop first"
+                    : `📦 All ${this.ownedCrates} of your storage crates are already placed`;
+            }
+        }
+
+        for (const conflict of this.plot.stairwellConflicts(piece)) {
+            if (this.isFilledCrate(conflict, this.plot.layout.at(conflict))) {
+                return "📦 A full storage crate is in the way — empty it first";
+            }
+        }
+
+        return null;
+    }
+
     private place(piece: BuildPiece) {
         if (!this.plot || !this.canEdit) return;
 
         if (this.plot.blocksStairwell(piece)) {
             this.onNotification?.("🪜 A staircase comes up here — keep this cell open", 2600);
+            return;
+        }
+
+        const refusal = this.placementRefusal(piece);
+        if (refusal) {
+            this.onNotification?.(refusal, 3000);
             return;
         }
 
@@ -183,6 +234,7 @@ export class BuildSession {
 
     private erase(key: string) {
         if (!this.plot || !this.canEdit) return;
+        if (this.isFilledCrate(key, this.plot.layout.at(key))) return;
         if (!this.plot.erasePiece(key)) return;
 
         this.dirty = true;
@@ -201,6 +253,12 @@ export class BuildSession {
 
     public clearLot() {
         if (!this.plot || !this.canEdit) return;
+
+        const filled = this.plot.layout.list().some((piece) => this.isFilledCrate(pieceKey(piece), piece));
+        if (filled) {
+            this.onNotification?.("📦 Empty your storage crates before clearing the lot", 3500);
+            return;
+        }
 
         this.plot.layout.clear();
         this.plot.renderer.markAll();

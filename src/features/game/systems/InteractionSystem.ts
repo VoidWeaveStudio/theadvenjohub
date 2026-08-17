@@ -5,6 +5,10 @@ import { Player } from "../entities/Player";
 import { InputManager } from "../core/InputManager";
 import { SafeZone } from "../world/SafeZone";
 import { PAINT_PREFIX } from "../world/building/BuildRenderer";
+import { SPAWN_BEACON_INTERACTION, STORAGE_INTERACTION } from "../world/building/BuildCatalog";
+import { DEATH_CRATE_PREFIX } from "../entities/DeathCrate";
+
+const ARENA_REVIVE_PREFIX = "arena-revive:";
 
 interface TokenInfo {
     name: string;
@@ -48,7 +52,12 @@ export class InteractionSystem extends System {
     public onOpenSignEditor?: (signId: string) => void;
     public onOpenSignViewer?: (signId: string) => void;
     public onOpenPosterPaint?: (pieceKey: string) => void;
+    public onOpenStorage?: (pieceKey: string) => void;
+    public onLootCrate?: (crateId: string) => void;
+    public onOpenArena?: () => void;
+    public onArenaRevive?: (targetId: string) => void;
     public canPaintLot: boolean = false;
+    public isOwnRoom: boolean = false;
     public localUserId: string = "";
     public myFactionIds: Set<string> = new Set();
     public isBlueprintActive: boolean = false;
@@ -190,6 +199,32 @@ export class InteractionSystem extends System {
                 this.onPrompt?.("[E] Return to the Outpost");
                 if (isEJustPressed === true) {
                     this.onCanyonReturn?.();
+                }
+            } else if (id?.startsWith(ARENA_REVIVE_PREFIX)) {
+                this.onPrompt?.("[E] Raise your ally");
+                if (isEJustPressed === true) {
+                    this.onArenaRevive?.(id.slice(ARENA_REVIVE_PREFIX.length));
+                }
+            } else if (id === "arena-terminal") {
+                this.onPrompt?.("[E] Candle Defence");
+                if (isEJustPressed === true) {
+                    this.onOpenArena?.();
+                }
+            } else if (id?.startsWith(DEATH_CRATE_PREFIX)) {
+                this.onPrompt?.("[E] Loot the crate");
+                if (isEJustPressed === true) {
+                    this.onLootCrate?.(id.slice(DEATH_CRATE_PREFIX.length));
+                }
+            } else if (id === SPAWN_BEACON_INTERACTION) {
+                this.onPrompt?.("Your spawn beacon — you respawn here");
+            } else if (id?.startsWith(`${STORAGE_INTERACTION}:`)) {
+                if (this.isOwnRoom) {
+                    this.onPrompt?.("[E] Open storage");
+                    if (isEJustPressed === true) {
+                        this.onOpenStorage?.(id.slice(STORAGE_INTERACTION.length + 1));
+                    }
+                } else {
+                    this.onPrompt?.("Only the owner can open this crate");
                 }
             } else if (id?.startsWith(PAINT_PREFIX)) {
                 if (this.canPaintLot) {

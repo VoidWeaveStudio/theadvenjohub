@@ -1,7 +1,7 @@
 // src/features/game/ui/SettingsWindow.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Info, Keyboard, TriangleAlert, LifeBuoy } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
@@ -12,7 +12,17 @@ interface SettingsWindowProps {
     isOpen: boolean;
     onClose: () => void;
     onTeleportToSafeZone?: () => void;
+    isInCombat?: boolean;
+    stuckCooldownUntil?: number;
     onOpenSupport?: () => void;
+}
+
+function formatCooldown(ms: number): string {
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes <= 0) return `${seconds}s`;
+    return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
 const KEYBIND_GROUPS: { title: string; binds: [string, string][] }[] = [
@@ -60,8 +70,28 @@ const KEYBIND_GROUPS: { title: string; binds: [string, string][] }[] = [
     },
 ];
 
-export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, onOpenSupport }: SettingsWindowProps) {
+export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, isInCombat = false, stuckCooldownUntil = 0, onOpenSupport }: SettingsWindowProps) {
     const [activeTab, setActiveTab] = useState<SettingsTab>("controls");
+    const [cooldownLeft, setCooldownLeft] = useState(0);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const tick = () => {
+            const left = stuckCooldownUntil - Date.now();
+            setCooldownLeft(left > 0 ? left : 0);
+        };
+
+        tick();
+        const timer = setInterval(tick, 1000);
+        return () => clearInterval(timer);
+    }, [isOpen, stuckCooldownUntil]);
+
+    const stuckBlockedReason = isInCombat
+        ? "Locked while you are in combat"
+        : cooldownLeft > 0
+            ? `Recharging — ${formatCooldown(cooldownLeft)}`
+            : null;
 
     return (
         <WindowFrame
@@ -87,14 +117,20 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, onOpenSu
             footer={
                 <div className="space-y-2">
                     <button
+                        disabled={stuckBlockedReason !== null}
                         onClick={() => {
                             onTeleportToSafeZone?.();
                             onClose();
                         }}
-                        className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2 group border border-orange-400/30"
+                        className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-white/10 disabled:to-white/10 disabled:text-white/40 disabled:border-white/10 disabled:shadow-none disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg shadow-lg shadow-orange-500/20 transition-all flex flex-col items-center justify-center gap-0.5 group border border-orange-400/30"
                     >
-                        <TriangleAlert className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                        <span>I&apos;m Stuck (Teleport to SafeZone)</span>
+                        <span className="flex items-center gap-2">
+                            <TriangleAlert className="w-4 h-4 group-enabled:group-hover:scale-110 transition-transform" />
+                            <span>I&apos;m Stuck (Teleport to SafeZone)</span>
+                        </span>
+                        <span className="text-[11px] font-normal opacity-70">
+                            {stuckBlockedReason ?? "One use per hour — a run bail-out counts as a death"}
+                        </span>
                     </button>
                     <button
                         onClick={() => {

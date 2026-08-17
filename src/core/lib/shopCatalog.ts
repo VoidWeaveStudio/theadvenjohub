@@ -1,7 +1,7 @@
 // src/core/lib/shopCatalog.ts
 export type ShopCurrency = "ash" | "tnj" | "usd";
 
-export type ShopItemKind = "placeable" | "cosmetic" | "faction";
+export type ShopItemKind = "placeable" | "cosmetic" | "faction" | "consumable";
 
 export interface ShopCatalogEntry {
     itemId: string;
@@ -22,6 +22,10 @@ export const SHOP_CATALOG: ShopCatalogEntry[] = [
     { itemId: "table", name: "Table", kind: "placeable", description: "Faction room furniture", defaultCurrency: "ash", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 2 },
     { itemId: "wardrobe", name: "Wardrobe", kind: "placeable", description: "Faction room furniture", defaultCurrency: "ash", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 1 },
     { itemId: "wall-poster", name: "Wall Poster", kind: "placeable", description: "Faction room wall art", defaultCurrency: "ash", defaultPriceAsh: 100, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 4 },
+    { itemId: "storage-crate", name: "Storage Crate", kind: "placeable", description: "Token vault built in your own room", defaultCurrency: "ash", defaultPriceAsh: 200, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },
+
+    { itemId: "home-teleport", name: "Homeward Charge", kind: "consumable", description: "Five second cast, teleports you to your spawn beacon", defaultCurrency: "ash", defaultPriceAsh: 250, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 10 },
+    { itemId: "run-insurance", name: "Run Insurance", kind: "consumable", description: "Keeps your tokens through one death", defaultCurrency: "ash", defaultPriceAsh: 1000, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 1 },
 
     { itemId: "scream_mask", name: "Scream Mask", kind: "cosmetic", description: "Accessory", defaultCurrency: "ash", defaultPriceAsh: 1, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 1 },
     { itemId: "trump_hair", name: "Trump Hair", kind: "cosmetic", description: "Accessory", defaultCurrency: "ash", defaultPriceAsh: 1, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 1 },

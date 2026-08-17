@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Backpack, X, Sparkles } from "lucide-react";
+import { Backpack, X, Sparkles, ShieldCheck, Loader2 } from "lucide-react";
 import { InventoryGrid, InventoryGridItem } from "./InventoryGrid";
 import { useMarketCaps } from "./useMarketCaps";
 import { TokenHoverModal } from "./TokenHoverModal";
@@ -14,9 +14,12 @@ interface InventoryProps {
     ash: number;
     isOpen: boolean;
     onClose: () => void;
+    placeables?: Record<string, number>;
+    homeTeleport?: { casting: boolean; cooldownUntil: number };
+    onTeleportHome?: () => void;
 }
 
-export function Inventory({ items, ash, isOpen, onClose }: InventoryProps) {
+export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTeleport, onTeleportHome }: InventoryProps) {
     const marketCaps = useMarketCaps(items.map((i) => i.address), isOpen);
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
     const [pinnedAddress, setPinnedAddress] = useState<string | null>(null);
@@ -109,6 +112,24 @@ export function Inventory({ items, ash, isOpen, onClose }: InventoryProps) {
                     </div>
                     <span className="text-[#FFD166] text-lg font-bold">{ash}</span>
                 </div>
+
+                {(placeables["run-insurance"] || 0) > 0 && (
+                    <div className="mt-2 flex items-center gap-2 bg-[rgba(74,222,128,0.1)] border border-[#4ADE80]/30 rounded-lg px-3 py-2">
+                        <ShieldCheck className="w-4 h-4 text-[#4ADE80]" />
+                        <span className="text-[#4ADE80] text-xs font-bold tracking-wider">INSURED</span>
+                        <span className="text-[#6B7280] text-[10px] ml-auto">Your tokens survive one death</span>
+                    </div>
+                )}
+
+                <button
+                    onClick={onTeleportHome}
+                    disabled={homeTeleport?.casting === true || (placeables["home-teleport"] || 0) <= 0}
+                    className="mt-2 w-full flex items-center justify-center gap-2 bg-[rgba(138,212,255,0.12)] border border-[#8AD4FF]/30 hover:border-[#8AD4FF] disabled:border-white/10 disabled:text-zinc-600 disabled:cursor-not-allowed rounded-lg px-3 py-2 text-[#8AD4FF] text-xs font-bold tracking-wider transition-colors"
+                >
+                    {homeTeleport?.casting ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>🌀</span>}
+                    <span>{homeTeleport?.casting ? "CHANNELLING…" : "TELEPORT HOME"}</span>
+                    <span className="ml-auto text-[#6B7280] text-[10px]">x{placeables["home-teleport"] || 0}</span>
+                </button>
 
                 <div className="mt-2 text-[#6B7280] text-[10px]">
                     Click a coin to pin its details, click it again to unpin.

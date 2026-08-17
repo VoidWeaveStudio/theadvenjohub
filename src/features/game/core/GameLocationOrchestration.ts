@@ -75,17 +75,56 @@ export function placeAtLocationSpawn(game: Game, options?: { notify?: boolean; r
 }
 
 export function teleportToSafeZone(game: Game) {
-    if (game.isDead) game.networkManager.sendRespawnRequest();
+    if (game.isDead) {
+        game.networkManager.sendRespawnRequest();
+        return;
+    }
 
+    game.networkManager.sendStuckTeleport();
+}
+
+export function placeAtPoint(game: Game, position: number[]) {
+    const point = new THREE.Vector3(position[0], position[1], position[2]);
+
+    game.candleSystem.stop(game.player.id);
+    game.player.playPose(null);
+    game.player.setMovementLocked(false);
+    game.player.teleportTo(point);
+    game.cameraController.resetVerticalSmoothing();
+    game.cameraController.yawObject.position.copy(game.player.mesh.position);
+
+    beginTeleportGrace(game);
+    resyncPosition(game);
+}
+
+export function moveToServerPlacement(game: Game, locationId: string, position: number[] | undefined): Promise<void> {
+    const place = () => {
+        if (position && position.length === 3 && position.every((v) => Number.isFinite(v))) {
+            placeAtPoint(game, position);
+        } else {
+            placeAtLocationSpawn(game, { notify: false });
+        }
+    };
+
+    const current = game.locationManager.getCurrentLocation();
+    if (!current || current.id === locationId) {
+        place();
+        return Promise.resolve();
+    }
+
+    return game.changeLocation(locationId, { silent: true }).then(place);
+}
+
+export function applyStuckTeleport(game: Game, locationId: string) {
     const currentLocation = game.locationManager.getCurrentLocation();
     if (!currentLocation) return;
 
-    if (currentLocation.id === DEFAULT_SPAWN_LOCATION_ID) {
+    if (currentLocation.id === locationId) {
         placeAtLocationSpawn(game);
         return;
     }
 
-    game.changeLocation(DEFAULT_SPAWN_LOCATION_ID)
+    game.changeLocation(locationId, { silent: true })
         .then(() => placeAtLocationSpawn(game))
         .catch(() => game.onNotification?.("⚠️ Could not reach the Safe Zone", 2500));
 }

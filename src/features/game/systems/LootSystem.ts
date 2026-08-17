@@ -3,9 +3,11 @@ import * as THREE from "three";
 import { System } from "./System";
 import { Player } from "../entities/Player";
 import { LootDrop } from "../entities/LootDrop";
-import { NetworkManager, LootDropData } from "../network/NetworkManager";
+import { DeathCrate } from "../entities/DeathCrate";
+import { NetworkManager, LootDropData, DeathCrateData } from "../network/NetworkManager";
 import { SoundManager } from "../core/SoundManager";
 import { tokenTextureCache } from "../utils/TokenTextureCache";
+import type { InteractionSystem } from "./InteractionSystem";
 
 const WARMUP_PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
@@ -15,6 +17,8 @@ export class LootSystem extends System {
     private player!: Player;
     private getGroundHeight!: (x: number, z: number) => number;
     private drops: Map<string, LootDrop> = new Map();
+    private crates: Map<string, DeathCrate> = new Map();
+    private interactions: InteractionSystem | null = null;
     private pickupAttempts: Map<string, number> = new Map();
 
     private readonly PICKUP_RADIUS = 3;
@@ -22,11 +26,18 @@ export class LootSystem extends System {
 
     private warmupDrop: LootDrop | null = null;
 
-    init(scene: THREE.Scene, network: NetworkManager, player: Player, getGroundHeight: (x: number, z: number) => number) {
+    init(
+        scene: THREE.Scene,
+        network: NetworkManager,
+        player: Player,
+        getGroundHeight: (x: number, z: number) => number,
+        interactions: InteractionSystem
+    ) {
         this.scene = scene;
         this.network = network;
         this.player = player;
         this.getGroundHeight = getGroundHeight;
+        this.interactions = interactions;
     }
 
     public setScene(scene: THREE.Scene) {
@@ -106,8 +117,54 @@ export class LootSystem extends System {
         this.despawnLocal(id);
     }
 
+    private spawnCrate(data: DeathCrateData) {
+        const existing = this.crates.get(data.id);
+        if (existing) {
+            existing.setPosition(data.position);
+            return;
+        }
+
+        const crate = new DeathCrate(data.id);
+        crate.setPosition(data.position);
+        this.scene.add(crate.mesh);
+        this.crates.set(data.id, crate);
+        this.interactions?.registerInteractable(crate.anchor);
+    }
+
+    private despawnCrate(id: string) {
+        const crate = this.crates.get(id);
+        if (!crate) return;
+
+        this.interactions?.removeInteractable(crate.anchor);
+        crate.dispose(this.scene);
+        this.crates.delete(id);
+    }
+
+    public handleCrateState(list: DeathCrateData[]) {
+        const seen = new Set<string>();
+        for (const data of list) {
+            seen.add(data.id);
+            this.spawnCrate(data);
+        }
+        for (const id of Array.from(this.crates.keys())) {
+            if (!seen.has(id)) this.despawnCrate(id);
+        }
+    }
+
+    public handleCrateSpawn(data: DeathCrateData) {
+        this.spawnCrate(data);
+    }
+
+    public handleCrateDespawn(id: string) {
+        this.despawnCrate(id);
+    }
+
     public update(delta: number) {
         const playerPos = this.player.mesh.position;
+
+        for (const crate of this.crates.values()) {
+            crate.update(delta, this.getGroundHeight);
+        }
 
         for (const [id, drop] of this.drops) {
             drop.update(delta, this.getGroundHeight);
@@ -126,6 +183,9 @@ export class LootSystem extends System {
     public clear() {
         for (const id of Array.from(this.drops.keys())) {
             this.despawnLocal(id);
+        }
+        for (const id of Array.from(this.crates.keys())) {
+            this.despawnCrate(id);
         }
     }
 

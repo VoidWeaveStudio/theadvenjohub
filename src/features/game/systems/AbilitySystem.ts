@@ -372,12 +372,13 @@ export class AbilitySystem {
         this.zones.set(data.zoneId, zone);
     }
 
-    hostileSlowAt(position: THREE.Vector3, localPlayerId: string): number {
+    hostileSlowAt(position: THREE.Vector3, localPlayerId: string, allyIds?: Set<string>): number {
         let strongest = 0;
 
         this.zones.forEach((zone) => {
             if (zone.slowPercent <= strongest) return;
             if (zone.casterId === localPlayerId) return;
+            if (allyIds?.has(zone.casterId)) return;
 
             const dx = zone.object.position.x - position.x;
             const dz = zone.object.position.z - position.z;

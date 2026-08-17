@@ -2,9 +2,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { getSurfaceMaterial, getSurfaceUvScale, type SurfaceId } from "./buildTextures";
+import { CELL_SIZE, LEVEL_HEIGHT, SPAWN_BEACON_PIECE, STORAGE_CRATE_PIECE } from "@/core/lib/roomLayoutGrid";
 
-export const CELL_SIZE = 2;
-export const LEVEL_HEIGHT = 3;
+export { CELL_SIZE, LEVEL_HEIGHT };
 export const WALL_THICKNESS = 0.18;
 export const HALF = CELL_SIZE / 2;
 export const STAIR_STEPS = 9;
@@ -46,6 +46,16 @@ export interface BuildPaintSpec {
     z: number;
 }
 
+export interface BuildInteractSpec {
+    id: string;
+    keyed?: boolean;
+    y: number;
+    reach?: number;
+}
+
+export const SPAWN_BEACON_INTERACTION = "spawn-beacon";
+export const STORAGE_INTERACTION = "storage";
+
 export interface BuildEntry {
     id: string;
     name: string;
@@ -62,6 +72,7 @@ export interface BuildEntry {
     hinged?: boolean;
     light?: BuildLightSpec;
     paint?: BuildPaintSpec;
+    interact?: BuildInteractSpec;
     build: () => BuildPart[];
 }
 
@@ -533,6 +544,58 @@ function plantParts(): BuildPart[] {
         part("plank", [cylinder(0.045, 0.055, 0.6, 6, 0, 0.78, 0)]),
         part("leaf", leaves),
     ];
+}
+
+function spawnBeaconParts(): BuildPart[] {
+    const stone: THREE.BufferGeometry[] = [
+        box(1.0, 0.16, 1.0, 0, 0.08, 0),
+        box(0.78, 0.12, 0.78, 0, 0.22, 0),
+    ];
+
+    const metal: THREE.BufferGeometry[] = [
+        cylinder(0.15, 0.22, 1.5, 8, 0, 1.03, 0),
+        ring(0.27, 0.035, 12, 0, 0.62, 0),
+        ring(0.21, 0.03, 12, 0, 1.72, 0),
+    ];
+    for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        metal.push(box(0.08, 0.86, 0.08, Math.cos(angle) * 0.33, 0.63, Math.sin(angle) * 0.33));
+    }
+
+    const glow: THREE.BufferGeometry[] = [
+        blob(0.29, 1, 0, 2.05, 0),
+        ring(0.44, 0.045, 14, 0, 0.33, 0),
+        hoop(0.4, 0.035, 16, 0, 2.05, 0),
+    ];
+
+    return [part("stone", stone), part("metal", metal), part("glow", glow)];
+}
+
+function storageCrateParts(): BuildPart[] {
+    const wood: THREE.BufferGeometry[] = [
+        box(1.24, 0.84, 0.94, 0, 0.42, 0),
+        box(1.32, 0.14, 1.02, 0, 0.91, 0),
+    ];
+    for (const dx of [-0.56, 0.56]) {
+        for (const dz of [-0.41, 0.41]) {
+            wood.push(box(0.12, 0.88, 0.12, dx, 0.44, dz));
+        }
+    }
+
+    const metal: THREE.BufferGeometry[] = [
+        box(1.28, 0.08, 0.98, 0, 0.26, 0),
+        box(1.28, 0.08, 0.98, 0, 0.64, 0),
+        box(0.22, 0.2, 0.09, 0, 0.84, 0.5),
+        box(0.14, 0.16, 0.07, 0, 0.5, 0.5),
+    ];
+
+    const glow: THREE.BufferGeometry[] = [
+        box(0.36, 0.045, 0.045, 0, 0.98, 0.28),
+        box(0.045, 0.34, 0.045, 0, 0.98, 0.28),
+        box(0.36, 0.045, 0.045, 0, 0.98, -0.28),
+    ];
+
+    return [part("plank", wood), part("metal", metal), part("glow", glow)];
 }
 
 function posterParts(width: number, height: number, y: number): BuildPart[] {
@@ -1403,7 +1466,15 @@ const ENTRIES: BuildEntry[] = [
     { id: "poster-tall", name: "Tall Poster", icon: "🖌️", category: "decor", slot: "edge", layer: "floor", blocking: false, walkableTop: null, paint: { width: 0.9, height: 1.4, y: 1.6, z: -HALF + WALL_THICKNESS + 0.055 }, build: () => posterParts(0.9, 1.4, 1.6) },
     { id: "poster-wide", name: "Wide Canvas", icon: "🎨", category: "decor", slot: "edge", layer: "floor", blocking: false, walkableTop: null, paint: { width: 1.76, height: 0.86, y: 1.75, z: -HALF + WALL_THICKNESS + 0.055 }, build: () => posterParts(1.76, 0.86, 1.75) },
     { id: "billboard", name: "Billboard", icon: "📋", category: "decor", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 2.4, paint: { width: 1.7, height: 1.26, y: 1.7, z: 0.045 }, build: billboardParts },
+
+    { id: SPAWN_BEACON_PIECE, name: "Spawn Beacon", icon: "🌟", category: "decor", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 2.4, blockRadius: 0.5, light: { color: 0x8ad4ff, intensity: 14, distance: 13, x: 0, y: 2.05, z: 0 }, interact: { id: SPAWN_BEACON_INTERACTION, y: 1.4 }, build: spawnBeaconParts },
+    { id: STORAGE_CRATE_PIECE, name: "Storage Crate", icon: "📦", category: "furniture", slot: "object", layer: "floor", blocking: true, walkableTop: null, blockHeight: 1.05, blockRadius: 0.68, interact: { id: STORAGE_INTERACTION, keyed: true, y: 0.9 }, build: storageCrateParts },
 ];
+
+export const LIMITED_BUILD_PIECES = {
+    beacon: SPAWN_BEACON_PIECE,
+    storage: STORAGE_CRATE_PIECE,
+} as const;
 
 const byId = new Map<string, BuildEntry>(ENTRIES.map((entry) => [entry.id, entry]));
 const partsCache = new Map<string, BuildPart[]>();

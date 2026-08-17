@@ -57,6 +57,9 @@ function createCasinoFloorTexture(): THREE.Texture {
     return texture;
 }
 
+const ARENA_RADIUS = 30;
+const CANDLE_BASE_HEIGHT = 3.2;
+
 export class EventsHall extends TowerFloor {
     private factionId: string | null = null;
     private factionName: string | null = null;
@@ -64,6 +67,20 @@ export class EventsHall extends TowerFloor {
     private floorMaterial!: THREE.MeshStandardMaterial;
     private accentLights: AccentLight[] = [];
     private cabinetScreens: CabinetScreen[] = [];
+
+    private candle: THREE.Group | null = null;
+    private candleBody: THREE.Mesh | null = null;
+    private candleWick: THREE.Mesh | null = null;
+    private candleLight: THREE.PointLight | null = null;
+    private candleMaterial: THREE.MeshStandardMaterial | null = null;
+    private candleHealthRatio = 1;
+    private candleWave = 0;
+    private candleFlash = 0;
+    private arenaTerminal: THREE.Group | null = null;
+
+    public getInteractables(): THREE.Object3D[] {
+        return [...super.getInteractables(), ...(this.arenaTerminal ? [this.arenaTerminal] : [])];
+    }
 
     constructor() {
         super("tower-events", "Events");
@@ -107,8 +124,137 @@ export class EventsHall extends TowerFloor {
         this.buildAccentLights();
         this.buildCabinets();
         this.buildTables();
+        this.buildCandle();
+        this.buildSpawnGates();
+        this.buildArenaTerminal();
 
-        this.createCentralCrystal();
+        this.createCentralCrystal(new THREE.Vector3(-16, 0, -16));
+    }
+
+    private buildCandle() {
+        this.candle = new THREE.Group();
+        this.candle.position.set(0, 0, 0);
+
+        const plinth = new THREE.Mesh(
+            new THREE.CylinderGeometry(2.2, 2.6, 0.5, 24),
+            new THREE.MeshStandardMaterial({ color: 0x241018, roughness: 0.6, metalness: 0.35 })
+        );
+        plinth.position.y = 0.25;
+        plinth.receiveShadow = true;
+        this.candle.add(plinth);
+
+        const rim = new THREE.Mesh(
+            new THREE.TorusGeometry(2.25, 0.09, 8, 32),
+            new THREE.MeshStandardMaterial({ color: 0xd4af50, roughness: 0.35, metalness: 0.8 })
+        );
+        rim.rotation.x = Math.PI / 2;
+        rim.position.y = 0.52;
+        this.candle.add(rim);
+
+        this.candleMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4ade80,
+            emissive: 0x22c55e,
+            emissiveIntensity: 1.4,
+            roughness: 0.4,
+            toneMapped: false,
+        });
+
+        this.candleBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, CANDLE_BASE_HEIGHT, 1.6), this.candleMaterial);
+        this.candleBody.position.y = 0.5 + CANDLE_BASE_HEIGHT / 2;
+        this.candleBody.castShadow = true;
+        this.candle.add(this.candleBody);
+
+        this.candleWick = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.12, 0.12, 1.2, 8),
+            new THREE.MeshStandardMaterial({ color: 0x22c55e, emissive: 0x4ade80, emissiveIntensity: 3, toneMapped: false })
+        );
+        this.candleWick.position.y = 0.5 + CANDLE_BASE_HEIGHT + 0.6;
+        this.candle.add(this.candleWick);
+
+        this.candleLight = new THREE.PointLight(0x4ade80, 8, 34);
+        this.candleLight.position.y = 0.5 + CANDLE_BASE_HEIGHT + 1;
+        this.candle.add(this.candleLight);
+
+        this.scene.add(this.candle);
+
+        this.collisionGrid.insert(new THREE.Box3(
+            new THREE.Vector3(-2.3, 0, -2.3),
+            new THREE.Vector3(2.3, 0.6, 2.3)
+        ));
+    }
+
+    private buildSpawnGates() {
+        const gates: [number, number][] = [[0, -26], [26, 0], [0, 26], [-26, 0]];
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a1018, roughness: 0.7, metalness: 0.4 });
+        const glowMat = new THREE.MeshStandardMaterial({
+            color: 0xa855f7,
+            emissive: 0x7e22ce,
+            emissiveIntensity: 1.6,
+            transparent: true,
+            opacity: 0.45,
+            toneMapped: false,
+        });
+
+        for (const [x, z] of gates) {
+            const group = new THREE.Group();
+            group.position.set(x, 0, z);
+            group.lookAt(0, 0, 0);
+
+            const arch = new THREE.Mesh(new THREE.TorusGeometry(3, 0.35, 10, 24, Math.PI), frameMat);
+            arch.position.y = 0.1;
+            arch.castShadow = true;
+            group.add(arch);
+
+            const veil = new THREE.Mesh(new THREE.CircleGeometry(2.8, 24, 0, Math.PI), glowMat);
+            veil.position.y = 0.1;
+            group.add(veil);
+
+            this.scene.add(group);
+        }
+    }
+
+    private buildArenaTerminal() {
+        const group = new THREE.Group();
+        group.position.set(6, 0, -6);
+        group.lookAt(0, 0, 0);
+
+        const pillar = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.4, 0.55, 1.5, 12),
+            new THREE.MeshStandardMaterial({ color: 0x241018, roughness: 0.5, metalness: 0.5 })
+        );
+        pillar.position.y = 0.75;
+        pillar.castShadow = true;
+        group.add(pillar);
+
+        const screen = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.9, 0.6),
+            new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xd4af50, emissiveIntensity: 2, toneMapped: false })
+        );
+        screen.position.set(0, 1.45, 0.28);
+        screen.rotation.x = -0.5;
+        group.add(screen);
+
+        const glow = new THREE.PointLight(0xffd166, 2.5, 8);
+        glow.position.y = 1.8;
+        group.add(glow);
+
+        group.userData.interactionId = "arena-terminal";
+        this.scene.add(group);
+        this.arenaTerminal = group;
+
+        this.collisionGrid.insert(new THREE.Box3(
+            new THREE.Vector3(-0.6, 0, -0.6),
+            new THREE.Vector3(0.6, 1.6, 0.6)
+        ).translate(group.position));
+    }
+
+    public setCandleState(healthRatio: number, wave: number) {
+        this.candleHealthRatio = Math.max(0, Math.min(1, healthRatio));
+        this.candleWave = wave;
+    }
+
+    public flashCandle() {
+        this.candleFlash = 1;
     }
 
     private buildFloor() {
@@ -280,6 +426,29 @@ export class EventsHall extends TowerFloor {
             const mat = screen.mesh.material as THREE.MeshStandardMaterial;
             mat.emissiveIntensity = screen.baseIntensity + Math.sin(now * 2.4 + screen.phase) * 0.4;
         }
+
+        this.updateCandle(now, delta);
+    }
+
+    private updateCandle(now: number, delta: number) {
+        if (!this.candleBody || !this.candleMaterial || !this.candleWick || !this.candleLight) return;
+
+        if (this.candleFlash > 0) this.candleFlash = Math.max(0, this.candleFlash - delta * 3);
+
+        const growth = 1 + Math.min(this.candleWave, 20) * 0.06;
+        const height = CANDLE_BASE_HEIGHT * growth;
+        this.candleBody.scale.set(growth, growth, growth);
+        this.candleBody.position.y = 0.5 + height / 2;
+        this.candleWick.position.y = 0.5 + height + 0.6;
+        this.candleLight.position.y = 0.5 + height + 1;
+
+        const hurt = 1 - this.candleHealthRatio;
+        this.candleMaterial.color.setRGB(0.29 + hurt * 0.7, 0.87 - hurt * 0.6, 0.5 - hurt * 0.35);
+        this.candleMaterial.emissive.setRGB(0.13 + hurt * 0.8 + this.candleFlash, 0.77 - hurt * 0.55, 0.35 - hurt * 0.25);
+        this.candleMaterial.emissiveIntensity = 1.4 + Math.sin(now * 3) * 0.25 + this.candleFlash * 1.5;
+
+        this.candleLight.color.setRGB(0.29 + hurt * 0.7, 0.87 - hurt * 0.6, 0.5 - hurt * 0.35);
+        this.candleLight.intensity = 8 * (0.4 + this.candleHealthRatio * 0.6) + this.candleFlash * 4;
     }
 
     dispose() {

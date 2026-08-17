@@ -2,11 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
-import { roomLayouts } from "@/core/database/schema";
+import { gameProgress, roomLayouts } from "@/core/database/schema";
 import { and, eq } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { canEditLot } from "@/core/lib/roomLayoutAccess";
 import { resolveGameId } from "@/core/lib/shopPricing";
+import { SPAWN_BEACON_PIECE, STORAGE_CRATE_PIECE, countPieces } from "@/core/lib/roomLayoutGrid";
 
 const MAX_PIECES = 20000;
 
@@ -35,6 +36,24 @@ const saveSchema = z.object({
     data: layoutSchema,
     slug: z.string().max(80).optional(),
 });
+
+async function ownedStorageCrates(userId: string): Promise<number> {
+    const [row] = await db
+        .select({ data: gameProgress.data })
+        .from(gameProgress)
+        .where(eq(gameProgress.userId, userId))
+        .limit(1);
+
+    if (!row?.data) return 0;
+
+    try {
+        const parsed = JSON.parse(row.data);
+        const owned = Number(parsed?.placeables?.[STORAGE_CRATE_PIECE]);
+        return Number.isFinite(owned) ? Math.max(0, Math.floor(owned)) : 0;
+    } catch {
+        return 0;
+    }
+}
 
 export async function GET(req: NextRequest) {
     const authResult = await requireAuth(req);
@@ -104,6 +123,21 @@ export async function POST(req: NextRequest) {
         const allowed = await canEditLot(payload.ownerType, payload.ownerId, user.userId);
         if (!allowed) {
             return NextResponse.json({ error: "not_authorized" }, { status: 403 });
+        }
+
+        const beacons = countPieces(payload.data.pieces, SPAWN_BEACON_PIECE);
+        const crates = countPieces(payload.data.pieces, STORAGE_CRATE_PIECE);
+
+        if (beacons > 0 || crates > 0) {
+            if (payload.ownerType !== "personal" || payload.ownerId !== user.userId) {
+                return NextResponse.json({ error: "personal_lot_only" }, { status: 400 });
+            }
+            if (beacons > 1) {
+                return NextResponse.json({ error: "too_many_beacons" }, { status: 400 });
+            }
+            if (crates > await ownedStorageCrates(user.userId)) {
+                return NextResponse.json({ error: "too_many_crates" }, { status: 400 });
+            }
         }
 
         const [existing] = await db

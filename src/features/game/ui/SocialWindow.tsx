@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight, Shirt } from "lucide-react";
+import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight, Shirt, Swords } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FriendsTab } from "./FriendsTab";
 import { MailTab } from "./MailTab";
@@ -13,9 +13,10 @@ import { TradeHistoryTab } from "./TradeHistoryTab";
 import { AppearanceTab } from "./AppearanceTab";
 import { CosmeticId } from "../data/cosmetics";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
-import { FriendEntry, FriendRequestEntry, MailEntry, PlayerProfileData, QuestInfoData, BlockedEntry, CosmeticStateData } from "../network/NetworkManager";
+import { PartyPanel } from "./PartyPanel";
+import { FriendEntry, FriendRequestEntry, MailEntry, PartyStateData, PlayerProfileData, QuestInfoData, BlockedEntry, CosmeticStateData } from "../network/NetworkManager";
 
-export type SocialTab = "friends" | "mail" | "account" | "appearance" | "blocked" | "trades";
+export type SocialTab = "friends" | "party" | "mail" | "account" | "appearance" | "blocked" | "trades";
 
 interface SocialWindowProps {
     isOpen: boolean;
@@ -55,6 +56,11 @@ interface SocialWindowProps {
     onRequestBlockedList: () => void;
     onUnblockUser: (blockedUserId: string) => void;
     getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
+
+    party: PartyStateData;
+    localPlayerId: string | null;
+    onPartyLeave: () => void;
+    onPartyKick: (memberId: string) => void;
 }
 
 export function SocialWindow({
@@ -90,6 +96,10 @@ export function SocialWindow({
     onRequestBlockedList,
     onUnblockUser,
     getNicknameMenuActions,
+    party,
+    localPlayerId,
+    onPartyLeave,
+    onPartyKick,
 }: SocialWindowProps) {
     const [activeTab, setActiveTab] = useState<SocialTab>(initialTab);
     const wasOpenRef = useRef(false);
@@ -119,6 +129,7 @@ export function SocialWindow({
             }
             tabs={[
                 { id: "friends", label: "Friends", icon: <Users className="w-3.5 h-3.5" />, badge: incomingRequests.length > 0 },
+                { id: "party", label: "Party", icon: <Swords className="w-3.5 h-3.5" />, badge: party.members.length > 0 },
                 { id: "mail", label: "Mail", icon: <MailIcon className="w-3.5 h-3.5" />, badge: unreadMailCount > 0 },
                 { id: "blocked", label: "Blocked", icon: <UserX className="w-3.5 h-3.5" /> },
                 { id: "trades", label: "Trades", icon: <ArrowLeftRight className="w-3.5 h-3.5" /> },
@@ -128,6 +139,15 @@ export function SocialWindow({
             activeTab={activeTab}
             onTabChange={(id) => setActiveTab(id as SocialTab)}
         >
+            {activeTab === "party" && (
+                <PartyPanel
+                    party={party}
+                    localPlayerId={localPlayerId}
+                    onLeave={onPartyLeave}
+                    onKick={onPartyKick}
+                />
+            )}
+
             {activeTab === "friends" && (
                 <FriendsTab
                     friends={friends}

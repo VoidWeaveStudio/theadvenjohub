@@ -12,6 +12,12 @@ import { DamageIndicator } from "./ui/DamageIndicator";
 import { Spinner } from "@/core/ui/Spinner";
 import { apiPost } from "@/core/api/client";
 import { DeathScreen } from "./ui/DeathScreen";
+import { StorageWindow } from "./ui/StorageWindow";
+import { PartyInvitePopup } from "./ui/PartyInvitePopup";
+import { usePartyState } from "./ui/hooks/usePartyState";
+import { ArenaPanel } from "./ui/ArenaPanel";
+import { ArenaHUD } from "./ui/ArenaHUD";
+import { useArenaState } from "./ui/hooks/useArenaState";
 import { FloorSelector } from "./ui/FloorSelector";
 import { EventsFactionPicker } from "./ui/EventsFactionPicker";
 import { TokenPanel } from "./ui/TokenPanel";
@@ -62,7 +68,7 @@ import { FactionInvitePicker } from "./ui/FactionInvitePicker";
 import { TradeWindow } from "./ui/TradeWindow";
 import { TradeInvitePopup } from "./ui/TradeInvitePopup";
 import { NicknameMenuActions } from "./ui/shell/NicknameMenu";
-import { TradeSessionData } from "./network/NetworkManager";
+import { TradeSessionData, type InventoryEntry } from "./network/NetworkManager";
 import { useHudState } from "./ui/hooks/useHudState";
 import { useProgressionState } from "./ui/hooks/useProgressionState";
 import { useAbilityState, rejectionMessage } from "./ui/hooks/useAbilityState";
@@ -168,6 +174,13 @@ export function GameClient({ slug }: GameClientProps) {
   const [isSpecializationOpen, setIsSpecializationOpen] = useState(false);
   const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
   const [spawnProtectionSeconds, setSpawnProtectionSeconds] = useState(0);
+  const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
+  const [homeTeleport, setHomeTeleport] = useState({ casting: false, cooldownUntil: 0 });
+  const [storage, setStorage] = useState<{ key: string | null; slots: number; entries: InventoryEntry[] }>({
+    key: null,
+    slots: 0,
+    entries: [],
+  });
 
   const [activeTopWindow, setActiveTopWindow] = useState<TopWindowId | null>(null);
   const [isCreateFactionModalOpen, setIsCreateFactionModalOpen] = useState(false);
@@ -175,6 +188,10 @@ export function GameClient({ slug }: GameClientProps) {
   const [socialInitialTab, setSocialInitialTab] = useState<SocialTab>("friends");
 
   const hud = useHudState();
+  const partyState = usePartyState();
+  const arenaState = useArenaState();
+  const [isArenaPanelOpen, setIsArenaPanelOpen] = useState(false);
+  const [arenaBestWave, setArenaBestWave] = useState(0);
   const quest = useQuestState();
   const npcDialogue = useNpcDialogue(useCallback((npcId: NpcId) => {
     gameRef.current?.markNpcMet(npcId);
@@ -750,7 +767,43 @@ export function GameClient({ slug }: GameClientProps) {
           notifications.addNotification(messages[data.code] || '⚠️ Could not start trade', 2500);
         };
         game.onDamageEvent = (event) => { if (!cancelled) hud.handleDamageEvent(event); };
-        game.onDeathStateChange = (dead, killer) => { if (!cancelled) hud.handleDeathStateChange(dead, killer); };
+        game.onDeathStateChange = (dead, killer, options, loot) => { if (!cancelled) hud.handleDeathStateChange(dead, killer, options, loot); };
+        game.onCombatStateChange = (until) => { if (!cancelled) hud.handleCombatState(until); };
+        game.onLocalPlayerId = (id) => { if (!cancelled) setLocalPlayerId(id); };
+        game.onPartyState = (state) => { if (!cancelled) partyState.handlePartyState(state); };
+        game.onPartyVitals = (members) => { if (!cancelled) partyState.handlePartyVitals(members); };
+        game.onPartyInvite = (invite) => { if (!cancelled) partyState.handlePartyInvite(invite); };
+        game.onPartyInviteExpired = (fromId) => { if (!cancelled) partyState.handleInviteExpired(fromId); };
+        game.onPartyDisbanded = () => { if (!cancelled) partyState.dismissInvite(); };
+        game.onArenaState = (state) => { if (!cancelled) arenaState.handleArenaState(state); };
+        game.onArenaCandleDamage = (health, maxHealth) => { if (!cancelled) arenaState.handleCandleDamage(health, maxHealth); };
+        game.onArenaReviveResult = (data) => { if (!cancelled) arenaState.handleReviveResult(data); };
+        game.onArenaStartResult = (cooldownUntil) => { if (!cancelled) arenaState.handleStartResult(cooldownUntil); };
+        game.onArenaEnded = (data) => {
+          if (cancelled) return;
+          arenaState.handleArenaEnded(data);
+          setArenaBestWave(data.bestWave);
+          if (data.reason !== 'left') {
+            setIsArenaPanelOpen(true);
+            document.exitPointerLock();
+          }
+        };
+        game.onOpenArenaUI = () => {
+          if (cancelled) return;
+          setIsArenaPanelOpen(true);
+          document.exitPointerLock();
+        };
+        game.onStuckStateChange = (cooldownUntil) => { if (!cancelled) hud.handleStuckState(cooldownUntil); };
+        game.onHomeTeleportChange = (state) => {
+          if (cancelled) return;
+          setHomeTeleport({ casting: state.casting, cooldownUntil: state.cooldownUntil });
+        };
+        game.onStorageState = (state) => {
+          if (cancelled) return;
+          if (state.key === null) return;
+          setStorage({ key: state.key, slots: state.slots, entries: state.entries });
+          document.exitPointerLock();
+        };
         game.onAuthError = (error) => {
           if (cancelled) return;
           if (error === 'banned') {
@@ -1097,6 +1150,7 @@ export function GameClient({ slug }: GameClientProps) {
       },
       onInviteToFaction: () => setFactionInviteTarget({ wallet, nickname }),
       onTrade: () => gameRef.current?.sendTradeInvite(wallet),
+      onInviteToParty: () => gameRef.current?.invitePlayerToParty(wallet),
     };
   };
 
@@ -1196,6 +1250,10 @@ export function GameClient({ slug }: GameClientProps) {
         isHitMark={hud.isHitMark}
         isTalking={isVoiceCapturing}
         spawnProtectionSeconds={spawnProtectionSeconds}
+        combatRemainingMs={hud.combatRemainingMs}
+        partyMembers={partyState.party.members}
+        partyLeaderId={partyState.party.leaderId}
+        localPlayerId={localPlayerId}
         shardState={shardState}
         onSwitchShard={(instance) => gameRef.current?.switchShard(instance)}
         progression={progressionState.progression}
@@ -1254,6 +1312,19 @@ export function GameClient({ slug }: GameClientProps) {
         ash={inventory.ash}
         isOpen={inventory.isInventoryOpen}
         onClose={() => inventory.setIsInventoryOpen(false)}
+        placeables={inventory.placeables}
+        homeTeleport={homeTeleport}
+        onTeleportHome={() => gameRef.current?.teleportHome()}
+      />
+
+      <StorageWindow
+        isOpen={storage.key !== null}
+        slots={storage.slots}
+        entries={storage.entries}
+        inventory={inventory.inventory}
+        onClose={() => setStorage((prev) => ({ ...prev, key: null }))}
+        onDeposit={(address, quantity) => storage.key && gameRef.current?.depositToStorage(storage.key, address, quantity)}
+        onWithdraw={(address, quantity) => storage.key && gameRef.current?.withdrawFromStorage(storage.key, address, quantity)}
       />
 
       <DamageIndicator
@@ -1264,6 +1335,9 @@ export function GameClient({ slug }: GameClientProps) {
       <DeathScreen
         isVisible={hud.isDead}
         killerName={hud.killerName}
+        options={hud.respawnOptions}
+        loot={hud.deathLoot}
+        onRespawn={(target) => gameRef.current?.requestRespawn(target)}
       />
 
       <Chat
@@ -1349,6 +1423,35 @@ export function GameClient({ slug }: GameClientProps) {
         }}
       />
 
+      <ArenaHUD
+        arena={arenaState.arena}
+        revive={arenaState.revive}
+        localPlayerId={localPlayerId}
+      />
+
+      <ArenaPanel
+        isOpen={isArenaPanelOpen}
+        onClose={() => { setIsArenaPanelOpen(false); arenaState.dismissSummary(); }}
+        arena={arenaState.arena}
+        party={partyState.party}
+        bestWave={arenaBestWave}
+        cooldownUntil={arenaState.cooldownUntil}
+        summary={arenaState.summary}
+        onStart={() => { gameRef.current?.startArenaRun(); setIsArenaPanelOpen(false); }}
+        onJoin={() => { gameRef.current?.joinArenaRun(); setIsArenaPanelOpen(false); }}
+        onLeave={() => { gameRef.current?.leaveArenaRun(); setIsArenaPanelOpen(false); }}
+        onDismissSummary={() => { arenaState.dismissSummary(); setIsArenaPanelOpen(false); }}
+      />
+
+      <PartyInvitePopup
+        invite={partyState.partyInvite}
+        onRespond={(accept) => {
+          const invite = partyState.partyInvite;
+          partyState.dismissInvite();
+          if (invite) gameRef.current?.respondToPartyInvite(invite.fromId, accept);
+        }}
+      />
+
       <TradeWindow
         session={tradeSession}
         myUserId={gameRef.current?.session.userId ?? ""}
@@ -1396,6 +1499,10 @@ export function GameClient({ slug }: GameClientProps) {
         onRequestBlockedList={() => gameRef.current?.requestBlockedList()}
         onUnblockUser={(blockedUserId) => gameRef.current?.unblockPlayer(blockedUserId)}
         getNicknameMenuActions={getNicknameMenuActions}
+        party={partyState.party}
+        localPlayerId={localPlayerId}
+        onPartyLeave={() => gameRef.current?.leaveParty()}
+        onPartyKick={(memberId) => gameRef.current?.kickFromParty(memberId)}
       />
 
       <ShopWindow
@@ -1449,6 +1556,8 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={activeTopWindow === "settings"}
         onClose={() => setActiveTopWindow(null)}
         onTeleportToSafeZone={() => gameRef.current?.teleportToSafeZone()}
+        isInCombat={hud.isInCombat}
+        stuckCooldownUntil={hud.stuckCooldownUntil}
         onOpenSupport={() => setIsSupportOpen(true)}
       />
 

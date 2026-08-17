@@ -3,6 +3,14 @@ import { ChatMessage } from "../ui/Chat";
 import type { BuildSessionState } from "../world/building/BuildSession";
 import {
     InventoryEntry,
+    StorageEntry,
+    RespawnOptions,
+    DeathLootInfo,
+    PartyStateData,
+    PartyVitalsData,
+    PartyInviteData,
+    ArenaStateData,
+    ArenaEndedData,
     QuestInfoData,
     QuestUpdateData,
     CanyonSegmentData,
@@ -42,10 +50,26 @@ export interface GameCallbacks {
     onLoadStateChange?: (loading: boolean, message?: string, progress?: number) => void;
     onChatMessage?: (message: ChatMessage) => void;
     onNicknameLoaded?: (nickname: string) => void;
+    onLocalPlayerId?: (playerId: string) => void;
     onDamageEvent?: (event: DamageEvent) => void;
-    onDeathStateChange?: (isDead: boolean, killerName: string | null) => void;
+    onDeathStateChange?: (isDead: boolean, killerName: string | null, options?: RespawnOptions, loot?: DeathLootInfo) => void;
     onAuthError?: (error: string) => void;
     onDamageIndicatorUpdate?: (attackerId: string | null, direction: number) => void;
+    onCombatStateChange?: (until: number) => void;
+    onStuckStateChange?: (cooldownUntil: number) => void;
+    onHomeTeleportChange?: (state: { casting: boolean; castMs: number; cooldownUntil: number; charges: number }) => void;
+    onStorageState?: (state: { key: string | null; slots: number; entries: StorageEntry[]; filled: string[] }) => void;
+    onPartyState?: (state: PartyStateData) => void;
+    onPartyVitals?: (members: PartyVitalsData[]) => void;
+    onPartyInvite?: (invite: PartyInviteData) => void;
+    onPartyInviteExpired?: (fromId: string) => void;
+    onPartyDisbanded?: (reason: string) => void;
+    onOpenArenaUI?: () => void;
+    onArenaState?: (state: ArenaStateData) => void;
+    onArenaEnded?: (data: ArenaEndedData) => void;
+    onArenaCandleDamage?: (health: number, maxHealth: number) => void;
+    onArenaReviveResult?: (data: { channelling: boolean; targetId?: string; channelMs?: number }) => void;
+    onArenaStartResult?: (cooldownUntil: number) => void;
 
     onFloorSelectorToggle?: (isOpen: boolean) => void;
     onBuildEditorState?: (state: BuildSessionState) => void;

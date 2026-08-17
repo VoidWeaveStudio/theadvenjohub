@@ -92,7 +92,7 @@ export class BuildPlot {
     }
 
     public getInteractables(): THREE.Object3D[] {
-        return this.renderer.getPaintAnchors();
+        return this.renderer.getInteractionAnchors();
     }
 
     public findPaintable(key: string): BuildPiece | null {

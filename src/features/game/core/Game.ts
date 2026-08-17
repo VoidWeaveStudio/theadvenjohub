@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData } from "../network/NetworkManager";
+import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData, RespawnTarget } from "../network/NetworkManager";
 import { BranchId } from "../data/progression";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
@@ -190,6 +190,7 @@ export class Game {
 
     private showFloorSelector: boolean = false;
     public localPlayerNetId: string | null = null;
+    public partyMemberIds: Set<string> = new Set();
     public progression: ProgressionStateData | null = null;
     public dayNightConfig: DayNightConfig | null = null;
     public hasRestoredLocation: boolean = false;
@@ -445,6 +446,7 @@ export class Game {
 
                 this.locationManager.onLocationChange = (id: string) => {
                     this.onNotification?.(` Entered: ${id}`, 2000);
+                    this.interactionSystem.isOwnRoom = id === `player-room-${this.session.userId}`;
                     this.onLocationChange?.(id);
                     const loc = this.locationManager.getCurrentLocation();
                     if (loc) {
@@ -496,7 +498,7 @@ export class Game {
                     this.hudState.tunerReadout = text;
                     this.emitState(true);
                 };
-                this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight);
+                this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight, this.interactionSystem);
                 this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId);
                 this.shootingSystem.onShotFired = () => this.notifyLocalShot();
                 this.buildSystem.onNotification = (msg, duration) => {
@@ -512,6 +514,18 @@ export class Game {
                 };
                 this.interactionSystem.onOpenPosterPaint = (pieceKey) => {
                     this.onOpenPosterPaintUI?.(pieceKey);
+                };
+                this.interactionSystem.onOpenStorage = (pieceKey) => {
+                    this.networkManager.sendStorageOpen(pieceKey);
+                };
+                this.interactionSystem.onLootCrate = (crateId) => {
+                    this.networkManager.sendCrateLoot(crateId);
+                };
+                this.interactionSystem.onOpenArena = () => {
+                    this.onOpenArenaUI?.();
+                };
+                this.interactionSystem.onArenaRevive = (targetId) => {
+                    this.networkManager.sendArenaRevive(targetId);
                 };
                 this.buildSession.onRequestExit = () => {
                     this.closeBuildEditor();
@@ -779,7 +793,7 @@ export class Game {
                     op.setHidden(true);
                 }
             });
-            this.updateOnlineCount();
+            this.syncNearbyPeers();
 
             this.locationManager.evictLocation(previousLocation.id);
 
@@ -956,18 +970,12 @@ export class Game {
         registerNetworkHandlers(this);
     }
 
-    public updateOnlineCount() {
-        let visibleCount = 1;
+    public syncNearbyPeers() {
         const nearbyIds = new Set<string>();
         this.otherPlayers.forEach((op, id) => {
-            if (!op.isHidden()) {
-                visibleCount++;
-                nearbyIds.add(id);
-            }
+            if (!op.isHidden()) nearbyIds.add(id);
         });
-        this.hudState.online = visibleCount;
         this.voiceChat.syncPeers(nearbyIds);
-        this.emitState(true);
     }
 
     public emitState(force: boolean = false) {
@@ -1023,9 +1031,6 @@ export class Game {
             this.player.update(delta, isEJustPressed);
             enforcePlayerBounds(this);
             perf.end("player");
-            if (this.isDead && this.inputManager.isKeyJustPressed("Space")) {
-                this.networkManager.sendRespawnRequest();
-            }
             perf.begin("camera");
             if (this.buildSession.editor.active) {
                 this.buildSession.update(delta);
@@ -1368,7 +1373,7 @@ export class Game {
 
     private updateMemeEffects(delta: number) {
         this.memeSystem.update(delta);
-        this.player.setZoneSlow(this.abilitySystem.hostileSlowAt(this.player.mesh.position, this.localPlayerNetId ?? ""));
+        this.player.setZoneSlow(this.abilitySystem.hostileSlowAt(this.player.mesh.position, this.localPlayerNetId ?? "", this.partyMemberIds));
 
         if (this.memeMovementUntil > 0 && performance.now() >= this.memeMovementUntil) {
             this.memeMovementUntil = 0;
@@ -1704,6 +1709,96 @@ export class Game {
 
     public teleportToSafeZone() {
         teleportToSafeZone(this);
+    }
+
+    public requestRespawn(target: RespawnTarget) {
+        this.networkManager.sendRespawnRequest(target);
+    }
+
+    public teleportHome() {
+        this.networkManager.sendHomeTeleport();
+    }
+
+    public depositToStorage(key: string, address: string, quantity: number) {
+        this.networkManager.sendStorageDeposit(key, address, quantity);
+    }
+
+    public withdrawFromStorage(key: string, address: string, quantity: number) {
+        this.networkManager.sendStorageWithdraw(key, address, quantity);
+    }
+
+    public invitePlayerToParty(wallet: string) {
+        this.networkManager.sendPartyInvite(wallet);
+    }
+
+    public respondToPartyInvite(fromId: string, accept: boolean) {
+        if (accept) this.networkManager.sendPartyAccept(fromId);
+        else this.networkManager.sendPartyDecline(fromId);
+    }
+
+    public leaveParty() {
+        this.networkManager.sendPartyLeave();
+    }
+
+    public kickFromParty(memberId: string) {
+        this.networkManager.sendPartyKick(memberId);
+    }
+
+    public startArenaRun() {
+        this.networkManager.sendArenaStart();
+    }
+
+    public joinArenaRun() {
+        this.networkManager.sendArenaJoin();
+    }
+
+    public leaveArenaRun() {
+        this.networkManager.sendArenaLeave();
+    }
+
+    private eventsHall(): EventsHall | null {
+        const location = this.locationManager.getCurrentLocation();
+        return location instanceof EventsHall ? location : null;
+    }
+
+    public applyArenaCandle(health: number, maxHealth: number, wave: number) {
+        this.eventsHall()?.setCandleState(maxHealth > 0 ? health / maxHealth : 0, wave);
+    }
+
+    public flashArenaCandle(health: number, maxHealth: number) {
+        const hall = this.eventsHall();
+        if (!hall) return;
+        hall.setCandleState(maxHealth > 0 ? health / maxHealth : 0, this.arenaWave);
+        hall.flashCandle();
+    }
+
+    public arenaWave = 0;
+    private arenaDownMarkers = new Set<string>();
+
+    public markArenaDown(playerId: string) {
+        if (this.arenaDownMarkers.has(playerId)) return;
+        const other = this.otherPlayers.get(playerId);
+        if (!other) return;
+
+        other.mesh.userData.interactionId = `arena-revive:${playerId}`;
+        other.mesh.userData.interactionRadius = 4;
+        this.interactionSystem.registerInteractable(other.mesh);
+        this.arenaDownMarkers.add(playerId);
+    }
+
+    public clearArenaDown(playerId: string) {
+        if (!this.arenaDownMarkers.has(playerId)) return;
+
+        const other = this.otherPlayers.get(playerId);
+        if (other) {
+            delete other.mesh.userData.interactionId;
+            this.interactionSystem.removeInteractable(other.mesh);
+        }
+        this.arenaDownMarkers.delete(playerId);
+    }
+
+    public clearArenaDownAll() {
+        for (const id of Array.from(this.arenaDownMarkers)) this.clearArenaDown(id);
     }
 
     dispose() {

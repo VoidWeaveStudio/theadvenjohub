@@ -56,12 +56,20 @@ export class ProgressionSystem {
         const idx = this.floor.current.colliders.indexOf(this.floor.current.farGate.collider);
         if (idx !== -1) this.floor.current.colliders.splice(idx, 1);
 
+        const pad = this.floor.current.returnPad;
+        const opened: THREE.Object3D[] = [];
+        if (pad && !pad.active) {
+            pad.setActive(true);
+            this.floor.current.interactables.push(pad.group);
+            opened.push(pad.group);
+        }
+
         const next = this.floor.segmentBuilder.buildSegment(info.segment, biomeFromKey(info.biome, info.segment));
         this.floor.pendingNext = next;
         this.floor.thresholdZ = segmentStartZ(info.segment);
         this.floor.segmentBuilder.rebuildCollisionGrid();
 
-        this.floor.onInteractablesChanged?.(next.interactables, []);
+        this.floor.onInteractablesChanged?.([...opened, ...next.interactables], []);
     }
 
     private sealBehindAndPromote() {

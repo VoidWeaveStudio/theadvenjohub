@@ -28,6 +28,7 @@ const MAX_ACTIVE_LIGHTS = 10;
 const LIGHT_REFRESH_INTERVAL = 0.4;
 const RAMP_SEGMENTS = 12;
 const PAINT_REACH = 3.2;
+const INTERACT_REACH = 3.2;
 
 export const PAINT_PREFIX = "paint:";
 
@@ -100,6 +101,7 @@ export class BuildRenderer {
     private doors = new Map<string, DoorInstance>();
     private paints = new Map<string, PaintInstance>();
     private paintAnchors = new Map<string, THREE.Object3D>();
+    private interactAnchors = new Map<string, THREE.Object3D>();
     private lightSources: LightSource[] = [];
     private activeSources: Array<LightSource | null> = [];
     private lightPool: THREE.PointLight[] = [];
@@ -147,6 +149,7 @@ export class BuildRenderer {
         this.syncDoors();
         this.syncPaintings();
         this.syncPaintAnchors();
+        this.syncInteractAnchors();
         this.rebuildLightSources();
         this.rebuildCollision();
     }
@@ -187,8 +190,45 @@ export class BuildRenderer {
         }
     }
 
-    public getPaintAnchors(): THREE.Object3D[] {
-        return Array.from(this.paintAnchors.values());
+    private syncInteractAnchors() {
+        const seen = new Set<string>();
+        const added: THREE.Object3D[] = [];
+        const removed: THREE.Object3D[] = [];
+
+        for (const piece of this.layout.list()) {
+            const spec = getBuildEntry(piece.t)?.interact;
+            if (!spec) continue;
+
+            const key = pieceKey(piece);
+            const anchorKey = `${piece.t}|${key}`;
+            seen.add(anchorKey);
+            if (this.interactAnchors.has(anchorKey)) continue;
+
+            const anchor = new THREE.Object3D();
+            anchor.position.set(0, spec.y, 0);
+            anchor.applyMatrix4(this.pieceMatrix(piece));
+            anchor.userData.interactionId = spec.keyed ? `${spec.id}:${key}` : spec.id;
+            anchor.userData.interactionRadius = spec.reach ?? INTERACT_REACH;
+
+            this.group.add(anchor);
+            this.interactAnchors.set(anchorKey, anchor);
+            added.push(anchor);
+        }
+
+        for (const [anchorKey, anchor] of Array.from(this.interactAnchors.entries())) {
+            if (seen.has(anchorKey)) continue;
+            this.group.remove(anchor);
+            this.interactAnchors.delete(anchorKey);
+            removed.push(anchor);
+        }
+
+        if (added.length > 0 || removed.length > 0) {
+            this.onInteractablesChanged?.(added, removed);
+        }
+    }
+
+    public getInteractionAnchors(): THREE.Object3D[] {
+        return [...this.paintAnchors.values(), ...this.interactAnchors.values()];
     }
 
     private disposeChunk(chunkId: string) {
@@ -683,6 +723,8 @@ export class BuildRenderer {
         for (const key of Array.from(this.paints.keys())) this.disposePainting(key);
         this.paintAnchors.forEach((anchor) => this.group.remove(anchor));
         this.paintAnchors.clear();
+        this.interactAnchors.forEach((anchor) => this.group.remove(anchor));
+        this.interactAnchors.clear();
         this.onInteractablesChanged = null;
         this.lightPool.forEach((light) => this.group.remove(light));
         this.lightPool.length = 0;

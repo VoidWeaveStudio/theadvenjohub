@@ -1,7 +1,7 @@
 // src/features/game/core/GameNetworkHandlers.ts
 import * as THREE from "three";
 import type { Game, GameSession } from "./Game";
-import { PlayerNetData } from "../network/NetworkManager";
+import { PlayerNetData, type DeathLootInfo, type RespawnOptions } from "../network/NetworkManager";
 import { MEME_ABILITIES_BY_ID } from "../data/progression";
 import { abilityById } from "../data/skills";
 import { OtherPlayer } from "../entities/OtherPlayer";
@@ -11,9 +11,10 @@ import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { Cave } from "../world/locations/cave/Cave";
 import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
-import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, beginTeleportGrace } from "./GameLocationOrchestration";
+import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, applyStuckTeleport, beginTeleportGrace, moveToServerPlacement } from "./GameLocationOrchestration";
 import { applyWorldStatus } from "./GameWorldState";
 import { isBodyEmote } from "../data/emotes";
+import { STORAGE_CRATE_PIECE } from "@/core/lib/roomLayoutGrid";
 
 let systemMessageCounter = 0;
 const systemMessageId = () => `system-${Date.now()}-${++systemMessageCounter}`;
@@ -88,7 +89,18 @@ function dotAbilityId(abilityId?: string | null): string | null {
 
 interface DeathData {
     playerId: string;
-    killerId: string;
+    killerId: string | null;
+    options?: RespawnOptions;
+    loot?: DeathLootInfo;
+}
+
+function killerNameFor(killerId: string | null, lookup: (id: string) => string | undefined): string {
+    if (!killerId) return 'Unknown';
+    const nickname = lookup(killerId);
+    if (nickname) return nickname;
+    if (killerId === 'bail-out') return 'Emergency Bail-Out';
+    if (killerId.startsWith('canyon-')) return 'Enemy';
+    return 'Unknown';
 }
 
 interface PlayerRespawnData {
@@ -121,7 +133,7 @@ function reconcilePendingOtherPlayers(game: Game, locationId: string) {
         op.setSkinTexture(pending.skinTextureUrl ?? null);
         op.applyCosmetics((pending.cosmeticSkinId ?? null) as any, (pending.cosmeticAccessoryId ?? null) as any);
     }
-    game.updateOnlineCount();
+    game.syncNearbyPeers();
 }
 
 export function registerNetworkHandlers(game: Game) {
@@ -174,7 +186,7 @@ export function registerNetworkHandlers(game: Game) {
             op.setSkinTexture(data.skinTextureUrl ?? null);
             op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
             op.setWeaponLoadout(data.branch === "arcanist" ? "staff" : "rifle", data.weaponTier ?? 1);
-            game.updateOnlineCount();
+            game.syncNearbyPeers();
             game.onChatMessage?.({
                 id: systemMessageId(), sender: "System",
                 message: `${data.nickname} entered the area`,
@@ -217,6 +229,7 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onAuthenticated = (data: AuthData) => {
         game.localPlayerNetId = data.playerId;
         game.voiceChat.setLocalId(data.playerId);
+        game.onLocalPlayerId?.(data.playerId);
         game.onNicknameLoaded?.(data.nickname);
         game.player.applySkinTexture(data.skinTextureUrl ?? null);
         game.onMySkinChange?.(data.skinTextureUrl ?? null);
@@ -244,7 +257,7 @@ export function registerNetworkHandlers(game: Game) {
             game.otherPlayers.delete(id);
             game.shootingSystem.unregisterOtherPlayer(id);
         }
-        game.updateOnlineCount();
+        game.syncNearbyPeers();
     };
 
     game.networkManager.onPlayerJoin = (data: PlayerNetData) => {
@@ -258,7 +271,7 @@ export function registerNetworkHandlers(game: Game) {
                 hiddenOp = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
                 hiddenOp.setHidden(true);
                 game.otherPlayers.set(data.id, hiddenOp);
-                game.updateOnlineCount();
+                game.syncNearbyPeers();
             }
    
             if (!hiddenOp.isCreated()) {
@@ -284,7 +297,7 @@ export function registerNetworkHandlers(game: Game) {
         op.setBadges(data.isAdmin ?? false, data.isFactionCreator ?? false);
         op.setSkinTexture(data.skinTextureUrl ?? null);
         op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
-        game.updateOnlineCount();
+        game.syncNearbyPeers();
         game.onChatMessage?.({
             id: systemMessageId(), sender: "System",
             message: `${data.nickname} joined the game`,
@@ -306,7 +319,7 @@ export function registerNetworkHandlers(game: Game) {
             game.candleSystem.stop(playerId);
             game.otherPlayers.delete(playerId);
             game.shootingSystem.unregisterOtherPlayer(playerId);
-            game.updateOnlineCount();
+            game.syncNearbyPeers();
         }
     };
 
@@ -429,9 +442,8 @@ export function registerNetworkHandlers(game: Game) {
         if (data.playerId === game.localPlayerNetId) {
             game.isDead = true;
             game.player.setDead(true);
-            const killer = game.otherPlayers.get(data.killerId);
-            game.killerName = killer?.nickname || (data.killerId.startsWith('canyon-') ? 'Enemy' : 'Unknown');
-            game.onDeathStateChange?.(true, game.killerName);
+            game.killerName = killerNameFor(data.killerId, (id) => game.otherPlayers.get(id)?.nickname);
+            game.onDeathStateChange?.(true, game.killerName, data.options, data.loot);
         } else {
             const op = game.otherPlayers.get(data.playerId);
             if (op && !op.isHidden()) {
@@ -471,33 +483,73 @@ export function registerNetworkHandlers(game: Game) {
             game.onDeathStateChange?.(false, null);
         };
 
-        const placeInHall = () => {
-            const hall = game.locationManager.getCurrentLocation();
-            if (!hall) return;
-            const spawnPoint = hall.getSpawnPoint();
-            game.player.teleportTo(spawnPoint);
-            game.cameraController.resetVerticalSmoothing();
-            game.cameraController.yawObject.position.copy(spawnPoint);
-            beginTeleportGrace(game);
-            game.networkManager.sendPlayerUpdate({
-                position: spawnPoint.toArray(),
-                rotation: game.player.mesh.rotation.y,
-                pitch: game.cameraController.getPitch(),
-                state: 'idle', jumping: false, velocityY: 0,
-                weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
-            });
-        };
+        moveToServerPlacement(game, data.locationId ?? DEFAULT_SPAWN_LOCATION_ID, data.position)
+            .then(finishRespawn)
+            .catch(finishRespawn);
+    };
 
-        const currentLocationId = game.locationManager.getCurrentLocation()?.id;
-        if (currentLocationId !== DEFAULT_SPAWN_LOCATION_ID) {
-            game.changeLocation(DEFAULT_SPAWN_LOCATION_ID, { silent: true }).then(() => {
-                placeInHall();
-                finishRespawn();
-            });
-        } else {
-            placeInHall();
-            finishRespawn();
+    game.networkManager.onHomeTeleportResult = (data) => {
+        game.onHomeTeleportChange?.({
+            casting: data.casting === true,
+            castMs: typeof data.castMs === 'number' ? data.castMs : 0,
+            cooldownUntil: typeof data.cooldownUntil === 'number' ? data.cooldownUntil : 0,
+            charges: typeof data.charges === 'number' ? data.charges : 0,
+        });
+
+        if (data.casting) {
+            game.onNotification?.('🌀 Channelling — stay out of trouble for 5 seconds', 3000);
+            return;
         }
+
+        if (data.done) {
+            if (data.locationId) moveToServerPlacement(game, data.locationId, data.position);
+            game.onNotification?.('🏠 Home', 2000);
+            return;
+        }
+
+        const messages: Record<string, string> = {
+            damaged: '🌀 Teleport interrupted',
+            in_combat: '⚔️ Not while you are in combat',
+            canyon: '⛰️ Not from inside a canyon run',
+            cooldown: '⏳ Homeward charge is still recharging',
+            no_charge: '🌀 You have no homeward charges left',
+            no_beacon: '🌟 Build a spawn beacon in your room first',
+            dead: '💀 You are already down',
+            casting: '🌀 Already channelling',
+        };
+        game.onNotification?.(messages[data.reason ?? ''] ?? '🌀 Teleport failed', 2500);
+    };
+
+    game.networkManager.onStorageState = (data) => {
+        game.buildSession.filledStorageKeys = new Set(data.filled);
+        game.onStorageState?.(data);
+    };
+
+    game.networkManager.onCombatState = (data) => {
+        game.onCombatStateChange?.(data.until);
+    };
+
+    game.networkManager.onStuckResult = (data) => {
+        game.onStuckStateChange?.(data.cooldownUntil);
+
+        if (!data.ok) {
+            if (data.reason === 'state') return;
+
+            const messages: Record<string, string> = {
+                in_combat: '⚔️ Not while you are in combat',
+                cooldown: '⏳ Emergency teleport is still recharging',
+                dead: '💀 You are already down',
+            };
+            game.onNotification?.(messages[data.reason ?? ''] ?? '⚠️ Could not teleport you right now', 2500);
+            return;
+        }
+
+        if (data.reason === 'canyon_death') {
+            game.onNotification?.('💀 Bailing out of a run counts as a death', 3500);
+            return;
+        }
+
+        applyStuckTeleport(game, data.locationId ?? DEFAULT_SPAWN_LOCATION_ID);
     };
 
     game.networkManager.onPositionCorrection = (data: { position: number[] }) => {
@@ -680,11 +732,120 @@ export function registerNetworkHandlers(game: Game) {
         game.lootSystem.handleLootDespawn(id);
     };
 
+    game.networkManager.onCrateState = (crates) => {
+        game.lootSystem.handleCrateState(crates);
+    };
+
+    game.networkManager.onCrateSpawn = (crate) => {
+        game.lootSystem.handleCrateSpawn(crate);
+    };
+
+    game.networkManager.onCrateDespawn = (id) => {
+        game.lootSystem.handleCrateDespawn(id);
+    };
+
+    game.networkManager.onCrateLootResult = (data) => {
+        if (data.moved <= 0) return;
+        game.onNotification?.(
+            data.remaining > 0
+                ? `📦 Recovered ${data.moved} stack${data.moved === 1 ? '' : 's'} — the crate is still not empty`
+                : `📦 Recovered ${data.moved} stack${data.moved === 1 ? '' : 's'}`,
+            2500
+        );
+    };
+
+    game.networkManager.onInsuranceConsumed = () => {
+        game.onNotification?.('🛡️ Insurance paid out — your tokens are safe', 4000);
+    };
+
+    game.networkManager.onPartyState = (state) => {
+        game.partyMemberIds = new Set(state.members.map((member) => member.id));
+        game.onPartyState?.(state);
+    };
+
+    game.networkManager.onPartyVitals = (members) => {
+        game.onPartyVitals?.(members);
+    };
+
+    game.networkManager.onPartyInviteReceived = (invite) => {
+        game.onPartyInvite?.(invite);
+    };
+
+    game.networkManager.onPartyInviteExpired = (data) => {
+        game.onPartyInviteExpired?.(data.fromId);
+    };
+
+    game.networkManager.onArenaState = (state) => {
+        game.arenaWave = state.wave;
+        game.applyArenaCandle(state.candleHealth, state.candleMaxHealth, state.wave);
+
+        for (const member of state.members) {
+            if (member.down && !member.left && state.phase === 'pause') game.markArenaDown(member.id);
+            else game.clearArenaDown(member.id);
+        }
+
+        game.onArenaState?.(state);
+    };
+
+    game.networkManager.onArenaStartResult = (data) => {
+        game.onArenaStartResult?.(data.cooldownUntil);
+        if (data.ok) return;
+
+        const messages: Record<string, string> = {
+            cooldown: '⏳ The arena needs time to reset for you',
+            instance_busy: '🔥 A run is already going in this hall — switch shard or wait',
+            already_running: '🔥 You are already in a run',
+            wrong_place: '🔥 Step into the Events Hall first',
+            no_run: '🔥 There is no run to join',
+            not_invited: '🔥 Only a party member can join that run',
+            full: '🔥 That run is full',
+            dead: '💀 You are down',
+        };
+        game.onNotification?.(messages[data.reason ?? ''] ?? '🔥 Could not start the run', 3000);
+    };
+
+    game.networkManager.onArenaWaveStart = (data) => {
+        game.onNotification?.(data.boss ? `🔥 Wave ${data.wave} — boss` : `🔥 Wave ${data.wave}`, 2500);
+    };
+
+    game.networkManager.onArenaWaveEnd = (data) => {
+        game.onNotification?.(`✅ Wave ${data.wave} cleared — raise your fallen`, 3000);
+    };
+
+    game.networkManager.onArenaCandleDamage = (data) => {
+        game.flashArenaCandle(data.health, data.maxHealth);
+        game.onArenaCandleDamage?.(data.health, data.maxHealth);
+    };
+
+    game.networkManager.onArenaPlayerRevived = (data) => {
+        if (data.playerId === game.localPlayerNetId) game.onNotification?.('💚 You are back on your feet', 2500);
+    };
+
+    game.networkManager.onArenaReviveResult = (data) => {
+        game.onArenaReviveResult?.(data);
+        if (data.done) game.onNotification?.('💚 Ally raised', 2000);
+        else if (data.cancelled && data.reason === 'too_far') game.onNotification?.('🔥 Get closer to them', 2000);
+        else if (data.cancelled && data.reason === 'not_paused') game.onNotification?.('🔥 Only between waves', 2000);
+    };
+
+    game.networkManager.onArenaEnded = (data) => {
+        game.arenaWave = 0;
+        game.applyArenaCandle(1, 1, 0);
+        game.clearArenaDownAll();
+        game.onArenaEnded?.(data);
+    };
+
+    game.networkManager.onPartyDisbanded = (data) => {
+        game.onPartyDisbanded?.(data.reason);
+        game.onNotification?.(data.reason === 'kicked' ? '👥 You were removed from the party' : '👥 The party broke up', 3000);
+    };
+
     game.networkManager.onInventoryUpdate = ({ inventory, ash, placeables }) => {
         game.inventory = inventory;
         game.ash = ash;
         game.placeables = placeables;
         game.buildSystem.setPlaceables(placeables);
+        game.buildSession.ownedCrates = placeables[STORAGE_CRATE_PIECE] || 0;
         game.onInventoryChange?.(inventory, ash, placeables);
     };
 

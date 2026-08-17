@@ -2,10 +2,10 @@
 import { HUDState } from "../core/Game";
 import { Crosshair } from "./Crosshair";
 import { OnlineCounter } from "./OnlineCounter";
-import { Heart, Shield, Activity, Mic, ShieldCheck } from "lucide-react";
+import { Heart, Shield, Activity, Mic, ShieldCheck, Swords, Crown } from "lucide-react";
 import { ShardSwitcher } from "./ShardSwitcher";
 import { XpBar } from "./XpBar";
-import type { ShardStateData, ProgressionStateData } from "../network/NetworkManager";
+import type { ShardStateData, ProgressionStateData, PartyMemberData } from "../network/NetworkManager";
 import type { XpPopup } from "./hooks/useProgressionState";
 
 interface HUDProps {
@@ -14,6 +14,10 @@ interface HUDProps {
     isHitMark?: boolean;
     isTalking?: boolean;
     spawnProtectionSeconds?: number;
+    combatRemainingMs?: number;
+    partyMembers?: PartyMemberData[];
+    partyLeaderId?: string | null;
+    localPlayerId?: string | null;
     shardState?: ShardStateData | null;
     onSwitchShard?: (instance: number) => void;
     progression?: ProgressionStateData | null;
@@ -21,7 +25,8 @@ interface HUDProps {
     onOpenSkills?: () => void;
 }
 
-export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false, spawnProtectionSeconds = 0, shardState = null, onSwitchShard, progression = null, xpPopups = [], onOpenSkills }: HUDProps) {
+export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false, spawnProtectionSeconds = 0, combatRemainingMs = 0, partyMembers = [], partyLeaderId = null, localPlayerId = null, shardState = null, onSwitchShard, progression = null, xpPopups = [], onOpenSkills }: HUDProps) {
+    const partyFrames = partyMembers.filter((member) => member.id !== localPlayerId);
     const healthPercentage = (state.health / state.maxHealth) * 100;
 
     return (
@@ -46,6 +51,37 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                         </div>
 
                         <XpBar progression={progression} popups={xpPopups} onOpenSkills={onOpenSkills} />
+
+                        {partyFrames.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                                {partyFrames.map((member) => {
+                                    const memberHealth = member.maxHealth > 0
+                                        ? Math.max(0, Math.min(100, (member.health / member.maxHealth) * 100))
+                                        : 0;
+
+                                    return (
+                                        <div
+                                            key={member.id}
+                                            className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(138,212,255,0.2)] rounded-[8px] px-3 py-1.5 min-w-[220px]"
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                {member.id === partyLeaderId && <Crown className="w-3 h-3 text-[#FFD166] shrink-0" />}
+                                                <span className="text-[#C9CDD3] text-[11px] font-bold truncate">{member.nickname}</span>
+                                                <span className={`text-[10px] ml-auto ${member.alive ? "text-[#6B7280]" : "text-red-400 font-bold"}`}>
+                                                    {member.alive ? member.health : "DOWN"}
+                                                </span>
+                                            </div>
+                                            <div className="mt-1 w-full h-1 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full transition-all duration-300 ease-out ${member.alive ? "bg-[#8AD4FF]" : "bg-zinc-700"}`}
+                                                    style={{ width: `${member.alive ? memberHealth : 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     {isTalking && (
@@ -71,6 +107,19 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                                 INVULNERABLE {spawnProtectionSeconds}s
                             </span>
                             <span className="text-[#6FE0FF]/60 text-xs">shoot to cancel</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {combatRemainingMs > 0 && (
+                <div className="absolute top-28 right-6">
+                    <div className="bg-[rgba(248,113,113,0.15)] backdrop-blur-md border border-[#F87171]/40 px-4 py-2 rounded-[10px]">
+                        <div className="flex items-center gap-2">
+                            <Swords className="w-4 h-4 text-[#F87171]" />
+                            <span className="text-[#F87171] text-sm font-bold tracking-wider">
+                                IN COMBAT {Math.ceil(combatRemainingMs / 1000)}s
+                            </span>
                         </div>
                     </div>
                 </div>

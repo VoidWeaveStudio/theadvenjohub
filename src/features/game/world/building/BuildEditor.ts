@@ -23,6 +23,7 @@ export interface EditorSelection {
 export interface BuildEditorCallbacks {
     onPlace: (piece: BuildPiece) => void;
     onErase: (key: string, piece: BuildPiece) => void;
+    canRemove: (key: string, piece: BuildPiece) => boolean;
     onStateChange: () => void;
     onRequestExit: () => void;
 }
@@ -314,6 +315,7 @@ export class BuildEditor {
     public deleteSelection() {
         const selected = this.selection;
         if (!selected) return;
+        if (!this.callbacks.canRemove(selected.key, selected.piece)) return;
 
         this.selection = null;
         this.callbacks.onErase(selected.key, selected.piece);
@@ -334,6 +336,7 @@ export class BuildEditor {
     public pickUpSelection() {
         const selected = this.selection;
         if (!selected || this.carrying) return;
+        if (!this.callbacks.canRemove(selected.key, selected.piece)) return;
 
         this.carrying = selected.piece;
         this.selection = null;
@@ -475,6 +478,7 @@ export class BuildEditor {
 
         const found = this.layout.findAt(this.level, this.cursorCell.x, this.cursorCell.z, this.rotation);
         if (!found) return false;
+        if (!this.callbacks.canRemove(found.key, found.piece)) return false;
 
         this.callbacks.onErase(found.key, found.piece);
         return true;

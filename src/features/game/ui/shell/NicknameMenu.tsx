@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Info, MessageCircle, Flag, Ban, UserPlus, ArrowLeftRight } from "lucide-react";
+import { Info, MessageCircle, Flag, Ban, UserPlus, ArrowLeftRight, Users } from "lucide-react";
 
 export interface NicknameMenuActions {
     isBlocked?: boolean;
@@ -14,6 +14,7 @@ export interface NicknameMenuActions {
     onToggleBlock: () => void;
     onInviteToFaction?: () => void;
     onTrade?: () => void;
+    onInviteToParty?: () => void;
 }
 
 interface NicknameMenuProps extends NicknameMenuActions {
@@ -30,6 +31,7 @@ export function NicknameMenu({
     onToggleBlock,
     onInviteToFaction,
     onTrade,
+    onInviteToParty,
     children,
     className,
 }: NicknameMenuProps) {
@@ -120,6 +122,14 @@ export function NicknameMenu({
                             className="bg-transparent border-0 rounded-none w-full flex items-center gap-2 px-3 py-2 text-sm text-[#E5E7EB] hover:bg-white/5 transition-colors"
                         >
                             <ArrowLeftRight className="w-4 h-4 text-[#4FD1FF] flex-shrink-0" /> Trade
+                        </button>
+                    )}
+                    {onInviteToParty && (
+                        <button
+                            onClick={() => run(onInviteToParty)}
+                            className="bg-transparent border-0 rounded-none w-full flex items-center gap-2 px-3 py-2 text-sm text-[#E5E7EB] hover:bg-white/5 transition-colors"
+                        >
+                            <Users className="w-4 h-4 text-[#8AD4FF] flex-shrink-0" /> Invite to party
                         </button>
                     )}
                     {canInviteToFaction && onInviteToFaction && (
