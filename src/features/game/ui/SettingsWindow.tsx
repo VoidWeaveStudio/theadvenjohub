@@ -15,18 +15,49 @@ interface SettingsWindowProps {
     onOpenSupport?: () => void;
 }
 
-const KEYBINDS: [string, string][] = [
-    ["WASD", "Movement"],
-    ["Shift", "Sprint"],
-    ["Space", "Jump"],
-    ["Mouse", "Look Around"],
-    ["Left Click", "Shoot"],
-    ["R", "Reload"],
-    ["E", "Interact"],
-    ["I", "Inventory"],
-    ["L", "Social Menu"],
-    ["G (Hold)", "Voice Chat"],
-    ["Esc", "Toggle Pointer Lock"],
+const KEYBIND_GROUPS: { title: string; binds: [string, string][] }[] = [
+    {
+        title: "Movement",
+        binds: [
+            ["WASD", "Move"],
+            ["Shift", "Sprint"],
+            ["Space", "Jump"],
+            ["C / Ctrl", "Descend while flying"],
+            ["Mouse", "Look around"],
+        ],
+    },
+    {
+        title: "Combat",
+        binds: [
+            ["Left Click", "Shoot or cast"],
+            ["R", "Reload"],
+            ["B", "Cycle fire mode"],
+            ["1 – 6", "Skill slots"],
+            ["K", "Skill tree"],
+        ],
+    },
+    {
+        title: "Items & Wheels",
+        binds: [
+            ["Q F C V X", "Hotbar slots"],
+            ["T", "Tool wheel — weapon, blueprint, placeables"],
+            ["Z", "Emote wheel — emotes and Degen abilities"],
+            ["Tab / Scroll", "Switch wheel page"],
+            ["1 – 9", "Pick an item inside a wheel"],
+            ["I", "Inventory"],
+        ],
+    },
+    {
+        title: "World & Interface",
+        binds: [
+            ["E", "Interact"],
+            ["L", "Social menu"],
+            ["M", "Bubble map (basement only)"],
+            ["Enter", "Chat"],
+            ["G (hold)", "Voice chat"],
+            ["Esc", "Close window or toggle pointer lock"],
+        ],
+    },
 ];
 
 export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, onOpenSupport }: SettingsWindowProps) {
@@ -46,7 +77,7 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, onOpenSu
                     className="h-11 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
                 />
             }
-            size="md"
+            size="lg"
             tabs={[
                 { id: "controls", label: "Controls", icon: <Keyboard className="w-3.5 h-3.5" /> },
                 { id: "about", label: "About", icon: <Info className="w-3.5 h-3.5" /> },
@@ -79,16 +110,25 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, onOpenSu
             }
         >
             {activeTab === "controls" && (
-                <div className="space-y-1">
-                    {KEYBINDS.map(([key, action], index) => (
-                        <div
-                            key={key}
-                            className={`flex justify-between items-center py-3 px-3 rounded-lg ${index % 2 === 0 ? "bg-[rgba(255,255,255,0.02)]" : ""}`}
-                        >
-                            <span className="text-[#E5E7EB] font-medium text-sm">{action}</span>
-                            <kbd className="bg-[rgba(79,209,255,0.15)] border border-[rgba(79,209,255,0.3)] px-3 py-1.5 rounded-md text-[#4FD1FF] font-bold text-xs">
-                                {key}
-                            </kbd>
+                <div className="space-y-4">
+                    {KEYBIND_GROUPS.map((group) => (
+                        <div key={group.title}>
+                            <div className="text-[#6B7280] text-[10px] font-black tracking-wider mb-1.5">
+                                {group.title.toUpperCase()}
+                            </div>
+                            <div className="space-y-0.5">
+                                {group.binds.map(([key, action], index) => (
+                                    <div
+                                        key={key}
+                                        className={`flex justify-between items-center gap-3 py-2 px-3 rounded-lg ${index % 2 === 0 ? "bg-[rgba(255,255,255,0.02)]" : ""}`}
+                                    >
+                                        <span className="text-[#E5E7EB] font-medium text-[13px]">{action}</span>
+                                        <kbd className="bg-[rgba(79,209,255,0.15)] border border-[rgba(79,209,255,0.3)] px-2.5 py-1 rounded-md text-[#4FD1FF] font-bold text-[11px] whitespace-nowrap flex-shrink-0">
+                                            {key}
+                                        </kbd>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     ))}
                 </div>

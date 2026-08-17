@@ -77,6 +77,10 @@ export class InteractionSystem extends System {
         if (index !== -1) this.interactableObjects.splice(index, 1);
     }
 
+    findInteractable(interactionId: string): THREE.Object3D | null {
+        return this.interactableObjects.find((obj) => obj.userData.interactionId === interactionId) ?? null;
+    }
+
     private formatMC(value: number): string {
         if (value > 1e9) return (value / 1e9).toFixed(1) + "B";
         if (value > 1e6) return (value / 1e6).toFixed(1) + "M";

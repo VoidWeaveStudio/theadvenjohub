@@ -18,6 +18,8 @@ interface HotbarProps {
     onSlotClick?: (index: number) => void;
 }
 
+const SLOT_KEYS = ["Q", "F", "C", "V", "X"];
+
 const iconMap: Record<string, React.ReactNode> = {
     'axe': <Axe className="w-8 h-8" />,
     'sword': <Sword className="w-8 h-8" />,
@@ -54,7 +56,7 @@ export function Hotbar({ slots, onSlotClick }: HotbarProps) {
                         `}
                     >
                         <span className="absolute top-1.5 left-2 text-[10px] font-bold text-[#8B8F98]">
-                            {i + 1}
+                            {SLOT_KEYS[i] ?? ""}
                         </span>
 
                         {IconComponent ? (

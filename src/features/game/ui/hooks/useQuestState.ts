@@ -6,7 +6,7 @@ export const SOLA_NPC_ID = "sola";
 
 export function useQuestState() {
   const [questInfo, setQuestInfo] = useState<QuestInfoData | null>(null);
-  const [questTracker, setQuestTracker] = useState<(QuestUpdateData & { title: string }) | null>(null);
+  const [questTracker, setQuestTracker] = useState<(QuestUpdateData & { title: string; npc?: string }) | null>(null);
 
   const handleQuestInfo = useCallback((data: QuestInfoData) => {
     if (!data.questId || data.status === "none") {
@@ -15,7 +15,7 @@ export function useQuestState() {
     }
 
     setQuestInfo(data);
-    if (data.status === "active" || data.status === "ready_to_turn_in") {
+    if (data.status === "active" || data.status === "ready_to_turn_in" || data.status === "not_started") {
       setQuestTracker({
         questId: data.questId,
         status: data.status,
@@ -23,6 +23,7 @@ export function useQuestState() {
         targetCount: data.targetCount,
         visited: data.visited,
         title: data.title,
+        npc: data.npc,
       });
     }
   }, []);
@@ -42,6 +43,7 @@ export function useQuestState() {
           targetCount: data.targetCount,
           visited: data.visited,
           title: prev && prev.questId === data.questId ? prev.title : "Sola's Task",
+          npc: prev?.npc,
         };
       }
       return prev && prev.questId === data.questId ? null : prev;

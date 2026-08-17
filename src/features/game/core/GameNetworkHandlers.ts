@@ -2,6 +2,8 @@
 import * as THREE from "three";
 import type { Game, GameSession } from "./Game";
 import { PlayerNetData } from "../network/NetworkManager";
+import { MEME_ABILITIES_BY_ID } from "../data/progression";
+import { abilityById } from "../data/skills";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
@@ -36,10 +38,18 @@ interface PlayerUpdateData {
     state: string;
 }
 
+function memeRadius(memeId: string): number {
+    return Number(MEME_ABILITIES_BY_ID.get(memeId)?.params.radius ?? 0);
+}
+
 interface ShootData {
     id: string;
     origin: number[];
     direction: number[];
+    directions?: number[][];
+    weapon?: string;
+    mode?: string;
+    speed?: number;
 }
 
 interface ChatData {
@@ -67,6 +77,13 @@ interface DamageData {
     targetId: string;
     damage: number;
     attackerId: string;
+    abilityId?: string | null;
+}
+
+const DOT_ABILITY_IDS = new Set(["burning", "bleeding"]);
+
+function dotAbilityId(abilityId?: string | null): string | null {
+    return abilityId && DOT_ABILITY_IDS.has(abilityId) ? abilityId : null;
 }
 
 interface DeathData {
@@ -156,6 +173,7 @@ export function registerNetworkHandlers(game: Game) {
             op.setBadges(data.isAdmin ?? false, data.isFactionCreator ?? false);
             op.setSkinTexture(data.skinTextureUrl ?? null);
             op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
+            op.setWeaponLoadout(data.branch === "arcanist" ? "staff" : "rifle", data.weaponTier ?? 1);
             game.updateOnlineCount();
             game.onChatMessage?.({
                 id: systemMessageId(), sender: "System",
@@ -323,7 +341,14 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onShoot = (data: ShootData) => {
         if (data.id === game.localPlayerNetId) return;
-        game.shootingSystem.handleNetworkShoot({ origin: data.origin, direction: data.direction });
+        game.shootingSystem.handleNetworkShoot({
+            id: data.id,
+            origin: data.origin,
+            direction: data.direction,
+            directions: data.directions,
+            weapon: data.weapon,
+            speed: data.speed,
+        });
         SoundManager.getInstance().play('shoot', { volume: 0.5 });
     };
 
@@ -369,6 +394,13 @@ export function registerNetworkHandlers(game: Game) {
             game.player.takeDamage(data.damage);
             game.hudState.health = game.player.health;
             game.emitState(true);
+
+            const dot = dotAbilityId(data.abilityId);
+            if (dot) {
+                game.abilitySystem.spawnEmber(game.player.mesh.position.toArray(), dot);
+                return;
+            }
+
             SoundManager.getInstance().play('damage-taken');
             game.damageAttackerId = data.attackerId;
             game.lastDamageTime = Date.now();
@@ -430,6 +462,7 @@ export function registerNetworkHandlers(game: Game) {
         const finishRespawn = () => {
             game.player.setHealth(data.health);
             game.player.setDead(false);
+            game.player.clearSlow();
             game.hudState.health = game.player.health;
             game.emitState(true);
             game.onNotification?.('✨ Respawned!', 2000);
@@ -487,14 +520,20 @@ export function registerNetworkHandlers(game: Game) {
         game.enemySystem.handleEnemyDamaged(data);
 
         const hurt = game.enemySystem.getEnemy(data.id);
-        if (hurt) {
-            SoundManager.getInstance().playAt("enemy-hit", {
-                x: hurt.mesh.position.x,
-                z: hurt.mesh.position.z,
-                volume: 0.6,
-                rate: 0.9 + Math.random() * 0.25,
-            });
+        if (!hurt) return;
+
+        const dot = dotAbilityId(data.abilityId);
+        if (dot) {
+            game.abilitySystem.spawnEmber(hurt.mesh.position.toArray(), dot);
+            return;
         }
+
+        SoundManager.getInstance().playAt("enemy-hit", {
+            x: hurt.mesh.position.x,
+            z: hurt.mesh.position.z,
+            volume: 0.6,
+            rate: 0.9 + Math.random() * 0.25,
+        });
     };
 
     game.networkManager.onEnemyDeath = (data) => {
@@ -508,10 +547,6 @@ export function registerNetworkHandlers(game: Game) {
         }
 
         game.enemySystem.handleEnemyDeath(data);
-    };
-
-    game.networkManager.onEnemyRespawn = (data) => {
-        game.enemySystem.handleEnemyRespawn(data);
     };
 
     game.networkManager.onBossCast = (data) => {
@@ -698,6 +733,18 @@ export function registerNetworkHandlers(game: Game) {
             game.hudState.maxHealth = data.stats.maxHealth;
             game.emitState(true);
         }
+        const kind = data.weapon === "staff" ? "staff" : "rifle";
+        game.player.getWeapon().setLoadout(kind, data.weaponTier ?? 1);
+        game.shootingSystem.setWeapon(kind, data.weaponTier ?? 1);
+        game.shootingSystem.setAvailableModes(data.fireModes ?? []);
+        game.shootingSystem.setBoltStats(
+            data.stats?.boltSpeed ?? 0,
+            data.stats?.boltRange ?? 0,
+            data.stats?.boltEnergyCost ?? 0
+        );
+        game.shootingSystem.setEnergyStats(data.stats?.maxEnergy ?? 0, data.stats?.energyRegen ?? 0);
+        game.shootingSystem.setEnergy(data.energy ?? 0);
+        game.shootingSystem.setFireMode(data.fireMode ?? "single");
         game.onProgressionState?.(data);
     };
 
@@ -715,6 +762,70 @@ export function registerNetworkHandlers(game: Game) {
         game.emitState(true);
     };
 
+    game.networkManager.onAbilityResult = (data) => {
+        if (data.ok && typeof data.energy === "number") game.shootingSystem.setEnergy(data.energy);
+
+        const cast = data.ok ? abilityById(data.abilityId) : null;
+        if (cast?.params.ccImmune) {
+            game.player.setControlImmuneUntil(performance.now() + (cast.durationMs ?? 0));
+            game.player.clearSlow();
+        }
+
+        if (data.ok && data.position) {
+            game.abilitySystem.playEffect({
+                casterId: game.player.id,
+                abilityId: data.abilityId,
+                kind: data.kind ?? "self",
+                position: data.position,
+                radius: data.radius ?? 0,
+                targetId: data.targetId ?? null,
+                chain: data.chain ?? null,
+            });
+        }
+        game.onAbilityResult?.(data);
+    };
+
+    game.networkManager.onAbilityEffect = (data) => {
+        game.abilitySystem.playEffect(data);
+    };
+
+    game.networkManager.onAbilityZone = (data) => {
+        game.abilitySystem.addZone(data);
+    };
+
+    game.networkManager.onAbilityZoneEnded = (zoneId) => {
+        game.abilitySystem.removeZone(zoneId);
+    };
+
+    game.networkManager.onAbilityImpactPending = (data) => {
+        game.abilitySystem.addPendingImpact(data);
+    };
+
+    game.networkManager.onAbilityMeter = (data) => {
+        game.shootingSystem.setEnergy(data.energy);
+        game.onAbilityMeter?.(data);
+    };
+
+    game.networkManager.onFireModeChanged = (mode) => {
+        game.shootingSystem.setFireMode(mode);
+        game.onFireModeChanged?.(mode);
+    };
+
+    game.networkManager.onMemeResult = (data) => {
+        if (data.ok) game.playLocalMeme(data.memeId, data.durationMs ?? 1000, memeRadius(data.memeId));
+        game.onMemeResult?.(data);
+    };
+
+    game.networkManager.onMemeEffect = (data) => {
+        game.handleMemeEffect(data);
+    };
+
+    game.networkManager.onAbilityTrigger = (data) => {
+        game.player.health = data.health;
+        game.emitState(true);
+        game.onAbilityTrigger?.(data);
+    };
+
     game.networkManager.onXpGain = (data) => {
         game.onXpGain?.(data);
     };
@@ -724,8 +835,18 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onPlayerLevelUpdate = (data) => {
-        game.otherPlayers.get(data.playerId)?.setProgression(data.level, data.tier);
+        const levelled = game.otherPlayers.get(data.playerId);
+        levelled?.setProgression(data.level, data.tier);
+        levelled?.setWeaponLoadout(data.branch === "arcanist" ? "staff" : "rifle", data.weaponTier ?? 1);
         game.onPlayerLevelUpdate?.(data);
+    };
+
+    game.networkManager.onPlayerShield = (data) => {
+        game.otherPlayers.get(data.playerId)?.setShielded(data.active);
+    };
+
+    game.networkManager.onPlayerControl = (data) => {
+        game.player.applySlow(data.slowPercent, data.durationMs);
     };
 
     game.networkManager.onBranchSelected = (branch) => {
@@ -806,12 +927,6 @@ export function registerNetworkHandlers(game: Game) {
                 weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
             });
         }
-    };
-
-    game.networkManager.onFactionCreated = (faction) => {
-        game.interactionSystem.myFactionIds.add(faction.id);
-        game.onFactionCreated?.(faction);
-        game.onNotification?.(`🚩 Faction "${faction.name}" founded!`, 3000);
     };
 
     game.networkManager.onFactionJoined = (faction) => {

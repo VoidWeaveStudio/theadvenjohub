@@ -3,11 +3,32 @@ import { Swords } from "lucide-react";
 import { QuestUpdateData } from "../network/NetworkManager";
 
 interface QuestTrackerProps {
-    quest: (QuestUpdateData & { title: string }) | null;
+    quest: (QuestUpdateData & { title: string; npc?: string }) | null;
 }
 
+const QUEST_GIVERS: Record<string, string> = {
+    sola: "Sola in the Main Hall",
+};
+
 export function QuestTracker({ quest }: QuestTrackerProps) {
-    if (!quest || (quest.status !== "active" && quest.status !== "ready_to_turn_in")) return null;
+    if (!quest) return null;
+
+    if (quest.status === "not_started") {
+        const giver = QUEST_GIVERS[quest.npc ?? ""] ?? "the quest giver";
+        return (
+            <div className="absolute top-24 right-6 pointer-events-none select-none font-oxanium">
+                <div className="bg-[rgba(12,16,14,0.72)] backdrop-blur-md border border-[#FFD166]/40 rounded-[10px] p-3 min-w-[220px]">
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <Swords className="w-3.5 h-3.5 text-[#FFD166]" />
+                        <span className="text-[#FFD166] text-xs font-bold tracking-wide">{quest.title}</span>
+                    </div>
+                    <div className="text-[#E5E7EB] text-[11px]">Talk to {giver} to take this quest</div>
+                </div>
+            </div>
+        );
+    }
+
+    if (quest.status !== "active" && quest.status !== "ready_to_turn_in") return null;
 
     const ready = quest.status === "ready_to_turn_in";
 

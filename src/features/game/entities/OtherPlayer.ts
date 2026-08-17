@@ -3,7 +3,9 @@ import * as THREE from "three";
 import { Entity } from "./Entity";
 import { ResourceManager } from "../core/ResourceManager";
 import { CharacterAnimator } from "./CharacterAnimator";
-import { RIFLE_GRIP_QUATERNION, RIFLE_GRIP_OFFSET } from "./Weapon";
+import { buildWeaponVisual, weaponGripOffset } from "./Weapon";
+import { disposeWeaponTierAttachments, updateWeaponTierAttachments, WeaponKind } from "./weaponTiers";
+import { disposeStaff } from "./Staff";
 import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
 import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
@@ -44,6 +46,11 @@ export class OtherPlayer extends Entity {
     private hitbox: THREE.Mesh;
 
     private weaponMesh: THREE.Group | null = null;
+    private nicknameOverride: string | null = null;
+    private resourceManager: ResourceManager | null = null;
+    private weaponKind: WeaponKind = "rifle";
+    private weaponTier: number = 1;
+    private weaponElapsed: number = 0;
     private weaponEquipped: boolean = true;
     private paintableMaterial: THREE.Material | null = null;
     private cosmeticRig: CosmeticRig | null = null;
@@ -56,6 +63,8 @@ export class OtherPlayer extends Entity {
     private static readonly _targetEuler = new THREE.Euler();
 
     private characterModel: THREE.Object3D | null = null;
+    private shieldMesh: THREE.Mesh | null = null;
+    private shieldElapsed: number = 0;
     private wisp: EnergyWisp | null = null;
     private wispMode: boolean = false;
     private lastWispPosition = new THREE.Vector3();
@@ -124,32 +133,8 @@ export class OtherPlayer extends Entity {
         this.animator.update(0.25);
         alignModelToGround(data.scene);
 
-        const weaponData = resourceManager.getModel("rifle");
-        if (weaponData) {
-            const rifle = weaponData.scene;
-
-            const weaponBox = new THREE.Box3().setFromObject(rifle);
-            const weaponSize = weaponBox.getSize(new THREE.Vector3());
-            const targetLength = 0.9;
-            const maxDim = Math.max(weaponSize.x, weaponSize.y, weaponSize.z);
-            const weaponScale = targetLength / maxDim;
-            rifle.scale.setScalar(weaponScale);
-
-            const scaledBox = new THREE.Box3().setFromObject(rifle);
-            const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
-            rifle.position.copy(scaledCenter).multiplyScalar(-1);
-            rifle.quaternion.copy(RIFLE_GRIP_QUATERNION);
-
-             const weaponMount = new THREE.Group();
-            weaponMount.add(rifle);
-            weaponMount.position.copy(RIFLE_GRIP_OFFSET);
-
-            this.mesh.add(weaponMount);
-            if (this.rightHand) {
-                reparentPreservingWorldScale(weaponMount, this.rightHand);
-            }
-            this.weaponMesh = weaponMount;
-        }
+        this.resourceManager = resourceManager;
+        this.mountWeapon();
 
         this.nameSprite = this.createNameTag(this.nickname);
         this.mesh.add(this.nameSprite);
@@ -229,6 +214,56 @@ export class OtherPlayer extends Entity {
         if (this.nameTexture) this.nameTexture.needsUpdate = true;
     }
 
+    public getWeaponTier(): number {
+        return this.weaponTier;
+    }
+
+    public setWeaponLoadout(kind: WeaponKind, tier: number) {
+        if (this.weaponKind === kind && this.weaponTier === tier) return;
+
+        this.weaponKind = kind;
+        this.weaponTier = tier;
+        this.mountWeapon();
+    }
+
+    private mountWeapon() {
+        if (!this.resourceManager) return;
+
+        const wasVisible = this.weaponMesh ? this.weaponMesh.visible : this.weaponEquipped;
+        this.disposeWeapon();
+
+        const visual = buildWeaponVisual(this.weaponKind, this.weaponTier, this.resourceManager);
+        if (!visual) return;
+
+        const weaponMount = new THREE.Group();
+        weaponMount.add(visual);
+        weaponMount.position.copy(weaponGripOffset(this.weaponKind));
+        weaponMount.visible = wasVisible;
+
+        this.mesh.add(weaponMount);
+        if (this.rightHand) {
+            reparentPreservingWorldScale(weaponMount, this.rightHand);
+        }
+        this.weaponMesh = weaponMount;
+    }
+
+    private disposeWeapon() {
+        if (!this.weaponMesh) return;
+
+        const disposable: THREE.Group[] = [];
+        this.weaponMesh.traverse((child) => {
+            if (child.name === "weapon-tier" || child.name === "staff") disposable.push(child as THREE.Group);
+        });
+
+        for (const group of disposable) {
+            if (group.name === "weapon-tier") disposeWeaponTierAttachments(group);
+            else disposeStaff(group);
+        }
+
+        this.weaponMesh.removeFromParent();
+        this.weaponMesh = null;
+    }
+
     private drawNameTag(name: string) {
         const ctx = this.nameCtx;
         const canvas = this.nameCanvas;
@@ -273,7 +308,15 @@ export class OtherPlayer extends Entity {
 
     public setNickname(nickname: string) {
         this.nickname = nickname;
-        this.drawNameTag(nickname);
+        this.drawNameTag(this.nicknameOverride ?? nickname);
+        if (this.nameTexture) this.nameTexture.needsUpdate = true;
+    }
+
+    public setNicknameOverride(override: string | null) {
+        if (this.nicknameOverride === override) return;
+
+        this.nicknameOverride = override;
+        this.drawNameTag(override ?? this.nickname);
         if (this.nameTexture) this.nameTexture.needsUpdate = true;
     }
 
@@ -381,6 +424,32 @@ export class OtherPlayer extends Entity {
         }
     }
 
+    public setShielded(active: boolean) {
+        if (active === !!this.shieldMesh) return;
+
+        if (!active) {
+            this.shieldMesh!.removeFromParent();
+            this.shieldMesh!.geometry.dispose();
+            (this.shieldMesh!.material as THREE.Material).dispose();
+            this.shieldMesh = null;
+            return;
+        }
+
+        this.shieldMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.95, 20, 14),
+            new THREE.MeshBasicMaterial({
+                color: 0x4fd1ff,
+                transparent: true,
+                opacity: 0.22,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+            })
+        );
+        this.shieldMesh.position.y = 0.95;
+        this.shieldElapsed = 0;
+        this.mesh.add(this.shieldMesh);
+    }
+
     public setWispMode(active: boolean) {
         if (this.wispMode === active) return;
         this.wispMode = active;
@@ -399,6 +468,18 @@ export class OtherPlayer extends Entity {
 
         this.time += delta;
         this.mesh.position.lerp(this.targetPosition, Math.min(1, delta * 12));
+
+        if (this.weaponMesh && this.weaponMesh.visible) {
+            this.weaponElapsed += delta;
+            updateWeaponTierAttachments(this.weaponMesh, this.weaponElapsed, delta);
+        }
+
+        if (this.shieldMesh) {
+            this.shieldElapsed += delta;
+            const material = this.shieldMesh.material as THREE.MeshBasicMaterial;
+            material.opacity = 0.18 + Math.abs(Math.sin(this.shieldElapsed * 2.4)) * 0.14;
+            this.shieldMesh.scale.setScalar(1 + Math.sin(this.shieldElapsed * 3.1) * 0.03);
+        }
 
         if (this.wispMode && this.wisp) {
             OtherPlayer._wispVelocity.subVectors(this.mesh.position, this.lastWispPosition);
@@ -472,6 +553,9 @@ export class OtherPlayer extends Entity {
         if (typeof data.level === "number") {
             this.setProgression(data.level, data.tier ?? null);
         }
+        if (data.shielded !== undefined) {
+            this.setShielded(!!data.shielded);
+        }
     }
 
     public isMoving(): boolean {
@@ -489,6 +573,7 @@ export class OtherPlayer extends Entity {
 
     dispose(scene: THREE.Scene) {
         this.cosmeticRig?.dispose();
+        this.setShielded(false);
         super.dispose(scene);
         scene.remove(this.hitbox);
         this.hitbox.geometry.dispose();

@@ -19,6 +19,11 @@ import { BuildSystem } from "../systems/BuildSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
 import { EmoteSystem } from "../systems/EmoteSystem";
 import { CandleEmoteSystem } from "../systems/CandleEmoteSystem";
+import { AbilitySystem } from "../systems/AbilitySystem";
+import { weaponTierName } from "../entities/weaponTiers";
+import { WeaponTuner } from "../systems/WeaponTuner";
+import { MemeSystem, MemeCastEvent } from "../systems/MemeSystem";
+import { MEME_ABILITIES_BY_ID } from "../data/progression";
 import { disposeEmoteAssets } from "../entities/emoteSprites";
 import { disposeSkinTextures } from "../entities/characterSkinTexture";
 import { EmoteKey, isBodyEmote } from "../data/emotes";
@@ -42,6 +47,7 @@ import { updateDamageIndicator } from "./GameDamageIndicator";
 import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone, beginTeleportGrace, enforcePlayerBounds } from "./GameLocationOrchestration";
 import { BuildSession } from "../world/building/BuildSession";
 import { SoundManager } from "./SoundManager";
+import { QuestMarkerKind, createQuestMarker, animateQuestMarker, disposeQuestMarker } from "../entities/questMarker";
 
 export interface GameSession {
     gameToken: string;
@@ -54,6 +60,13 @@ const FACTION_VIEW_REFRESH_COOLDOWN_MS = 4000;
 const ASSET_STAGE_END = 0.4;
 const CONNECT_TIMEOUT_MS = 8000;
 const LOCATION_READY_TIMEOUT_MS = 10000;
+const ABILITY_CAST_HEIGHT = 1.5;
+const ABILITY_AIM_RANGE = 60;
+const PROGRAM_READY_POLL_MS = 10;
+
+interface CompilingProgram {
+    isReady(): boolean;
+}
 
 export interface HUDState {
     health: number;
@@ -67,6 +80,12 @@ export interface HUDState {
     isReloading: boolean;
     isWeaponEquipped: boolean;
     equippedTool: "weapon" | "blueprint" | null;
+    weaponName: string;
+    weaponKind: "rifle" | "staff";
+    fireMode: string;
+    chargeProgress: number;
+    tunerReadout: string | null;
+    inkDarkness: number;
 }
 
 export interface DamageEvent {
@@ -97,7 +116,14 @@ export class Game {
     private safeZoneSystem: SafeZoneSystem;
     public readonly emoteSystem: EmoteSystem = new EmoteSystem();
     public readonly candleSystem: CandleEmoteSystem = new CandleEmoteSystem();
+    public readonly abilitySystem: AbilitySystem = new AbilitySystem();
+    public readonly weaponTuner: WeaponTuner = new WeaponTuner();
+    public readonly memeSystem: MemeSystem = new MemeSystem();
+    private memeMovementUntil: number = 0;
     public readonly interactionSystem: InteractionSystem;
+    private readonly questMarkers = new Map<string, THREE.Sprite>();
+    private questMarkerRequest: Record<string, QuestMarkerKind> = {};
+    private questMarkerTime = 0;
     private networkSystem: NetworkSystem;
     public readonly enemySystem: EnemySystem;
     public readonly bossProjectiles = new BossProjectiles();
@@ -182,6 +208,12 @@ export class Game {
         isReloading: false,
         isWeaponEquipped: true,
         equippedTool: "weapon",
+        weaponName: "Standard Rifle",
+        weaponKind: "rifle",
+        fireMode: "Single",
+        chargeProgress: 0,
+        tunerReadout: null,
+        inkDarkness: 0,
     };
 
     private lastStateEmit: number = 0;
@@ -457,6 +489,13 @@ export class Game {
                 this.bossProjectiles.setScene(currentLocation.scene);
 
                 this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
+                this.abilitySystem.attach(currentLocation.scene);
+                this.memeSystem.attach(currentLocation.scene);
+                this.weaponTuner.init(this.inputManager, this.player.getWeapon());
+                this.weaponTuner.onReadout = (text) => {
+                    this.hudState.tunerReadout = text;
+                    this.emitState(true);
+                };
                 this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight);
                 this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId);
                 this.shootingSystem.onShotFired = () => this.notifyLocalShot();
@@ -726,6 +765,11 @@ export class Game {
      
             this.emoteSystem.clear();
             this.candleSystem.clear();
+            this.abilitySystem.clear();
+            this.memeSystem.clear();
+            this.player.clearMemeMovement();
+            this.player.clearSlow();
+            this.memeMovementUntil = 0;
             this.player.setMovementLocked(false);
             this.otherPlayers.forEach((op) => {
                 if (!op.isHidden()) {
@@ -742,7 +786,10 @@ export class Game {
             this.shootingSystem.setScene(newLocation.scene);
             this.interactionSystem.setScene(newLocation.scene);
             this.interactionSystem.clearInteractables();
+            this.questMarkers.clear();
             this.enemySystem.setScene(newLocation.scene);
+            this.abilitySystem.attach(newLocation.scene);
+            this.memeSystem.attach(newLocation.scene);
             this.bossProjectiles.setScene(newLocation.scene);
             this.lootSystem.setScene(newLocation.scene);
             this.buildSystem.setScene(newLocation.scene, newLocation.id);
@@ -763,6 +810,7 @@ export class Game {
             newLocationInteractables.forEach(obj => {
                 this.interactionSystem.registerInteractable(obj);
             });
+            this.applyQuestMarkers();
 
             applyLocationMovementConfig(this, newLocation);
             configureLocationSpecifics(this, newLocation);
@@ -857,10 +905,32 @@ export class Game {
     private async compileScene(location: Location) {
         if (this.disposed) return;
 
-        await withTimeout(
-            this.renderer.compileAsync(location.scene, this.cameraController.camera),
-            LOCATION_READY_TIMEOUT_MS
-        );
+        this.renderer.compile(location.scene, this.cameraController.camera);
+        await this.waitForProgramsReady(LOCATION_READY_TIMEOUT_MS);
+    }
+
+    private waitForProgramsReady(timeoutMs: number): Promise<void> {
+        return new Promise<void>((resolve) => {
+            const deadline = performance.now() + timeoutMs;
+
+            const poll = () => {
+                const programs = this.renderer.info.programs as unknown as CompilingProgram[] | null;
+
+                if (this.disposed || !programs || performance.now() >= deadline) {
+                    resolve();
+                    return;
+                }
+
+                if (programs.every((program) => program.isReady())) {
+                    resolve();
+                    return;
+                }
+
+                setTimeout(poll, PROGRAM_READY_POLL_MS);
+            };
+
+            poll();
+        });
     }
 
     private async awaitLocationReady(location: Location, startProgress: number) {
@@ -911,6 +981,13 @@ export class Game {
         this.hudState.maxAmmo = ammoState.maxAmmo;
         this.hudState.reserve = ammoState.reserve;
         this.hudState.isReloading = ammoState.isReloading;
+
+        const weapon = this.player.getWeapon();
+        this.hudState.weaponKind = weapon.kind;
+        this.hudState.weaponName = weaponTierName(weapon.kind, weapon.tier);
+        this.hudState.fireMode = this.shootingSystem.getFireModeName();
+        this.hudState.chargeProgress = this.shootingSystem.getChargeProgress();
+
         this.onStateChange?.({ ...this.hudState });
     }
 
@@ -992,6 +1069,7 @@ export class Game {
 
             perf.begin("interaction");
             this.interactionSystem.update(delta, isEJustPressed);
+            this.updateQuestMarkers(delta);
             perf.end("interaction");
 
             if (currentLocation.getInteractionPrompt && !portal) {
@@ -1013,6 +1091,9 @@ export class Game {
             this.networkSystem.update(delta);
             perf.end("network");
             this.emoteSystem.update(delta);
+            this.abilitySystem.update(delta);
+            this.updateMemeEffects(delta);
+            this.weaponTuner.update();
             perf.begin("otherPlayers");
             const galaxy = currentLocation instanceof Basement ? currentLocation : null;
             this.otherPlayers.forEach((op) => {
@@ -1180,6 +1261,38 @@ export class Game {
         this.networkManager.sendBranchSelect(branch);
     }
 
+    setQuestMarkers(markers: Record<string, QuestMarkerKind>) {
+        this.questMarkerRequest = markers;
+        this.applyQuestMarkers();
+    }
+
+    private applyQuestMarkers() {
+        for (const sprite of this.questMarkers.values()) disposeQuestMarker(sprite);
+        this.questMarkers.clear();
+
+        for (const [interactionId, kind] of Object.entries(this.questMarkerRequest)) {
+            const target = this.interactionSystem.findInteractable(interactionId);
+            if (!target) continue;
+
+            const box = new THREE.Box3().setFromObject(target);
+            const worldY = target.getWorldPosition(new THREE.Vector3()).y;
+            const height = Math.max(1.5, box.max.y - worldY) + 0.7;
+
+            const marker = createQuestMarker(kind, height);
+            target.add(marker);
+            this.questMarkers.set(interactionId, marker);
+        }
+    }
+
+    private updateQuestMarkers(delta: number) {
+        if (this.questMarkers.size === 0) return;
+
+        this.questMarkerTime += delta;
+        for (const sprite of this.questMarkers.values()) {
+            animateQuestMarker(sprite, this.questMarkerTime);
+        }
+    }
+
     learnSkill(nodeId: string) {
         this.networkManager.sendSkillLearn(nodeId);
     }
@@ -1188,12 +1301,109 @@ export class Game {
         this.networkManager.sendAbilityBind(slot, abilityId);
     }
 
+    castMeme(memeId: string) {
+        this.networkManager.sendMemeCast(memeId);
+    }
+
+    public playLocalMeme(memeId: string, durationMs: number, radius: number) {
+        const event: MemeCastEvent = {
+            memeId,
+            casterId: this.player.id,
+            position: this.player.mesh.position.toArray(),
+            radius,
+            durationMs,
+        };
+
+        this.memeSystem.play(event, this.player.mesh);
+        this.applyMemeToSelf(memeId, durationMs);
+    }
+
+    public handleMemeEffect(data: MemeCastEvent) {
+        const caster = this.otherPlayers.get(data.casterId);
+        this.memeSystem.play(data, caster && !caster.isHidden() ? caster.mesh : null);
+
+        if (data.memeId !== "whale_splash") return;
+
+        const centre = new THREE.Vector3(data.position[0], data.position[1], data.position[2]);
+        const away = this.player.mesh.position.clone().sub(centre);
+        if (away.lengthSq() < 1e-6 || away.length() > data.radius) return;
+
+        const knockback = Number(MEME_ABILITIES_BY_ID.get("whale_splash")?.params.knockback ?? 0);
+        this.player.applyHorizontalImpulse(away.normalize(), knockback);
+    }
+
+    private applyMemeToSelf(memeId: string, durationMs: number) {
+        const params = MEME_ABILITIES_BY_ID.get(memeId)?.params ?? {};
+        const back = this.cameraController.getForwardDirection().clone().multiplyScalar(-1);
+
+        switch (memeId) {
+            case "shrimp_squeak":
+                this.player.applyHorizontalImpulse(back, Number(params.selfKnockback ?? 0));
+                break;
+            case "rug_pull":
+                this.player.applyHorizontalImpulse(back, Number(params.dashBack ?? 0));
+                break;
+            case "moon_launch":
+                this.player.launchUpward(Number(params.launchHeight ?? 0));
+                break;
+            case "crab_walk":
+                this.player.setMemeMovement({
+                    speedMult: Number(params.moveSpeedMult ?? 1),
+                    yawOffset: params.strafeOnly ? Math.PI / 2 : 0,
+                });
+                this.memeMovementUntil = performance.now() + durationMs;
+                break;
+            case "pump_it":
+                this.player.setMemeMovement({ jumpMult: Number(params.jumpMult ?? 1) });
+                this.memeMovementUntil = performance.now() + durationMs;
+                break;
+            default:
+                break;
+        }
+    }
+
+    private updateMemeEffects(delta: number) {
+        this.memeSystem.update(delta);
+        this.player.setZoneSlow(this.abilitySystem.hostileSlowAt(this.player.mesh.position, this.localPlayerNetId ?? ""));
+
+        if (this.memeMovementUntil > 0 && performance.now() >= this.memeMovementUntil) {
+            this.memeMovementUntil = 0;
+            this.player.clearMemeMovement();
+        }
+
+        const ink = this.memeSystem.zoneCovering("ink_dump", this.player.mesh.position);
+        const darkness = ink ? Number(MEME_ABILITIES_BY_ID.get("ink_dump")?.params.screenDarken ?? 0) : 0;
+        if (darkness !== this.hudState.inkDarkness) {
+            this.hudState.inkDarkness = darkness;
+            this.emitState(true);
+        }
+
+        const copiumName = String(MEME_ABILITIES_BY_ID.get("copium_cloud")?.params.nicknameOverride ?? "WAGMI");
+        this.otherPlayers.forEach((op) => {
+            const inside = this.memeSystem.zoneCovering("copium_cloud", op.mesh.position);
+            op.setNicknameOverride(inside ? copiumName : null);
+        });
+    }
+
+    cycleFireMode() {
+        const next = this.shootingSystem.nextFireMode();
+        if (!next) {
+            this.onNotification?.("No other fire modes unlocked yet", 2000);
+            return;
+        }
+        this.networkManager.sendFireModeSet(next);
+    }
+
     castAbility(abilityId: string) {
-        const origin = this.cameraController.camera.getWorldPosition(new THREE.Vector3());
-        const direction = this.cameraController.getForwardDirection();
+        const cameraPos = this.cameraController.camera.getWorldPosition(new THREE.Vector3());
+        const aimPoint = cameraPos.add(this.cameraController.getForwardDirection().multiplyScalar(ABILITY_AIM_RANGE));
+
+        const origin = this.player.mesh.position.clone();
+        origin.y += ABILITY_CAST_HEIGHT;
+
         this.networkManager.sendAbilityCast(abilityId, {
             origin: origin.toArray(),
-            direction: direction.toArray(),
+            direction: aimPoint.sub(origin).normalize().toArray(),
         });
     }
 
@@ -1527,6 +1737,8 @@ export class Game {
         this.otherPlayers.clear();
         this.emoteSystem.clear();
         this.candleSystem.clear();
+        this.abilitySystem.dispose();
+        this.memeSystem.dispose();
         disposeEmoteAssets();
         disposeSkinTextures();
         this.locationManager.dispose();

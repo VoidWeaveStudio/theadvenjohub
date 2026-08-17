@@ -18,6 +18,7 @@ export type PlayerNetData = {
   alive: boolean;
   weaponEquipped: boolean;
   isShooting: boolean;
+  shielded?: boolean;
   locationId?: string;
   isAdmin?: boolean;
   isFactionCreator?: boolean;
@@ -37,6 +38,9 @@ export type CombatStatsData = {
   moveSpeedMult: number;
   maxEnergy: number;
   energyRegen: number;
+  boltSpeed: number;
+  boltRange: number;
+  boltEnergyCost: number;
 };
 
 export type ProgressionStateData = {
@@ -49,6 +53,8 @@ export type ProgressionStateData = {
   skills: Record<string, number>;
   loadout: Record<string, string>;
   fireMode: string;
+  fireModes: string[];
+  weapon: "rifle" | "staff";
   respecCount: number;
   respecCostAsh: number;
   skillPoints: number;
@@ -57,8 +63,86 @@ export type ProgressionStateData = {
   tierIndex: number;
   weaponTier: number;
   memeAbilities: string[];
+  memeCooldowns: Record<string, number>;
   stats: CombatStatsData;
   health: number;
+  energy: number;
+  cooldowns: Record<string, number>;
+};
+
+export type AbilityResultData = {
+  abilityId: string;
+  ok: boolean;
+  reason?: string;
+  readyAt?: number;
+  energy?: number;
+  maxEnergy?: number;
+  kind?: string;
+  position?: number[];
+  radius?: number;
+  targetId?: string | null;
+  chain?: number[][] | null;
+  cooldowns?: Record<string, number>;
+};
+
+export type AbilityEffectData = {
+  casterId: string;
+  abilityId: string;
+  kind: string;
+  position: number[];
+  radius: number;
+  targetId: string | null;
+  chain: number[][] | null;
+};
+
+export type AbilityZoneData = {
+  zoneId: string;
+  casterId: string;
+  abilityId: string;
+  position: number[];
+  radius: number;
+  durationMs: number;
+  slowPercent?: number;
+};
+
+export type AbilityImpactPendingData = {
+  casterId: string;
+  abilityId: string;
+  position: number[];
+  radius: number;
+  resolveInMs: number;
+};
+
+export type AbilityMeterData = {
+  energy: number;
+  maxEnergy: number;
+  shield: number;
+  shieldMax: number;
+};
+
+export type MemeResultData = {
+  memeId: string;
+  ok: boolean;
+  reason?: string;
+  readyAt?: number;
+  durationMs?: number;
+  cooldowns?: Record<string, number>;
+};
+
+export type MemeEffectData = {
+  casterId: string;
+  memeId: string;
+  kind: string;
+  position: number[];
+  radius: number;
+  durationMs: number;
+};
+
+export type AbilityTriggerData = {
+  triggerId: string;
+  health: number;
+  invulnerabilityMs: number;
+  readyAt: number;
 };
 
 export type XpGainData = {
@@ -87,6 +171,7 @@ export type PlayerLevelUpdateData = {
   playerId: string;
   level: number;
   tier: string;
+  branch: BranchId | null;
   weaponTier: number;
 };
 
@@ -551,7 +636,15 @@ export class NetworkManager {
   public onCosmeticState?: (data: CosmeticStateData) => void;
   public onSpawnProtection?: (data: { untilMs: number; durationMs: number }) => void;
   public onCosmeticUpdate?: (data: { playerId: string; skinId: CosmeticId | null; accessoryId: CosmeticId | null }) => void;
-  public onShoot?: (data: { id: string; origin: number[]; direction: number[] }) => void;
+  public onShoot?: (data: {
+    id: string;
+    origin: number[];
+    direction: number[];
+    directions?: number[][];
+    weapon?: string;
+    mode?: string;
+    speed?: number;
+  }) => void;
   public onDisconnected?: () => void;
   public onCount?: (count: number) => void;
   public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; senderFactionSymbol?: string | null; senderFactionImage?: string | null; senderIsAdmin?: boolean; senderIsFactionCreator?: boolean; message: string; timestamp: number }) => void;
@@ -599,17 +692,12 @@ export class NetworkManager {
     health: number;
     attackerId: string;
     point: number[];
+    abilityId?: string | null;
   }) => void;
   public onEnemyDeath?: (data: { id: string; killerId: string }) => void;
   public onBossCast?: (data: { enemyId: string; attack: string; windup: number; aim: number[]; radius: number }) => void;
   public onBossProjectile?: (data: { enemyId: string; attack: string; origin: number[]; target: number[]; travel: number; radius: number }) => void;
   public onBossPool?: (data: { enemyId: string; x: number; z: number; radius: number; duration: number }) => void;
-  public onEnemyRespawn?: (data: {
-    id: string;
-    position: number[];
-    health: number;
-    maxHealth: number;
-  }) => void;
 
   public onLootState?: (loot: LootDropData[]) => void;
   public onLootSpawn?: (loot: LootDropData) => void;
@@ -639,11 +727,23 @@ export class NetworkManager {
   public onXpGain?: (data: XpGainData) => void;
   public onLevelUp?: (data: LevelUpData) => void;
   public onPlayerLevelUpdate?: (data: PlayerLevelUpdateData) => void;
+  public onPlayerShield?: (data: { playerId: string; active: boolean }) => void;
+  public onPlayerControl?: (data: { slowPercent: number; durationMs: number }) => void;
   public onBranchSelected?: (branch: BranchId) => void;
   public onSkillsRespecced?: (data: { costAsh: number }) => void;
   public onSkillLearned?: (data: { nodeId: string; rank: number }) => void;
   public onSkillLearnRejected?: (data: { nodeId: string; reason: string }) => void;
   public onPlayerHealed?: (data: { health: number; maxHealth: number }) => void;
+  public onAbilityResult?: (data: AbilityResultData) => void;
+  public onAbilityEffect?: (data: AbilityEffectData) => void;
+  public onAbilityZone?: (data: AbilityZoneData) => void;
+  public onAbilityZoneEnded?: (zoneId: string) => void;
+  public onAbilityImpactPending?: (data: AbilityImpactPendingData) => void;
+  public onAbilityMeter?: (data: AbilityMeterData) => void;
+  public onAbilityTrigger?: (data: AbilityTriggerData) => void;
+  public onFireModeChanged?: (mode: string) => void;
+  public onMemeResult?: (data: MemeResultData) => void;
+  public onMemeEffect?: (data: MemeEffectData) => void;
   public onCanyonSegment?: (data: CanyonSegmentData) => void;
   public onCanyonCleared?: (data: CanyonClearedData) => void;
   public onCanyonMap?: (data: CanyonMapData) => void;
@@ -651,7 +751,6 @@ export class NetworkManager {
   public onServerError?: (message: string) => void;
   public onPositionCorrection?: (data: { position: number[] }) => void;
 
-  public onFactionCreated?: (faction: FactionSummary) => void;
   public onFactionJoined?: (faction: FactionSummary) => void;
   public onFactionLeft?: (factionId: string) => void;
   public onFactionSearchResult?: (results: FactionSummary[]) => void;
@@ -988,9 +1087,6 @@ export class NetworkManager {
       case "enemyDeath":
         this.onEnemyDeath?.(data);
         break;
-      case "enemyRespawn":
-        this.onEnemyRespawn?.(data);
-        break;
       case "bossCast":
         this.onBossCast?.({
           enemyId: data.enemyId,
@@ -1087,6 +1183,25 @@ export class NetworkManager {
           skills: data.skills && typeof data.skills === "object" ? data.skills : {},
           loadout: data.loadout && typeof data.loadout === "object" ? data.loadout : {},
           memeAbilities: Array.isArray(data.memeAbilities) ? data.memeAbilities : [],
+          memeCooldowns: data.memeCooldowns && typeof data.memeCooldowns === "object" ? data.memeCooldowns : {},
+          fireModes: Array.isArray(data.fireModes) ? data.fireModes : [],
+          weapon: data.weapon === "staff" ? "staff" : "rifle",
+        });
+        break;
+      case "fireModeChanged":
+        this.onFireModeChanged?.(data.mode ?? "single");
+        break;
+      case "memeResult":
+        this.onMemeResult?.(data);
+        break;
+      case "memeEffect":
+        this.onMemeEffect?.({
+          casterId: data.casterId,
+          memeId: data.memeId,
+          kind: data.kind ?? "self",
+          position: Array.isArray(data.position) ? data.position : [0, 0, 0],
+          radius: data.radius ?? 0,
+          durationMs: data.durationMs ?? 1000,
         });
         break;
       case "xpGain":
@@ -1097,6 +1212,12 @@ export class NetworkManager {
         break;
       case "playerLevelUpdate":
         this.onPlayerLevelUpdate?.(data);
+        break;
+      case "playerShield":
+        this.onPlayerShield?.({ playerId: data.playerId, active: !!data.active });
+        break;
+      case "playerControl":
+        this.onPlayerControl?.({ slowPercent: data.slowPercent ?? 0, durationMs: data.durationMs ?? 0 });
         break;
       case "branchSelected":
         if (isBranchId(data.branch)) this.onBranchSelected?.(data.branch);
@@ -1112,6 +1233,43 @@ export class NetworkManager {
         break;
       case "playerHealed":
         this.onPlayerHealed?.({ health: data.health ?? 0, maxHealth: data.maxHealth ?? 100 });
+        break;
+      case "abilityResult":
+        this.onAbilityResult?.({
+          ...data,
+          cooldowns: data.cooldowns && typeof data.cooldowns === "object" ? data.cooldowns : undefined,
+        });
+        break;
+      case "abilityEffect":
+        this.onAbilityEffect?.({
+          casterId: data.casterId,
+          abilityId: data.abilityId,
+          kind: data.kind ?? "self",
+          position: Array.isArray(data.position) ? data.position : [0, 0, 0],
+          radius: data.radius ?? 0,
+          targetId: data.targetId ?? null,
+          chain: Array.isArray(data.chain) ? data.chain : null,
+        });
+        break;
+      case "abilityZone":
+        this.onAbilityZone?.(data);
+        break;
+      case "abilityZoneEnded":
+        this.onAbilityZoneEnded?.(data.zoneId);
+        break;
+      case "abilityImpactPending":
+        this.onAbilityImpactPending?.(data);
+        break;
+      case "abilityMeter":
+        this.onAbilityMeter?.({
+          energy: data.energy ?? 0,
+          maxEnergy: data.maxEnergy ?? 100,
+          shield: data.shield ?? 0,
+          shieldMax: data.shieldMax ?? 0,
+        });
+        break;
+      case "abilityTrigger":
+        this.onAbilityTrigger?.(data);
         break;
       case "canyonSegment":
         this.onCanyonSegment?.(data);
@@ -1169,9 +1327,6 @@ export class NetworkManager {
         }
         break;
       case "serverShutdown":
-        break;
-      case "factionCreated":
-        this.onFactionCreated?.(data.faction);
         break;
       case "factionJoined":
         this.onFactionJoined?.(data.faction);
@@ -1392,7 +1547,7 @@ export class NetworkManager {
     this.send({ type: "playerUpdate", ...data });
   }
 
-  sendShoot(data: { origin: number[]; direction: number[] }) {
+  sendShoot(data: { origin: number[]; direction: number[]; directions?: number[][] }) {
     if (!this.authenticated) return;
     this.send({ type: "shoot", ...data });
   }
@@ -1480,6 +1635,16 @@ export class NetworkManager {
   sendAbilityBind(slot: string, abilityId: string | null) {
     if (!this.authenticated) return;
     this.send({ type: "abilityBind", slot, abilityId });
+  }
+
+  sendFireModeSet(mode: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "fireModeSet", mode });
+  }
+
+  sendMemeCast(memeId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "memeCast", memeId });
   }
 
   sendAbilityCast(abilityId: string, aim: { origin: number[]; direction: number[] } | null) {

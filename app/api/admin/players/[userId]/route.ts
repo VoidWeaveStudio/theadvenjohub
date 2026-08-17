@@ -7,6 +7,7 @@ import {
     gameNicknames,
     gameStatistics,
     gameProgress,
+    gameCharacterProgression,
     gameInventories,
     factionMembers,
     factions,
@@ -36,10 +37,11 @@ export async function GET(
             return NextResponse.json({ error: "user_not_found" }, { status: 404 });
         }
 
-        const [nicknames, statistics, progress, inventory, memberships, achievements, licenses] = await Promise.all([
+        const [nicknames, statistics, progress, progression, inventory, memberships, achievements, licenses] = await Promise.all([
             db.query.gameNicknames.findMany({ where: eq(gameNicknames.userId, userId) }),
             db.query.gameStatistics.findFirst({ where: eq(gameStatistics.userId, userId) }),
             db.query.gameProgress.findFirst({ where: eq(gameProgress.userId, userId) }),
+            db.query.gameCharacterProgression.findFirst({ where: eq(gameCharacterProgression.userId, userId) }),
             db.query.gameInventories.findMany({ where: eq(gameInventories.userId, userId) }),
             db.query.factionMembers.findMany({ where: eq(factionMembers.userId, userId) }),
             db.query.userAchievements.findMany({ where: eq(userAchievements.userId, userId) }),
@@ -150,6 +152,12 @@ export async function GET(
                     lastPlayedAt: statistics?.lastPlayedAt ?? null,
                 },
                 ash,
+                progression: {
+                    level: progression?.level ?? 1,
+                    totalXp: progression?.totalXp ?? 0,
+                    branch: progression?.branch ?? null,
+                    respecCount: progression?.respecCount ?? 0,
+                },
                 skinTextureUrl,
                 cosmetics,
                 placeables,

@@ -101,11 +101,6 @@ export class EnemySystem extends System {
         this.onEnemyEliminated?.(data.killerId);
     }
 
-    public handleEnemyRespawn(data: { id: string; position: number[]; health: number; maxHealth: number }) {
-        if (this.enemies.has(data.id)) return;
-        this.spawnLocal({ ...data, alive: true, targetId: null });
-    }
-
     public update(delta: number) {
         for (const enemy of this.enemies.values()) {
             enemy.update(delta, this.getGroundHeight);

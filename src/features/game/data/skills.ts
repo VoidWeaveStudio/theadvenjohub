@@ -177,6 +177,22 @@ export function unlockedAbilities(ranks: SkillRanks): SkillAbility[] {
     return SKILL_NODES.filter((n) => n.ability && (ranks[n.id] ?? 0) > 0).map((n) => n.ability!);
 }
 
+export const ABILITIES_BY_ID = new Map(
+    SKILL_NODES.filter((n) => n.ability).map((n) => [n.ability!.id, n.ability!])
+);
+
+export function abilityById(abilityId: string): SkillAbility | null {
+    return ABILITIES_BY_ID.get(abilityId) ?? null;
+}
+
+export const MODES_BY_ID = new Map(
+    SKILL_NODES.filter((n) => n.mode).map((n) => [n.mode!.id, n.mode!])
+);
+
+export function modeById(modeId: string): SkillMode | null {
+    return MODES_BY_ID.get(modeId) ?? null;
+}
+
 export function unlockedModes(ranks: SkillRanks): SkillMode[] {
     return SKILL_NODES.filter((n) => n.mode && (ranks[n.id] ?? 0) > 0).map((n) => n.mode!);
 }

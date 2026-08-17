@@ -19,7 +19,9 @@
     "sound:manifest": "node scripts/sound-manifest.mjs",
     "sync:progression": "node scripts/sync-progression-catalog.js",
     "check:progression": "node scripts/check-progression-catalog.js && node scripts/sync-progression-catalog.js --check",
-    "xp:curve": "node scripts/xp-curve.js"
+    "check:protocol": "node scripts/check-protocol.js",
+    "xp:curve": "node scripts/xp-curve.js",
+    "balance:report": "node scripts/balance-report.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

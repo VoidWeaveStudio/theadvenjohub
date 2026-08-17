@@ -7,7 +7,6 @@ import { Inter, Oxanium } from "next/font/google";
 import { Header } from "@/core/ui/Header";
 import { SolanaProviders } from "@/core/providers/SolanaProviders";
 import { LanguageProvider } from "@/core/i18n/LanguageContext";
-import Head from "@/core/ui/Head";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -18,7 +17,7 @@ const inter = Inter({
 });
 
 const oxanium = Oxanium({
-  subsets: ["latin", "latin-ext"],
+  subsets: ["latin"],
   display: "swap",
   preload: true,
   fallback: ["system-ui", "arial"],
@@ -32,16 +31,23 @@ export const metadata: Metadata = {
     icon: [
       { url: "/favicon.ico" },
       { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-96x96.png", type: "image/png", sizes: "96x96" },
     ],
     apple: "/apple-touch-icon.png",
   },
   manifest: "/site.webmanifest",
+  appleWebApp: { capable: true },
+  other: { "mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
   themeColor: "#161618",
-  colorScheme: "dark light", 
+  colorScheme: "dark light",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -52,6 +58,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <script
           nonce={nonce}
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
@@ -70,7 +77,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             `,
           }}
         />
-        <Head />
       </head>
       <body className={`${inter.variable} ${oxanium.variable} text-foreground font-sans antialiased`}>
         <div className="site-background" aria-hidden="true" />

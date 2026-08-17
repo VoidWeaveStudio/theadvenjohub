@@ -5,6 +5,7 @@ import { db } from "@/core/database";
 import { gameInventories } from "@/core/database/schema";
 import { and, eq } from "drizzle-orm";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
+import { queueAdminGameCommand } from "@/core/lib/adminGameCommands";
 
 export async function PATCH(
     req: NextRequest,
@@ -33,6 +34,8 @@ export async function PATCH(
         if (!deleted) {
             return NextResponse.json({ error: "not_found" }, { status: 404 });
         }
+
+        await queueAdminGameCommand({ type: "removeInventorySlot", userId, slot });
 
         return NextResponse.json({ success: true });
     } catch (error) {

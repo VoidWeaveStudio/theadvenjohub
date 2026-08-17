@@ -40,6 +40,18 @@ export interface WeaponTierDefinition {
     accent: string;
 }
 
+export interface FireModeDefinition {
+    id: string;
+    name: string;
+    damageMult: number;
+    spreadMult?: number;
+    projectiles?: number;
+    fireRateMs?: number;
+    chargeMs?: number;
+    pierceCount?: number;
+    manaCostMult?: number;
+}
+
 export const MAX_LEVEL: number = catalog.maxLevel;
 export const XP_CURVE = catalog.xpCurve;
 export const ENERGY = catalog.energy;
@@ -51,6 +63,8 @@ export const BRANCHES = catalog.branches as BranchDefinition[];
 export const TIERS = catalog.tiers as TierDefinition[];
 export const MEME_ABILITIES = catalog.memeAbilities as unknown as MemeAbilityDefinition[];
 export const WEAPON_TIERS = catalog.weaponTiers as WeaponTierDefinition[];
+export const WEAPONS = catalog.weapons;
+export const SINGLE_FIRE_MODE = catalog.weapons.singleMode as FireModeDefinition;
 
 export const BRANCHES_BY_ID = new Map(BRANCHES.map((b) => [b.id, b]));
 export const MEME_ABILITIES_BY_ID = new Map(MEME_ABILITIES.map((m) => [m.id, m]));

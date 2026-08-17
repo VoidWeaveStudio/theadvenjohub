@@ -73,7 +73,7 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                         src="/locations/background.webp"
                         alt=""
                         fill
-                        priority
+                        loading="eager"
                         sizes="(max-width: 1100px) 100vw, 1100px"
                         className="object-cover select-none pointer-events-none"
                     />
@@ -108,8 +108,8 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                                         alt={floor.name}
                                         width={112}
                                         height={112}
-                                        priority
-                                        className={`portal-icon relative ${isLocked ? "grayscale opacity-40" : ""}`}
+                                        loading="eager"
+                                        className={`relative block h-[84px] w-[84px] sm:h-[112px] sm:w-[112px] ${isLocked ? "grayscale opacity-40" : ""}`}
                                     />
                                     {isLocked && (
                                         <span className="absolute inset-0 flex items-center justify-center">
@@ -161,17 +161,6 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                 .portal-node-hovered {
                     transform: scale(1.14);
                     filter: drop-shadow(0 6px 18px rgba(0,0,0,0.65)) brightness(1.18);
-                }
-                .portal-icon {
-                    width: 84px;
-                    height: 84px;
-                    display: block;
-                }
-                @media (min-width: 640px) {
-                    .portal-icon {
-                        width: 112px;
-                        height: 112px;
-                    }
                 }
                 .portal-glow {
                     position: absolute;

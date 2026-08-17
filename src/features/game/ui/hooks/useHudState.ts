@@ -15,6 +15,12 @@ export function useHudState() {
     isReloading: false,
     isWeaponEquipped: true,
     equippedTool: "weapon",
+    weaponName: "Standard Rifle",
+    weaponKind: "rifle",
+    fireMode: "Single",
+    chargeProgress: 0,
+    tunerReadout: null,
+    inkDarkness: 0,
   });
 
   const [damageEvents, setDamageEvents] = useState<DamageEvent[]>([]);

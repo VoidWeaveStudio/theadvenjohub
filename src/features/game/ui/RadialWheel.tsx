@@ -27,10 +27,20 @@ interface RadialWheelProps {
     onClose: () => void;
 }
 
-const WHEEL_RADIUS = 118;
+const MIN_RADIUS = 118;
+const MIN_TILE = 78;
+const MAX_TILE = 104;
+const TILE_GAP = 10;
+
+function layoutFor(count: number) {
+    const tile = count <= 6 ? MAX_TILE : Math.max(MIN_TILE, MAX_TILE - (count - 6) * 5);
+    const needed = ((tile + TILE_GAP) * count) / (2 * Math.PI);
+    return { tile, radius: Math.max(MIN_RADIUS, Math.ceil(needed)) };
+}
 
 export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelProps) {
     const [pageIndex, setPageIndex] = useState(0);
+    const [hovered, setHovered] = useState<string | null>(null);
     const wasOpenRef = useRef(false);
 
     useEffect(() => {
@@ -42,6 +52,7 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
     }, [isOpen]);
 
     const page = pages[Math.min(pageIndex, pages.length - 1)];
+    const { tile, radius } = layoutFor(page ? page.items.length : 1);
 
     useEffect(() => {
         if (!isOpen || !page) return;
@@ -83,7 +94,7 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
                 if (e.target === e.currentTarget) onClose();
             }}
         >
-            <div className="relative" style={{ width: WHEEL_RADIUS * 2 + 140, height: WHEEL_RADIUS * 2 + 140 }}>
+            <div className="relative" style={{ width: radius * 2 + tile + 24, height: radius * 2 + tile + 24 }}>
                 <div className="absolute inset-0 rounded-full border border-white/10 bg-[rgba(13,17,23,0.55)]" />
                 <div className="absolute inset-8 rounded-full border border-[#4FD1FF]/20" />
 
@@ -109,33 +120,51 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
 
                 {page.items.map((item, index) => {
                     const angle = (index / page.items.length) * Math.PI * 2 - Math.PI / 2;
-                    const x = Math.cos(angle) * WHEEL_RADIUS;
-                    const y = Math.sin(angle) * WHEEL_RADIUS;
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
+                    const iconSize = Math.round(tile * 0.5);
 
                     return (
                         <div
                             key={item.id}
-                            className="absolute left-1/2 top-1/2 w-[104px] -ml-[52px] -mt-[52px]"
-                            style={{ transform: `translate(${x}px, ${y}px)` }}
+                            className="absolute left-1/2 top-1/2"
+                            style={{
+                                width: tile,
+                                marginLeft: -tile / 2,
+                                marginTop: -tile / 2,
+                                transform: `translate(${x}px, ${y}px)`,
+                                zIndex: hovered === item.id ? 10 : 1,
+                            }}
                         >
                             <button
                                 onClick={() => !item.locked && onSelect(page.id, item.id)}
+                                onMouseEnter={() => setHovered(item.id)}
+                                onMouseLeave={() => setHovered((current) => (current === item.id ? null : current))}
                                 title={item.locked ? item.lockReason ?? "Locked" : item.hint ?? item.label}
-                                className={`w-full flex flex-col items-center gap-1 py-2 rounded-2xl border transition-transform transition-colors duration-150 bg-[rgba(13,17,23,0.92)] ${item.locked
+                                className={`w-full flex flex-col items-center gap-0.5 py-1.5 rounded-2xl border transition-transform transition-colors duration-150 bg-[rgba(13,17,23,0.94)] ${item.locked
                                     ? "border-white/5 opacity-40 cursor-not-allowed"
                                     : "border-white/10 hover:border-[#4FD1FF] hover:scale-110"
                                     }`}
                             >
                                 <span
-                                    className="w-14 h-14 rounded-full flex items-center justify-center text-[32px] leading-none select-none"
-                                    style={{ background: `${item.accent}22`, boxShadow: `0 0 18px ${item.accent}33` }}
+                                    className="rounded-full flex items-center justify-center leading-none select-none"
+                                    style={{
+                                        width: iconSize,
+                                        height: iconSize,
+                                        fontSize: Math.round(iconSize * 0.6),
+                                        background: `${item.accent}22`,
+                                        boxShadow: `0 0 18px ${item.accent}33`,
+                                    }}
                                 >
                                     {item.emoji}
                                 </span>
-                                <span className="text-[#E5E7EB] text-[11px] font-bold leading-none text-center px-1">
+                                <span
+                                    className="text-[#E5E7EB] font-bold leading-tight text-center px-1 truncate w-full"
+                                    style={{ fontSize: tile >= 96 ? 11 : 10 }}
+                                >
                                     {item.label}
                                 </span>
-                                <span className="text-[#6B7280] text-[10px] leading-none">{index + 1}</span>
+                                <span className="text-[#6B7280] text-[9px] leading-none">{index + 1}</span>
                             </button>
                         </div>
                     );

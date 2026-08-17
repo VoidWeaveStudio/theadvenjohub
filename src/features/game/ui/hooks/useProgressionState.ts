@@ -1,6 +1,6 @@
 // src/features/game/ui/hooks/useProgressionState.ts
 import { useCallback, useRef, useState } from "react";
-import { ProgressionStateData, XpGainData, LevelUpData, PlayerLevelUpdateData } from "../../network/NetworkManager";
+import { ProgressionStateData, XpGainData, LevelUpData, PlayerLevelUpdateData, MemeResultData } from "../../network/NetworkManager";
 
 export interface XpPopup {
     id: number;
@@ -16,11 +16,22 @@ export function useProgressionState() {
     const [xpPopups, setXpPopups] = useState<XpPopup[]>([]);
     const [levelUp, setLevelUp] = useState<LevelUpData | null>(null);
     const [otherPlayerLevels, setOtherPlayerLevels] = useState<Record<string, { level: number; tier: string }>>({});
+    const [memeCooldowns, setMemeCooldowns] = useState<Record<string, number>>({});
 
     const popupIdRef = useRef(0);
 
     const handleProgressionState = useCallback((data: ProgressionStateData) => {
         setProgression(data);
+        setMemeCooldowns(data.memeCooldowns ?? {});
+    }, []);
+
+    const handleMemeResult = useCallback((data: MemeResultData) => {
+        if (!data.ok) return;
+
+        if (data.cooldowns) setMemeCooldowns(data.cooldowns);
+        else if (typeof data.readyAt === "number") {
+            setMemeCooldowns((prev) => ({ ...prev, [data.memeId]: data.readyAt as number }));
+        }
     }, []);
 
     const handleXpGain = useCallback((data: XpGainData) => {
@@ -61,7 +72,9 @@ export function useProgressionState() {
         xpPopups,
         levelUp,
         otherPlayerLevels,
+        memeCooldowns,
         handleProgressionState,
+        handleMemeResult,
         handleXpGain,
         handleLevelUp,
         handlePlayerLevelUpdate,

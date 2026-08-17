@@ -5,12 +5,13 @@ import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { SoundManager } from "../../core/SoundManager";
 
-export type WindowFrameSize = "sm" | "md" | "lg";
+export type WindowFrameSize = "sm" | "md" | "lg" | "xl";
 
 const SIZE_CLASSES: Record<WindowFrameSize, string> = {
     sm: "max-w-sm",
     md: "max-w-lg",
     lg: "max-w-4xl h-[82vh]",
+    xl: "max-w-6xl h-[88vh]",
 };
 
 export interface WindowFrameTab {

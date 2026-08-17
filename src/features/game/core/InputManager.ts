@@ -11,6 +11,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export class InputManager {
   private keys: Set<string> = new Set();
   private mouseButtons: Set<number> = new Set();
+  private mouseJustPressed: Set<number> = new Set();
+  private mouseJustReleased: Set<number> = new Set();
   private mouseMovement: THREE.Vector2 = new THREE.Vector2();
   private isPointerLocked: boolean = false;
   private isEnabled: boolean = true;
@@ -45,11 +47,14 @@ export class InputManager {
       if (!this.isEnabled) return;
       if (this.isPointerLocked) {
         this.mouseButtons.add(e.button);
+        this.mouseJustPressed.add(e.button);
       }
     };
 
     this.onMouseUp = (e) => {
-      this.mouseButtons.delete(e.button);
+      if (this.mouseButtons.delete(e.button)) {
+        this.mouseJustReleased.add(e.button);
+      }
     };
 
     this.onMouseMove = (e) => {
@@ -106,6 +111,18 @@ export class InputManager {
     return this.mouseButtons.has(button);
   }
 
+  isMouseJustPressed(button: number): boolean {
+    if (!this.mouseJustPressed.has(button)) return false;
+    this.mouseJustPressed.delete(button);
+    return true;
+  }
+
+  isMouseJustReleased(button: number): boolean {
+    if (!this.mouseJustReleased.has(button)) return false;
+    this.mouseJustReleased.delete(button);
+    return true;
+  }
+
   isPointerLockedState(): boolean {
     return this.isPointerLocked;
   }
@@ -115,6 +132,8 @@ export class InputManager {
     if (!enabled) {
       this.keys.clear();
       this.mouseButtons.clear();
+      this.mouseJustPressed.clear();
+      this.mouseJustReleased.clear();
       if (this.isPointerLocked) {
         document.exitPointerLock();
       }

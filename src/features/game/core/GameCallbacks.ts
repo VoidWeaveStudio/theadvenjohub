@@ -27,6 +27,10 @@ import {
     XpGainData,
     LevelUpData,
     PlayerLevelUpdateData,
+    AbilityResultData,
+    AbilityMeterData,
+    AbilityTriggerData,
+    MemeResultData,
 } from "../network/NetworkManager";
 import type { HUDState, DamageEvent } from "./Game";
 import type { BranchId } from "../data/progression";
@@ -82,11 +86,15 @@ export interface GameCallbacks {
     onSkillsRespecced?: (data: { costAsh: number }) => void;
     onSkillLearned?: (data: { nodeId: string; rank: number }) => void;
     onSkillLearnRejected?: (data: { nodeId: string; reason: string }) => void;
+    onAbilityResult?: (data: AbilityResultData) => void;
+    onAbilityMeter?: (data: AbilityMeterData) => void;
+    onAbilityTrigger?: (data: AbilityTriggerData) => void;
+    onFireModeChanged?: (mode: string) => void;
+    onMemeResult?: (data: MemeResultData) => void;
     onCanyonSegment?: (data: CanyonSegmentData) => void;
     onCanyonMap?: (data: CanyonMapData) => void;
 
     onOpenFactionBrokerUI?: () => void;
-    onFactionCreated?: (faction: FactionSummary) => void;
     onFactionJoined?: (faction: FactionSummary) => void;
     onFactionLeft?: (factionId: string) => void;
     onFactionSearchResult?: (results: FactionSummary[]) => void;

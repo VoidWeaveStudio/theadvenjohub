@@ -90,22 +90,64 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
             {state.isWeaponEquipped && (
                 <div className="absolute bottom-8 right-8">
                     <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-5 min-w-[180px]">
-                        <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">ASSAULT RIFLE</div>
-                        <div className="flex items-baseline gap-3">
-                            <span className="text-[#4FD1FF] text-5xl font-bold leading-none">{state.ammo}</span>
-                            <div className="flex flex-col">
-                                <div className="h-[2px] bg-[rgba(255,255,255,0.2)] w-12 mb-1" />
-                                <span className="text-[#8B8F98] text-xl font-semibold">{state.maxAmmo}</span>
-                            </div>
+                        <div className="flex items-baseline justify-between gap-3 mb-2">
+                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider uppercase">{state.weaponName}</span>
+                            <span className="text-[#4FD1FF] text-[10px] font-bold tracking-wider uppercase">{state.fireMode}</span>
                         </div>
+
+                        {state.weaponKind === "staff" ? (
+                            <div className="flex items-baseline gap-3">
+                                <span className="text-[#C79AE0] text-4xl font-bold leading-none">MANA</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-baseline gap-3">
+                                <span className="text-[#4FD1FF] text-5xl font-bold leading-none">{state.ammo}</span>
+                                <div className="flex flex-col">
+                                    <div className="h-[2px] bg-[rgba(255,255,255,0.2)] w-12 mb-1" />
+                                    <span className="text-[#8B8F98] text-xl font-semibold">{state.maxAmmo}</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {state.chargeProgress > 0 && (
+                            <div className="mt-3 h-1 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-[#C79AE0]"
+                                    style={{ width: `${Math.round(state.chargeProgress * 100)}%` }}
+                                />
+                            </div>
+                        )}
+
                         <div className="mt-3 flex items-center gap-2">
                             {state.isReloading ? (
                                 <Activity className="w-4 h-4 text-[#FF5757] animate-pulse" />
                             ) : null}
                             <span className={`text-xs font-medium ${state.isReloading ? 'text-[#FF5757]' : 'text-[#8B8F98]'}`}>
-                                {state.isReloading ? 'RELOADING...' : 'Press [R] to reload'}
+                                {state.isReloading
+                                    ? 'RELOADING...'
+                                    : state.weaponKind === "staff"
+                                        ? 'Press [B] for fire mode'
+                                        : 'Press [R] to reload, [B] for fire mode'}
                             </span>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {state.inkDarkness > 0 && (
+                <div
+                    className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+                    style={{ background: "#05050a", opacity: state.inkDarkness }}
+                />
+            )}
+
+            {state.tunerReadout && (
+                <div className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-none">
+                    <div className="bg-[rgba(12,12,14,0.9)] border border-[#FFD166]/40 rounded-[8px] px-4 py-2">
+                        <div className="text-[#FFD166] text-[10px] font-bold tracking-wider mb-1">
+                            WEAPON GRIP TUNER — numpad 4/6 x, 8/2 y, 7/9 z, 1/3 yaw, -/+ pitch, ÷/× roll, 5 logs, 0 exits
+                        </div>
+                        <div className="text-[#E5E7EB] text-xs font-mono">{state.tunerReadout}</div>
                     </div>
                 </div>
             )}

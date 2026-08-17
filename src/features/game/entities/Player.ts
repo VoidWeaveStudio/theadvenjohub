@@ -98,6 +98,84 @@ export class Player extends Entity {
     public health: number = 100;
     public maxHealth: number = 100;
 
+    private memeSpeedMultiplier: number = 1;
+    private memeJumpMultiplier: number = 1;
+    private memeYawOffset: number = 0;
+    private controlSpeedMultiplier: number = 1;
+    private controlUntil: number = 0;
+    private zoneSpeedMultiplier: number = 1;
+    private controlImmuneUntil: number = 0;
+
+    public setMemeMovement(options: { speedMult?: number; jumpMult?: number; yawOffset?: number }) {
+        if (options.speedMult !== undefined) this.memeSpeedMultiplier = Math.max(0.1, options.speedMult);
+        if (options.jumpMult !== undefined) this.memeJumpMultiplier = Math.max(0.1, options.jumpMult);
+        if (options.yawOffset !== undefined) this.memeYawOffset = options.yawOffset;
+    }
+
+    public clearMemeMovement() {
+        this.memeSpeedMultiplier = 1;
+        this.memeJumpMultiplier = 1;
+        this.memeYawOffset = 0;
+    }
+
+    public applySlow(slowPercent: number, durationMs: number) {
+        if (this.isControlImmune()) return;
+        this.controlSpeedMultiplier = Math.max(0.1, 1 - slowPercent / 100);
+        this.controlUntil = performance.now() + durationMs;
+    }
+
+    public setZoneSlow(slowPercent: number) {
+        this.zoneSpeedMultiplier = this.isControlImmune() ? 1 : Math.max(0.1, 1 - slowPercent / 100);
+    }
+
+    public setControlImmuneUntil(timestamp: number) {
+        this.controlImmuneUntil = timestamp;
+    }
+
+    public clearSlow() {
+        this.controlSpeedMultiplier = 1;
+        this.controlUntil = 0;
+        this.zoneSpeedMultiplier = 1;
+    }
+
+    private isControlImmune(): boolean {
+        return performance.now() < this.controlImmuneUntil;
+    }
+
+    private slowMultiplier(): number {
+        if (this.controlUntil > 0 && performance.now() >= this.controlUntil) {
+            this.controlSpeedMultiplier = 1;
+            this.controlUntil = 0;
+        }
+        return Math.min(this.controlSpeedMultiplier, this.zoneSpeedMultiplier);
+    }
+
+    public launchUpward(height: number) {
+        this.velocityY = Math.sqrt(2 * this.GRAVITY * Math.max(0, height));
+        this.isGrounded = false;
+    }
+
+    public applyHorizontalImpulse(direction: THREE.Vector3, distance: number) {
+        const flat = Math.hypot(direction.x, direction.z);
+        if (flat < 1e-4 || distance <= 0) return;
+
+        const steps = 8;
+        const dx = (direction.x / flat) * (distance / steps);
+        const dz = (direction.z / flat) * (distance / steps);
+        const trapped = this.collidesAt(this.mesh.position.x, this.mesh.position.z);
+
+        for (let i = 0; i < steps; i++) {
+            const nextX = this.mesh.position.x + dx;
+            const nextZ = this.mesh.position.z + dz;
+            if (!this.canMoveTo(nextX, nextZ, trapped)) break;
+
+            this.mesh.position.x = nextX;
+            this.mesh.position.z = nextZ;
+        }
+
+        if (this.isGrounded) this.baseY = this.getSurfaceHeight(this.mesh.position.x, this.mesh.position.z, true);
+    }
+
     public applyCombatStats(stats: { maxHealth: number; moveSpeedMult: number; magSize: number; reloadMs: number }) {
         this.maxHealth = stats.maxHealth;
         this.speedMultiplier = Math.max(1, stats.moveSpeedMult);
@@ -441,7 +519,7 @@ export class Player extends Entity {
         this.isShooting = this.inputManager.isMousePressed(0);
         const isFiringSlowdown = this.isShooting && this.weaponEquipped;
         const shouldFaceLookDirection = this.isShooting || isInteracting;
-        const scaledSpeed = this.speed * this.speedMultiplier;
+        const scaledSpeed = this.speed * this.speedMultiplier * this.memeSpeedMultiplier * this.slowMultiplier();
         const baseSpeed = isFiringSlowdown
             ? scaledSpeed * this.SHOOTING_SPEED_MULTIPLIER
             : scaledSpeed * (isSprinting ? this.sprintMultiplier : 1);
@@ -450,7 +528,7 @@ export class Player extends Entity {
         let moved = false;
 
         if (this.inputManager.isKeyJustPressed("Space") && this.isGrounded && !this.swimming && this.jumpCooldown <= 0) {
-            this.velocityY = this.JUMP_FORCE;
+            this.velocityY = this.JUMP_FORCE * this.memeJumpMultiplier;
             this.isGrounded = false;
             this.jumpCooldown = this.JUMP_COOLDOWN_TIME;
             SoundManager.getInstance().play("jump", { volume: 0.4 });
@@ -678,7 +756,8 @@ export class Player extends Entity {
         return Math.atan2(-Math.sin(camYaw), -Math.cos(camYaw));
     }
 
-    private rotateToAngle(targetAngle: number, delta: number) {
+    private rotateToAngle(angle: number, delta: number) {
+        const targetAngle = angle + this.memeYawOffset;
         let angleDiff = targetAngle - this.mesh.rotation.y;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;

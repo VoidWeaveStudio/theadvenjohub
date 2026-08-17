@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { PLACEABLE_ITEMS } from "../../game/data/placeableItems";
+import { MAX_LEVEL, skillPointsForLevel } from "../../game/data/progression";
 
 interface PlayerDetail {
     id: string;
@@ -25,6 +26,12 @@ interface PlayerDetail {
         lastPlayedAt: string | null;
     };
     ash: number;
+    progression: {
+        level: number;
+        totalXp: number;
+        branch: string | null;
+        respecCount: number;
+    };
     skinTextureUrl: string | null;
     cosmetics: {
         equippedSkin: { id: string; name: string } | null;
@@ -92,6 +99,7 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
     const [banReasonInput, setBanReasonInput] = useState("");
     const [actionError, setActionError] = useState<string | null>(null);
     const [ashAmountInput, setAshAmountInput] = useState("100");
+    const [levelInput, setLevelInput] = useState("1");
     const [itemToGrant, setItemToGrant] = useState(PLACEABLE_ITEMS[0]?.id || "");
     const [itemQuantityInput, setItemQuantityInput] = useState("1");
     const { signedFetch } = useAdminSignature();
@@ -179,6 +187,29 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                 setPlayer((prev) => (prev ? { ...prev, ash: data.ash } : prev));
             } else {
                 setActionError("Failed to update ash");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        }
+    };
+
+    const setLevel = async () => {
+        const level = Math.floor(Number(levelInput));
+        if (!Number.isFinite(level) || level < 1 || level > MAX_LEVEL) {
+            setActionError(`Level must be between 1 and ${MAX_LEVEL}`);
+            return;
+        }
+
+        setActionError(null);
+        try {
+            const res = await signedFetch(`/api/admin/players/${userId}/level`, "setLevel", userId, { level });
+            if (res.ok) {
+                const data = await res.json();
+                setPlayer((prev) =>
+                    prev ? { ...prev, progression: { ...prev.progression, level: data.level, totalXp: data.totalXp } } : prev
+                );
+            } else {
+                setActionError("Failed to set level");
             }
         } catch (err: any) {
             setActionError(err.message || "Signature failed");
@@ -471,6 +502,28 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                     <button onClick={() => adjustAsh(-1)} className="btn-secondary px-3 py-1.5 text-xs text-red-400">
                                         Take
                                     </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">
+                                    CHARACTER LEVEL — {player.progression.level} ({skillPointsForLevel(player.progression.level)} skill points)
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={MAX_LEVEL}
+                                        value={levelInput}
+                                        onChange={(e) => setLevelInput(e.target.value)}
+                                        className="w-24 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
+                                    />
+                                    <button onClick={setLevel} className="btn-secondary px-3 py-1.5 text-xs text-[#4FD1FF]">
+                                        Set Level
+                                    </button>
+                                    <span className="text-[#6B7280] text-[11px]">
+                                        {player.isOnline ? "applies in the running game within ~5s" : "applies on the player's next login"}
+                                    </span>
                                 </div>
                             </div>
 

@@ -14,10 +14,6 @@ export function useFactionState() {
         setMyFactions(factions);
     }, []);
 
-    const handleFactionCreated = useCallback((faction: FactionSummary) => {
-        setMyFactions((prev) => (prev.some((f) => f.id === faction.id) ? prev : [...prev, faction]));
-    }, []);
-
     const handleFactionJoined = useCallback((faction: FactionSummary) => {
         setMyFactions((prev) => (prev.some((f) => f.id === faction.id) ? prev : [...prev, faction]));
     }, []);
@@ -83,7 +79,6 @@ export function useFactionState() {
         browseResults,
         taskDefinitions,
         handleFactionMyListResult,
-        handleFactionCreated,
         handleFactionJoined,
         handleFactionLeft,
         handleFactionDisplayedSet,

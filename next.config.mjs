@@ -54,6 +54,7 @@ const nextConfig = {
   },
 
   turbopack: {
+    root: __dirname,
     resolveAlias: {
       '@': path.join(__dirname, 'src'),
     },

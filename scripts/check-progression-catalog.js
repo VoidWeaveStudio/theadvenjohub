@@ -53,6 +53,23 @@ function checkProgression() {
     check("respec is free early", progression.respec.freeBelowLevel > 1);
     check("pvp ultimate cap set", progression.pvpScaling.ultimateMaxHealthFraction > 0 && progression.pvpScaling.ultimateMaxHealthFraction < 1);
 
+    const weapons = progression.weapons;
+    check("every branch weapon has a config", progression.branches.every((b) => !!weapons[b.weapon]));
+    check("staff bolt travels", weapons.staff.projectileSpeed > 0 && weapons.staff.maxRange > 0);
+    check("staff fires slower than the rifle", weapons.staff.fireRateMs > weapons.rifle.fireRateMs);
+    check("staff bolts hit harder to compensate", weapons.staff.boltDamageMult > 1);
+
+    const riflePerSecond = 1000 / weapons.rifle.fireRateMs;
+    const staffPerSecond = 1000 / weapons.staff.fireRateMs;
+    const dpsRatio = (staffPerSecond * weapons.staff.boltDamageMult) / riflePerSecond;
+    check("branch dps within 25% of each other", dpsRatio > 0.75 && dpsRatio < 1.25, `staff/rifle dps ${dpsRatio.toFixed(2)}`);
+    check(
+        "staff drain close to energy regen",
+        staffPerSecond * weapons.staff.boltEnergyCost <= progression.energy.regenPerSecond * 1.5,
+        `${(staffPerSecond * weapons.staff.boltEnergyCost).toFixed(1)}/s vs regen ${progression.energy.regenPerSecond}/s`,
+    );
+    check("single mode is neutral", weapons.singleMode.damageMult === 1 && weapons.singleMode.spreadMult === 1);
+
     console.log(`       total xp to ${progression.maxLevel}: ${totalXp().toLocaleString("en-US")}, skill points: ${skillPoints}`);
     return skillPoints;
 }

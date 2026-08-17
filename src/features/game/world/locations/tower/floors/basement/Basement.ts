@@ -11,6 +11,7 @@ import { PlayerBubbleField } from "../token-gates/galaxy/PlayerBubbleField";
 import { FactionBubbleSystem } from "../token-gates/galaxy/FactionBubbleSystem";
 import { GALAXY, ORBIT_OMEGA, galaxyOrbitTime, playerBubbleOrbit, orbitPosition } from "../token-gates/galaxy/GalaxyLayout";
 import { StewardNpc } from "./systems/StewardNpc";
+import { DragonSystem } from "./systems/DragonSystem";
 import type { FlightZone, HeightProvider } from "../../../../Location";
 import type { FactionGateData } from "../../../../../network/NetworkManager";
 
@@ -40,6 +41,7 @@ export class Basement extends TowerFloor {
     public readonly bubbles: PlayerBubbleField;
     public readonly factions: FactionBubbleSystem;
     public readonly steward: StewardNpc;
+    public readonly dragon: DragonSystem;
 
     public terrain: HeightProvider;
     public flightZone: FlightZone = {
@@ -77,6 +79,7 @@ export class Basement extends TowerFloor {
         this.bubbles = new PlayerBubbleField(this.galaxyRoot);
         this.factions = new FactionBubbleSystem(this.galaxyRoot);
         this.steward = new StewardNpc(this);
+        this.dragon = new DragonSystem(this.scene, PLATFORM_RADIUS);
 
         this.terrain = {
             getHeightAt: (x, z) => (Math.hypot(x, z) <= PLATFORM_RADIUS ? 0 : -100000),
@@ -150,6 +153,7 @@ export class Basement extends TowerFloor {
         this.environment.update(delta);
         this.coinFeed.update(delta);
         this.steward.update(delta);
+        this.dragon.update(delta);
 
         Basement._local.copy(playerPosition).sub(this.galaxyRoot.position);
 
@@ -211,6 +215,7 @@ export class Basement extends TowerFloor {
     }
 
     dispose() {
+        this.dragon.dispose();
         this.steward.dispose();
         this.factions.dispose();
         this.bubbles.dispose();

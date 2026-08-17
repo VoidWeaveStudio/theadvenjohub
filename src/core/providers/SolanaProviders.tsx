@@ -3,9 +3,7 @@
 
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import { 
-  PhantomWalletAdapter,
-  SolflareWalletAdapter,
+import {
   MathWalletAdapter,
   TokenPocketWalletAdapter,
   SolongWalletAdapter,
@@ -18,7 +16,6 @@ import {
 } from "@solana/wallet-adapter-wallets";
 import { useMemo, useCallback } from "react";
 import { AuthProvider } from "@/core/auth/AuthProvider";
-import { OKXWalletAdapter } from "@/core/wallets/OKXWalletAdapter";
 import { getRpcEndpoint } from "@/core/lib/solanaClient";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
@@ -26,9 +23,6 @@ export function SolanaProviders({ children }: { children: React.ReactNode }) {
   const endpoint = useMemo(() => getRpcEndpoint(), []);
 
   const wallets = useMemo(() => [
-    new PhantomWalletAdapter(),
-    new SolflareWalletAdapter(),
-    new OKXWalletAdapter(),
     new MathWalletAdapter(),
     new TokenPocketWalletAdapter(),
     new SolongWalletAdapter(),

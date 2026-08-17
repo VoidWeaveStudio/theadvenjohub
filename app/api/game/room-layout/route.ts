@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
-import { factions, roomLayouts } from "@/core/database/schema";
+import { roomLayouts } from "@/core/database/schema";
 import { and, eq } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
-import { canManageFaction } from "@/core/lib/factionAuth";
+import { canEditLot } from "@/core/lib/roomLayoutAccess";
 import { resolveGameId } from "@/core/lib/shopPricing";
 
 const MAX_PIECES = 20000;
@@ -35,26 +35,6 @@ const saveSchema = z.object({
     data: layoutSchema,
     slug: z.string().max(80).optional(),
 });
-
-async function resolvePermission(
-    ownerType: "personal" | "faction",
-    ownerId: string,
-    userId: string
-): Promise<boolean> {
-    if (ownerType === "personal") return ownerId === userId;
-
-    const [faction] = await db
-        .select({
-            founderUserId: factions.founderUserId,
-            verifiedCreatorUserId: factions.verifiedCreatorUserId,
-        })
-        .from(factions)
-        .where(eq(factions.id, ownerId))
-        .limit(1);
-
-    if (!faction) return false;
-    return canManageFaction(faction, userId);
-}
 
 export async function GET(req: NextRequest) {
     const authResult = await requireAuth(req);
@@ -87,7 +67,7 @@ export async function GET(req: NextRequest) {
             ))
             .limit(1);
 
-        const canEdit = await resolvePermission(ownerType, ownerId, user.userId);
+        const canEdit = await canEditLot(ownerType, ownerId, user.userId);
 
         return NextResponse.json({
             data: row?.data ?? null,
@@ -121,7 +101,7 @@ export async function POST(req: NextRequest) {
         const gameId = await resolveGameId(payload.slug);
         if (!gameId) return NextResponse.json({ error: "game_not_found" }, { status: 404 });
 
-        const allowed = await resolvePermission(payload.ownerType, payload.ownerId, user.userId);
+        const allowed = await canEditLot(payload.ownerType, payload.ownerId, user.userId);
         if (!allowed) {
             return NextResponse.json({ error: "not_authorized" }, { status: 403 });
         }
