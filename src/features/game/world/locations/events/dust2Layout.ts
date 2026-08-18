@@ -32,6 +32,15 @@ export interface CrateBox {
     style?: "crate" | "concrete" | "barrel" | "car";
 }
 
+export interface Doorway {
+    x: number;
+    z: number;
+    width: number;
+    height: number;
+    axis: "x" | "z";
+    style: "door" | "arch";
+}
+
 export interface PlatformBox {
     x1: number;
     z1: number;
@@ -63,8 +72,8 @@ export const PLAYER_LIMIT_RADIUS = 70;
 export const T_SPAWN = { x: 30, z: 34 };
 export const CT_SPAWN = { x: -3, z: -33 };
 
-export const BOMB_SITE_A = { x: 22, z: -15, radius: 9 };
-export const BOMB_SITE_B = { x: -29, z: -16, radius: 9 };
+export const BOMB_SITE_A = { x: 21.5, z: -13.5, radius: 9 };
+export const BOMB_SITE_B = { x: -21, z: -19, radius: 9 };
 
 export const T_SPAWN_POINTS: [number, number][] = [
     [30, 34], [27, 34], [30, 31], [30, 37], [33, 34],
@@ -178,6 +187,31 @@ export const PLATFORMS: PlatformBox[] = [
 
     { x1: 34, z1: -16, x2: 40, z2: -12.5, top: 0.6, style: "ledge" },
     { x1: -24, z1: 4, x2: -18, z2: 7, top: 0.6, style: "ledge" },
+];
+
+// Purely visual: the openings the walls already leave get a framed arch, and
+// the three that are doors in the real map get painted double doors in them.
+export const DOORWAYS: Doorway[] = [
+    { x: 0, z: 4, width: 5.2, height: 3.6, axis: "z", style: "door" },
+    { x: 31, z: 9, width: 2.8, height: 3.4, axis: "z", style: "door" },
+    { x: -18, z: -29, width: 3.2, height: 3.4, axis: "z", style: "door" },
+
+    { x: -5.6, z: 19.25, width: 7.5, height: 4, axis: "x", style: "arch" },
+    { x: 12.6, z: -16.75, width: 9.4, height: 4.2, axis: "x", style: "arch" },
+    { x: 0, z: -26.6, width: 11.6, height: 4.2, axis: "z", style: "arch" },
+    { x: 8.6, z: -29, width: 4.8, height: 4, axis: "x", style: "arch" },
+    { x: -25, z: -10.6, width: 9.6, height: 4.2, axis: "z", style: "arch" },
+    { x: 30, z: -10.6, width: 7.6, height: 4.2, axis: "z", style: "arch" },
+];
+
+export const PALMS: [number, number][] = [
+    [10, 30], [34, 27], [20, 37], [-2, 22], [-16, 21],
+    [-22, 8], [-37, -12], [-13, -32.5], [3.5, -36], [37, 23.5],
+];
+
+export const CONTAINERS: { x: number; z: number; rotation: number }[] = [
+    { x: 32.5, z: 4, rotation: 0.1 },
+    { x: -27, z: -13, rotation: -0.25 },
 ];
 
 export const GROUND_PATCHES: GroundPatch[] = [

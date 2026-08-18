@@ -39,6 +39,7 @@ function toBoxes(source) {
     const walls = evaluate(source, "WALLS");
     const crates = evaluate(source, "CRATES");
     const platforms = evaluate(source, "PLATFORMS");
+    const containers = evaluate(source, "CONTAINERS");
 
     const boxes = walls.map((wall) => ({
         minX: Math.min(wall.x1, wall.x2),
@@ -68,6 +69,18 @@ function toBoxes(source) {
             maxY: pad.top,
             minZ: Math.min(pad.z1, pad.z2),
             maxZ: Math.max(pad.z1, pad.z2),
+        });
+    }
+
+    for (const box of containers) {
+        const reach = Math.max(2.4, 4.6) / 2;
+        boxes.push({
+            minX: box.x - reach,
+            maxX: box.x + reach,
+            minY: 0,
+            maxY: 2.5,
+            minZ: box.z - reach,
+            maxZ: box.z + reach,
         });
     }
 
