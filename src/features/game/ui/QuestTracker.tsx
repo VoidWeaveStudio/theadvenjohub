@@ -16,7 +16,7 @@ export function QuestTracker({ quest }: QuestTrackerProps) {
     if (quest.status === "not_started") {
         const giver = QUEST_GIVERS[quest.npc ?? ""] ?? "the quest giver";
         return (
-            <div className="absolute top-24 right-6 pointer-events-none select-none font-oxanium">
+            <div className="pointer-events-none select-none font-oxanium">
                 <div className="bg-[rgba(12,16,14,0.72)] backdrop-blur-md border border-[#FFD166]/40 rounded-[10px] p-3 min-w-[220px]">
                     <div className="flex items-center gap-2 mb-1.5">
                         <Swords className="w-3.5 h-3.5 text-[#FFD166]" />
@@ -33,7 +33,7 @@ export function QuestTracker({ quest }: QuestTrackerProps) {
     const ready = quest.status === "ready_to_turn_in";
 
     return (
-        <div className="absolute top-24 right-6 pointer-events-none select-none font-oxanium">
+        <div className="pointer-events-none select-none font-oxanium">
             <div className="bg-[rgba(12,16,14,0.72)] backdrop-blur-md border border-[#4ADE80]/30 rounded-[10px] p-3 min-w-[220px]">
                 <div className="flex items-center gap-2 mb-1.5">
                     <Swords className="w-3.5 h-3.5 text-[#4ADE80]" />

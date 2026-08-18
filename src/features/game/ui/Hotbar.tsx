@@ -1,7 +1,7 @@
 // src/features/game/ui/Hotbar.tsx
 "use client";
 
-import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack, Lock, Smile, Sparkles } from "lucide-react";
+import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack, Lock, Smile, Sparkles, Wrench } from "lucide-react";
 
 interface HotbarSlot {
     id: string;
@@ -16,11 +16,16 @@ interface HotbarSlot {
 interface HotbarProps {
     slots: HotbarSlot[];
     onSlotClick?: (index: number) => void;
+    onOpenTools?: () => void;
     onOpenEmotes?: () => void;
     onOpenDegen?: () => void;
 }
 
-const SLOT_KEYS = ["Q", "F", "C", "V", "X"];
+const SLOT_KEYS = ["Q", "F"];
+
+export const TOOL_KEY = "X";
+export const EMOTE_KEY = "C";
+export const DEGEN_KEY = "V";
 
 const iconMap: Record<string, React.ReactNode> = {
     'axe': <Axe className="w-8 h-8" />,
@@ -33,7 +38,7 @@ const iconMap: Record<string, React.ReactNode> = {
     'emote': <Smile className="w-8 h-8" />,
 };
 
-export function Hotbar({ slots, onSlotClick, onOpenEmotes, onOpenDegen }: HotbarProps) {
+export function Hotbar({ slots, onSlotClick, onOpenTools, onOpenEmotes, onOpenDegen }: HotbarProps) {
     return (
         <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-auto font-oxanium">
             {slots.map((slot, i) => {
@@ -98,25 +103,37 @@ export function Hotbar({ slots, onSlotClick, onOpenEmotes, onOpenDegen }: Hotbar
                 );
             })}
 
-            <div className="mt-1 flex flex-col gap-2">
-                <button
-                    onClick={onOpenEmotes}
-                    title="Emotes"
-                    className="w-16 h-16 p-0 rounded-[10px] border-2 border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[#FFD166] hover:bg-[rgba(12,12,14,0.75)] flex flex-col items-center justify-center gap-0.5 transition-colors"
-                >
-                    <Smile className="w-7 h-7 text-[#FFD166]" />
-                    <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">EMOTES</span>
-                </button>
+            <div className="my-1 h-px w-16 bg-[rgba(255,255,255,0.14)]" />
 
-                <button
-                    onClick={onOpenDegen}
-                    title="Degen abilities"
-                    className="w-16 h-16 p-0 rounded-[10px] border-2 border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[#A855F7] hover:bg-[rgba(12,12,14,0.75)] flex flex-col items-center justify-center gap-0.5 transition-colors"
-                >
-                    <Sparkles className="w-7 h-7 text-[#A855F7]" />
-                    <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">DEGEN</span>
-                </button>
-            </div>
+            <button
+                onClick={onOpenTools}
+                title={`Tools — [${TOOL_KEY}]`}
+                className="relative w-16 h-16 p-0 rounded-[10px] border-2 border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[#4FD1FF] hover:bg-[rgba(12,12,14,0.75)] flex flex-col items-center justify-center gap-0.5 transition-colors"
+            >
+                <span className="absolute top-1.5 left-2 text-[10px] font-bold text-[#8B8F98]">{TOOL_KEY}</span>
+                <Wrench className="w-7 h-7 text-[#4FD1FF]" />
+                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">TOOLS</span>
+            </button>
+
+            <button
+                onClick={onOpenEmotes}
+                title={`Emotes — [${EMOTE_KEY}]`}
+                className="relative w-16 h-16 p-0 rounded-[10px] border-2 border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[#FFD166] hover:bg-[rgba(12,12,14,0.75)] flex flex-col items-center justify-center gap-0.5 transition-colors"
+            >
+                <span className="absolute top-1.5 left-2 text-[10px] font-bold text-[#8B8F98]">{EMOTE_KEY}</span>
+                <Smile className="w-7 h-7 text-[#FFD166]" />
+                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">EMOTES</span>
+            </button>
+
+            <button
+                onClick={onOpenDegen}
+                title={`Degen abilities — [${DEGEN_KEY}]`}
+                className="relative w-16 h-16 p-0 rounded-[10px] border-2 border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[#A855F7] hover:bg-[rgba(12,12,14,0.75)] flex flex-col items-center justify-center gap-0.5 transition-colors"
+            >
+                <span className="absolute top-1.5 left-2 text-[10px] font-bold text-[#8B8F98]">{DEGEN_KEY}</span>
+                <Sparkles className="w-7 h-7 text-[#A855F7]" />
+                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">DEGEN</span>
+            </button>
         </div>
     );
 }

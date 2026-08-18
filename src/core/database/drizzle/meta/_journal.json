@@ -204,6 +204,20 @@
       "when": 1786858465277,
       "tag": "0033_mysterious_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787026019264,
+      "tag": "0034_wise_meggan",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1787027303119,
+      "tag": "0035_strong_albert_cleary",
+      "breakpoints": true
     }
   ]
 }

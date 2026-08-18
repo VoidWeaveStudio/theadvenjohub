@@ -20,6 +20,11 @@ const INDOOR_MAX_PITCH = Math.PI / 6;
 const COVER_RANGE = 4.5;
 const INDOOR_BLEND_SPEED = 3.5;
 
+const FP_EYE_HEIGHT = 1.62;
+const FP_HFOV = 96;
+const FP_AIM_HFOV = 62;
+const FP_MAX_PITCH = Math.PI / 2 - 0.05;
+
 const STEP_ABSORB_MIN = 0.12;
 const STEP_ABSORB_MAX = 1.2;
 const STEP_ABSORB_LIMIT = 0.9;
@@ -53,6 +58,9 @@ export class CameraController {
     private coverProbe: CoverProbe | null = null;
     private cameraBounds: CameraBounds | null = null;
     private indoorBlend: number = 0;
+    private firstPerson: boolean = false;
+    private scopeSteps: number[] | null = null;
+    private scopeStep: number = 0;
 
     private collisionGrid: CollisionGrid | null = null;
     private raycaster: THREE.Raycaster = new THREE.Raycaster();
@@ -207,8 +215,97 @@ export class CameraController {
         return this.isAiming;
     }
 
+    setFirstPerson(enabled: boolean) {
+        if (this.firstPerson === enabled) return;
+        this.firstPerson = enabled;
+        this.currentDistance = enabled ? 0 : OUTDOOR_DISTANCE;
+        this.maxPitch = enabled ? FP_MAX_PITCH : Math.PI / 3;
+        this.minPitch = enabled ? -FP_MAX_PITCH : -Math.PI / 3;
+    }
+
+    isFirstPerson(): boolean {
+        return this.firstPerson;
+    }
+
+    // Scoped weapons override the aim FOV with fixed magnification steps.
+    setScopeSteps(steps: number[] | null) {
+        this.scopeSteps = steps;
+        this.scopeStep = 0;
+    }
+
+    cycleScope(): number {
+        if (!this.scopeSteps || this.scopeSteps.length === 0) return 0;
+        this.scopeStep = (this.scopeStep + 1) % (this.scopeSteps.length + 1);
+        return this.scopeStep;
+    }
+
+    resetScope() {
+        this.scopeStep = 0;
+    }
+
+    getScopeStep(): number {
+        return this.scopeStep;
+    }
+
+    private updateFirstPerson(delta: number, inputManager: InputManager) {
+        this.isAiming = inputManager.isMousePressed(2);
+
+        if (this.scopeSteps && this.scopeStep > 0) {
+            const magnification = this.scopeSteps[Math.min(this.scopeStep, this.scopeSteps.length) - 1];
+            const targetScoped = this.verticalFovFor(FP_HFOV / magnification);
+            this.currentFov = THREE.MathUtils.lerp(this.currentFov, targetScoped, Math.min(1, delta * 16));
+            if (Math.abs(this.camera.fov - this.currentFov) > 0.01) {
+                this.camera.fov = this.currentFov;
+                this.camera.updateProjectionMatrix();
+            }
+
+            const scopedSensitivity = this.sensitivity / Math.sqrt(magnification);
+            const scopedMove = inputManager.consumeMouseMovement();
+            this.yaw -= scopedMove.x * scopedSensitivity;
+            this.pitch -= scopedMove.y * scopedSensitivity;
+            this.pitch = Math.max(-FP_MAX_PITCH, Math.min(FP_MAX_PITCH, this.pitch));
+
+            this.yawObject.rotation.y = this.yaw;
+            this.pitchObject.rotation.x = this.pitch;
+
+            const scopedPos = this.target!.position.clone();
+            scopedPos.y = this.smoothVerticalStep(scopedPos.y + FP_EYE_HEIGHT, delta);
+            this.yawObject.position.copy(scopedPos);
+            this.camera.position.z = 0;
+            return;
+        }
+
+        const targetFov = this.verticalFovFor(this.isAiming ? FP_AIM_HFOV : FP_HFOV);
+        this.currentFov = THREE.MathUtils.lerp(this.currentFov, targetFov, Math.min(1, delta * 12));
+        if (Math.abs(this.camera.fov - this.currentFov) > 0.01) {
+            this.camera.fov = this.currentFov;
+            this.camera.updateProjectionMatrix();
+        }
+
+        const sensitivity = this.isAiming ? this.sensitivity * 0.55 : this.sensitivity;
+        const mouseMovement = inputManager.consumeMouseMovement();
+        this.yaw -= mouseMovement.x * sensitivity;
+        this.pitch -= mouseMovement.y * sensitivity;
+        this.pitch = Math.max(-FP_MAX_PITCH, Math.min(FP_MAX_PITCH, this.pitch));
+
+        this.yawObject.rotation.y = this.yaw;
+        this.pitchObject.rotation.x = this.pitch;
+
+        const targetPos = this.target!.position.clone();
+        targetPos.y = this.smoothVerticalStep(targetPos.y + FP_EYE_HEIGHT, delta);
+        this.yawObject.position.copy(targetPos);
+
+        this.currentDistance = 0;
+        this.camera.position.z = 0;
+    }
+
     update(delta: number, inputManager: InputManager) {
         if (!this.target) return;
+
+        if (this.firstPerson) {
+            this.updateFirstPerson(delta, inputManager);
+            return;
+        }
 
         this.updateIndoorBlend(delta);
 

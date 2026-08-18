@@ -107,7 +107,7 @@ export function ArenaPanel({
                 ) : (
                     <div className="space-y-4">
                         <p className="text-[#C9CDD3] text-sm">
-                            Waves come at the green candle in the middle of the hall. Hold them off. There is no last wave —
+                            Waves come at the green candle on the altar. Hold them off. There is no last wave —
                             only the one you do not survive.
                         </p>
 

@@ -787,6 +787,117 @@ export function registerNetworkHandlers(game: Game) {
         game.onArenaState?.(state);
     };
 
+    game.networkManager.onForceTeleport = (data) => {
+        moveToServerPlacement(game, data.locationId, data.position);
+    };
+
+    game.networkManager.onDefusalState = (state) => {
+        game.onDefusalState?.(state);
+
+        const me = state.roster.find((entry) => entry.id === game.localPlayerNetId);
+        if (!me) return;
+
+        const heldId = me.held === "primary"
+            ? me.primary
+            : me.held === "melee"
+                ? "rug-beater"
+                : me.held === "grenade1"
+                    ? me.grenades?.[0] ?? null
+                    : me.held === "grenade2"
+                        ? me.grenades?.[1] ?? null
+                        : me.pistol;
+
+        game.applyDefusalHeld(
+            heldId,
+            me.held === "grenade1" || me.held === "grenade2",
+            me.held === "melee"
+        );
+
+        for (const entry of state.roster) {
+            if (entry.id === game.localPlayerNetId) continue;
+            const other = game.otherPlayers.get(entry.id);
+            if (!other) continue;
+
+            const theirs = entry.held === "primary"
+                ? entry.primary
+                : entry.held === "melee"
+                    ? "rug-beater"
+                    : entry.held === "grenade1" || entry.held === "grenade2"
+                        ? null
+                        : entry.pistol;
+
+            other.setDefusalWeapon(theirs);
+        }
+    };
+
+    game.networkManager.onDefusalQueueState = (state) => {
+        game.onDefusalQueueState?.(state);
+    };
+
+    game.networkManager.onDefusalRespawn = (data) => {
+        placeAtPoint(game, data.position);
+        game.isDead = false;
+        game.onDeathStateChange?.(false, null);
+        game.onNotification?.(data.side === 't' ? '💣 Attack' : '🛡️ Defend', 2000);
+    };
+
+    game.networkManager.onDefusalRoundEnd = (data) => {
+        const why = data.reason === 'defused'
+            ? 'bomb defused'
+            : data.reason === 'exploded'
+                ? 'bomb detonated'
+                : data.reason === 'time'
+                    ? 'time ran out'
+                    : 'team eliminated';
+        game.onNotification?.(`${data.side === 't' ? '💣 Attackers' : '🛡️ Defenders'} take the round — ${why}`, 4000);
+    };
+
+    game.networkManager.onDefusalBombPlanted = (data) => {
+        game.onNotification?.(`💣 Bomb planted at ${data.site}`, 3000);
+    };
+
+    game.networkManager.onDefusalBombDefused = () => {
+        game.onNotification?.('🛡️ Contract audited — the rug is safe', 3000);
+    };
+
+    game.networkManager.onDefusalGrenadeThrown = (data) => {
+        game.grenadeSystem.spawn(data.id, data.itemId, data.x, data.y, data.z);
+    };
+
+    game.networkManager.onDefusalGrenades = (data) => {
+        game.grenadeSystem.track(data.grenades);
+    };
+
+    game.networkManager.onDefusalGrenadeBurst = (data) => {
+        game.grenadeSystem.burst(data.id, data.itemId, data.x, data.y, data.z);
+        if (data.itemId === 'liquidation') SoundManager.getInstance().play('portal-enter', { volume: 0.6 });
+    };
+
+    game.networkManager.onDefusalCloud = (data) => {
+        game.grenadeSystem.cloud(data.x, data.z, data.radius, data.untilMs);
+    };
+
+    game.networkManager.onDefusalFlashed = (data) => {
+        game.onFlashed?.(data.durationMs);
+    };
+
+    game.networkManager.onDefusalBombExploded = () => {
+        game.onNotification?.('💥 The bomb went off', 3000);
+    };
+
+    game.networkManager.onDefusalSideSwap = () => {
+        game.onNotification?.('🔄 Sides swapped', 4000);
+    };
+
+    game.networkManager.onDefusalMatchEnd = (data) => {
+        game.onDefusalState?.(null);
+        game.clearDefusalView();
+        game.onNotification?.(
+            `🏆 ${data.winner === 't' ? 'Attackers' : 'Defenders'} win ${data.score.t}–${data.score.ct}`,
+            6000
+        );
+    };
+
     game.networkManager.onArenaStartResult = (data) => {
         game.onArenaStartResult?.(data.cooldownUntil);
         if (data.ok) return;
@@ -795,11 +906,15 @@ export function registerNetworkHandlers(game: Game) {
             cooldown: '⏳ The arena needs time to reset for you',
             instance_busy: '🔥 A run is already going in this hall — switch shard or wait',
             already_running: '🔥 You are already in a run',
-            wrong_place: '🔥 Step into the Events Hall first',
+            wrong_place: '🔥 Step into the Candle Sanctum first',
             no_run: '🔥 There is no run to join',
             not_invited: '🔥 Only a party member can join that run',
             full: '🔥 That run is full',
             dead: '💀 You are down',
+            sealed: '🔒 This event is sealed right now',
+            not_started: '⏳ This event has not opened yet',
+            window_closed: '⏳ This event is over for now',
+            need_party: '👥 Bring more of your party into the sanctum first',
         };
         game.onNotification?.(messages[data.reason ?? ''] ?? '🔥 Could not start the run', 3000);
     };

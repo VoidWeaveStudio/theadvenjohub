@@ -492,6 +492,54 @@ export const basementColumns = pgTable("basement_columns", {
   uniqueIndex("idx_basement_columns_game_slot").on(table.gameId, table.slot),
 ]);
 
+// Per-event settings behind each door in the Events Hall. A missing row means
+// the event runs on the defaults shipped in the client catalog and stays sealed.
+export const eventConfigs = pgTable("event_configs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  eventId: varchar("event_id", { length: 40 }).notNull(),
+  enabled: boolean("enabled").default(false).notNull(),
+  title: varchar("title", { length: 60 }),
+  tagline: varchar("tagline", { length: 60 }),
+  description: text("description"),
+  rewardText: varchar("reward_text", { length: 240 }),
+  scheduleNote: varchar("schedule_note", { length: 120 }),
+  // Null start/end means the door follows `enabled` alone. With a window set,
+  // repeatDays > 0 makes it recur every N days from the first occurrence.
+  startsAt: timestamp("starts_at"),
+  endsAt: timestamp("ends_at"),
+  repeatDays: integer("repeat_days").default(0).notNull(),
+  minParty: integer("min_party").default(1).notNull(),
+  maxParty: integer("max_party").default(4).notNull(),
+  cooldownMinutes: integer("cooldown_minutes").default(60).notNull(),
+  ashPerWave: integer("ash_per_wave").default(25).notNull(),
+  xpPerWave: integer("xp_per_wave").default(50).notNull(),
+  ashCap: integer("ash_cap").default(1500).notNull(),
+  xpCap: integer("xp_cap").default(3000).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_event_configs_game_event").on(table.gameId, table.eventId),
+]);
+
+// One row per finished event run, per participant. The door leaderboard reads
+// the best row per player, so history is kept rather than overwritten.
+export const eventRuns = pgTable("event_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  eventId: varchar("event_id", { length: 40 }).notNull(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  wavesCleared: integer("waves_cleared").notNull(),
+  partySize: integer("party_size").default(1).notNull(),
+  durationSeconds: integer("duration_seconds").default(0).notNull(),
+  ashAwarded: integer("ash_awarded").default(0).notNull(),
+  xpAwarded: integer("xp_awarded").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_event_runs_board").on(table.gameId, table.eventId, table.wavesCleared),
+  index("idx_event_runs_user").on(table.userId),
+]);
+
 export const factionQuests = pgTable("faction_quests", {
   id: uuid("id").primaryKey().defaultRandom(),
   factionId: uuid("faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
@@ -895,6 +943,15 @@ export const basementColumnsRelations = relations(basementColumns, ({ one }) => 
   game: one(games, { fields: [basementColumns.gameId], references: [games.id] }),
 }));
 
+export const eventConfigsRelations = relations(eventConfigs, ({ one }) => ({
+  game: one(games, { fields: [eventConfigs.gameId], references: [games.id] }),
+}));
+
+export const eventRunsRelations = relations(eventRuns, ({ one }) => ({
+  game: one(games, { fields: [eventRuns.gameId], references: [games.id] }),
+  user: one(users, { fields: [eventRuns.userId], references: [users.id] }),
+}));
+
 export const factionQuestsRelations = relations(factionQuests, ({ one, many }) => ({
   faction: one(factions, { fields: [factionQuests.factionId], references: [factions.id] }),
   game: one(games, { fields: [factionQuests.gameId], references: [games.id] }),
@@ -1040,6 +1097,12 @@ export type NewGameCharacterProgression = typeof gameCharacterProgression.$infer
 
 export type AppSetting = typeof appSettings.$inferSelect;
 export type NewAppSetting = typeof appSettings.$inferInsert;
+
+export type EventConfig = typeof eventConfigs.$inferSelect;
+export type NewEventConfig = typeof eventConfigs.$inferInsert;
+
+export type EventRun = typeof eventRuns.$inferSelect;
+export type NewEventRun = typeof eventRuns.$inferInsert;
 
 export type SupportTicket = typeof supportTickets.$inferSelect;
 export type NewSupportTicket = typeof supportTickets.$inferInsert;

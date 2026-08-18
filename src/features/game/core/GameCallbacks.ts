@@ -1,6 +1,7 @@
 // src/features/game/core/GameCallbacks.ts
 import { ChatMessage } from "../ui/Chat";
 import type { BuildSessionState } from "../world/building/BuildSession";
+import type { ResolvedEvent } from "../data/eventDoors";
 import {
     InventoryEntry,
     StorageEntry,
@@ -10,6 +11,8 @@ import {
     PartyVitalsData,
     PartyInviteData,
     ArenaStateData,
+    DefusalStateData,
+    DefusalQueueData,
     ArenaEndedData,
     QuestInfoData,
     QuestUpdateData,
@@ -65,6 +68,12 @@ export interface GameCallbacks {
     onPartyInviteExpired?: (fromId: string) => void;
     onPartyDisbanded?: (reason: string) => void;
     onOpenArenaUI?: () => void;
+    onOpenEventDoorUI?: (eventId: string) => void;
+    onDefusalState?: (state: DefusalStateData | null) => void;
+    onDefusalQueueState?: (state: DefusalQueueData) => void;
+    onScopeStep?: (step: number) => void;
+    onFlashed?: (durationMs: number) => void;
+    onEventStates?: (events: ResolvedEvent[]) => void;
     onArenaState?: (state: ArenaStateData) => void;
     onArenaEnded?: (data: ArenaEndedData) => void;
     onArenaCandleDamage?: (health: number, maxHealth: number) => void;

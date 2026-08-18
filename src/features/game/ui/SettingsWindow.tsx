@@ -32,7 +32,7 @@ const KEYBIND_GROUPS: { title: string; binds: [string, string][] }[] = [
             ["WASD", "Move"],
             ["Shift", "Sprint"],
             ["Space", "Jump"],
-            ["C / Ctrl", "Descend while flying"],
+            ["Ctrl", "Descend while flying"],
             ["Mouse", "Look around"],
         ],
     },
@@ -49,10 +49,10 @@ const KEYBIND_GROUPS: { title: string; binds: [string, string][] }[] = [
     {
         title: "Items & Wheels",
         binds: [
-            ["Q F C V X", "Hotbar slots"],
-            ["T", "Tool wheel — weapon, blueprint, placeables"],
-            ["Z", "Emote wheel — emotes and Degen abilities"],
-            ["Tab / Scroll", "Switch wheel page"],
+            ["Q F", "Hotbar slots"],
+            ["X", "Tool wheel — weapon, blueprint, placeables"],
+            ["C", "Emote wheel"],
+            ["V", "Degen ability wheel"],
             ["1 – 9", "Pick an item inside a wheel"],
             ["I", "Inventory"],
         ],

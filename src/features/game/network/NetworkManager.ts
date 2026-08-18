@@ -411,6 +411,55 @@ export type ArenaStateData = {
   members: ArenaMemberData[];
 };
 
+export type DefusalSide = "t" | "ct";
+export type DefusalPhase = "warmup" | "freeze" | "live" | "planted" | "over" | "ended";
+export type DefusalScore = { t: number; ct: number };
+
+export type DefusalRosterEntry = {
+  id: string;
+  nickname: string;
+  side: DefusalSide;
+  alive: boolean;
+  hasBomb: boolean;
+  money: number;
+  armor: string | null;
+  helmet: boolean;
+  held: "primary" | "pistol" | "melee" | "grenade1" | "grenade2";
+  primary: string | null;
+  pistol: string | null;
+  grenades: string[];
+  kit: boolean;
+};
+
+export type DefusalBombData = {
+  state: "carried" | "planted" | "defused" | "exploded";
+  site: string | null;
+  x: number;
+  z: number;
+  explodesAt: number;
+  carrierId: string | null;
+  planting: { playerId: string; until: number } | null;
+  defusing: { playerId: string; until: number } | null;
+};
+
+export type DefusalStateData = {
+  matchId: string;
+  round: number;
+  phase: DefusalPhase;
+  phaseUntil: number;
+  score: DefusalScore;
+  roundsToWin: number;
+  swapped: boolean;
+  bomb: DefusalBombData | null;
+  roster: DefusalRosterEntry[];
+};
+
+export type DefusalQueueData = {
+  queued: number;
+  needed: number;
+  minimum: number;
+};
+
 export type ArenaEndedData = {
   reason: string;
   wavesCleared: number;
@@ -831,6 +880,22 @@ export class NetworkManager {
   public onPartyDisbanded?: (data: { reason: string }) => void;
   public onArenaState?: (state: ArenaStateData) => void;
   public onArenaStartResult?: (data: { ok: boolean; reason: string | null; cooldownUntil: number }) => void;
+  public onDefusalState?: (data: DefusalStateData) => void;
+  public onDefusalQueueState?: (data: DefusalQueueData) => void;
+  public onDefusalRoundEnd?: (data: { round: number; side: DefusalSide; reason: string; score: DefusalScore }) => void;
+  public onDefusalBombPlanted?: (data: { site: string; x: number; z: number; explodesAt: number }) => void;
+  public onDefusalBombDefused?: () => void;
+  public onDefusalGrenadeThrown?: (data: { id: string; itemId: string; x: number; y: number; z: number }) => void;
+  public onDefusalGrenades?: (data: { grenades: { id: string; itemId: string; x: number; y: number; z: number }[] }) => void;
+  public onDefusalGrenadeBurst?: (data: { id: string; itemId: string; x: number; y: number; z: number }) => void;
+  public onDefusalCloud?: (data: { x: number; z: number; radius: number; untilMs: number }) => void;
+  public onDefusalFlashed?: (data: { durationMs: number }) => void;
+  public onDefusalSwing?: (data: { playerId: string }) => void;
+  public onDefusalBombExploded?: (data: { x: number; z: number }) => void;
+  public onDefusalSideSwap?: () => void;
+  public onDefusalMatchEnd?: (data: { winner: DefusalSide; score: DefusalScore }) => void;
+  public onDefusalRespawn?: (data: { position: number[]; health: number; side: DefusalSide }) => void;
+  public onForceTeleport?: (data: { locationId: string; position?: number[] }) => void;
   public onArenaWaveStart?: (data: { wave: number; boss: boolean; biome: string; enemies: number }) => void;
   public onArenaWaveEnd?: (data: { wave: number; pauseUntil: number }) => void;
   public onArenaCandleDamage?: (data: { damage: number; health: number; maxHealth: number }) => void;
@@ -1364,6 +1429,45 @@ export class NetworkManager {
           members: Array.isArray(data.members) ? data.members : [],
         });
         break;
+      case "defusalState":
+        this.onDefusalState?.(data as DefusalStateData);
+        break;
+      case "defusalQueueState":
+        this.onDefusalQueueState?.({
+          queued: typeof data.queued === "number" ? data.queued : 0,
+          needed: typeof data.needed === "number" ? data.needed : 10,
+          minimum: typeof data.minimum === "number" ? data.minimum : 4,
+        });
+        break;
+      case "defusalRoundEnd":
+        this.onDefusalRoundEnd?.({
+          round: data.round,
+          side: data.side,
+          reason: data.reason,
+          score: data.score,
+        });
+        break;
+      case "defusalBombPlanted":
+        this.onDefusalBombPlanted?.({ site: data.site, x: data.x, z: data.z, explodesAt: data.explodesAt });
+        break;
+      case "defusalBombDefused":
+        this.onDefusalBombDefused?.();
+        break;
+      case "defusalBombExploded":
+        this.onDefusalBombExploded?.({ x: data.x, z: data.z });
+        break;
+      case "defusalSideSwap":
+        this.onDefusalSideSwap?.();
+        break;
+      case "defusalMatchEnd":
+        this.onDefusalMatchEnd?.({ winner: data.winner, score: data.score });
+        break;
+      case "defusalRespawn":
+        this.onDefusalRespawn?.({ position: data.position, health: data.health, side: data.side });
+        break;
+      case "forceTeleport":
+        this.onForceTeleport?.({ locationId: data.locationId, position: data.position });
+        break;
       case "arenaStartResult":
         this.onArenaStartResult?.({
           ok: data.ok === true,
@@ -1877,6 +1981,51 @@ export class NetworkManager {
   sendArenaRevive(targetId: string) {
     if (!this.authenticated) return;
     this.send({ type: "arenaRevive", targetId });
+  }
+
+  sendDefusalQueue() {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalQueue" });
+  }
+
+  sendDefusalLeaveQueue() {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalLeaveQueue" });
+  }
+
+  sendDefusalPlant() {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalPlant" });
+  }
+
+  sendDefusalDefuse() {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalDefuse" });
+  }
+
+  sendDefusalCancel() {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalCancel" });
+  }
+
+  sendDefusalBuy(itemId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalBuy", itemId });
+  }
+
+  sendDefusalSwitch(slot: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalSwitch", slot });
+  }
+
+  sendDefusalThrow(direction: number[]) {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalThrow", direction });
+  }
+
+  sendDefusalMelee() {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalMelee" });
   }
 
   sendSellToken(address: string, quantity?: number) {

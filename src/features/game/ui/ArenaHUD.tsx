@@ -42,7 +42,7 @@ export function ArenaHUD({ arena, revive, localPlayerId }: ArenaHUDProps) {
     const others = arena.members.filter((member) => member.id !== localPlayerId && !member.left);
 
     return (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 pointer-events-none select-none font-oxanium">
+        <div className="pointer-events-none select-none font-oxanium">
             <div className="bg-[rgba(12,12,14,0.78)] backdrop-blur-md border border-[rgba(212,175,80,0.3)] rounded-[12px] px-5 py-3 min-w-[300px]">
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-2">

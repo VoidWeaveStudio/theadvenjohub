@@ -9,19 +9,29 @@ import { TokenHoverModal } from "./TokenHoverModal";
 import { useVendorCart } from "./useVendorCart";
 import { VendorQuantityDialog } from "./VendorQuantityDialog";
 import { SoundManager } from "../core/SoundManager";
+import { AshStore } from "./AshStore";
+import { useShopPrices } from "./hooks/useShopPrices";
 
 interface VendorPanelProps {
     isOpen: boolean;
     inventory: InventoryGridItem[];
     lastSellResult?: { address: string; at: number } | null;
+    gameSlug: string;
+    ash: number;
+    placeables: Record<string, number>;
     onClose: () => void;
     onSell: (address: string, quantity: number) => void;
+    onBuyItem: (itemId: string, quantity: number) => void;
 }
+
+type VendorTab = "tokens" | "goods";
 
 const PENDING_TIMEOUT = 12000;
 const SELL_SEND_SPACING = 70;
 
-export function VendorPanel({ isOpen, inventory, lastSellResult, onClose, onSell }: VendorPanelProps) {
+export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, placeables, onClose, onSell, onBuyItem }: VendorPanelProps) {
+    const [tab, setTab] = useState<VendorTab>("tokens");
+    const shopPrices = useShopPrices(gameSlug, isOpen);
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
     const [pending, setPending] = useState<Record<string, number>>({});
     const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -146,14 +156,36 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, onClose, onSell
             <div className="flex items-center justify-between w-full max-w-6xl">
                 <div className="flex items-center gap-2">
                     <Store className="w-5 h-5 text-[#FFD166]" />
-                    <h2 className="text-xl font-black text-[#E5E7EB]">Token Vendor</h2>
+                    <h2 className="text-xl font-black text-[#E5E7EB]">Tony</h2>
                 </div>
+
+                <div className="flex gap-1 bg-[rgba(12,12,14,0.8)] border border-white/10 rounded-[10px] p-1">
+                    {([["tokens", "Tokens"], ["goods", "Goods"]] as [VendorTab, string][]).map(([id, label]) => (
+                        <button
+                            key={id}
+                            onClick={() => setTab(id)}
+                            className={`px-4 py-1.5 rounded-[7px] text-xs font-bold transition-colors ${tab === id
+                                ? "bg-[rgba(255,209,102,0.16)] text-[#FFD166]"
+                                : "bg-transparent text-[#8B8F98] hover:text-[#E5E7EB]"
+                                }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
                 <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                     <X className="w-5 h-5" />
                 </button>
             </div>
 
-            <div className="flex gap-4 w-full max-w-6xl items-stretch">
+            {tab === "goods" && (
+                <div className="w-full max-w-3xl h-[60vh] bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
+                    <AshStore ash={ash} placeables={placeables} prices={shopPrices} onBuyItem={onBuyItem} />
+                </div>
+            )}
+
+            <div className={`gap-4 w-full max-w-6xl items-stretch ${tab === "tokens" ? "flex" : "hidden"}`}>
                 <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
                     <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">VENDOR</div>
                     <InventoryGrid

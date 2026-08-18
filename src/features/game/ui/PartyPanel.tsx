@@ -3,6 +3,7 @@
 
 import { Crown, LogOut, ShieldOff, UserMinus, Users } from "lucide-react";
 import type { PartyStateData } from "../network/NetworkManager";
+import { EVENT_DOORS } from "../data/eventDoors";
 
 interface PartyPanelProps {
     party: PartyStateData;
@@ -18,6 +19,7 @@ const LOCATION_LABELS: Record<string, string> = {
     "tower-events": "Events Hall",
     "tower-basement": "Token Gates",
     cave: "Cave",
+    ...Object.fromEntries(EVENT_DOORS.map((event) => [event.locationId, event.name])),
 };
 
 function locationLabel(locationId: string | null): string {

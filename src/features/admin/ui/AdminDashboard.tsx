@@ -10,12 +10,13 @@ import { AdminChatTable } from "./AdminChatTable";
 import { AdminTradeHistoryTable } from "./AdminTradeHistoryTable";
 import { AdminFactionQuestsTable } from "./AdminFactionQuestsTable";
 import { AdminBasementTable } from "./AdminBasementTable";
+import { AdminEventsTable } from "./AdminEventsTable";
 import { AdminShopPricesTable } from "./AdminShopPricesTable";
 import { AdminMaintenanceToggle } from "./AdminMaintenanceToggle";
 import { AdminWorldPanel } from "./AdminWorldPanel";
 import { AdminTableRef } from "./AdminTableRef";
 
-type AdminTab = "players" | "factions" | "quests" | "shop" | "basement" | "support" | "chat" | "trades";
+type AdminTab = "players" | "factions" | "quests" | "shop" | "basement" | "events" | "support" | "chat" | "trades";
 
 export function AdminDashboard() {
     const [tab, setTab] = useState<AdminTab>("players");
@@ -27,6 +28,7 @@ export function AdminDashboard() {
     const tradesRef = useRef<AdminTableRef>(null);
     const questsRef = useRef<AdminTableRef>(null);
     const basementRef = useRef<AdminTableRef>(null);
+    const eventsRef = useRef<AdminTableRef>(null);
     const shopRef = useRef<AdminTableRef>(null);
     const maintenanceRef = useRef<AdminTableRef>(null);
     const worldRef = useRef<AdminTableRef>(null);
@@ -37,6 +39,7 @@ export function AdminDashboard() {
         { id: "quests", label: "Faction Quests" },
         { id: "shop", label: "Items & Prices" },
         { id: "basement", label: "Basement" },
+        { id: "events", label: "Events" },
         { id: "support", label: "Support" },
         { id: "chat", label: "Chat" },
         { id: "trades", label: "Trade History" },
@@ -45,7 +48,7 @@ export function AdminDashboard() {
     const handleRefresh = () => {
         maintenanceRef.current?.refresh();
         worldRef.current?.refresh();
-        const activeRef = { players: playersRef, factions: factionsRef, quests: questsRef, shop: shopRef, basement: basementRef, support: supportRef, chat: chatRef, trades: tradesRef }[tab];
+        const activeRef = { players: playersRef, factions: factionsRef, quests: questsRef, shop: shopRef, basement: basementRef, events: eventsRef, support: supportRef, chat: chatRef, trades: tradesRef }[tab];
         activeRef.current?.refresh();
     };
 
@@ -81,6 +84,7 @@ export function AdminDashboard() {
             {tab === "quests" && <AdminFactionQuestsTable ref={questsRef} />}
             {tab === "shop" && <AdminShopPricesTable ref={shopRef} />}
             {tab === "basement" && <AdminBasementTable ref={basementRef} />}
+            {tab === "events" && <AdminEventsTable ref={eventsRef} />}
             {tab === "support" && <AdminSupportTable ref={supportRef} />}
             {tab === "chat" && <AdminChatTable ref={chatRef} />}
             {tab === "trades" && <AdminTradeHistoryTable ref={tradesRef} />}

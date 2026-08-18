@@ -32,7 +32,13 @@ import { LocationManager } from "../world/LocationManager";
 import type { Location } from "../world/Location";
 import { withTimeout, waitForFrames } from "../utils/loadGate";
 import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
-import { EventsHall } from "../world/locations/tower/floors/EventsHall";
+import { EventsLobby } from "../world/locations/events/EventsLobby";
+import { CandleArena } from "../world/locations/events/rooms/CandleArena";
+import { EVENTS_LOBBY_ID, EVENT_DOORS_BY_ID, ResolvedEvent, eventWindow, isEventLive } from "../data/eventDoors";
+import { fetchEvents } from "../data/eventClient";
+import { DefusalViewModel } from "../entities/DefusalViewModel";
+import { GrenadeSystem } from "../systems/GrenadeSystem";
+import { ARSENAL_BY_ID } from "../data/defusalArsenal";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
 import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
@@ -63,6 +69,7 @@ const LOCATION_READY_TIMEOUT_MS = 10000;
 const ABILITY_CAST_HEIGHT = 1.5;
 const ABILITY_AIM_RANGE = 85;
 const PROGRAM_READY_POLL_MS = 10;
+const EVENT_STATE_POLL_SECONDS = 30;
 
 interface CompilingProgram {
     isReady(): boolean;
@@ -239,8 +246,74 @@ export class Game {
 
     public async enterEventsLocation(factionId: string, factionName: string) {
         this.closeFloorSelector();
-        await this.changeLocation('tower-events', { factionId, factionName }).catch(() => {
+        await this.changeLocation(EVENTS_LOBBY_ID, { factionId, factionName }).catch(() => {
             this.onNotification?.("⚠️ Failed to travel to Events", 2000);
+        });
+    }
+
+    public eventStates: ResolvedEvent[] = [];
+    private eventStateTimer = 0;
+
+    private updateEventStates(delta: number, location: Location) {
+        if (!(location instanceof EventsLobby)) {
+            this.eventStateTimer = 0;
+            return;
+        }
+
+        this.eventStateTimer -= delta;
+        if (this.eventStateTimer > 0) return;
+
+        this.eventStateTimer = EVENT_STATE_POLL_SECONDS;
+        this.refreshEventStates();
+    }
+
+    public async refreshEventStates() {
+        this.eventStates = await fetchEvents(this.slug);
+        if (this.disposed) return;
+
+        const lobby = this.locationManager.getCurrentLocation();
+        if (lobby instanceof EventsLobby) lobby.applyEventStates(this.eventStates);
+        this.onEventStates?.(this.eventStates);
+    }
+
+    public isEventOpen(eventId: string): boolean {
+        const state = this.eventStates.find((event) => event.id === eventId);
+        if (state) return isEventLive(state);
+        return EVENT_DOORS_BY_ID.get(eventId)?.live ?? false;
+    }
+
+    public async enterEventRoom(eventId: string) {
+        const event = EVENT_DOORS_BY_ID.get(eventId);
+        if (!event) return;
+
+        if (!this.isEventOpen(eventId)) {
+            const state = this.eventStates.find((entry) => entry.id === eventId);
+            const name = state?.title ?? event.name;
+
+            if (state?.enabled) {
+                const window = eventWindow(state);
+                this.onNotification?.(
+                    window.state === "upcoming" ? `⏳ ${name} has not opened yet` : `⏳ ${name} is over for now`,
+                    2500
+                );
+            } else {
+                this.onNotification?.(`🔒 ${name} is sealed`, 2500);
+            }
+            return;
+        }
+
+        await this.changeLocation(event.locationId, { silent: true }).then(() => {
+            this.onNotification?.(`${event.glyph} ${event.name}`, 2500);
+        }).catch(() => {
+            this.onNotification?.("⚠️ That door would not open", 2000);
+        });
+    }
+
+    public async leaveEventRoom() {
+        await this.changeLocation(EVENTS_LOBBY_ID, { silent: true }).then(() => {
+            this.onNotification?.("📍 Events Hall", 2000);
+        }).catch(() => {
+            this.onNotification?.("⚠️ Failed to return to the hall", 2000);
         });
     }
 
@@ -524,6 +597,12 @@ export class Game {
                 this.interactionSystem.onOpenArena = () => {
                     this.onOpenArenaUI?.();
                 };
+                this.interactionSystem.onEnterEventRoom = (eventId) => {
+                    this.onOpenEventDoorUI?.(eventId);
+                };
+                this.interactionSystem.onLeaveEventRoom = () => {
+                    this.leaveEventRoom();
+                };
                 this.interactionSystem.onArenaRevive = (targetId) => {
                     this.networkManager.sendArenaRevive(targetId);
                 };
@@ -805,6 +884,7 @@ export class Game {
             this.abilitySystem.attach(newLocation.scene);
             this.memeSystem.attach(newLocation.scene);
             this.bossProjectiles.setScene(newLocation.scene);
+            this.grenadeSystem.setScene(newLocation.scene);
             this.lootSystem.setScene(newLocation.scene);
             this.buildSystem.setScene(newLocation.scene, newLocation.id);
 
@@ -864,7 +944,7 @@ export class Game {
                 this.buildSession.unbindLot();
             }
 
-            if (newLocation instanceof EventsHall) {
+            if (newLocation instanceof EventsLobby) {
                 newLocation.setFactionContext(options?.factionId ?? "", options?.factionName ?? "");
             }
 
@@ -1040,7 +1120,7 @@ export class Game {
             }
             perf.end("camera");
 
-            const inSafe = (currentLocation instanceof MainHall || currentLocation instanceof MainWorld)
+            const inSafe = (currentLocation instanceof MainHall || currentLocation instanceof MainWorld || currentLocation instanceof EventsLobby)
                 && this.safeZoneSystem.isInSafeZone(this.player.mesh.position);
 
             if (this.hudState.inSafeZone !== inSafe) {
@@ -1054,11 +1134,21 @@ export class Game {
             this.enemySystem.update(delta);
             this.bossProjectiles.update(delta);
 
-            if (!inSafe) {
+            if (this.defusalHoldingGrenade) {
+                this.player.getWeapon().update(delta);
+                this.updateGrenadeThrow();
+            } else if (this.defusalHoldingMelee) {
+                this.player.getWeapon().update(delta);
+                this.updateMeleeSwing();
+            } else if (!inSafe) {
                 this.shootingSystem.update(delta);
             } else {
                 this.player.getWeapon().update(delta);
             }
+
+            this.updateDefusalView(delta);
+            this.grenadeSystem.update(delta);
+            if (this.defusalWeaponId) this.updateScopeInput();
             this.lootSystem.update(delta);
             this.buildSystem.update(delta);
             perf.end("combat");
@@ -1091,6 +1181,7 @@ export class Game {
             }
 
             this.updateSpawnProtection();
+            this.updateEventStates(delta, currentLocation);
             this.updateCandleEmote(delta);
             perf.begin("network");
             this.networkSystem.update(delta);
@@ -1748,6 +1839,121 @@ export class Game {
         this.networkManager.sendArenaStart();
     }
 
+    public joinDefusalQueue() {
+        this.networkManager.sendDefusalQueue();
+    }
+
+    public leaveDefusalQueue() {
+        this.networkManager.sendDefusalLeaveQueue();
+    }
+
+    public plantBomb() {
+        this.networkManager.sendDefusalPlant();
+    }
+
+    public defuseBomb() {
+        this.networkManager.sendDefusalDefuse();
+    }
+
+    public cancelDefusalChannel() {
+        this.networkManager.sendDefusalCancel();
+    }
+
+    public readonly grenadeSystem = new GrenadeSystem();
+    public defusalHoldingGrenade = false;
+    private defusalWeaponId: string | null = null;
+    private defusalViewModel: DefusalViewModel | null = null;
+    private throwCooldown = 0;
+
+    // The held slot arrives with every match state broadcast; the view model and
+    // the scope follow whatever the server says we are carrying.
+    public applyDefusalHeld(itemId: string | null, holdingGrenade: boolean, holdingMelee = false) {
+        this.defusalHoldingGrenade = holdingGrenade;
+        this.defusalHoldingMelee = holdingMelee;
+
+        if (this.defusalWeaponId === itemId) return;
+        this.defusalWeaponId = itemId;
+
+        if (!this.defusalViewModel) {
+            this.defusalViewModel = new DefusalViewModel(this.cameraController.camera);
+        }
+
+        this.defusalViewModel.setWeapon(itemId);
+        this.defusalViewModel.setVisible(itemId !== null);
+
+        const item = itemId ? ARSENAL_BY_ID.get(itemId) : null;
+        this.defusalViewModel.setScoped(item?.scoped === true);
+        this.cameraController.setScopeSteps(item?.scoped ? [2, 4] : null);
+        this.onScopeStep?.(0);
+    }
+
+    public clearDefusalView() {
+        this.defusalHoldingGrenade = false;
+        this.defusalWeaponId = null;
+        this.cameraController.setScopeSteps(null);
+        this.defusalViewModel?.setVisible(false);
+        this.onScopeStep?.(0);
+    }
+
+    private updateDefusalView(delta: number) {
+        if (!this.defusalViewModel) return;
+
+        const state = this.player.getState();
+        const velocity = state === "idle" ? 0 : state === "sprint" ? 9 : 5;
+        this.defusalViewModel.update(
+            delta,
+            velocity,
+            !this.player.isJumping(),
+            this.cameraController.isAimingState()
+        );
+    }
+
+    public defusalHoldingMelee = false;
+    private swingCooldown = 0;
+
+    private updateMeleeSwing() {
+        if (this.swingCooldown > 0) {
+            this.swingCooldown -= 1;
+            return;
+        }
+        if (!this.inputManager.isMouseJustPressed(0)) return;
+
+        this.networkManager.sendDefusalMelee();
+        this.defusalViewModel?.onSwing();
+        this.swingCooldown = 24;
+    }
+
+    private updateScopeInput() {
+        if (!this.cameraController.isFirstPerson()) return;
+        if (this.inputManager.isMouseJustPressed(2)) this.cycleScope();
+    }
+
+    private updateGrenadeThrow() {
+        if (this.throwCooldown > 0) {
+            this.throwCooldown -= 1;
+            return;
+        }
+        if (!this.inputManager.isMouseJustPressed(0)) return;
+
+        const direction = this.cameraController.getForwardDirection();
+        this.networkManager.sendDefusalThrow([direction.x, direction.y, direction.z]);
+        this.throwCooldown = 30;
+    }
+
+    public cycleScope() {
+        if (!this.cameraController.isFirstPerson()) return;
+        const step = this.cameraController.cycleScope();
+        this.onScopeStep?.(step);
+    }
+
+    public buyDefusalItem(itemId: string) {
+        this.networkManager.sendDefusalBuy(itemId);
+    }
+
+    public switchDefusalSlot(slot: string) {
+        this.networkManager.sendDefusalSwitch(slot);
+    }
+
     public joinArenaRun() {
         this.networkManager.sendArenaJoin();
     }
@@ -1756,20 +1962,20 @@ export class Game {
         this.networkManager.sendArenaLeave();
     }
 
-    private eventsHall(): EventsHall | null {
+    private candleArena(): CandleArena | null {
         const location = this.locationManager.getCurrentLocation();
-        return location instanceof EventsHall ? location : null;
+        return location instanceof CandleArena ? location : null;
     }
 
     public applyArenaCandle(health: number, maxHealth: number, wave: number) {
-        this.eventsHall()?.setCandleState(maxHealth > 0 ? health / maxHealth : 0, wave);
+        this.candleArena()?.setCandleState(maxHealth > 0 ? health / maxHealth : 0, wave);
     }
 
     public flashArenaCandle(health: number, maxHealth: number) {
-        const hall = this.eventsHall();
-        if (!hall) return;
-        hall.setCandleState(maxHealth > 0 ? health / maxHealth : 0, this.arenaWave);
-        hall.flashCandle();
+        const arena = this.candleArena();
+        if (!arena) return;
+        arena.setCandleState(maxHealth > 0 ? health / maxHealth : 0, this.arenaWave);
+        arena.flashCandle();
     }
 
     public arenaWave = 0;

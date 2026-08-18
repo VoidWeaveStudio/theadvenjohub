@@ -1,25 +1,39 @@
 // src/features/game/ui/ShopWindow.tsx
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
-import { Gem, Minus, Plus } from "lucide-react";
+import { Coins, Store } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
-import { PLACEABLE_ITEMS } from "../data/placeableItems";
+import { SHOP_CATALOG } from "@/core/lib/shopCatalog";
 import { useShopPrices } from "./hooks/useShopPrices";
 
 interface ShopWindowProps {
     isOpen: boolean;
     gameSlug: string;
     onClose: () => void;
-    ash: number;
-    placeables: Record<string, number>;
-    onBuyItem: (itemId: string, quantity: number) => void;
 }
 
-export function ShopWindow({ isOpen, gameSlug, onClose, ash, placeables, onBuyItem }: ShopWindowProps) {
-    const [quantities, setQuantities] = useState<Record<string, number>>({});
+const WHERE_TO_BUY: Record<string, string> = {
+    faction_creation: "Alaric in the Main Hall",
+    faction_promo_code: "Alaric in the Main Hall",
+    faction_gate: "Alaric in the Main Hall",
+};
+
+function formatTnj(amount: number): string {
+    if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(amount % 1_000_000 === 0 ? 0 : 1)}M`;
+    if (amount >= 1_000) return `${(amount / 1_000).toFixed(amount % 1_000 === 0 ? 0 : 1)}K`;
+    return `${amount}`;
+}
+
+export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
     const livePrices = useShopPrices(gameSlug, isOpen);
+
+    const items = SHOP_CATALOG.filter((entry) => {
+        const live = livePrices.get(entry.itemId);
+        const currency = live?.currency ?? entry.defaultCurrency;
+        if (live && live.enabled === false) return false;
+        return currency === "tnj" || currency === "usd";
+    });
 
     return (
         <WindowFrame
@@ -37,77 +51,53 @@ export function ShopWindow({ isOpen, gameSlug, onClose, ash, placeables, onBuyIt
             }
             size="md"
         >
-            <div className="flex items-center justify-end gap-1.5 text-[#FFD166] text-sm font-bold mb-4">
-                <Gem className="w-4 h-4" />
-                {ash} Ash
+            <div className="flex items-start gap-2.5 text-xs bg-[rgba(255,209,102,0.08)] border border-[#FFD166]/25 rounded-lg px-3 py-2.5 mb-4">
+                <Store className="w-4 h-4 text-[#FFD166] flex-shrink-0 mt-px" />
+                <span className="text-[#C9CDD3]">
+                    Everything here is paid for in TNJ. Goods bought with ash are on Tony&apos;s shelf in the Main Hall.
+                </span>
             </div>
 
-            <div className="space-y-2">
-                {PLACEABLE_ITEMS.map((definition) => {
-                    const live = livePrices.get(definition.id);
-                    if (live && live.enabled === false) return null;
-                    const item = { ...definition, price: live && live.currency === "ash" ? live.priceAsh : definition.price };
-                    const owned = placeables[item.id] || 0;
-                    const capRemaining = item.maxOwned === null ? Number.MAX_SAFE_INTEGER : Math.max(0, item.maxOwned - owned);
-                    const affordable = item.price > 0 ? Math.floor(ash / item.price) : 0;
-                    const maxBuyable = Math.min(capRemaining, affordable);
-                    const quantity = Math.min(Math.max(1, quantities[item.id] || 1), Math.max(1, maxBuyable));
+            {items.length === 0 ? (
+                <div className="py-12 text-center text-[#6B7280] text-sm">
+                    Nothing is listed for TNJ right now.
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    {items.map((entry) => {
+                        const live = livePrices.get(entry.itemId);
+                        const tnj = live?.payableTnj ?? (live?.priceTnj || entry.defaultPriceTnj);
+                        const usdCents = live?.priceUsdCents ?? entry.defaultPriceUsdCents;
+                        const currency = live?.currency ?? entry.defaultCurrency;
+                        const where = WHERE_TO_BUY[entry.itemId];
 
-                    const setQuantity = (value: number) => {
-                        setQuantities((prev) => ({ ...prev, [item.id]: Math.min(Math.max(1, value), Math.max(1, maxBuyable)) }));
-                    };
+                        return (
+                            <div
+                                key={entry.itemId}
+                                className="flex items-center justify-between gap-3 bg-[rgba(255,255,255,0.03)] border border-white/10 rounded-lg px-4 py-3"
+                            >
+                                <div className="min-w-0">
+                                    <div className="text-[#E5E7EB] font-bold text-sm truncate">{entry.name}</div>
+                                    <div className="text-[#8B8F98] text-xs">{entry.description}</div>
+                                    {where && <div className="text-[#6B7280] text-xs mt-0.5">Bought from {where}</div>}
+                                </div>
 
-                    return (
-                        <div
-                            key={item.id}
-                            className="flex items-center justify-between bg-[rgba(255,255,255,0.03)] border border-white/10 rounded-lg px-4 py-3"
-                        >
-                            <div className="flex items-center gap-3">
-                                <span className="text-2xl">{item.icon}</span>
-                                <div>
-                                    <div className="text-[#E5E7EB] font-bold text-sm">{item.name}</div>
-                                    <div className="text-[#8B8F98] text-xs">{item.price} ash</div>
-                                    {item.hint && <div className="text-[#6B7280] text-xs">{item.hint}</div>}
-                                    <div className="text-[#8B8F98] text-xs">
-                                        Owned: {owned}{item.maxOwned === null ? "" : `/${item.maxOwned}`}
+                                <div className="text-right flex-shrink-0">
+                                    <div className="flex items-center justify-end gap-1.5 text-[#4FD1FF] font-bold text-sm">
+                                        <Coins className="w-3.5 h-3.5" />
+                                        {tnj > 0 ? `${formatTnj(tnj)} TNJ` : "—"}
                                     </div>
+                                    {currency === "usd" && usdCents > 0 && (
+                                        <div className="text-[#6B7280] text-[11px]">
+                                            ≈ ${(usdCents / 100).toFixed(2)}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-
-                            {capRemaining <= 0 ? (
-                                <span className="text-[#8B8F98] text-xs font-bold px-3">Maxed out</span>
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-1 bg-black/30 rounded-lg px-1">
-                                        <button
-                                            onClick={() => setQuantity(quantity - 1)}
-                                            disabled={quantity <= 1}
-                                            className="w-6 h-6 p-0 border-0 bg-transparent rounded flex items-center justify-center text-[#C5C9D1] hover:text-[#E5E7EB] disabled:opacity-30"
-                                        >
-                                            <Minus className="w-3.5 h-3.5" />
-                                        </button>
-                                        <span className="text-[#E5E7EB] text-sm font-bold w-5 text-center">{quantity}</span>
-                                        <button
-                                            onClick={() => setQuantity(quantity + 1)}
-                                            disabled={quantity >= maxBuyable}
-                                            className="w-6 h-6 p-0 border-0 bg-transparent rounded flex items-center justify-center text-[#C5C9D1] hover:text-[#E5E7EB] disabled:opacity-30"
-                                        >
-                                            <Plus className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                    <button
-                                        onClick={() => onBuyItem(item.id, quantity)}
-                                        disabled={maxBuyable <= 0}
-                                        className="bg-gradient-to-r from-[#4FD1FF] to-[#3B9FD9] text-[rgba(12,12,14,0.9)] font-bold px-4 py-2 rounded-[8px] text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Buy
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
         </WindowFrame>
     );
 }

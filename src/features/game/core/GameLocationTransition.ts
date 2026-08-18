@@ -9,10 +9,19 @@ import { Cave } from "../world/locations/cave/Cave";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
+import { EventsLobby } from "../world/locations/events/EventsLobby";
+import { Dust2 } from "../world/locations/events/rooms/Dust2";
 import { SAFE_ZONE_RADIUS } from "../world/locations/main-world/worldConfig";
 import { syncWorldStatus } from "./GameWorldState";
 
+export function applyFirstPersonMode(game: Game, location: Location) {
+    const firstPerson = location instanceof Dust2;
+    game.cameraController.setFirstPerson(firstPerson);
+    game.player.setSelfHidden(firstPerson);
+}
+
 export function applyLocationMovementConfig(game: Game, location: Location) {
+    applyFirstPersonMode(game, location);
     game.player.setTerrain(location.terrain ?? null);
     game.player.setWaterProvider(location.waterProvider ?? null);
     game.player.setCollisionGrid(location.collisionGrid!);
@@ -43,6 +52,16 @@ export function configureLocationSpecifics(game: Game, location: Location) {
             game.requestFactionQuestList();
         };
         location.onRequestBoardData();
+    } else if (location instanceof EventsLobby) {
+        game.safeZone.create(
+            location.scene,
+            undefined,
+            new THREE.Vector3(0, 0, 0),
+            location.hallRadius - 4
+        );
+
+        if (game.eventStates.length > 0) location.applyEventStates(game.eventStates);
+        game.refreshEventStates();
     } else if (location instanceof MainWorld) {
         game.safeZone.create(
             location.scene,

@@ -7,7 +7,7 @@ import { SafeZone } from "../world/SafeZone";
 import { PAINT_PREFIX } from "../world/building/BuildRenderer";
 import { SPAWN_BEACON_INTERACTION, STORAGE_INTERACTION } from "../world/building/BuildCatalog";
 import { DEATH_CRATE_PREFIX } from "../entities/DeathCrate";
-import { EVENT_DOORS_BY_ID, EVENT_DOOR_PREFIX } from "../data/eventDoors";
+import { ARENA_ALTAR_INTERACTION, EVENT_DOORS_BY_ID, EVENT_DOOR_PREFIX, EVENT_EXIT_INTERACTION } from "../data/eventDoors";
 
 const ARENA_REVIVE_PREFIX = "arena-revive:";
 
@@ -56,6 +56,8 @@ export class InteractionSystem extends System {
     public onOpenStorage?: (pieceKey: string) => void;
     public onLootCrate?: (crateId: string) => void;
     public onOpenArena?: () => void;
+    public onEnterEventRoom?: (eventId: string) => void;
+    public onLeaveEventRoom?: () => void;
     public onArenaRevive?: (targetId: string) => void;
     public canPaintLot: boolean = false;
     public isOwnRoom: boolean = false;
@@ -208,12 +210,18 @@ export class InteractionSystem extends System {
                 }
             } else if (id?.startsWith(EVENT_DOOR_PREFIX)) {
                 const event = EVENT_DOORS_BY_ID.get(id.slice(EVENT_DOOR_PREFIX.length));
-                if (event?.live) {
-                    this.onPrompt?.(`[E] ${event.name}`);
-                    if (isEJustPressed === true) this.onOpenArena?.();
+                if (!event) {
+                    this.onPrompt?.("This door is sealed");
                 } else {
-                    this.onPrompt?.(event ? `${event.name} — sealed. ${event.teaser}` : "This door is sealed");
+                    this.onPrompt?.(`[E] ${event.name}  •  ${event.tagline}`);
+                    if (isEJustPressed === true) this.onEnterEventRoom?.(event.id);
                 }
+            } else if (id === EVENT_EXIT_INTERACTION) {
+                this.onPrompt?.("[E] Back to the Events Hall");
+                if (isEJustPressed === true) this.onLeaveEventRoom?.();
+            } else if (id === ARENA_ALTAR_INTERACTION) {
+                this.onPrompt?.("[E] Light the candle");
+                if (isEJustPressed === true) this.onOpenArena?.();
             } else if (id?.startsWith(DEATH_CRATE_PREFIX)) {
                 this.onPrompt?.("[E] Loot the crate");
                 if (isEJustPressed === true) {

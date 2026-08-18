@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { Entity } from "./Entity";
 import { ResourceManager } from "../core/ResourceManager";
 import { CharacterAnimator } from "./CharacterAnimator";
+import { buildDefusalWeapon, disposeWeaponRig, type WeaponRig } from "./defusalWeaponModels";
 import { buildWeaponVisual, weaponGripOffset } from "./Weapon";
 import { disposeWeaponTierAttachments, updateWeaponTierAttachments, WeaponKind } from "./weaponTiers";
 import { disposeStaff } from "./Staff";
@@ -34,6 +35,8 @@ export class OtherPlayer extends Entity {
     private headBone: THREE.Object3D | null = null;
     private hipsBone: THREE.Object3D | null = null;
     private rightHand: THREE.Object3D | null = null;
+    private defusalWeaponId: string | null = null;
+    private defusalRig: WeaponRig | null = null;
     private initialized: boolean = false;
     private time: number = 0;
 
@@ -226,11 +229,29 @@ export class OtherPlayer extends Entity {
         this.mountWeapon();
     }
 
+    // Inside a defusal match the arsenal replaces the progression weapon entirely.
+    public setDefusalWeapon(itemId: string | null) {
+        if (this.defusalWeaponId === itemId) return;
+        this.defusalWeaponId = itemId;
+        this.mountWeapon();
+    }
+
     private mountWeapon() {
         if (!this.resourceManager) return;
 
         const wasVisible = this.weaponMesh ? this.weaponMesh.visible : this.weaponEquipped;
         this.disposeWeapon();
+
+        if (this.defusalWeaponId) {
+            const rig = buildDefusalWeapon(this.defusalWeaponId);
+            this.defusalRig = rig;
+            this.weaponMesh = rig.group;
+            this.weaponMesh.visible = wasVisible;
+            this.weaponMesh.scale.setScalar(1.6);
+            this.weaponMesh.position.set(0.14, 0.02, -0.18);
+            this.rightHand?.add(this.weaponMesh);
+            return;
+        }
 
         const visual = buildWeaponVisual(this.weaponKind, this.weaponTier, this.resourceManager);
         if (!visual) return;
@@ -248,6 +269,12 @@ export class OtherPlayer extends Entity {
     }
 
     private disposeWeapon() {
+        if (this.defusalRig) {
+            disposeWeaponRig(this.defusalRig);
+            this.defusalRig = null;
+            this.weaponMesh = null;
+            return;
+        }
         if (!this.weaponMesh) return;
 
         const disposable: THREE.Group[] = [];

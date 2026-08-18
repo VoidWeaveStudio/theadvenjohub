@@ -28,7 +28,7 @@ export function LevelUpToast({ event, onDismiss }: LevelUpToastProps) {
     const weaponTier = event.weaponTierChanged ? WEAPON_TIERS_BY_INDEX.get(event.weaponTier) : null;
 
     return (
-        <div className="absolute top-32 left-1/2 -translate-x-1/2 pointer-events-auto font-oxanium" onClick={onDismiss}>
+        <div className="pointer-events-auto font-oxanium" onClick={onDismiss}>
             <div
                 className="bg-[rgba(12,12,14,0.92)] backdrop-blur-md border rounded-[12px] px-6 py-4 min-w-[280px] cursor-pointer"
                 style={{ borderColor: `${accent}66`, boxShadow: `0 0 30px ${accent}22` }}

@@ -74,6 +74,7 @@ export class Player extends Entity {
     private movementLocked: boolean = false;
 
     private flightMode: boolean = false;
+    private selfHidden: boolean = false;
     private flightVelocity = new THREE.Vector3();
     private flightZone: FlightZone | null = null;
     private characterModel: THREE.Object3D | null = null;
@@ -217,12 +218,19 @@ export class Player extends Entity {
             this.isGrounded = false;
         }
 
-        if (this.characterModel) this.characterModel.visible = !enabled;
+        if (this.characterModel) this.characterModel.visible = !enabled && !this.selfHidden;
         this.wisp?.setActive(enabled);
     }
 
     public isFlying(): boolean {
         return this.flightMode;
+    }
+
+    // First person keeps the mesh around because it drives movement and the
+    // camera rig, but the body must not fill the view.
+    public setSelfHidden(hidden: boolean) {
+        this.selfHidden = hidden;
+        if (this.characterModel) this.characterModel.visible = !hidden && !this.flightMode;
     }
 
     public moveEffectsToScene(scene: THREE.Scene) {
@@ -716,7 +724,7 @@ export class Player extends Entity {
         if (this.inputManager.isKeyPressed("KeyD")) wish.add(right);
         if (this.inputManager.isKeyPressed("KeyA")) wish.sub(right);
         if (this.inputManager.isKeyPressed("Space")) wish.y += 1;
-        if (this.inputManager.isKeyPressed("KeyC") || this.inputManager.isKeyPressed("ControlLeft")) wish.y -= 1;
+        if (this.inputManager.isKeyPressed("ControlLeft")) wish.y -= 1;
 
         const boosting = this.inputManager.isKeyPressed("ShiftLeft") || this.inputManager.isKeyPressed("ShiftRight");
         const targetSpeed = this.FLIGHT_SPEED * (boosting ? this.FLIGHT_BOOST : 1);

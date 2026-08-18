@@ -20,6 +20,12 @@ import { ArenaHUD } from "./ui/ArenaHUD";
 import { useArenaState } from "./ui/hooks/useArenaState";
 import { FloorSelector } from "./ui/FloorSelector";
 import { EventsFactionPicker } from "./ui/EventsFactionPicker";
+import { EventDoorPanel } from "./ui/EventDoorPanel";
+import { DefusalHUD } from "./ui/DefusalHUD";
+import { BuyMenu } from "./ui/BuyMenu";
+import { DefusalLoadout, type HeldSlot } from "./ui/DefusalLoadout";
+import { ScopeOverlay } from "./ui/ScopeOverlay";
+import { FlashOverlay } from "./ui/FlashOverlay";
 import { TokenPanel } from "./ui/TokenPanel";
 import { Inventory } from "./ui/Inventory";
 import { VendorPanel } from "./ui/VendorPanel";
@@ -33,7 +39,7 @@ import { BuildEditorPanel } from "./ui/BuildEditorPanel";
 import type { BuildSessionState } from "./world/building/BuildSession";
 import { RoomConsolePanel } from "./ui/RoomConsolePanel";
 import { BubbleMapPanel } from "./ui/BubbleMapPanel";
-import type { FactionGateData, ShardStateData } from "./network/NetworkManager";
+import type { FactionGateData, ShardStateData, DefusalStateData, DefusalQueueData } from "./network/NetworkManager";
 import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
 import { gameFetch, keepSessionAlive } from "./utils/gameFetch";
 import { QuestTracker } from "./ui/QuestTracker";
@@ -96,7 +102,7 @@ const ABILITY_KEY_MAP: Record<string, string> = {
   Digit6: "s6",
 };
 
-const HOTBAR_KEYS = ["KeyQ", "KeyF", "KeyC", "KeyV", "KeyX"];
+const HOTBAR_KEYS = ["KeyQ", "KeyF"];
 
 type WheelMode = "tools" | "emotes" | "degen" | null;
 
@@ -137,6 +143,14 @@ export function GameClient({ slug }: GameClientProps) {
   const [showFloorSelector, setShowFloorSelector] = useState(false);
   const [currentLocationId, setCurrentLocationId] = useState("tower-main-hall");
   const [isEventsPickerOpen, setIsEventsPickerOpen] = useState(false);
+  const [openEventDoorId, setOpenEventDoorId] = useState<string | null>(null);
+  const [defusalMatch, setDefusalMatch] = useState<DefusalStateData | null>(null);
+  const [defusalQueue, setDefusalQueue] = useState<DefusalQueueData | null>(null);
+  const [inDefusalQueue, setInDefusalQueue] = useState(false);
+  const [isBuyMenuOpen, setIsBuyMenuOpen] = useState(false);
+  const [scopeStep, setScopeStep] = useState(0);
+  const [flashUntil, setFlashUntil] = useState(0);
+  const defusalMe = defusalMatch?.roster.find((entry) => entry.id === localPlayerId) ?? null;
 
   const [isVendorOpen, setIsVendorOpen] = useState(false);
   const [lastSellResult, setLastSellResult] = useState<{ address: string; at: number } | null>(null);
@@ -330,6 +344,9 @@ export function GameClient({ slug }: GameClientProps) {
         hint: emote.hint,
       })),
     },
+  ];
+
+  const degenWheelPages: WheelPage[] = [
     {
       id: "degen",
       label: "Degen",
@@ -352,8 +369,6 @@ export function GameClient({ slug }: GameClientProps) {
       }),
     },
   ];
-
-  const degenWheelPages: WheelPage[] = [emoteWheelPages[1], emoteWheelPages[0]];
 
   const closeWheel = (relock: boolean = true) => {
     setWheelMode(null);
@@ -795,6 +810,19 @@ export function GameClient({ slug }: GameClientProps) {
           setIsArenaPanelOpen(true);
           document.exitPointerLock();
         };
+        game.onDefusalState = (state) => {
+          if (cancelled) return;
+          setDefusalMatch(state);
+          if (state) setInDefusalQueue(false);
+        };
+        game.onDefusalQueueState = (state) => { if (!cancelled) setDefusalQueue(state); };
+        game.onScopeStep = (step) => { if (!cancelled) setScopeStep(step); };
+        game.onFlashed = (durationMs) => { if (!cancelled) setFlashUntil(Date.now() + durationMs); };
+        game.onOpenEventDoorUI = (eventId) => {
+          if (cancelled) return;
+          setOpenEventDoorId(eventId);
+          document.exitPointerLock();
+        };
         game.onStuckStateChange = (cooldownUntil) => { if (!cancelled) hud.handleStuckState(cooldownUntil); };
         game.onHomeTeleportChange = (state) => {
           if (cancelled) return;
@@ -961,6 +989,14 @@ export function GameClient({ slug }: GameClientProps) {
           setIsEventsPickerOpen(false);
           return;
         }
+        if (openEventDoorId !== null) {
+          setOpenEventDoorId(null);
+          return;
+        }
+        if (isBuyMenuOpen) {
+          setIsBuyMenuOpen(false);
+          return;
+        }
         if (activeTopWindow !== null) {
           setActiveTopWindow(null);
           return;
@@ -977,7 +1013,7 @@ export function GameClient({ slug }: GameClientProps) {
 
       if (buildEditorState?.active) return;
 
-      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || bubbleIndex !== null || factionBubbleId !== null || isRoomPortalOpen || isRoomConsoleOpen || isBubbleMapOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen || wheelMode !== null || isSpecializationOpen || isSkillTreeOpen || npcDialogue.dialogue !== null || tradeSession !== null || pendingTradeInvite !== null) return;
+      if (isVendorOpen || isSolaOpen || isAlfredoOpen || isGateStewardOpen || bubbleIndex !== null || factionBubbleId !== null || isRoomPortalOpen || isRoomConsoleOpen || isBubbleMapOpen || isPersonalizationOpen || canyonMap.isCanyonMapOpen || isCreateFactionModalOpen || isEventsPickerOpen || openEventDoorId !== null || isBuyMenuOpen || activeTopWindow !== null || signEditorId !== null || viewingSign !== null || isPlaceableMenuOpen || wheelMode !== null || isSpecializationOpen || isSkillTreeOpen || npcDialogue.dialogue !== null || tradeSession !== null || pendingTradeInvite !== null) return;
 
       if (e.code === "Enter" && isPointerLocked) {
         chat.setIsChatVisible((prev) => !prev);
@@ -1040,13 +1076,56 @@ export function GameClient({ slug }: GameClientProps) {
           return;
         }
 
-        if (e.code === "KeyT" && !e.repeat) {
+        if (defusalMatch) {
+          if (e.code === "KeyB" && !e.repeat) {
+            const buyOpen = defusalMatch.phase === "freeze" || defusalMatch.phase === "warmup";
+            if (buyOpen) {
+              setIsBuyMenuOpen((prev) => {
+                if (!prev) document.exitPointerLock();
+                return !prev;
+              });
+              return;
+            }
+          }
+
+          const slotKey = {
+            Digit1: "primary",
+            Digit2: "pistol",
+            Digit3: "melee",
+            Digit4: "grenade1",
+            Digit5: "grenade2",
+          }[e.code];
+
+          if (slotKey && !e.repeat) {
+            gameRef.current?.switchDefusalSlot(slotKey as HeldSlot);
+            return;
+          }
+
+          // Wheels, hotbar and the tool loadout are all shelved inside a match.
+          if (["KeyX", "KeyC", "KeyV", "KeyQ", "KeyF", "KeyI", "KeyL", "KeyM"].includes(e.code)) return;
+        }
+
+        if (e.code === "KeyE" && !e.repeat && defusalMatch) {
+          const me = defusalMatch.roster.find((entry) => entry.id === localPlayerId);
+          if (me?.alive) {
+            if (defusalMatch.bomb?.state === "planted" && me.side === "ct") gameRef.current?.defuseBomb();
+            else if (me.hasBomb) gameRef.current?.plantBomb();
+          }
+          return;
+        }
+
+        if (e.code === "KeyX" && !e.repeat) {
           openWheel("tools");
           return;
         }
 
-        if (e.code === "KeyZ" && !e.repeat) {
+        if (e.code === "KeyC" && !e.repeat) {
           openWheel("emotes");
+          return;
+        }
+
+        if (e.code === "KeyV" && !e.repeat) {
+          openWheel("degen");
           return;
         }
 
@@ -1074,7 +1153,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, wheelMode, isSpecializationOpen, isSkillTreeOpen, npcDialogue.dialogue, hud.hudState.equippedTool, tradeSession, pendingTradeInvite, abilityState.cooldowns]);
+  }, [defusalMatch, localPlayerId, isBuyMenuOpen, isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, openEventDoorId, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, wheelMode, isSpecializationOpen, isSkillTreeOpen, npcDialogue.dialogue, hud.hudState.equippedTool, tradeSession, pendingTradeInvite, abilityState.cooldowns]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -1264,8 +1343,18 @@ export function GameClient({ slug }: GameClientProps) {
           setIsSkillTreeOpen(true);
           document.exitPointerLock();
         }}
+        rightRail={<QuestTracker quest={quest.questTracker} />}
+        topCenter={
+          <>
+            <ArenaHUD
+              arena={arenaState.arena}
+              revive={arenaState.revive}
+              localPlayerId={localPlayerId}
+            />
+            <LevelUpToast event={progressionState.levelUp} onDismiss={progressionState.dismissLevelUp} />
+          </>
+        }
       />
-      <LevelUpToast event={progressionState.levelUp} onDismiss={progressionState.dismissLevelUp} />
       <SkillTreeWindow
         isOpen={isSkillTreeOpen}
         onClose={() => setIsSkillTreeOpen(false)}
@@ -1282,14 +1371,21 @@ export function GameClient({ slug }: GameClientProps) {
         onSelect={handleTopMenuSelect}
         badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests }}
       />
-      <Hotbar
-        slots={displayHotbarSlots}
-        onSlotClick={handleSlotClick}
-        onOpenEmotes={() => openWheel("emotes")}
-        onOpenDegen={() => openWheel("degen")}
-      />
+      {defusalMatch ? (
+        <DefusalLoadout
+          me={defusalMe}
+          onSelect={(slot) => gameRef.current?.switchDefusalSlot(slot)}
+        />
+      ) : (
+        <Hotbar
+          slots={displayHotbarSlots}
+          onSlotClick={handleSlotClick}
+          onOpenTools={() => openWheel("tools")}
+          onOpenEmotes={() => openWheel("emotes")}
+          onOpenDegen={() => openWheel("degen")}
+        />
+      )}
       <Notifications notifications={notifications.notifications} onRemove={notifications.removeNotification} />
-      <QuestTracker quest={quest.questTracker} />
       <NpcDialogueModal
         dialogue={npcDialogue.dialogue}
         onFinish={npcDialogue.finish}
@@ -1427,10 +1523,31 @@ export function GameClient({ slug }: GameClientProps) {
         }}
       />
 
-      <ArenaHUD
-        arena={arenaState.arena}
-        revive={arenaState.revive}
-        localPlayerId={localPlayerId}
+      <DefusalHUD match={defusalMatch} localPlayerId={localPlayerId} />
+      <ScopeOverlay active={scopeStep > 0} zoomStep={scopeStep} />
+      <FlashOverlay until={flashUntil} />
+
+      <BuyMenu
+        match={isBuyMenuOpen ? defusalMatch : null}
+        me={defusalMatch?.roster.find((entry) => entry.id === localPlayerId) ?? null}
+        onBuy={(itemId) => gameRef.current?.buyDefusalItem(itemId)}
+        onClose={() => setIsBuyMenuOpen(false)}
+      />
+
+      <EventDoorPanel
+        eventId={openEventDoorId}
+        gameSlug={slug}
+        localWallet={gameRef.current?.session.wallet ?? null}
+        partySize={partyState.party.members.length || 1}
+        queue={defusalQueue}
+        inQueue={inDefusalQueue}
+        onClose={() => setOpenEventDoorId(null)}
+        onEnter={(eventId) => {
+          setOpenEventDoorId(null);
+          gameRef.current?.enterEventRoom(eventId);
+        }}
+        onJoinQueue={() => { setInDefusalQueue(true); gameRef.current?.joinDefusalQueue(); }}
+        onLeaveQueue={() => { setInDefusalQueue(false); gameRef.current?.leaveDefusalQueue(); }}
       />
 
       <ArenaPanel
@@ -1513,9 +1630,6 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={activeTopWindow === "shop"}
         gameSlug={slug}
         onClose={() => setActiveTopWindow(null)}
-        ash={inventory.ash}
-        placeables={inventory.placeables}
-        onBuyItem={(itemId, quantity) => gameRef.current?.buyShopItem(itemId, quantity)}
       />
 
       <SignEditorModal
@@ -1610,8 +1724,12 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={isVendorOpen}
         inventory={inventory.inventory}
         lastSellResult={lastSellResult}
+        gameSlug={slug}
+        ash={inventory.ash}
+        placeables={inventory.placeables}
         onClose={() => setIsVendorOpen(false)}
         onSell={(address, quantity) => gameRef.current?.sellToken(address, quantity)}
+        onBuyItem={(itemId, quantity) => gameRef.current?.buyShopItem(itemId, quantity)}
       />
 
       <SolaPanel
