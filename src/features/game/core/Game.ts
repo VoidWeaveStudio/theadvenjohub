@@ -34,7 +34,16 @@ import { withTimeout, waitForFrames } from "../utils/loadGate";
 import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { EventsLobby } from "../world/locations/events/EventsLobby";
 import { CandleArena } from "../world/locations/events/rooms/CandleArena";
-import { EVENTS_LOBBY_ID, EVENT_DOORS_BY_ID, ResolvedEvent, eventWindow, isEventLive } from "../data/eventDoors";
+import {
+    EVENTS_LOBBY_ID,
+    EVENT_DOORS_BY_ID,
+    GRINDER_EVENT_ID,
+    GRINDER_LOCATION_ID,
+    GRINDER_NAME,
+    ResolvedEvent,
+    eventWindow,
+    isEventLive,
+} from "../data/eventDoors";
 import { fetchEvents } from "../data/eventClient";
 import { DefusalViewModel } from "../entities/DefusalViewModel";
 import { GrenadeSystem } from "../systems/GrenadeSystem";
@@ -47,6 +56,7 @@ import { computeDayTime, DayNightConfig } from "../utils/dayNightCycle";
 import { applyLocationMovementConfig, configureLocationSpecifics, syncMainWorldEntry } from "./GameLocationTransition";
 import { registerNetworkHandlers } from "./GameNetworkHandlers";
 import type { GameCallbacks } from "./GameCallbacks";
+import { ViewModelTuner } from "../systems/ViewModelTuner";
 import { createGameRenderer } from "./GameRenderer";
 import { perf } from "./PerfProfiler";
 import { updateDamageIndicator } from "./GameDamageIndicator";
@@ -125,6 +135,7 @@ export class Game {
     public readonly candleSystem: CandleEmoteSystem = new CandleEmoteSystem();
     public readonly abilitySystem: AbilitySystem = new AbilitySystem();
     public readonly weaponTuner: WeaponTuner = new WeaponTuner();
+    public readonly viewModelTuner: ViewModelTuner = new ViewModelTuner();
     public readonly memeSystem: MemeSystem = new MemeSystem();
     private memeMovementUntil: number = 0;
     public readonly interactionSystem: InteractionSystem;
@@ -251,6 +262,7 @@ export class Game {
         });
     }
 
+    public dust2Mode = false;
     public eventStates: ResolvedEvent[] = [];
     private eventStateTimer = 0;
 
@@ -304,6 +316,30 @@ export class Game {
 
         await this.changeLocation(event.locationId, { silent: true }).then(() => {
             this.onNotification?.(`${event.glyph} ${event.name}`, 2500);
+        }).catch(() => {
+            this.onNotification?.("⚠️ That door would not open", 2000);
+        });
+    }
+
+    // Numpad0 opens whichever rig is actually on screen: the third-person
+    // weapon outside Dust II, the first-person view model inside it.
+    public toggleWeaponTuner() {
+        if (this.dust2Mode && this.viewModelTuner.isReady()) {
+            this.viewModelTuner.toggle();
+            return;
+        }
+        this.weaponTuner.toggle();
+    }
+
+    public async enterGrinder() {
+        if (!this.isEventOpen(GRINDER_EVENT_ID)) {
+            this.onNotification?.("🔒 Dust II is sealed", 2500);
+            return;
+        }
+
+        await this.changeLocation(GRINDER_LOCATION_ID, { silent: true }).then(() => {
+            this.setWeaponEquipped(true);
+            this.onNotification?.(`🩸 ${GRINDER_NAME}`, 2500);
         }).catch(() => {
             this.onNotification?.("⚠️ That door would not open", 2000);
         });
@@ -568,6 +604,10 @@ export class Game {
                 this.memeSystem.attach(currentLocation.scene);
                 this.weaponTuner.init(this.inputManager, this.player.getWeapon());
                 this.weaponTuner.onReadout = (text) => {
+                    this.hudState.tunerReadout = text;
+                    this.emitState(true);
+                };
+                this.viewModelTuner.onReadout = (text) => {
                     this.hudState.tunerReadout = text;
                     this.emitState(true);
                 };
@@ -1190,6 +1230,7 @@ export class Game {
             this.abilitySystem.update(delta);
             this.updateMemeEffects(delta);
             this.weaponTuner.update();
+            this.viewModelTuner.update();
             perf.begin("otherPlayers");
             const galaxy = currentLocation instanceof Basement ? currentLocation : null;
             this.otherPlayers.forEach((op) => {
@@ -1876,12 +1917,17 @@ export class Game {
 
         if (!this.defusalViewModel) {
             this.defusalViewModel = new DefusalViewModel(this.cameraController.camera);
+            this.shootingSystem.setMuzzleProvider(() => this.defusalViewModel?.getWorldMuzzle() ?? null);
+            this.viewModelTuner.init(this.inputManager, this.defusalViewModel);
         }
 
         this.defusalViewModel.setWeapon(itemId);
         this.defusalViewModel.setVisible(itemId !== null);
 
         const item = itemId ? ARSENAL_BY_ID.get(itemId) : null;
+        this.shootingSystem.setArsenalWeapon(
+            item && (item.slot === "primary" || item.slot === "pistol") ? item : null
+        );
         this.defusalViewModel.setScoped(item?.scoped === true);
         this.cameraController.setScopeSteps(item?.scoped ? [2, 4] : null);
         this.onScopeStep?.(0);
@@ -1890,6 +1936,7 @@ export class Game {
     public clearDefusalView() {
         this.defusalHoldingGrenade = false;
         this.defusalWeaponId = null;
+        this.shootingSystem.setArsenalWeapon(null);
         this.cameraController.setScopeSteps(null);
         this.defusalViewModel?.setVisible(false);
         this.onScopeStep?.(0);

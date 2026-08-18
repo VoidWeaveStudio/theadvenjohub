@@ -2,12 +2,13 @@
 "use client";
 
 import { ARSENAL_BY_ID } from "../data/defusalArsenal";
-import type { DefusalRosterEntry } from "../network/NetworkManager";
+import { WeaponIcon } from "./WeaponIcon";
+import type { BuyMenuEntry } from "./BuyMenu";
 
 export type HeldSlot = "primary" | "pistol" | "melee" | "grenade1" | "grenade2";
 
 interface DefusalLoadoutProps {
-    me: DefusalRosterEntry | null;
+    me: BuyMenuEntry | null;
     onSelect: (slot: HeldSlot) => void;
 }
 
@@ -19,7 +20,7 @@ const SLOTS: { slot: HeldSlot; key: string }[] = [
     { slot: "grenade2", key: "5" },
 ];
 
-function itemIdFor(me: DefusalRosterEntry, slot: HeldSlot): string | null {
+function itemIdFor(me: BuyMenuEntry, slot: HeldSlot): string | null {
     if (slot === "primary") return me.primary;
     if (slot === "pistol") return me.pistol;
     if (slot === "melee") return "rug-beater";
@@ -55,7 +56,7 @@ export function DefusalLoadout({ me, onSelect }: DefusalLoadoutProps) {
 
                         {item ? (
                             <>
-                                <span className="text-xl leading-none">{item.icon}</span>
+                                <WeaponIcon itemId={item.id} className={`w-11 h-5 ${held ? "text-[#FFD9A0]" : "text-[#9AA0A9]"}`} />
                                 <span className={`text-[9px] font-bold tracking-wide mt-0.5 truncate max-w-[84px] ${held ? "text-[#FFD9A0]" : "text-[#8B8F98]"}`}>
                                     {item.name}
                                 </span>

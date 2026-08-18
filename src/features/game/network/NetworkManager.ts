@@ -460,6 +460,48 @@ export type DefusalQueueData = {
   minimum: number;
 };
 
+export type GrinderPhase = "live" | "over";
+
+export type GrinderRosterEntry = {
+  id: string;
+  nickname: string;
+  kills: number;
+  deaths: number;
+  streak: number;
+  alive: boolean;
+  armor: string | null;
+  helmet: boolean;
+  held: "primary" | "pistol" | "melee" | "grenade1" | "grenade2";
+  primary: string | null;
+  pistol: string | null;
+  grenades: string[];
+  kit: boolean;
+};
+
+export type GrinderStateData = {
+  matchId: string;
+  phase: GrinderPhase;
+  phaseUntil: number;
+  round: number;
+  roundMs: number;
+  roster: GrinderRosterEntry[];
+};
+
+export type GrinderStandingEntry = {
+  id: string;
+  nickname: string;
+  kills: number;
+  deaths: number;
+  bestStreak: number;
+};
+
+export type GrinderRoundEndData = {
+  round: number;
+  winnerId: string | null;
+  winnerName: string | null;
+  standings: GrinderStandingEntry[];
+};
+
 export type ArenaEndedData = {
   reason: string;
   wavesCleared: number;
@@ -895,6 +937,10 @@ export class NetworkManager {
   public onDefusalSideSwap?: () => void;
   public onDefusalMatchEnd?: (data: { winner: DefusalSide; score: DefusalScore }) => void;
   public onDefusalRespawn?: (data: { position: number[]; health: number; side: DefusalSide }) => void;
+  public onGrinderState?: (data: GrinderStateData) => void;
+  public onGrinderRespawn?: (data: { position: number[]; health: number }) => void;
+  public onGrinderDeath?: (data: { killerId: string | null; killerName: string | null }) => void;
+  public onGrinderRoundEnd?: (data: GrinderRoundEndData) => void;
   public onForceTeleport?: (data: { locationId: string; position?: number[] }) => void;
   public onArenaWaveStart?: (data: { wave: number; boss: boolean; biome: string; enemies: number }) => void;
   public onArenaWaveEnd?: (data: { wave: number; pauseUntil: number }) => void;
@@ -1453,6 +1499,24 @@ export class NetworkManager {
       case "defusalBombDefused":
         this.onDefusalBombDefused?.();
         break;
+      case "defusalGrenadeThrown":
+        this.onDefusalGrenadeThrown?.({ id: data.id, itemId: data.itemId, x: data.x, y: data.y, z: data.z });
+        break;
+      case "defusalGrenades":
+        this.onDefusalGrenades?.({ grenades: Array.isArray(data.grenades) ? data.grenades : [] });
+        break;
+      case "defusalGrenadeBurst":
+        this.onDefusalGrenadeBurst?.({ id: data.id, itemId: data.itemId, x: data.x, y: data.y, z: data.z });
+        break;
+      case "defusalCloud":
+        this.onDefusalCloud?.({ x: data.x, z: data.z, radius: data.radius, untilMs: data.untilMs });
+        break;
+      case "defusalFlashed":
+        this.onDefusalFlashed?.({ durationMs: data.durationMs });
+        break;
+      case "defusalSwing":
+        this.onDefusalSwing?.({ playerId: data.playerId });
+        break;
       case "defusalBombExploded":
         this.onDefusalBombExploded?.({ x: data.x, z: data.z });
         break;
@@ -1464,6 +1528,26 @@ export class NetworkManager {
         break;
       case "defusalRespawn":
         this.onDefusalRespawn?.({ position: data.position, health: data.health, side: data.side });
+        break;
+      case "grinderState":
+        this.onGrinderState?.(data as GrinderStateData);
+        break;
+      case "grinderRespawn":
+        this.onGrinderRespawn?.({ position: data.position, health: data.health });
+        break;
+      case "grinderDeath":
+        this.onGrinderDeath?.({
+          killerId: data.killerId ?? null,
+          killerName: typeof data.killerName === "string" ? data.killerName : null,
+        });
+        break;
+      case "grinderRoundEnd":
+        this.onGrinderRoundEnd?.({
+          round: data.round,
+          winnerId: data.winnerId ?? null,
+          winnerName: typeof data.winnerName === "string" ? data.winnerName : null,
+          standings: Array.isArray(data.standings) ? data.standings : [],
+        });
         break;
       case "forceTeleport":
         this.onForceTeleport?.({ locationId: data.locationId, position: data.position });
@@ -1981,6 +2065,11 @@ export class NetworkManager {
   sendArenaRevive(targetId: string) {
     if (!this.authenticated) return;
     this.send({ type: "arenaRevive", targetId });
+  }
+
+  sendReload() {
+    if (!this.authenticated) return;
+    this.send({ type: "reload" });
   }
 
   sendDefusalQueue() {

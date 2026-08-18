@@ -11,6 +11,7 @@ import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
 import { EventsLobby } from "../world/locations/events/EventsLobby";
 import { Dust2 } from "../world/locations/events/rooms/Dust2";
+import { GRINDER_LOCATION_ID } from "../data/eventDoors";
 import { SAFE_ZONE_RADIUS } from "../world/locations/main-world/worldConfig";
 import { syncWorldStatus } from "./GameWorldState";
 
@@ -34,6 +35,10 @@ export function applyLocationMovementConfig(game: Game, location: Location) {
 }
 
 export function configureLocationSpecifics(game: Game, location: Location) {
+    game.dust2Mode = location instanceof Dust2;
+    if (location.id !== GRINDER_LOCATION_ID) game.onGrinderState?.(null);
+    if (!game.dust2Mode) game.clearDefusalView();
+
     if (location instanceof MainHall) {
         game.safeZone.create(
             location.scene,

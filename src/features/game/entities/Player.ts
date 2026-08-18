@@ -181,7 +181,7 @@ export class Player extends Entity {
 
     public applyCombatStats(stats: { maxHealth: number; moveSpeedMult: number; magSize: number; reloadMs: number }) {
         this.maxHealth = stats.maxHealth;
-        this.speedMultiplier = Math.max(1, stats.moveSpeedMult);
+        this.speedMultiplier = Math.max(0.5, stats.moveSpeedMult);
         this.weapon.maxAmmo = stats.magSize;
         this.weapon.reloadTime = stats.reloadMs / 1000;
         if (this.weapon.ammo > this.weapon.maxAmmo) this.weapon.ammo = this.weapon.maxAmmo;

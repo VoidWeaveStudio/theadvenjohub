@@ -7,6 +7,7 @@ import { CameraController } from "../core/CameraController";
 import { ResourceManager } from "../core/ResourceManager";
 import { NetworkManager } from "../network/NetworkManager";
 import { OtherPlayer } from "../entities/OtherPlayer";
+import type { ArsenalItem } from "../data/defusalArsenal";
 import { Location } from "../world/Location";
 import { CollisionGrid } from "../world/CollisionGrid";
 import { ShootingEffects } from "./ShootingEffects";
@@ -40,6 +41,8 @@ export class ShootingSystem extends System {
     public onHitPlayer?: () => void;
 
     private weaponEquipped: boolean = true;
+    private arsenalWeapon: ArsenalItem | null = null;
+    private muzzleProvider: (() => THREE.Vector3 | null) | null = null;
     private player!: Player;
     private inputManager!: InputManager;
     private camera!: CameraController;
@@ -204,7 +207,22 @@ export class ShootingSystem extends System {
         return this.weaponKind === "staff" ? WEAPONS.staff : WEAPONS.rifle;
     }
 
+    // Inside Dust II the arsenal item owns the trigger: its own fire rate, and
+    // only rifles keep firing while the button is held.
+    setArsenalWeapon(item: ArsenalItem | null) {
+        this.arsenalWeapon = item;
+        this.nextShotAt = 0;
+        this.player?.getWeapon().setFireRate(this.baseIntervalMs() / 1000);
+    }
+
+    // In first person the visible barrel is the view model's, not the hidden
+    // third-person rig — tracers have to leave the gun the player can see.
+    setMuzzleProvider(provider: (() => THREE.Vector3 | null) | null) {
+        this.muzzleProvider = provider;
+    }
+
     private baseIntervalMs(): number {
+        if (this.arsenalWeapon) return this.arsenalWeapon.fireRateMs;
         return modeNumber(this.fireMode, "fireRateMs", this.weaponConfig().fireRateMs);
     }
 
@@ -229,7 +247,10 @@ export class ShootingSystem extends System {
         else this.resetFiringState();
 
         if (canAct && this.inputManager.isKeyJustPressed("KeyR")) {
-            this.player.getWeapon().reload();
+            const weapon = this.player.getWeapon();
+            const wasReloading = weapon.isReloading;
+            weapon.reload();
+            if (!wasReloading && weapon.isReloading) this.network.sendReload();
         }
 
         this.effects.updateBullets(delta);
@@ -240,6 +261,13 @@ export class ShootingSystem extends System {
 
     private updateFiring(pressed: boolean, justPressed: boolean, justReleased: boolean) {
         const now = performance.now();
+
+        if (this.arsenalWeapon) {
+            const trigger = this.arsenalWeapon.automatic ? pressed : justPressed;
+            if (trigger && now >= this.nextShotAt) this.tryFire(now);
+            return;
+        }
+
         const chargeMs = modeNumber(this.fireMode, "chargeMs", 0);
 
         if (chargeMs > 0) {
@@ -472,23 +500,34 @@ export class ShootingSystem extends System {
         }
 
         const weapon = this.player.getWeapon();
-        const muzzlePos = weapon.getWorldMuzzle();
+        const viewMuzzle = this.muzzleProvider?.() ?? null;
+        const shotOrigin = viewMuzzle ? cameraPos : weapon.getWorldMuzzle();
 
         const finalHitPoint = hitPoint
             ? hitPoint
             : cameraPos.clone().add(cameraDir.clone().multiplyScalar(HITSCAN_RANGE));
 
-        const bulletDir = finalHitPoint.clone().sub(muzzlePos).normalize();
+        // A muzzle further out than the impact would draw the tracer backwards.
+        const visualOrigin = viewMuzzle && viewMuzzle.distanceTo(cameraPos) < finalHitPoint.distanceTo(cameraPos)
+            ? viewMuzzle
+            : shotOrigin;
+
+        const bulletDir = finalHitPoint.clone().sub(shotOrigin).normalize();
 
         this.onShotFired?.();
 
         this.network.sendShoot({
-            origin: muzzlePos.toArray(),
+            origin: shotOrigin.toArray(),
             direction: bulletDir.toArray(),
         });
 
-        this.effects.spawnBullet(this.resourceManager, muzzlePos, bulletDir, finalHitPoint);
-        this.effects.muzzleFlash(muzzlePos);
+        this.effects.spawnBullet(
+            this.resourceManager,
+            visualOrigin,
+            finalHitPoint.clone().sub(visualOrigin).normalize(),
+            finalHitPoint
+        );
+        this.effects.muzzleFlash(visualOrigin);
 
         if (hitPoint) {
             if (targetType === "player") {

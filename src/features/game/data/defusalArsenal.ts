@@ -21,8 +21,9 @@ export interface ArsenalItem {
     maxRange: number;
     moveSpeedMult: number;
     armorPen: number;
+    rangeModifier: number;
+    automatic: boolean;
     scoped: boolean;
-    oneShot: boolean;
     icon: string;
 }
 
@@ -56,8 +57,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 2.4,
         moveSpeedMult: 1.12,
         armorPen: 0.85,
+        rangeModifier: 1,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "🧹",
     },
     {
@@ -76,8 +78,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 60,
         moveSpeedMult: 1.05,
         armorPen: 0.5,
+        rangeModifier: 0.75,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "🔫",
     },
     {
@@ -96,8 +99,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 80,
         moveSpeedMult: 1.03,
         armorPen: 0.9,
+        rangeModifier: 0.81,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "🐋",
     },
     {
@@ -116,8 +120,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 200,
         moveSpeedMult: 0.96,
         armorPen: 0.78,
+        rangeModifier: 0.98,
+        automatic: true,
         scoped: false,
-        oneShot: false,
         icon: "📈",
     },
     {
@@ -136,8 +141,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 200,
         moveSpeedMult: 0.97,
         armorPen: 0.72,
+        rangeModifier: 0.97,
+        automatic: true,
         scoped: false,
-        oneShot: false,
         icon: "💎",
     },
     {
@@ -148,16 +154,17 @@ export const ARSENAL: ArsenalItem[] = [
         side: "both",
         price: 4750,
         killReward: 100,
-        damage: 200,
-        headshotMult: 1,
+        damage: 115,
+        headshotMult: 4,
         fireRateMs: 1450,
         magSize: 10,
         reloadMs: 3700,
         maxRange: 400,
         moveSpeedMult: 0.78,
-        armorPen: 0.98,
+        armorPen: 0.975,
+        rangeModifier: 0.99,
+        automatic: false,
         scoped: true,
-        oneShot: true,
         icon: "🌙",
     },
     {
@@ -176,8 +183,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 0,
         moveSpeedMult: 1,
         armorPen: 0,
+        rangeModifier: 1,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "🛡️",
     },
     {
@@ -196,8 +204,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 0,
         moveSpeedMult: 1,
         armorPen: 0,
+        rangeModifier: 1,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "🔐",
     },
     {
@@ -216,8 +225,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 0,
         moveSpeedMult: 1,
         armorPen: 0,
+        rangeModifier: 1,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "⚡",
     },
     {
@@ -236,8 +246,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 0,
         moveSpeedMult: 1,
         armorPen: 0,
+        rangeModifier: 1,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "📢",
     },
     {
@@ -256,8 +267,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 9,
         moveSpeedMult: 1,
         armorPen: 0.5,
+        rangeModifier: 1,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "💥",
     },
     {
@@ -276,8 +288,9 @@ export const ARSENAL: ArsenalItem[] = [
         maxRange: 0,
         moveSpeedMult: 1,
         armorPen: 0,
+        rangeModifier: 1,
+        automatic: false,
         scoped: false,
-        oneShot: false,
         icon: "🔍",
     },
 ];

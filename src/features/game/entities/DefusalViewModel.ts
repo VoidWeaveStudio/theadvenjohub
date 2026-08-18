@@ -10,51 +10,55 @@ const SCOPED = new THREE.Vector3(0, -0.045, -0.34);
 const RECOIL_RECOVERY = 11;
 const SWAY_LIMIT = 0.035;
 
-// Hands are two blocked-out gloves rather than a rigged mesh — enough to read as
-// arms at the bottom of the screen without dragging a skinned model in.
-function buildHands(rig: WeaponRig): THREE.Group {
+// Hands are blocked-out gloves rather than a rigged mesh — enough to read as
+// arms at the bottom of the screen without dragging a skinned model in. Both
+// sit on the rig's own grip anchors, so every weapon is held where it actually
+// has a handle.
+function buildHands(rig: WeaponRig, offset: THREE.Vector3): THREE.Group {
     const group = new THREE.Group();
     const glove = new THREE.MeshStandardMaterial({ color: 0x2c2f36, roughness: 0.82, metalness: 0.06 });
     const skin = new THREE.MeshStandardMaterial({ color: 0xb98a68, roughness: 0.78, metalness: 0.02 });
 
-    const makeHand = (x: number, y: number, z: number, pitch: number) => {
+    const makeHand = (at: THREE.Vector3, rake: number, mirror: number) => {
         const hand = new THREE.Group();
-        hand.position.set(x, y, z);
-        hand.rotation.x = pitch;
+        hand.position.copy(at);
+        hand.rotation.set(-0.35 - rake, mirror * 0.22, mirror * 0.18);
 
-        const palm = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.036, 0.06), glove);
-        palm.castShadow = false;
+        const palm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.034, 0.058), glove);
         hand.add(palm);
 
         for (let i = 0; i < 4; i++) {
-            const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.006, 0.026, 3, 6), glove);
-            finger.position.set(-0.014 + i * 0.009, -0.016, -0.02);
-            finger.rotation.x = 1.1;
+            const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.0065, 0.03, 3, 6), glove);
+            finger.position.set(-0.016 + i * 0.0105, -0.012, -0.024);
+            finger.rotation.x = 1.35;
             hand.add(finger);
         }
 
-        const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.007, 0.024, 3, 6), glove);
-        thumb.position.set(0.02, 0.002, -0.012);
-        thumb.rotation.set(1.0, 0, -0.6);
+        const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.0075, 0.026, 3, 6), glove);
+        thumb.position.set(mirror * 0.023, 0.006, -0.014);
+        thumb.rotation.set(1.15, 0, mirror * -0.7);
         hand.add(thumb);
 
-        const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.032, 0.16, 10), skin);
-        forearm.position.set(0, -0.01, 0.1);
-        forearm.rotation.x = Math.PI / 2;
+        const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.036, 0.22, 10), skin);
+        forearm.position.set(mirror * 0.03, -0.05, 0.11);
+        forearm.rotation.set(Math.PI / 2 - 0.42, 0, mirror * -0.16);
         hand.add(forearm);
 
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.03, 10), glove);
-        cuff.position.set(0, -0.008, 0.04);
-        cuff.rotation.x = Math.PI / 2;
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.032, 10), glove);
+        cuff.position.set(mirror * 0.008, -0.014, 0.036);
+        cuff.rotation.x = Math.PI / 2 - 0.2;
         hand.add(cuff);
 
         return hand;
     };
 
-    group.add(makeHand(0.014, -0.05, 0.03, -0.25));
+    const rear = rig.rearGrip.position.clone().add(offset);
+    group.add(makeHand(rear, rig.gripRake, 1));
 
-    const front = rig.frontGrip.position;
-    group.add(makeHand(-0.02, front.y - 0.03, front.z + 0.02, -0.45));
+    if (!rig.oneHanded) {
+        const front = rig.frontGrip.position.clone().add(offset).add(new THREE.Vector3(0, -0.024, 0.01));
+        group.add(makeHand(front, 0.15, -1));
+    }
 
     return group;
 }
@@ -78,6 +82,8 @@ export class DefusalViewModel {
     private sway = new THREE.Vector2();
     private aim = 0;
     private scopeBlend = 0;
+    private readonly rigOffset = new THREE.Vector3();
+    private readonly rigEuler = new THREE.Euler();
     private muzzleFlash: THREE.PointLight | null = null;
     private flashUntil = 0;
 
@@ -92,6 +98,34 @@ export class DefusalViewModel {
 
         this.muzzleFlash = new THREE.PointLight(0xffd9a0, 0, 6, 2);
         this.root.add(this.muzzleFlash);
+    }
+
+    public readonly handOffset = new THREE.Vector3();
+
+    getWorldMuzzle(target = new THREE.Vector3()): THREE.Vector3 | null {
+        if (!this.rig || !this.root.visible) return null;
+        return this.rig.muzzle.getWorldPosition(target);
+    }
+
+    setRigTransform(offset: THREE.Vector3, euler: THREE.Euler) {
+        this.rigOffset.copy(offset);
+        this.rigEuler.copy(euler);
+        if (this.rig) {
+            this.rig.group.position.copy(offset);
+            this.rig.group.rotation.copy(euler);
+        }
+    }
+
+    setHandOffset(offset: THREE.Vector3) {
+        this.handOffset.copy(offset);
+        this.rebuildHands();
+    }
+
+    private rebuildHands() {
+        if (!this.rig) return;
+        this.hands?.removeFromParent();
+        this.hands = buildHands(this.rig, this.handOffset);
+        this.recoilNode.add(this.hands);
     }
 
     setWeapon(itemId: string | null) {
@@ -113,6 +147,8 @@ export class DefusalViewModel {
         }
 
         this.rig = buildDefusalWeapon(itemId);
+        this.rig.group.position.copy(this.rigOffset);
+        this.rig.group.rotation.copy(this.rigEuler);
         this.rig.group.traverse((node) => {
             node.renderOrder = 20;
             const mesh = node as THREE.Mesh;
@@ -123,8 +159,7 @@ export class DefusalViewModel {
         });
         this.recoilNode.add(this.rig.group);
 
-        this.hands = buildHands(this.rig);
-        this.recoilNode.add(this.hands);
+        this.rebuildHands();
 
         this.drawProgress = 0;
         this.root.visible = this.visible;
@@ -141,7 +176,7 @@ export class DefusalViewModel {
 
     onFire() {
         const item = this.itemId ? ARSENAL_BY_ID.get(this.itemId) : null;
-        const kick = item?.oneShot ? 0.075 : item?.slot === "primary" ? 0.03 : 0.022;
+        const kick = item?.scoped ? 0.075 : item?.slot === "primary" ? 0.03 : 0.022;
 
         this.recoil = Math.min(0.12, this.recoil + kick);
         this.recoilPitch = Math.min(0.22, this.recoilPitch + kick * 1.6);

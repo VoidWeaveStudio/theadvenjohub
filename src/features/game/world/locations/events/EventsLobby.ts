@@ -172,6 +172,7 @@ export class EventsLobby extends TowerFloor {
 
     public applyEventStates(events: ResolvedEvent[]) {
         this.doors?.applyEvents(events);
+        this.props?.applyEvents(events);
     }
 
     public override getInteractables(): THREE.Object3D[] {

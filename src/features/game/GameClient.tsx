@@ -22,6 +22,8 @@ import { FloorSelector } from "./ui/FloorSelector";
 import { EventsFactionPicker } from "./ui/EventsFactionPicker";
 import { EventDoorPanel } from "./ui/EventDoorPanel";
 import { DefusalHUD } from "./ui/DefusalHUD";
+import { GrinderHUD } from "./ui/GrinderHUD";
+import { KillFeed, type KillFeedEntry } from "./ui/KillFeed";
 import { BuyMenu } from "./ui/BuyMenu";
 import { DefusalLoadout, type HeldSlot } from "./ui/DefusalLoadout";
 import { ScopeOverlay } from "./ui/ScopeOverlay";
@@ -39,7 +41,7 @@ import { BuildEditorPanel } from "./ui/BuildEditorPanel";
 import type { BuildSessionState } from "./world/building/BuildSession";
 import { RoomConsolePanel } from "./ui/RoomConsolePanel";
 import { BubbleMapPanel } from "./ui/BubbleMapPanel";
-import type { FactionGateData, ShardStateData, DefusalStateData, DefusalQueueData } from "./network/NetworkManager";
+import type { FactionGateData, ShardStateData, DefusalStateData, DefusalQueueData, GrinderStateData } from "./network/NetworkManager";
 import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
 import { gameFetch, keepSessionAlive } from "./utils/gameFetch";
 import { QuestTracker } from "./ui/QuestTracker";
@@ -145,12 +147,13 @@ export function GameClient({ slug }: GameClientProps) {
   const [isEventsPickerOpen, setIsEventsPickerOpen] = useState(false);
   const [openEventDoorId, setOpenEventDoorId] = useState<string | null>(null);
   const [defusalMatch, setDefusalMatch] = useState<DefusalStateData | null>(null);
+  const [grinderMatch, setGrinderMatch] = useState<GrinderStateData | null>(null);
+  const [killFeed, setKillFeed] = useState<KillFeedEntry[]>([]);
   const [defusalQueue, setDefusalQueue] = useState<DefusalQueueData | null>(null);
   const [inDefusalQueue, setInDefusalQueue] = useState(false);
   const [isBuyMenuOpen, setIsBuyMenuOpen] = useState(false);
   const [scopeStep, setScopeStep] = useState(0);
   const [flashUntil, setFlashUntil] = useState(0);
-  const defusalMe = defusalMatch?.roster.find((entry) => entry.id === localPlayerId) ?? null;
 
   const [isVendorOpen, setIsVendorOpen] = useState(false);
   const [lastSellResult, setLastSellResult] = useState<{ address: string; at: number } | null>(null);
@@ -189,6 +192,9 @@ export function GameClient({ slug }: GameClientProps) {
   const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
   const [spawnProtectionSeconds, setSpawnProtectionSeconds] = useState(0);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
+  const defusalMe = defusalMatch?.roster.find((entry) => entry.id === localPlayerId) ?? null;
+  const grinderMe = grinderMatch?.roster.find((entry) => entry.id === localPlayerId) ?? null;
+  const dust2Me = defusalMe ?? grinderMe;
   const [homeTeleport, setHomeTeleport] = useState({ casting: false, cooldownUntil: 0 });
   const [storage, setStorage] = useState<{ key: string | null; slots: number; entries: InventoryEntry[] }>({
     key: null,
@@ -816,6 +822,14 @@ export function GameClient({ slug }: GameClientProps) {
           if (state) setInDefusalQueue(false);
         };
         game.onDefusalQueueState = (state) => { if (!cancelled) setDefusalQueue(state); };
+        game.onGrinderState = (state) => {
+          if (cancelled) return;
+          setGrinderMatch(state);
+          if (!state) setIsBuyMenuOpen(false);
+        };
+        game.onKillFeed = (entry) => {
+          if (!cancelled) setKillFeed((prev) => [...prev.slice(-9), entry]);
+        };
         game.onScopeStep = (step) => { if (!cancelled) setScopeStep(step); };
         game.onFlashed = (durationMs) => { if (!cancelled) setFlashUntil(Date.now() + durationMs); };
         game.onOpenEventDoorUI = (eventId) => {
@@ -1070,15 +1084,19 @@ export function GameClient({ slug }: GameClientProps) {
       }
 
       if (isPointerLocked && !showFloorSelector) {
+        const inDust2 = defusalMatch !== null || grinderMatch !== null;
+
         const hotbarIndex = HOTBAR_KEYS.indexOf(e.code);
         if (hotbarIndex !== -1) {
-          handleSlotClick(hotbarIndex);
+          if (!inDust2) handleSlotClick(hotbarIndex);
           return;
         }
 
-        if (defusalMatch) {
+        if (inDust2) {
           if (e.code === "KeyB" && !e.repeat) {
-            const buyOpen = defusalMatch.phase === "freeze" || defusalMatch.phase === "warmup";
+            const buyOpen = grinderMatch
+              ? grinderMatch.phase === "live"
+              : defusalMatch!.phase === "freeze" || defusalMatch!.phase === "warmup";
             if (buyOpen) {
               setIsBuyMenuOpen((prev) => {
                 if (!prev) document.exitPointerLock();
@@ -1101,8 +1119,10 @@ export function GameClient({ slug }: GameClientProps) {
             return;
           }
 
-          // Wheels, hotbar and the tool loadout are all shelved inside a match.
+          // Wheels, hotbar, tools and the whole skill tree are shelved inside a
+          // match — the arsenal decides everything.
           if (["KeyX", "KeyC", "KeyV", "KeyQ", "KeyF", "KeyI", "KeyL", "KeyM"].includes(e.code)) return;
+          if (ABILITY_KEY_MAP[e.code]) return;
         }
 
         if (e.code === "KeyE" && !e.repeat && defusalMatch) {
@@ -1135,7 +1155,7 @@ export function GameClient({ slug }: GameClientProps) {
         }
 
         if (e.code === "Numpad0" && !e.repeat) {
-          gameRef.current?.weaponTuner.toggle();
+          gameRef.current?.toggleWeaponTuner();
           return;
         }
 
@@ -1153,7 +1173,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [defusalMatch, localPlayerId, isBuyMenuOpen, isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, openEventDoorId, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, wheelMode, isSpecializationOpen, isSkillTreeOpen, npcDialogue.dialogue, hud.hudState.equippedTool, tradeSession, pendingTradeInvite, abilityState.cooldowns]);
+  }, [defusalMatch, grinderMatch, localPlayerId, isBuyMenuOpen, isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, openEventDoorId, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, wheelMode, isSpecializationOpen, isSkillTreeOpen, npcDialogue.dialogue, hud.hudState.equippedTool, tradeSession, pendingTradeInvite, abilityState.cooldowns]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -1366,14 +1386,16 @@ export function GameClient({ slug }: GameClientProps) {
           setIsSpecializationOpen(true);
         }}
       />
-      <TopMenu
-        active={activeTopWindow}
-        onSelect={handleTopMenuSelect}
-        badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests }}
-      />
-      {defusalMatch ? (
+      {!defusalMatch && !grinderMatch && (
+        <TopMenu
+          active={activeTopWindow}
+          onSelect={handleTopMenuSelect}
+          badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests }}
+        />
+      )}
+      {dust2Me ? (
         <DefusalLoadout
-          me={defusalMe}
+          me={dust2Me}
           onSelect={(slot) => gameRef.current?.switchDefusalSlot(slot)}
         />
       ) : (
@@ -1397,7 +1419,7 @@ export function GameClient({ slug }: GameClientProps) {
         onClose={() => closeWheel()}
         onSelect={handleWheelSelect}
       />
-      <AbilityBar
+      {!defusalMatch && !grinderMatch && <AbilityBar
         progression={progressionState.progression}
         cooldowns={abilityState.cooldowns}
         energy={abilityState.energy}
@@ -1406,7 +1428,7 @@ export function GameClient({ slug }: GameClientProps) {
           setIsSkillTreeOpen(true);
           document.exitPointerLock();
         }}
-      />
+      />}
       <Inventory
         items={inventory.inventory}
         ash={inventory.ash}
@@ -1524,12 +1546,18 @@ export function GameClient({ slug }: GameClientProps) {
       />
 
       <DefusalHUD match={defusalMatch} localPlayerId={localPlayerId} />
+      <GrinderHUD match={grinderMatch} localPlayerId={localPlayerId} />
+      <KillFeed entries={killFeed} />
       <ScopeOverlay active={scopeStep > 0} zoomStep={scopeStep} />
       <FlashOverlay until={flashUntil} />
 
       <BuyMenu
-        match={isBuyMenuOpen ? defusalMatch : null}
-        me={defusalMatch?.roster.find((entry) => entry.id === localPlayerId) ?? null}
+        mode={grinderMatch ? "grinder" : "defusal"}
+        open={isBuyMenuOpen && (grinderMatch !== null || defusalMatch !== null)}
+        me={dust2Me}
+        side={defusalMe?.side ?? "ct"}
+        money={defusalMe?.money ?? 0}
+        closesAt={grinderMatch ? null : defusalMatch?.phaseUntil ?? null}
         onBuy={(itemId) => gameRef.current?.buyDefusalItem(itemId)}
         onClose={() => setIsBuyMenuOpen(false)}
       />
@@ -1548,6 +1576,10 @@ export function GameClient({ slug }: GameClientProps) {
         }}
         onJoinQueue={() => { setInDefusalQueue(true); gameRef.current?.joinDefusalQueue(); }}
         onLeaveQueue={() => { setInDefusalQueue(false); gameRef.current?.leaveDefusalQueue(); }}
+        onEnterGrinder={() => {
+          setOpenEventDoorId(null);
+          gameRef.current?.enterGrinder();
+        }}
       />
 
       <ArenaPanel

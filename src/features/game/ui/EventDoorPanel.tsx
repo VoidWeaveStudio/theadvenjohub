@@ -2,8 +2,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, DoorOpen, Gift, Lock, Medal, Timer, Trophy, Users, X } from "lucide-react";
-import { EVENT_DOORS_BY_ID, eventWindow, type EventBoardEntry, type EventWindow, type ResolvedEvent } from "../data/eventDoors";
+import { CalendarClock, DoorOpen, Gift, Lock, Medal, Swords, Timer, Trophy, Users, X } from "lucide-react";
+import {
+    EVENT_DOORS_BY_ID,
+    GRINDER_EVENT_ID,
+    GRINDER_NAME,
+    GRINDER_TEASER,
+    eventWindow,
+    type EventBoardEntry,
+    type EventWindow,
+    type ResolvedEvent,
+} from "../data/eventDoors";
 import { fetchEventDetail } from "../data/eventClient";
 
 interface EventDoorPanelProps {
@@ -17,6 +26,7 @@ interface EventDoorPanelProps {
     onEnter: (eventId: string) => void;
     onJoinQueue: () => void;
     onLeaveQueue: () => void;
+    onEnterGrinder: () => void;
 }
 
 const QUEUED_EVENTS = new Set(["dust2"]);
@@ -80,6 +90,7 @@ export function EventDoorPanel({
     onEnter,
     onJoinQueue,
     onLeaveQueue,
+    onEnterGrinder,
 }: EventDoorPanelProps) {
     const [event, setEvent] = useState<ResolvedEvent | null>(null);
     const [board, setBoard] = useState<EventBoardEntry[]>([]);
@@ -274,6 +285,19 @@ export function EventDoorPanel({
                                 <DoorOpen className="w-4 h-4" />
                                 <span>{inQueue ? "Leave the queue" : "Queue up"}</span>
                             </button>
+
+                            {eventId === GRINDER_EVENT_ID && (
+                                <div className="pt-1 space-y-1.5">
+                                    <div className="text-[11px] text-[#8B8F98] text-center px-3">{GRINDER_TEASER}</div>
+                                    <button
+                                        onClick={onEnterGrinder}
+                                        className="w-full flex items-center justify-center gap-2 font-black px-4 py-3 rounded-[8px] border border-[#FF5757]/45 bg-[rgba(255,87,87,0.1)] text-[#FF8A8A] transition-all hover:bg-[rgba(255,87,87,0.18)]"
+                                    >
+                                        <Swords className="w-4 h-4" />
+                                        <span>{GRINDER_NAME} — walk straight in</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ) : enabled ? (
                         <button

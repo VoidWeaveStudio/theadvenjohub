@@ -88,6 +88,12 @@ export const EVENTS_LOBBY_ID = "tower-events";
 export const EVENT_EXIT_INTERACTION = "event-exit";
 export const ARENA_ALTAR_INTERACTION = "arena-altar";
 
+export const GRINDER_LOCATION_ID = "event-grinder";
+export const GRINDER_EVENT_ID = "dust2";
+export const GRINDER_NAME = "Meat Grinder";
+export const GRINDER_TAGLINE = "Free for all";
+export const GRINDER_TEASER = "Walk in whenever. Ten minutes, everyone against everyone, most kills takes it.";
+
 export const EVENT_DOORS: EventDoor[] = [
     {
         id: "arena",

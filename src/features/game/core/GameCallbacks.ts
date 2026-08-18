@@ -2,6 +2,7 @@
 import { ChatMessage } from "../ui/Chat";
 import type { BuildSessionState } from "../world/building/BuildSession";
 import type { ResolvedEvent } from "../data/eventDoors";
+import type { KillFeedEntry } from "../ui/KillFeed";
 import {
     InventoryEntry,
     StorageEntry,
@@ -13,6 +14,8 @@ import {
     ArenaStateData,
     DefusalStateData,
     DefusalQueueData,
+    GrinderStateData,
+    GrinderRoundEndData,
     ArenaEndedData,
     QuestInfoData,
     QuestUpdateData,
@@ -71,6 +74,9 @@ export interface GameCallbacks {
     onOpenEventDoorUI?: (eventId: string) => void;
     onDefusalState?: (state: DefusalStateData | null) => void;
     onDefusalQueueState?: (state: DefusalQueueData) => void;
+    onGrinderState?: (state: GrinderStateData | null) => void;
+    onGrinderRoundEnd?: (data: GrinderRoundEndData) => void;
+    onKillFeed?: (entry: KillFeedEntry) => void;
     onScopeStep?: (step: number) => void;
     onFlashed?: (durationMs: number) => void;
     onEventStates?: (events: ResolvedEvent[]) => void;

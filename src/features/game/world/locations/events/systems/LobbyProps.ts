@@ -2,8 +2,8 @@
 import * as THREE from "three";
 import { CollisionGrid } from "../../../CollisionGrid";
 import { AssetBin } from "../../../AssetBin";
-import { EVENT_DOORS } from "../../../../data/eventDoors";
-import { createCarpetMaterial, createDirectoryTexture, makeRandom } from "../lobbyTextures";
+import { EVENT_DOORS, ResolvedEvent, eventWindow } from "../../../../data/eventDoors";
+import { createCarpetMaterial, createDirectoryTexture, drawDirectory, makeRandom, type DirectoryRow } from "../lobbyTextures";
 import {
     BAY_COUNT,
     BENCH_RING_RADIUS,
@@ -34,6 +34,9 @@ interface Chandelier {
 
 export class LobbyProps {
     private readonly random = makeRandom(0x1d5b8e);
+
+    private directoryTexture: THREE.CanvasTexture | null = null;
+    private directorySignature = "";
 
     private waterMaterial: THREE.MeshPhysicalMaterial | null = null;
     private jetMaterial: THREE.MeshBasicMaterial | null = null;
@@ -249,13 +252,40 @@ export class LobbyProps {
         velocities[i3 + 2] = Math.sin(angle) * (1 + this.random() * 0.9);
     }
 
+    // The board is a canvas, not a baked sheet: whatever the schedule says on
+    // the next poll gets redrawn in place.
+    private directoryRows(events: ResolvedEvent[]): DirectoryRow[] {
+        const byId = new Map(events.map((event) => [event.id, event]));
+
+        return EVENT_DOORS.map((door) => {
+            const state = byId.get(door.id);
+            const open = state ? state.enabled && eventWindow(state).open : door.live;
+            const upcoming = !!state && state.enabled && eventWindow(state).state === "upcoming";
+
+            return {
+                label: `${door.glyph}  ${state?.title ?? door.name}`,
+                value: open ? "OPEN" : upcoming ? "SOON" : "SEALED",
+                accent: `#${new THREE.Color(state?.accent ?? door.accent).getHexString()}`,
+                live: open,
+            };
+        });
+    }
+
+    public applyEvents(events: ResolvedEvent[]) {
+        if (!this.directoryTexture) return;
+
+        const rows = this.directoryRows(events);
+        const signature = rows.map((row) => `${row.label}:${row.value}`).join("|");
+        if (signature === this.directorySignature) return;
+
+        this.directorySignature = signature;
+        drawDirectory(this.directoryTexture.image as HTMLCanvasElement, rows);
+        this.directoryTexture.needsUpdate = true;
+    }
+
     private buildDirectory(materials: ShellMaterials) {
-        const rows = EVENT_DOORS.map((event) => ({
-            label: `${event.glyph}  ${event.name}`,
-            value: event.live ? "OPEN" : "SEALED",
-            accent: `#${new THREE.Color(event.accent).getHexString()}`,
-            live: event.live,
-        }));
+        const rows = this.directoryRows([]);
+        this.directorySignature = rows.map((row) => `${row.label}:${row.value}`).join("|");
 
         const angle = Math.PI + Math.PI / BAY_COUNT;
         const board = new THREE.Group();
@@ -279,7 +309,7 @@ export class LobbyProps {
         const panel = new THREE.Mesh(
             new THREE.PlaneGeometry(8, 8),
             this.bin.material(new THREE.MeshBasicMaterial({
-                map: createDirectoryTexture(this.bin, rows),
+                map: (this.directoryTexture = createDirectoryTexture(this.bin, rows)),
                 toneMapped: false,
                 fog: false,
             }))

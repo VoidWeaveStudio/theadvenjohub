@@ -4,7 +4,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const serverPath = path.join(scriptDir, "..", "..", "game-server", "server.js");
+const serverDir = path.join(scriptDir, "..", "..", "game-server");
+const serverPath = path.join(serverDir, "server.js");
 const clientPath = path.join(scriptDir, "..", "src", "features", "game", "network", "NetworkManager.ts");
 
 const NOT_MESSAGES = new Set([
@@ -60,8 +61,25 @@ function missing(from, into) {
     return [...from].filter((type) => !into.has(type)).sort();
 }
 
+function serverSource() {
+    const entry = fs.readFileSync(serverPath, "utf8");
+    const parts = [entry];
+    const seen = new Set();
+
+    for (const match of entry.matchAll(/require\(['"]\.\/([\w-]+)['"]\)/g)) {
+        const name = match[1];
+        if (seen.has(name)) continue;
+        seen.add(name);
+
+        const file = path.join(serverDir, `${name}.js`);
+        if (fs.existsSync(file)) parts.push(fs.readFileSync(file, "utf8"));
+    }
+
+    return parts.join("\n");
+}
+
 function run() {
-    const server = fs.readFileSync(serverPath, "utf8");
+    const server = serverSource();
     const client = fs.readFileSync(clientPath, "utf8");
 
     const casePattern = /case\s*['"]([a-zA-Z][\w]*)['"]\s*:/g;

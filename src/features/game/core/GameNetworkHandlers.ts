@@ -19,6 +19,25 @@ import { STORAGE_CRATE_PIECE } from "@/core/lib/roomLayoutGrid";
 let systemMessageCounter = 0;
 const systemMessageId = () => `system-${Date.now()}-${++systemMessageCounter}`;
 
+let killFeedSeq = 0;
+
+function nameOf(game: Game, id: string | null): string | null {
+    if (!id) return null;
+    if (id === game.localPlayerNetId) return game.myNickname || "You";
+    return game.otherPlayers.get(id)?.nickname ?? "Player";
+}
+
+function pushKillFeed(game: Game, killerId: string | null, victimId: string) {
+    game.onKillFeed?.({
+        id: killFeedSeq++,
+        killerName: nameOf(game, killerId),
+        victimName: nameOf(game, victimId) ?? "Player",
+        killerIsMe: !!killerId && killerId === game.localPlayerNetId,
+        victimIsMe: victimId === game.localPlayerNetId,
+        at: Date.now(),
+    });
+}
+
 interface PlayerLeaveLocationData {
     playerId: string;
     fromLocation: string;
@@ -439,6 +458,8 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onPlayerDeath = (data: DeathData) => {
+        if (game.dust2Mode) pushKillFeed(game, data.killerId ?? null, data.playerId);
+
         if (data.playerId === game.localPlayerNetId) {
             game.isDead = true;
             game.player.setDead(true);
@@ -448,16 +469,19 @@ export function registerNetworkHandlers(game: Game) {
             const op = game.otherPlayers.get(data.playerId);
             if (op && !op.isHidden()) {
                 op.setDead(true);
-                game.onChatMessage?.({
-                    id: systemMessageId(), sender: "System",
-                    message: `${op.nickname} was eliminated`,
-                    timestamp: Date.now(), type: "system",
-                });
+                if (!game.dust2Mode) {
+                    game.onChatMessage?.({
+                        id: systemMessageId(), sender: "System",
+                        message: `${op.nickname} was eliminated`,
+                        timestamp: Date.now(), type: "system",
+                    });
+                }
             }
         }
     };
 
     game.networkManager.onPlayerRespawn = (data: PlayerRespawnData) => {
+
         const op = game.otherPlayers.get(data.id);
         if (op && !op.isHidden()) {
             op.setDead(false);
@@ -832,6 +856,65 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onDefusalQueueState = (state) => {
         game.onDefusalQueueState?.(state);
+    };
+
+    game.networkManager.onGrinderState = (state) => {
+        game.onGrinderState?.(state);
+
+        const me = state.roster.find((entry) => entry.id === game.localPlayerNetId);
+        if (!me) return;
+
+        const heldId = me.held === "primary"
+            ? me.primary
+            : me.held === "melee"
+                ? "rug-beater"
+                : me.held === "grenade1"
+                    ? me.grenades?.[0] ?? null
+                    : me.held === "grenade2"
+                        ? me.grenades?.[1] ?? null
+                        : me.pistol;
+
+        game.applyDefusalHeld(
+            heldId,
+            me.held === "grenade1" || me.held === "grenade2",
+            me.held === "melee"
+        );
+
+        for (const entry of state.roster) {
+            if (entry.id === game.localPlayerNetId) continue;
+            const other = game.otherPlayers.get(entry.id);
+            if (!other) continue;
+
+            const theirs = entry.held === "primary"
+                ? entry.primary
+                : entry.held === "melee"
+                    ? "rug-beater"
+                    : entry.held === "grenade1" || entry.held === "grenade2"
+                        ? null
+                        : entry.pistol;
+
+            other.setDefusalWeapon(theirs);
+        }
+    };
+
+    game.networkManager.onGrinderRespawn = (data) => {
+        placeAtPoint(game, data.position);
+        game.isDead = false;
+        game.onDeathStateChange?.(false, null);
+    };
+
+    game.networkManager.onGrinderDeath = (data) => {
+        game.isDead = false;
+        game.onDeathStateChange?.(false, null);
+        pushKillFeed(game, data.killerId, game.localPlayerNetId ?? "");
+    };
+
+    game.networkManager.onGrinderRoundEnd = (data) => {
+        game.onGrinderRoundEnd?.(data);
+        game.onNotification?.(
+            data.winnerName ? `🏆 ${data.winnerName} takes the grinder` : "🏁 Round over",
+            5000
+        );
     };
 
     game.networkManager.onDefusalRespawn = (data) => {

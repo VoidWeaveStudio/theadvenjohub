@@ -55,8 +55,8 @@ export class Dust2 extends TowerFloor {
     private elapsed = 0;
     private spawnPoint = new THREE.Vector3(T_SPAWN.x, 2, T_SPAWN.z);
 
-    constructor() {
-        super("event-dust2", "Dust II");
+    constructor(id: string = "event-dust2", name: string = "Dust II") {
+        super(id, name);
     }
 
     public setSpawnPoint(x: number, z: number) {
@@ -446,7 +446,7 @@ export class Dust2 extends TowerFloor {
         }));
 
         const group = new THREE.Group();
-        group.position.set(T_SPAWN.x + 8, 0, T_SPAWN.z + 4);
+        group.position.set(T_SPAWN.x - 8, 0, T_SPAWN.z + 3);
         group.rotation.y = Math.PI;
 
         for (const side of [-1, 1]) {

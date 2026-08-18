@@ -381,13 +381,17 @@ export function createCrestTexture(bin: AssetBin, glyph: string, accent: string,
     return bin.texture(texture);
 }
 
-export function createDirectoryTexture(
-    bin: AssetBin,
-    rows: { label: string; value: string; accent: string; live: boolean }[]
-): THREE.CanvasTexture {
-    const width = 1024;
-    const height = 1024;
-    const { canvas, ctx } = makeCanvas(width, height);
+export interface DirectoryRow {
+    label: string;
+    value: string;
+    accent: string;
+    live: boolean;
+}
+
+export function drawDirectory(canvas: HTMLCanvasElement, rows: DirectoryRow[]) {
+    const width = canvas.width;
+    const height = canvas.height;
+    const ctx = canvas.getContext("2d")!;
 
     const base = ctx.createLinearGradient(0, 0, 0, height);
     base.addColorStop(0, "#14161f");
@@ -428,6 +432,11 @@ export function createDirectoryTexture(
         ctx.textAlign = "left";
         ctx.globalAlpha = 1;
     });
+}
+
+export function createDirectoryTexture(bin: AssetBin, rows: DirectoryRow[]): THREE.CanvasTexture {
+    const { canvas } = makeCanvas(1024, 1024);
+    drawDirectory(canvas, rows);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;

@@ -7,6 +7,9 @@ export interface WeaponRig {
     muzzle: THREE.Object3D;
     ejection: THREE.Object3D;
     frontGrip: THREE.Object3D;
+    rearGrip: THREE.Object3D;
+    gripRake: number;
+    oneHanded: boolean;
     scopeLens: THREE.Object3D | null;
     length: number;
 }
@@ -142,6 +145,9 @@ function buildDustNine(): WeaponRig {
         muzzle: anchor(group, 0, 0.012, -0.155),
         ejection: anchor(group, 0.016, 0.026, -0.02),
         frontGrip: anchor(group, 0, -0.02, -0.04),
+        rearGrip: anchor(group, 0.0, -0.036, 0.016),
+        gripRake: 0.12,
+        oneHanded: false,
         scopeLens: null,
         length: 0.24,
     };
@@ -175,6 +181,9 @@ function buildWhaleCannon(): WeaponRig {
         muzzle: anchor(group, 0, 0.016, -0.262),
         ejection: anchor(group, 0.02, 0.02, 0.01),
         frontGrip: anchor(group, 0, -0.01, -0.1),
+        rearGrip: anchor(group, 0.0, -0.038, 0.02),
+        gripRake: 0.14,
+        oneHanded: false,
         scopeLens: null,
         length: 0.36,
     };
@@ -213,6 +222,9 @@ function buildPumpRifle(): WeaponRig {
         muzzle: anchor(group, 0, 0.012, -0.52),
         ejection: anchor(group, 0.022, 0.03, -0.02),
         frontGrip: anchor(group, 0, -0.02, -0.17),
+        rearGrip: anchor(group, 0.0, -0.042, 0.024),
+        gripRake: 0.2,
+        oneHanded: false,
         scopeLens: null,
         length: 0.82,
     };
@@ -258,6 +270,9 @@ function buildBlueChip(): WeaponRig {
         muzzle: anchor(group, 0, 0.012, -0.53),
         ejection: anchor(group, 0.02, 0.028, -0.01),
         frontGrip: anchor(group, 0, -0.012, -0.24),
+        rearGrip: anchor(group, 0.0, -0.042, 0.024),
+        gripRake: 0.18,
+        oneHanded: false,
         scopeLens: null,
         length: 0.84,
     };
@@ -317,6 +332,9 @@ function buildMoonLadder(): WeaponRig {
         muzzle: anchor(group, 0, 0.012, -3.7),
         ejection: anchor(group, 0.024, 0.03, 0.02),
         frontGrip: anchor(group, 0, -0.01, -0.5),
+        rearGrip: anchor(group, 0.0, -0.042, 0.028),
+        gripRake: 0.16,
+        oneHanded: false,
         scopeLens: lens,
         length: 3.9,
     };
@@ -360,6 +378,9 @@ function buildRugBeater(): WeaponRig {
         muzzle: anchor(group, 0, 0, -0.26),
         ejection: anchor(group, 0, 0, 0),
         frontGrip: anchor(group, 0, 0, -0.06),
+        rearGrip: anchor(group, 0.0, -0.012, 0.06),
+        gripRake: 0.0,
+        oneHanded: true,
         scopeLens: null,
         length: 0.5,
     };
@@ -394,8 +415,32 @@ export function buildGrenadeModel(itemId: string): THREE.Group {
     return group;
 }
 
+function buildGrenadeRig(itemId: string): WeaponRig {
+    const group = new THREE.Group();
+
+    const shell = buildGrenadeModel(itemId);
+    shell.position.set(0, -0.012, -0.03);
+    shell.rotation.set(0.34, 0.5, 0.22);
+    group.add(shell);
+
+    return {
+        group,
+        muzzle: anchor(group, 0, -0.012, -0.06),
+        ejection: anchor(group, 0, -0.012, -0.03),
+        frontGrip: anchor(group, 0, -0.03, -0.03),
+        rearGrip: anchor(group, 0, -0.03, -0.02),
+        gripRake: 0.5,
+        oneHanded: true,
+        scopeLens: null,
+        length: 0.14,
+    };
+}
+
 const BUILDERS: Record<string, () => WeaponRig> = {
     "dust-nine": buildDustNine,
+    "rug-flash": () => buildGrenadeRig("rug-flash"),
+    "fud-cloud": () => buildGrenadeRig("fud-cloud"),
+    "liquidation": () => buildGrenadeRig("liquidation"),
     "whale-cannon": buildWhaleCannon,
     "pump-rifle": buildPumpRifle,
     "bluechip-rifle": buildBlueChip,
