@@ -9,6 +9,7 @@ export function useHudState() {
     maxHealth: 100,
     ammo: 30,
     maxAmmo: 30,
+    reloadProgress: 0,
     reserve: 0,
     online: 1,
     inSafeZone: true,

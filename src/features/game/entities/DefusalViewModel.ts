@@ -82,6 +82,7 @@ export class DefusalViewModel {
     private sway = new THREE.Vector2();
     private aim = 0;
     private scopeBlend = 0;
+    private scopeActive = false;
     private readonly rigOffset = new THREE.Vector3();
     private readonly rigEuler = new THREE.Euler();
     private muzzleFlash: THREE.PointLight | null = null;
@@ -162,12 +163,23 @@ export class DefusalViewModel {
         this.rebuildHands();
 
         this.drawProgress = 0;
-        this.root.visible = this.visible;
+        this.applyVisibility();
     }
 
     setVisible(visible: boolean) {
         this.visible = visible;
-        this.root.visible = visible && this.rig !== null;
+        this.applyVisibility();
+    }
+
+    // Down the scope the model is out of the way entirely, the overlay is the
+    // whole sight picture — the same as the game this borrows from.
+    setScopeActive(active: boolean) {
+        this.scopeActive = active;
+        this.applyVisibility();
+    }
+
+    private applyVisibility() {
+        this.root.visible = this.visible && this.rig !== null && !this.scopeActive;
     }
 
     setScoped(scoped: boolean) {
@@ -248,21 +260,32 @@ export class DefusalViewModel {
             drawRoll + reloadRoll
         );
 
-        // A swing arcs the whole rig across and down, then snaps back.
+        // A bat swing, not a rifle butt: wind up back and right, sweep flat
+        // across the screen to the left, then drift back to the ready pose.
         if (this.swing > 0) {
-            this.swing = Math.max(0, this.swing - delta * 3.4);
-            const arc = Math.sin((1 - this.swing) * Math.PI);
-            this.recoilNode.position.x = -arc * 0.16;
-            this.recoilNode.rotation.y = arc * 0.9;
-            this.recoilNode.rotation.z = -arc * 0.7;
+            this.swing = Math.max(0, this.swing - delta * 2.6);
+
+            const t = 1 - this.swing;
+            const wind = Math.min(1, t / 0.26);
+            const strike = THREE.MathUtils.clamp((t - 0.26) / 0.3, 0, 1);
+            const recover = THREE.MathUtils.clamp((t - 0.56) / 0.44, 0, 1);
+            const blend = 1 - recover * recover;
+            const swept = strike * strike * (3 - 2 * strike);
+
+            this.recoilNode.position.x = (wind * 0.12 - swept * 0.34) * blend;
+            this.recoilNode.position.y = (wind * 0.05 - swept * 0.03) * blend;
+            this.recoilNode.position.z = this.recoil + (wind * 0.08 - swept * 0.14) * blend;
+            this.recoilNode.rotation.y = (wind * 0.42 - swept * 1.75) * blend;
+            this.recoilNode.rotation.z = (wind * 0.55 - swept * 1.2) * blend;
+            this.recoilNode.rotation.x = this.recoilPitch + (wind * 0.34 - swept * 0.28) * blend;
         } else {
             this.recoilNode.position.x = 0;
+            this.recoilNode.position.y = 0;
+            this.recoilNode.position.z = this.recoil;
             this.recoilNode.rotation.y = 0;
             this.recoilNode.rotation.z = 0;
+            this.recoilNode.rotation.x = this.recoilPitch;
         }
-
-        this.recoilNode.position.z = this.recoil;
-        this.recoilNode.rotation.x = this.recoilPitch - (this.swing > 0 ? Math.sin((1 - this.swing) * Math.PI) * 0.5 : 0);
 
         if (this.rig.scopeLens) {
             this.rig.scopeLens.visible = !scoped;

@@ -342,47 +342,61 @@ function buildMoonLadder(): WeaponRig {
 
 function buildRugBeater(): WeaponRig {
     const group = new THREE.Group();
+    const shaft = new THREE.Group();
 
-    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.42, 10), wood());
+    shaft.rotation.set(-0.62, 0.12, 0.34);
+    shaft.position.set(0.02, -0.03, 0.02);
+    group.add(shaft);
+
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.021, 0.52, 12), wood());
     handle.rotation.x = Math.PI / 2;
-    handle.position.set(0, 0, 0.06);
-    group.add(handle);
+    handle.position.set(0, 0, 0.04);
+    shaft.add(handle);
+
+    const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.023, 0.13, 12), rugCloth());
+    wrap.rotation.x = Math.PI / 2;
+    wrap.position.set(0, 0, 0.24);
+    shaft.add(wrap);
+
+    part(shaft, new THREE.SphereGeometry(0.024, 12, 8), wood(), 0, 0, 0.3);
 
     for (let i = 0; i < 3; i++) {
-        part(group, new THREE.TorusGeometry(0.016, 0.003, 6, 12), brass(), 0, 0, 0.13 + i * 0.03, [Math.PI / 2, 0, 0]);
+        part(shaft, new THREE.TorusGeometry(0.021, 0.0035, 6, 14), brass(), 0, 0, 0.16 - i * 0.05, [Math.PI / 2, 0, 0]);
     }
 
     const head = new THREE.Group();
-    head.position.set(0, 0, -0.2);
-    group.add(head);
+    head.position.set(0, 0, -0.29);
+    shaft.add(head);
 
-    const loop = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.006, 8, 26), wood());
-    loop.rotation.y = Math.PI / 2;
-    head.add(loop);
+    const outer = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.008, 8, 30), wood());
+    outer.rotation.y = Math.PI / 2;
+    outer.scale.set(1, 1.35, 1);
+    head.add(outer);
 
-    const inner = new THREE.Mesh(new THREE.TorusGeometry(0.046, 0.005, 8, 22), wood());
+    const inner = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.006, 8, 24), wood());
     inner.rotation.y = Math.PI / 2;
+    inner.scale.set(1, 1.35, 1);
     head.add(inner);
 
     for (let i = 0; i < 5; i++) {
-        const t = (i / 4 - 0.5) * 0.12;
-        part(head, new THREE.CylinderGeometry(0.004, 0.004, 0.13, 6), wood(), 0, t, 0, [0, 0, Math.PI / 2]);
-        part(head, new THREE.CylinderGeometry(0.004, 0.004, 0.13, 6), wood(), 0, 0, t, [Math.PI / 2, 0, Math.PI / 2]);
+        const t = (i / 4 - 0.5) * 0.19;
+        part(head, new THREE.CylinderGeometry(0.005, 0.005, 0.19, 6), wood(), 0, t, 0, [0, 0, Math.PI / 2]);
+        part(head, new THREE.CylinderGeometry(0.005, 0.005, 0.14, 6), wood(), 0, 0, t * 0.74, [Math.PI / 2, 0, Math.PI / 2]);
     }
 
-    part(head, new THREE.BoxGeometry(0.004, 0.05, 0.05), rugCloth(), 0.006, 0.02, 0.02, [0.3, 0, 0.2]);
-    part(group, new THREE.BoxGeometry(0.02, 0.03, 0.03), rugCloth(), 0, -0.006, -0.1);
+    part(head, new THREE.BoxGeometry(0.006, 0.09, 0.07), rugCloth(), 0.008, 0.03, 0.02, [0.24, 0, 0.18]);
+    part(head, new THREE.BoxGeometry(0.006, 0.06, 0.05), rugCloth(), -0.008, -0.05, -0.02, [-0.2, 0, -0.3]);
 
     return {
         group,
-        muzzle: anchor(group, 0, 0, -0.26),
+        muzzle: anchor(group, 0, 0.12, -0.3),
         ejection: anchor(group, 0, 0, 0),
         frontGrip: anchor(group, 0, 0, -0.06),
-        rearGrip: anchor(group, 0.0, -0.012, 0.06),
-        gripRake: 0.0,
-        oneHanded: true,
+        rearGrip: anchor(group, 0.02, -0.05, 0.12),
+        gripRake: 0.5,
+        oneHanded: false,
         scopeLens: null,
-        length: 0.5,
+        length: 0.62,
     };
 }
 

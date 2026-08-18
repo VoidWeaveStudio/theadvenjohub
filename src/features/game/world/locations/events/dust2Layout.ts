@@ -32,6 +32,15 @@ export interface CrateBox {
     style?: "crate" | "concrete" | "barrel" | "car";
 }
 
+export interface PlatformBox {
+    x1: number;
+    z1: number;
+    x2: number;
+    z2: number;
+    top: number;
+    style: "site" | "ledge";
+}
+
 export interface GroundPatch {
     x1: number;
     z1: number;
@@ -94,22 +103,38 @@ export const WALLS: WallRect[] = [
     { x1: -20, z1: 24, x2: -6, z2: 44, height: WALL_HEIGHT },
     { x1: -6, z1: 26, x2: 6, z2: 44, height: WALL_HEIGHT },
     { x1: 6, z1: 40, x2: 40, z2: 44, height: WALL_HEIGHT },
+
+    { x1: -6, z1: 3.4, x2: -2.6, z2: 4.6, height: WALL_HEIGHT },
+    { x1: 2.6, z1: 3.4, x2: 6, z2: 4.6, height: WALL_HEIGHT },
+    { x1: -2.6, z1: 3.4, x2: 2.6, z2: 4.6, height: WALL_HEIGHT - 3, y: 3 },
+
+    { x1: 28, z1: 8.4, x2: 29.6, z2: 9.6, height: WALL_HEIGHT },
+    { x1: 32.4, z1: 8.4, x2: 34, z2: 9.6, height: WALL_HEIGHT },
+    { x1: 29.6, z1: 8.4, x2: 32.4, z2: 9.6, height: WALL_HEIGHT - 3, y: 3 },
+
+    { x1: -22, z1: -29.6, x2: -19.6, z2: -28.4, height: WALL_HEIGHT },
+    { x1: -16.4, z1: -29.6, x2: -14, z2: -28.4, height: WALL_HEIGHT },
+    { x1: -19.6, z1: -29.6, x2: -16.4, z2: -28.4, height: WALL_HEIGHT - 3, y: 3 },
+
+    { x1: -6.2, z1: 15.5, x2: -5, z2: 23, height: WALL_HEIGHT - 3.5, y: 3.5 },
+    { x1: 12, z1: -21.5, x2: 13.2, z2: -12, height: WALL_HEIGHT - 3.5, y: 3.5 },
+    { x1: -6, z1: -27.2, x2: 6, z2: -26, height: WALL_HEIGHT - 3.5, y: 3.5 },
+    { x1: 8, z1: -31.5, x2: 9.2, z2: -26.5, height: WALL_HEIGHT - 3.5, y: 3.5 },
+    { x1: -30, z1: -11.2, x2: -20, z2: -10, height: WALL_HEIGHT - 3.5, y: 3.5 },
+    { x1: 26, z1: -11.2, x2: 34, z2: -10, height: WALL_HEIGHT - 3.5, y: 3.5 },
 ];
 
 export const CRATES: CrateBox[] = [
     { x: 22, z: -19, width: 4.4, depth: 4.4, height: 2.4, style: "crate" },
     { x: 26.6, z: -18.6, width: 4.4, depth: 4.4, height: 2.4, style: "crate" },
     { x: 24.2, z: -23.2, width: 4.4, depth: 4.4, height: 4.8, style: "crate" },
-    { x: 30.4, z: -22.6, width: 3.6, depth: 3.6, height: 2.4, style: "concrete" },
     { x: 17.6, z: -22.4, width: 3.6, depth: 3.6, height: 2.4, style: "crate" },
     { x: 15.4, z: -14.6, width: 5.2, depth: 3, height: 1.7, style: "car" },
     { x: 31.6, z: -12.4, width: 3.4, depth: 3.4, height: 2.4, style: "crate" },
-    { x: 36.4, z: -13.6, width: 3.2, depth: 3.2, height: 2.4, style: "concrete" },
 
     { x: -32.6, z: -19.4, width: 4.4, depth: 4.4, height: 2.4, style: "crate" },
     { x: -27.8, z: -19.8, width: 4.4, depth: 4.4, height: 2.4, style: "crate" },
     { x: -30.2, z: -23.4, width: 4.4, depth: 4.4, height: 4.8, style: "crate" },
-    { x: -36.2, z: -22.6, width: 3.6, depth: 3.6, height: 2.4, style: "concrete" },
     { x: -36.4, z: -14.6, width: 5.2, depth: 3, height: 1.7, style: "car" },
     { x: -22.6, z: -14.2, width: 3.4, depth: 3.4, height: 2.4, style: "crate" },
     { x: -24.6, z: -22.6, width: 3, depth: 3, height: 2.4, style: "barrel" },
@@ -140,6 +165,19 @@ export const CRATES: CrateBox[] = [
     { x: 14.6, z: 33.6, width: 3.4, depth: 3.4, height: 2.4, style: "crate" },
     { x: 36.4, z: 36.4, width: 3.4, depth: 3.4, height: 2.4, style: "crate" },
     { x: 22.6, z: 26.4, width: 3, depth: 3, height: 2.4, style: "barrel" },
+];
+
+// Raised ground the sites are actually fought over: a platform at the back of
+// each site with a step onto it, and the ledge that reads as the pit.
+export const PLATFORMS: PlatformBox[] = [
+    { x1: 27, z1: -26, x2: 34, z2: -21, top: 1.2, style: "site" },
+    { x1: 27, z1: -21, x2: 34, z2: -20, top: 0.6, style: "site" },
+
+    { x1: -40, z1: -26, x2: -34, z2: -18, top: 1.2, style: "site" },
+    { x1: -34, z1: -26, x2: -33, z2: -18, top: 0.6, style: "site" },
+
+    { x1: 34, z1: -16, x2: 40, z2: -12.5, top: 0.6, style: "ledge" },
+    { x1: -24, z1: 4, x2: -18, z2: 7, top: 0.6, style: "ledge" },
 ];
 
 export const GROUND_PATCHES: GroundPatch[] = [

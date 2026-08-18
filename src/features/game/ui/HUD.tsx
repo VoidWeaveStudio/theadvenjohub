@@ -174,6 +174,15 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                             </div>
                         )}
 
+                        {state.isReloading && (
+                            <div className="mt-2 h-1.5 bg-[rgba(255,255,255,0.12)] rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-[#FF5757] transition-none"
+                                    style={{ width: `${Math.round(state.reloadProgress * 100)}%` }}
+                                />
+                            </div>
+                        )}
+
                         <div className="mt-3 flex items-center gap-2">
                             {state.isReloading ? (
                                 <Activity className="w-4 h-4 text-[#FF5757] animate-pulse" />

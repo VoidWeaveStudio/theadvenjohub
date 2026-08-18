@@ -192,6 +192,11 @@ export class Weapon {
         if (this.visual) updateWeaponTierAttachments(this.visual, this.elapsed, delta);
     }
 
+    getReloadProgress(): number {
+        if (!this.isReloading || this.reloadTime <= 0) return 0;
+        return Math.min(1, Math.max(0, 1 - this.reloadCooldown / this.reloadTime));
+    }
+
     getWorldMuzzle(): THREE.Vector3 {
         return this.muzzle.getWorldPosition(new THREE.Vector3());
     }

@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Coins, Timer, X } from "lucide-react";
+import { Coins, DoorOpen, Timer, X } from "lucide-react";
 import { ARSENAL, ARSENAL_BY_ID, arsenalFor, GRENADE_LIMIT, type ArsenalItem, type ArsenalSlot } from "../data/defusalArsenal";
 import type { DefusalSide } from "../network/NetworkManager";
 import { WeaponIcon } from "./WeaponIcon";
@@ -25,6 +25,7 @@ interface BuyMenuProps {
     closesAt: number | null;
     onBuy: (itemId: string) => void;
     onClose: () => void;
+    onLeave: () => void;
 }
 
 const SLOT_ORDER: { slot: ArsenalSlot; label: string }[] = [
@@ -47,7 +48,7 @@ function ownedState(item: ArsenalItem, me: BuyMenuEntry): { owned: boolean; coun
     return { owned: false, count: 0 };
 }
 
-export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose }: BuyMenuProps) {
+export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose, onLeave }: BuyMenuProps) {
     const [now, setNow] = useState(() => Date.now());
 
     useEffect(() => {
@@ -151,7 +152,16 @@ export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose 
                     <span>
                         Holding: {ARSENAL_BY_ID.get(me.held === "primary" ? me.primary ?? "" : me.pistol ?? "")?.name ?? "—"}
                     </span>
-                    <span>[B] reopens · 1 primary · 2 pistol · 3 melee</span>
+                    <div className="flex items-center gap-4">
+                        <span>[B] reopens · 1 primary · 2 pistol · 3 melee</span>
+                        <button
+                            onClick={onLeave}
+                            className="flex items-center gap-1.5 rounded-md border border-[#FF5757]/40 bg-[rgba(255,87,87,0.1)] px-2.5 py-1 text-[11px] font-bold text-[#FF8A8A] transition-colors hover:bg-[rgba(255,87,87,0.2)]"
+                        >
+                            <DoorOpen className="w-3.5 h-3.5" />
+                            <span>Leave to Events Hall</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

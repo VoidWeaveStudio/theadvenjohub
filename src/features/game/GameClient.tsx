@@ -1560,6 +1560,10 @@ export function GameClient({ slug }: GameClientProps) {
         closesAt={grinderMatch ? null : defusalMatch?.phaseUntil ?? null}
         onBuy={(itemId) => gameRef.current?.buyDefusalItem(itemId)}
         onClose={() => setIsBuyMenuOpen(false)}
+        onLeave={() => {
+          setIsBuyMenuOpen(false);
+          gameRef.current?.leaveEventRoom();
+        }}
       />
 
       <EventDoorPanel

@@ -90,7 +90,7 @@ export function GrinderHUD({ match, localPlayerId }: GrinderHUDProps) {
                 </div>
             </div>
 
-            <div className="absolute top-4 right-4 pointer-events-none select-none font-oxanium z-30 w-56">
+            <div className="absolute top-32 right-4 pointer-events-none select-none font-oxanium z-30 w-56">
                 <div className="rounded-[10px] overflow-hidden border border-white/15 bg-[rgba(10,12,16,0.82)] backdrop-blur-md">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-white/10">
                         {over ? (

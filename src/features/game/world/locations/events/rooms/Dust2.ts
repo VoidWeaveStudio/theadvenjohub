@@ -14,6 +14,7 @@ import {
     CRATES,
     GROUND_PATCHES,
     MAP_HALF_X,
+    PLATFORMS,
     MAP_HALF_Z,
     PLAYER_LIMIT_RADIUS,
     T_SPAWN,
@@ -73,6 +74,7 @@ export class Dust2 extends TowerFloor {
         this.buildKeyLight();
         this.buildGround();
         this.buildWalls();
+        this.buildPlatforms();
         this.buildCrates();
         this.buildSites();
         this.buildExitGate();
@@ -321,6 +323,45 @@ export class Dust2 extends TowerFloor {
             this.collisionGrid.insert(new THREE.Box3(
                 new THREE.Vector3(Math.min(wall.x1, wall.x2), y, Math.min(wall.z1, wall.z2)),
                 new THREE.Vector3(Math.max(wall.x1, wall.x2), y + wall.height, Math.max(wall.z1, wall.z2))
+            ));
+        }
+    }
+
+    private buildPlatforms() {
+        const slab = this.bin.material(new THREE.MeshStandardMaterial({
+            color: 0xc0a473,
+            roughness: 0.92,
+            metalness: 0.02,
+        }));
+        const lip = this.bin.material(new THREE.MeshStandardMaterial({
+            color: 0x9c7f52,
+            roughness: 0.86,
+            metalness: 0.04,
+        }));
+
+        for (const pad of PLATFORMS) {
+            const width = Math.abs(pad.x2 - pad.x1);
+            const depth = Math.abs(pad.z2 - pad.z1);
+            const x = (pad.x1 + pad.x2) / 2;
+            const z = (pad.z1 + pad.z2) / 2;
+
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, pad.top, depth), slab);
+            mesh.position.set(x, pad.top / 2, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.matrixAutoUpdate = false;
+            mesh.updateMatrix();
+            this.scene.add(mesh);
+
+            const edge = new THREE.Mesh(new THREE.BoxGeometry(width + 0.14, 0.12, depth + 0.14), lip);
+            edge.position.set(x, pad.top, z);
+            edge.matrixAutoUpdate = false;
+            edge.updateMatrix();
+            this.scene.add(edge);
+
+            this.collisionGrid.insert(new THREE.Box3(
+                new THREE.Vector3(Math.min(pad.x1, pad.x2), 0, Math.min(pad.z1, pad.z2)),
+                new THREE.Vector3(Math.max(pad.x1, pad.x2), pad.top, Math.max(pad.z1, pad.z2))
             ));
         }
     }

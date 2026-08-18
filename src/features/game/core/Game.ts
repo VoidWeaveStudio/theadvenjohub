@@ -95,6 +95,7 @@ export interface HUDState {
     inSafeZone: boolean;
     prompt: string | null;
     isReloading: boolean;
+    reloadProgress: number;
     isWeaponEquipped: boolean;
     equippedTool: "weapon" | "blueprint" | null;
     weaponName: string;
@@ -225,6 +226,7 @@ export class Game {
         inSafeZone: true,
         prompt: null,
         isReloading: false,
+        reloadProgress: 0,
         isWeaponEquipped: true,
         equippedTool: "weapon",
         weaponName: "Standard Rifle",
@@ -1109,6 +1111,7 @@ export class Game {
         this.hudState.maxAmmo = ammoState.maxAmmo;
         this.hudState.reserve = ammoState.reserve;
         this.hudState.isReloading = ammoState.isReloading;
+        this.hudState.reloadProgress = ammoState.reloadProgress;
 
         const weapon = this.player.getWeapon();
         this.hudState.weaponKind = weapon.kind;
@@ -1929,6 +1932,7 @@ export class Game {
             item && (item.slot === "primary" || item.slot === "pistol") ? item : null
         );
         this.defusalViewModel.setScoped(item?.scoped === true);
+        this.defusalViewModel.setScopeActive(false);
         this.cameraController.setScopeSteps(item?.scoped ? [2, 4] : null);
         this.onScopeStep?.(0);
     }
@@ -1936,6 +1940,7 @@ export class Game {
     public clearDefusalView() {
         this.defusalHoldingGrenade = false;
         this.defusalWeaponId = null;
+        this.defusalViewModel?.setScopeActive(false);
         this.shootingSystem.setArsenalWeapon(null);
         this.cameraController.setScopeSteps(null);
         this.defusalViewModel?.setVisible(false);
@@ -1945,13 +1950,15 @@ export class Game {
     private updateDefusalView(delta: number) {
         if (!this.defusalViewModel) return;
 
+        const item = this.defusalWeaponId ? ARSENAL_BY_ID.get(this.defusalWeaponId) : null;
         const state = this.player.getState();
         const velocity = state === "idle" ? 0 : state === "sprint" ? 9 : 5;
+
         this.defusalViewModel.update(
             delta,
             velocity,
             !this.player.isJumping(),
-            this.cameraController.isAimingState()
+            item?.scoped === true && this.cameraController.isAimingState()
         );
     }
 
@@ -1990,6 +1997,7 @@ export class Game {
     public cycleScope() {
         if (!this.cameraController.isFirstPerson()) return;
         const step = this.cameraController.cycleScope();
+        this.defusalViewModel?.setScopeActive(step > 0);
         this.onScopeStep?.(step);
     }
 

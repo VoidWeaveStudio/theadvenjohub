@@ -246,8 +246,11 @@ export class ShootingSystem extends System {
         if (canAct) this.updateFiring(pressed, justPressed, justReleased);
         else this.resetFiringState();
 
-        if (canAct && this.inputManager.isKeyJustPressed("KeyR")) {
-            const weapon = this.player.getWeapon();
+        const weapon = this.player.getWeapon();
+        const wantsReload = this.inputManager.isKeyJustPressed("KeyR")
+            || (weapon.kind !== "staff" && weapon.ammo <= 0 && !weapon.isReloading);
+
+        if (alive && wantsReload) {
             const wasReloading = weapon.isReloading;
             weapon.reload();
             if (!wasReloading && weapon.isReloading) this.network.sendReload();
@@ -596,7 +599,8 @@ export class ShootingSystem extends System {
             ammo: w.ammo,
             maxAmmo: w.maxAmmo,
             reserve: 0,
-            isReloading: w.isReloading
+            isReloading: w.isReloading,
+            reloadProgress: w.getReloadProgress(),
         };
     }
 
