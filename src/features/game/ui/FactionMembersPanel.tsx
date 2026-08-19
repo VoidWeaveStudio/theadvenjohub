@@ -6,6 +6,7 @@ import { FactionDetail } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { FactionRosterList } from "./FactionRosterList";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionMembersPanelProps {
     faction: FactionDetail;
@@ -15,6 +16,7 @@ interface FactionMembersPanelProps {
 }
 
 export function FactionMembersPanel({ faction, onClaimCreator, onLeaveFaction, getNicknameMenuActions }: FactionMembersPanelProps) {
+    const { t } = useLanguage();
     return (
         <div className="space-y-4">
             <FactionHeader faction={faction} />
@@ -32,7 +34,7 @@ export function FactionMembersPanel({ faction, onClaimCreator, onLeaveFaction, g
                         className="flex items-center gap-1.5 text-[#C084FC] hover:text-[#D8B4FE] text-xs font-bold transition-colors"
                     >
                         <Gem className="w-3.5 h-3.5" />
-                        Verify Token Creator
+                        {t("g.faction.verifyCreator")}
                     </button>
                 </div>
             )}

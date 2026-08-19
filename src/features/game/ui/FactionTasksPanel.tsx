@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { Target, Swords, Crosshair, Coins, Trophy } from "lucide-react";
 import { FactionDetail, FactionTaskDefinition } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionTasksPanelProps {
     faction: FactionDetail;
@@ -25,6 +26,7 @@ function formatDate(iso: string): string {
 }
 
 export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onRequestTaskList, onAcceptTask }: FactionTasksPanelProps) {
+    const { t } = useLanguage();
     const canManage = faction.founderWallet === myWallet || faction.verifiedCreatorWallet === myWallet;
     const activeTask = faction.activeTask;
 
@@ -71,7 +73,7 @@ export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onReques
                 ) : canManage ? (
                     <div className="mt-2 space-y-2">
                         {taskDefinitions.length === 0 ? (
-                            <p className="text-[#8B8F98] text-sm text-center py-6">Loading tasks...</p>
+                            <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.ft.loadingTasks")}</p>
                         ) : (
                             taskDefinitions.map((task) => (
                                 <div
@@ -90,7 +92,7 @@ export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onReques
                                     <div className="flex items-center gap-3 flex-shrink-0">
                                         <span className="text-[#FFD166] text-xs font-bold">+{task.rewardAsh}</span>
                                         <button onClick={() => onAcceptTask(task.key)} className="btn-primary px-3 py-1.5 text-xs">
-                                            Accept
+                                            {t("g.common.accept")}
                                         </button>
                                     </div>
                                 </div>
@@ -106,7 +108,7 @@ export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onReques
 
             {faction.taskHistory && faction.taskHistory.length > 0 && (
                 <div>
-                    <span className="text-[#8B8F98] text-xs font-bold tracking-wider">RECENT REWARDS</span>
+                    <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.ft.recentRewards")}</span>
                     <div className="mt-2 space-y-1.5">
                         {faction.taskHistory.map((entry) => (
                             <div

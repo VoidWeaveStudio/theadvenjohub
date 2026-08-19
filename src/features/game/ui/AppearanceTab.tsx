@@ -6,6 +6,7 @@ import { Shirt, Sparkles } from "lucide-react";
 import { COSMETICS, CosmeticId } from "../data/cosmetics";
 import { CosmeticStateData } from "../network/NetworkManager";
 import { CosmeticCard } from "./CosmeticCard";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface AppearanceTabProps {
     cosmetics: CosmeticStateData;
@@ -14,6 +15,7 @@ interface AppearanceTabProps {
 }
 
 export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: AppearanceTabProps) {
+    const { t } = useLanguage();
     useEffect(() => {
         onRequestCosmetics();
     }, []);
@@ -36,20 +38,20 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-[#8B8F98] text-xs font-bold tracking-wider flex items-center gap-1.5">
                         <Shirt className="w-3.5 h-3.5" />
-                        FULL SKINS
+                        {t("g.appearance.fullSkins")}
                     </span>
                     {hasSkinEquipped && (
                         <button
                             onClick={() => onEquip(null, cosmetics.accessoryId)}
                             className="text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold transition-colors"
                         >
-                            Take off skin
+                            {t("g.appearance.takeOff")}
                         </button>
                     )}
                 </div>
 
                 {ownedSkins.length === 0 ? (
-                    <p className="text-[#6B7280] text-sm py-3">You don&apos;t own any full skins yet.</p>
+                    <p className="text-[#6B7280] text-sm py-3">{t("g.appearance.noSkins")}</p>
                 ) : (
                     <div className="space-y-2">
                         {ownedSkins.map((cosmetic) => (
@@ -70,7 +72,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-[#8B8F98] text-xs font-bold tracking-wider flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" />
-                        ACCESSORIES
+                        {t("g.appearance.accessories")}
                     </span>
                     {cosmetics.accessoryId && (
                         <button
@@ -83,7 +85,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                 </div>
 
                 {ownedAccessories.length === 0 ? (
-                    <p className="text-[#6B7280] text-sm py-3">You don&apos;t own any accessories yet.</p>
+                    <p className="text-[#6B7280] text-sm py-3">{t("g.appearance.noAccessories")}</p>
                 ) : (
                     <div className="space-y-2">
                         {ownedAccessories.map((cosmetic) => (
@@ -93,7 +95,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                                 owned
                                 equipped={cosmetics.accessoryId === cosmetic.id}
                                 blocked={hasSkinEquipped}
-                                blockedReason={hasSkinEquipped ? "Take off your full skin first" : undefined}
+                                blockedReason={hasSkinEquipped ? t("g.appearance.takeOffFirst") : undefined}
                                 actionLabel="Equip"
                                 onAction={() => onEquip(null, cosmetic.id)}
                             />

@@ -3,6 +3,7 @@
 
 import { Building2, Home, Mountain, Package, ShieldCheck } from "lucide-react";
 import type { DeathLootInfo, RespawnOptions, RespawnTarget } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface DeathScreenProps {
   isVisible: boolean;
@@ -13,6 +14,7 @@ interface DeathScreenProps {
 }
 
 function LootNotice({ loot }: { loot: DeathLootInfo }) {
+  const { t } = useLanguage();
   if (loot.outcome === "empty" || loot.outcome === "kept") return null;
 
   if (loot.outcome === "insured") {
@@ -20,8 +22,8 @@ function LootNotice({ loot }: { loot: DeathLootInfo }) {
       <div className="flex items-center gap-3 bg-black/60 backdrop-blur-md border border-emerald-500/40 rounded-lg px-5 py-3 max-w-md">
         <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
         <div className="text-left">
-          <div className="text-emerald-300 text-sm font-bold">Insurance paid out</div>
-          <div className="text-zinc-400 text-[11px]">Your tokens came back with you. The charge is spent.</div>
+          <div className="text-emerald-300 text-sm font-bold">{t("g.death.insured")}</div>
+          <div className="text-zinc-400 text-[11px]">{t("g.death.insuredHint")}</div>
         </div>
       </div>
     );
@@ -35,13 +37,13 @@ function LootNotice({ loot }: { loot: DeathLootInfo }) {
       <Package className="w-5 h-5 text-amber-400 shrink-0" />
       <div className="text-left">
         <div className="text-amber-300 text-sm font-bold">
-          You dropped {stacks} stack{stacks === 1 ? "" : "s"}
-          {inSegment ? ` in Segment ${loot.segment}` : ""}
+          {t("g.death.dropped", { stacks })}
+          {inSegment ? ` ${t("g.death.inSegment", { segment: loot.segment ?? 0 })}` : ""}
         </div>
         <div className="text-zinc-400 text-[11px]">
           {inSegment
-            ? "The crate lasts five minutes and only you can see it. Leave the game and it is gone for good."
-            : "The crate lasts five minutes where you fell, and anyone can take it."}
+            ? t("g.death.crateSolo")
+            : t("g.death.cratePublic")}
         </div>
       </div>
     </div>
@@ -50,35 +52,36 @@ function LootNotice({ loot }: { loot: DeathLootInfo }) {
 
 const CHOICES: Array<{
   target: RespawnTarget;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
   icon: typeof Home;
-  lockedHint: string;
+  lockedKey: string;
 }> = [
     {
       target: "canyon_hub",
-      label: "Canyon Outpost",
-      hint: "Straight back for your run",
+      labelKey: "g.death.canyon",
+      hintKey: "g.death.canyonHint",
       icon: Mountain,
-      lockedHint: "You did not fall in the canyon",
+      lockedKey: "g.death.canyonLocked",
     },
     {
       target: "home",
-      label: "Your Room",
-      hint: "At your spawn beacon",
+      labelKey: "g.death.room",
+      hintKey: "g.death.roomHint",
       icon: Home,
-      lockedHint: "Build a spawn beacon in your room",
+      lockedKey: "g.death.roomLocked",
     },
     {
       target: "hall",
-      label: "Main Hall",
-      hint: "The safe way back",
+      labelKey: "g.death.hall",
+      hintKey: "g.death.hallHint",
       icon: Building2,
-      lockedHint: "",
+      lockedKey: "",
     },
   ];
 
 export function DeathScreen({ isVisible, killerName, options, loot, onRespawn }: DeathScreenProps) {
+  const { t } = useLanguage();
   if (!isVisible) return null;
 
   const available: RespawnOptions = options ?? { hall: true, home: false, canyon_hub: false };
@@ -93,14 +96,14 @@ export function DeathScreen({ isVisible, killerName, options, loot, onRespawn }:
       <div className="relative flex flex-col items-center gap-6 animate-fade-in">
         <div className="text-center">
           <h1 className="text-7xl md:text-8xl font-black text-red-500 tracking-wider drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse">
-            YOU DIED
+            {t("g.death.title")}
           </h1>
           <div className="mt-2 h-1 w-64 mx-auto bg-gradient-to-r from-transparent via-red-500 to-transparent" />
         </div>
 
         {killerName && (
           <div className="bg-black/60 backdrop-blur-md border border-red-500/30 rounded-lg px-6 py-3">
-            <div className="text-zinc-400 text-sm text-center mb-1">Killed by</div>
+            <div className="text-zinc-400 text-sm text-center mb-1">{t("g.death.killedBy")}</div>
             <div className="text-white text-2xl font-bold text-center">
               {killerName}
             </div>
@@ -109,7 +112,7 @@ export function DeathScreen({ isVisible, killerName, options, loot, onRespawn }:
 
         {loot && <LootNotice loot={loot} />}
 
-        <div className="text-zinc-400 text-sm tracking-widest uppercase">Choose where to come back</div>
+        <div className="text-zinc-400 text-sm tracking-widest uppercase">{t("g.death.choose")}</div>
 
         <div className="flex flex-wrap items-stretch justify-center gap-3 px-4">
           {CHOICES.map((choice) => {
@@ -124,8 +127,8 @@ export function DeathScreen({ isVisible, killerName, options, loot, onRespawn }:
                 className="w-44 bg-black/60 backdrop-blur-md border border-red-500/30 hover:border-red-400 hover:bg-red-950/40 disabled:border-white/10 disabled:bg-black/40 disabled:cursor-not-allowed rounded-lg px-4 py-4 transition-colors text-center group"
               >
                 <Icon className={`w-6 h-6 mx-auto mb-2 ${enabled ? "text-red-400 group-hover:scale-110 transition-transform" : "text-zinc-600"}`} />
-                <div className={`font-bold text-sm ${enabled ? "text-white" : "text-zinc-500"}`}>{choice.label}</div>
-                <div className="text-[11px] text-zinc-500 mt-1">{enabled ? choice.hint : choice.lockedHint}</div>
+                <div className={`font-bold text-sm ${enabled ? "text-white" : "text-zinc-500"}`}>{t(choice.labelKey)}</div>
+                <div className="text-[11px] text-zinc-500 mt-1">{enabled ? t(choice.hintKey) : choice.lockedKey ? t(choice.lockedKey) : ""}</div>
               </button>
             );
           })}

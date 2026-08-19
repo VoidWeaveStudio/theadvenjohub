@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface CopyableTextProps {
     value: string;
@@ -12,6 +13,7 @@ interface CopyableTextProps {
 }
 
 export function CopyableText({ value, display, className = "", iconClassName = "w-3.5 h-3.5" }: CopyableTextProps) {
+    const { t } = useLanguage();
     const [copied, setCopied] = useState(false);
 
     const handleCopy = (e: React.MouseEvent) => {
@@ -26,7 +28,7 @@ export function CopyableText({ value, display, className = "", iconClassName = "
         <button
             type="button"
             onClick={handleCopy}
-            title="Copy to clipboard"
+            title={t("g.common.copyToClipboard")}
             className={`inline-flex items-center gap-1.5 hover:text-[#4FD1FF] transition-colors ${className}`}
         >
             <span className="font-mono truncate">{display ?? value}</span>

@@ -3,6 +3,7 @@
 
 import { ProgressionStateData } from "../network/NetworkManager";
 import { TIERS } from "../data/progression";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 import { XpPopup } from "./hooks/useProgressionState";
 
 interface XpBarProps {
@@ -14,6 +15,7 @@ interface XpBarProps {
 const TIERS_BY_ID = new Map(TIERS.map((t) => [t.id, t]));
 
 export function XpBar({ progression, popups, onOpenSkills }: XpBarProps) {
+    const { t } = useLanguage();
     if (!progression) return null;
 
     const tier = TIERS_BY_ID.get(progression.tier);
@@ -25,7 +27,7 @@ export function XpBar({ progression, popups, onOpenSkills }: XpBarProps) {
     return (
         <div
             onClick={onOpenSkills}
-            title="Skills [K]"
+            title={t("g.xp.skillsHint")}
             className="relative mt-1.5 bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] px-4 py-2.5 min-w-[220px] pointer-events-auto cursor-pointer hover:border-[rgba(255,255,255,0.2)] transition-colors"
         >
             <div className="flex items-center justify-between mb-1.5">
@@ -49,7 +51,7 @@ export function XpBar({ progression, popups, onOpenSkills }: XpBarProps) {
                 <span className="text-[#6B7280] text-[10px]">
                     {progression.xpForLevel > 0
                         ? `${progression.xpIntoLevel.toLocaleString()} / ${progression.xpForLevel.toLocaleString()} XP`
-                        : "MAX LEVEL"}
+                        : t("g.xp.maxLevel")}
                 </span>
                 {progression.skillPoints > 0 && (
                     <span className="text-[#FFD166] text-[10px] font-bold">

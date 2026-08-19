@@ -21,6 +21,7 @@ import {
     placeOnRing,
 } from "../lobbyLayout";
 import type { ShellMaterials } from "./LobbyShell";
+import { t, onLanguageChange } from "@/core/i18n";
 
 const DROPLET_COUNT = 90;
 const BANNER_COUNT = BAY_COUNT;
@@ -37,6 +38,8 @@ export class LobbyProps {
 
     private directoryTexture: THREE.CanvasTexture | null = null;
     private directorySignature = "";
+    private lastEvents: ResolvedEvent[] = [];
+    private stopLanguageWatch: (() => void) | null = null;
 
     private waterMaterial: THREE.MeshPhysicalMaterial | null = null;
     private jetMaterial: THREE.MeshBasicMaterial | null = null;
@@ -263,8 +266,8 @@ export class LobbyProps {
             const upcoming = !!state && state.enabled && eventWindow(state).state === "upcoming";
 
             return {
-                label: `${door.glyph}  ${state?.title ?? door.name}`,
-                value: open ? "OPEN" : upcoming ? "SOON" : "SEALED",
+                label: `${door.glyph}  ${state?.title ?? t(door.name)}`,
+                value: open ? t("g.lobby.open") : upcoming ? t("g.lobby.soon") : t("g.lobby.sealed"),
                 accent: `#${new THREE.Color(state?.accent ?? door.accent).getHexString()}`,
                 live: open,
             };
@@ -273,6 +276,7 @@ export class LobbyProps {
 
     public applyEvents(events: ResolvedEvent[]) {
         if (!this.directoryTexture) return;
+        this.lastEvents = events;
 
         const rows = this.directoryRows(events);
         const signature = rows.map((row) => `${row.label}:${row.value}`).join("|");
@@ -286,6 +290,13 @@ export class LobbyProps {
     private buildDirectory(materials: ShellMaterials) {
         const rows = this.directoryRows([]);
         this.directorySignature = rows.map((row) => `${row.label}:${row.value}`).join("|");
+
+        // The board is redrawn from the last schedule we saw, so a language
+        // switch does not have to wait for the next poll.
+        this.stopLanguageWatch = onLanguageChange(() => {
+            this.directorySignature = "";
+            this.applyEvents(this.lastEvents);
+        });
 
         const angle = Math.PI + Math.PI / BAY_COUNT;
         const board = new THREE.Group();
@@ -583,6 +594,8 @@ export class LobbyProps {
     }
 
     dispose() {
+        this.stopLanguageWatch?.();
+        this.stopLanguageWatch = null;
         this.chandeliers = [];
         this.banners = [];
         this.droplets = null;

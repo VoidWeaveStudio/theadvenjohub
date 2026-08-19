@@ -6,6 +6,7 @@ import { Crosshair, Sparkles, X } from "lucide-react";
 import { BranchId, BRANCHES } from "../data/progression";
 import { SKILL_NODES, columnsForBranch } from "../data/skills";
 import { SoundManager } from "../core/SoundManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface SpecializationModalProps {
     isOpen: boolean;
@@ -22,6 +23,7 @@ function firstSkills(branch: BranchId): string[] {
 }
 
 export function SpecializationModal({ isOpen, onClose, onSelect }: SpecializationModalProps) {
+    const { t } = useLanguage();
     const [pending, setPending] = useState<BranchId | null>(null);
     const wasOpenRef = useRef(false);
 
@@ -39,7 +41,7 @@ export function SpecializationModal({ isOpen, onClose, onSelect }: Specializatio
         <div className="absolute inset-0 bg-[rgba(6,6,8,0.88)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">
             <div className="w-full max-w-3xl bg-[rgba(12,14,18,0.96)] border-2 border-white/10 rounded-[16px] p-6">
                 <div className="flex items-center justify-between mb-1">
-                    <h2 className="text-xl font-black text-[#E5E7EB]">Choose your specialisation</h2>
+                    <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.spec.choose")}</h2>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         <X className="w-5 h-5" />
                     </button>
@@ -78,14 +80,14 @@ export function SpecializationModal({ isOpen, onClose, onSelect }: Specializatio
                                 <p className="text-[#8B8F98] text-xs mb-4">{branch.tagline}</p>
 
                                 <div className="text-[10px] font-bold tracking-wider text-[#6B7280] mb-1.5">
-                                    STARTS WITH
+                                    {t("g.spec.startsWith")}
                                 </div>
                                 <div className="text-[#E5E7EB] text-xs mb-3">
                                     {branch.weapon === "rifle" ? "Standard Rifle" : "Wooden Branch staff"}
                                 </div>
 
                                 <div className="text-[10px] font-bold tracking-wider text-[#6B7280] mb-1.5">
-                                    FIRST SKILLS
+                                    {t("g.spec.firstSkills")}
                                 </div>
                                 <ul className="space-y-0.5">
                                     {skills.map((name) => (
@@ -104,7 +106,7 @@ export function SpecializationModal({ isOpen, onClose, onSelect }: Specializatio
                     disabled={!pending}
                     className="w-full mt-5 bg-gradient-to-r from-[#4FD1FF] to-[#3BA9E8] text-[rgba(12,12,14,0.9)] font-bold px-6 py-3 rounded-[8px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                    {pending ? `Become ${BRANCHES.find((b) => b.id === pending)?.name}` : "Pick a specialisation"}
+                    {pending ? t("g.spec.become", { name: BRANCHES.find((b) => b.id === pending)?.name ?? "" }) : t("g.spec.pick")}
                 </button>
             </div>
         </div>

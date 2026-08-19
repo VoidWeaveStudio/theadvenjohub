@@ -6,6 +6,7 @@ import { Flag } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import { FactionSummary } from "../network/NetworkManager";
 import { FactionCreateForm } from "./FactionCreateForm";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 type Stage = "already-founder" | "intro" | "responsibility" | "create" | "success";
 
@@ -19,6 +20,7 @@ interface AlaricPanelProps {
 }
 
 export function AlaricPanel({ isOpen, onClose, myFactions, skipIntro, gameSlug, onCreated }: AlaricPanelProps) {
+    const { t } = useLanguage();
     const [stage, setStage] = useState<Stage>("intro");
     const [createdFactionName, setCreatedFactionName] = useState<string | null>(null);
 
@@ -55,7 +57,7 @@ export function AlaricPanel({ isOpen, onClose, myFactions, skipIntro, gameSlug, 
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Flag className="w-5 h-5 text-[#a855f7]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">Alaric</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.npc.alaric")}</h2>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         ✕
@@ -65,25 +67,26 @@ export function AlaricPanel({ isOpen, onClose, myFactions, skipIntro, gameSlug, 
                 {stage === "already-founder" && (
                     <div className="space-y-5">
                         <p className="text-[#8B8F98] text-sm">
-                            You already lead <span className="text-[#E5E7EB] font-bold">{existingFounded?.name}</span>. One faction
-                            is enough to answer for at a time.
+                            {t("g.alaric.alreadyLead").split("{name}")[0]}
+                            <span className="text-[#E5E7EB] font-bold">{existingFounded?.name}</span>
+                            {t("g.alaric.alreadyLead").split("{name}")[1]}
                         </p>
                         <button onClick={onClose} className="btn-secondary px-4 py-2 text-sm w-full">
-                            Understood
+                            {t("g.alaric.understood")}
                         </button>
                     </div>
                 )}
 
                 {stage === "intro" && (
                     <div className="space-y-5">
-                        <p className="text-[#6B7280] text-sm">You've got that look — someone thinking about starting something of their own.</p>
-                        <p className="text-[#E5E7EB] text-base font-bold">Do you want to found a faction?</p>
+                        <p className="text-[#6B7280] text-sm">{t("g.alaric.thatLook")}</p>
+                        <p className="text-[#E5E7EB] text-base font-bold">{t("g.alaric.wantToFound")}</p>
                         <div className="flex gap-2">
                             <button onClick={() => setStage("responsibility")} className="btn-primary px-4 py-2 text-sm flex-1">
-                                Yes
+                                {t("g.alaric.yes")}
                             </button>
                             <button onClick={onClose} className="btn-secondary px-4 py-2 text-sm flex-1">
-                                No
+                                {t("g.alaric.no")}
                             </button>
                         </div>
                     </div>
@@ -92,17 +95,14 @@ export function AlaricPanel({ isOpen, onClose, myFactions, skipIntro, gameSlug, 
                 {stage === "responsibility" && (
                     <div className="space-y-5">
                         <p className="text-[#8B8F98] text-sm">
-                            A faction isn't just a badge you slap on your name — people will follow it, grind for it, trust you
-                            to lead it somewhere. If you're only in it for a quick payout and planning to vanish, you'll burn
-                            everyone who joined in good faith. Only go through with this if you mean to stick around and build
-                            something real.
+                            {t("g.alaric.responsibility")}
                         </p>
                         <div className="flex gap-2">
                             <button onClick={() => setStage("create")} className="btn-primary px-4 py-2 text-sm flex-1">
-                                I understand — continue
+                                {t("g.alaric.iUnderstand")}
                             </button>
                             <button onClick={onClose} className="btn-secondary px-4 py-2 text-sm flex-1">
-                                Not right now
+                                {t("g.alaric.notNow")}
                             </button>
                         </div>
                     </div>
@@ -122,7 +122,7 @@ export function AlaricPanel({ isOpen, onClose, myFactions, skipIntro, gameSlug, 
                         <div className="mt-2 pt-3 border-t border-[rgba(255,255,255,0.08)] flex gap-2">
                             <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-[8px] text-xs font-bold bg-[#a855f7]/15 text-[#a855f7]">
                                 <Flag className="w-3.5 h-3.5" />
-                                Create Faction
+                                {t("g.alaric.createFaction")}
                             </span>
                         </div>
                     </div>
@@ -131,11 +131,12 @@ export function AlaricPanel({ isOpen, onClose, myFactions, skipIntro, gameSlug, 
                 {stage === "success" && (
                     <div className="space-y-5">
                         <p className="text-[#8B8F98] text-sm">
-                            It's done — <span className="text-[#E5E7EB] font-bold">{createdFactionName}</span> exists now. Lead
-                            them well. Good luck out there.
+                            {t("g.alaric.created").split("{name}")[0]}
+                            <span className="text-[#E5E7EB] font-bold">{createdFactionName}</span>
+                            {t("g.alaric.created").split("{name}")[1]}
                         </p>
                         <button onClick={onClose} className="btn-primary px-4 py-2 text-sm w-full">
-                            Close
+                            {t("g.alaric.close")}
                         </button>
                     </div>
                 )}

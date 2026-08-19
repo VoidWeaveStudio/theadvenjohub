@@ -15,6 +15,7 @@ import {
     hashInt,
 } from "../world/locations/tower/floors/token-gates/galaxy/GalaxyLayout";
 import type { FactionGateData } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface BubbleMapPanelProps {
     isOpen: boolean;
@@ -100,6 +101,7 @@ export function BubbleMapPanel({
     getPlayerPosition,
     onSetWaypoint,
 }: BubbleMapPanelProps) {
+    const { t } = useLanguage();
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const dustRef = useRef<DustMote[] | null>(null);
     if (!dustRef.current) dustRef.current = buildDust();
@@ -405,7 +407,7 @@ export function BubbleMapPanel({
         }
 
         if (best < 0 || bestDistance > threshold) {
-            setHoverLabel("No bubble there — click closer to a dot.");
+            setHoverLabel(t("g.bubble.noneThere"));
             return;
         }
 
@@ -427,7 +429,7 @@ export function BubbleMapPanel({
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <MapIcon className="w-5 h-5 text-[#66CCFF]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">Bubble Map</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.bubble.map")}</h2>
                         <span className="text-[#8B8F98] text-xs">{accountCount.toLocaleString("en-US")} bubbles</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -441,7 +443,7 @@ export function BubbleMapPanel({
                             <button
                                 onClick={() => {
                                     onSetWaypoint(null);
-                                    setHoverLabel("Marker cleared");
+                                    setHoverLabel(t("g.bubble.markerCleared"));
                                 }}
                                 className="btn-secondary px-3 py-1 text-sm"
                             >
@@ -465,12 +467,12 @@ export function BubbleMapPanel({
 
                 <div className="flex items-center justify-between mt-3 text-xs text-[#8B8F98]">
                     <div className="flex items-center gap-4">
-                        <span><span className="text-[#FFC46B]">●</span> core faction</span>
-                        <span><span className="text-[#7FE6CF]">●</span> my factions</span>
-                        <span><span className="text-[#FFD166]">○</span> my bubble</span>
-                        <span><span className="text-[#7BFF9E]">✛</span> marker</span>
+                        <span><span className="text-[#FFC46B]">●</span> {t("g.map.coreFaction")}</span>
+                        <span><span className="text-[#7FE6CF]">●</span> {t("g.map.myFactions")}</span>
+                        <span><span className="text-[#FFD166]">○</span> {t("g.map.myBubble")}</span>
+                        <span><span className="text-[#7BFF9E]">✛</span> {t("g.map.marker")}</span>
                     </div>
-                    <div className="text-[#E5E7EB]">{hoverLabel ?? "Wheel to zoom, drag to pan, click a bubble to mark it."}</div>
+                    <div className="text-[#E5E7EB]">{hoverLabel ?? t("g.map.controls")}</div>
                 </div>
             </div>
         </div>

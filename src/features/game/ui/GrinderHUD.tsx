@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Crosshair, Flame, Skull, Timer, Trophy } from "lucide-react";
 import type { GrinderRosterEntry, GrinderStateData } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface GrinderHUDProps {
     match: GrinderStateData | null;
@@ -39,6 +40,7 @@ function ranked(roster: GrinderRosterEntry[]): GrinderRosterEntry[] {
 }
 
 export function GrinderHUD({ match, localPlayerId }: GrinderHUDProps) {
+    const { t } = useLanguage();
     const now = useNow(match !== null);
 
     if (!match) return null;
@@ -58,10 +60,10 @@ export function GrinderHUD({ match, localPlayerId }: GrinderHUDProps) {
             <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none select-none font-oxanium z-30">
                 <div className="flex items-stretch gap-px rounded-[10px] overflow-hidden border border-white/15 bg-[rgba(10,12,16,0.88)] backdrop-blur-md">
                     <div className="px-4 py-2 min-w-[104px] text-center">
-                        <div className="text-[9px] font-black tracking-widest text-[#FF5757]">YOUR KILLS</div>
+                        <div className="text-[9px] font-black tracking-widest text-[#FF5757]">{t("g.grinder.yourKills")}</div>
                         <div className="text-2xl font-black leading-none text-[#E5E7EB]">{me?.kills ?? 0}</div>
                         <div className="text-[10px] text-[#8B8F98] mt-0.5">
-                            {myIndex === -1 ? "—" : `#${myIndex + 1} of ${board.length}`}
+                            {myIndex === -1 ? "—" : t("g.grinder.rank", { place: myIndex + 1, total: board.length })}
                         </div>
                     </div>
 
@@ -76,15 +78,15 @@ export function GrinderHUD({ match, localPlayerId }: GrinderHUDProps) {
                             </span>
                         </div>
                         <div className="text-[9px] tracking-widest text-[#6B7280] mt-0.5">
-                            {over ? "NEXT ROUND" : "MEAT GRINDER"}
+                            {over ? t("g.grinder.nextRound") : t("g.grinder.title")}
                         </div>
                     </div>
 
                     <div className="px-4 py-2 min-w-[112px] text-center">
-                        <div className="text-[9px] font-black tracking-widest text-[#FFD166]">LEADER</div>
+                        <div className="text-[9px] font-black tracking-widest text-[#FFD166]">{t("g.grinder.leader")}</div>
                         <div className="text-2xl font-black leading-none text-[#E5E7EB]">{leader?.kills ?? 0}</div>
                         <div className="text-[10px] text-[#8B8F98] mt-0.5 truncate max-w-[104px]">
-                            {leader?.nickname ?? "nobody yet"}
+                            {leader?.nickname ?? t("g.grinder.nobodyYet")}
                         </div>
                     </div>
                 </div>
@@ -99,7 +101,7 @@ export function GrinderHUD({ match, localPlayerId }: GrinderHUDProps) {
                             <Crosshair className="w-3.5 h-3.5 text-[#8B8F98]" />
                         )}
                         <span className="text-[10px] font-black tracking-widest text-[#8B8F98]">
-                            {over ? "FINAL STANDINGS" : "STANDINGS"}
+                            {over ? t("g.grinder.finalStandings") : t("g.grinder.standings")}
                         </span>
                     </div>
 
@@ -160,8 +162,8 @@ export function GrinderHUD({ match, localPlayerId }: GrinderHUDProps) {
                         <Trophy className="w-4 h-4 text-[#FFD166]" />
                         <span className="text-[#FFE9A8] text-sm font-bold">
                             {leader && leader.kills > 0
-                                ? `${leader.nickname} takes it with ${leader.kills} kills`
-                                : "Nobody scored"}
+                                ? t("g.grinder.takesIt", { name: leader.nickname, kills: leader.kills })
+                                : t("g.grinder.nobodyScored")}
                         </span>
                     </div>
                 </div>

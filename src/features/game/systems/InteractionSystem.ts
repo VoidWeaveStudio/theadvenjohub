@@ -8,6 +8,7 @@ import { PAINT_PREFIX } from "../world/building/BuildRenderer";
 import { SPAWN_BEACON_INTERACTION, STORAGE_INTERACTION } from "../world/building/BuildCatalog";
 import { DEATH_CRATE_PREFIX } from "../entities/DeathCrate";
 import { ARENA_ALTAR_INTERACTION, EVENT_DOORS_BY_ID, EVENT_DOOR_PREFIX, EVENT_EXIT_INTERACTION } from "../data/eventDoors";
+import { t } from "@/core/i18n";
 
 const ARENA_REVIVE_PREFIX = "arena-revive:";
 
@@ -213,7 +214,7 @@ export class InteractionSystem extends System {
                 if (!event) {
                     this.onPrompt?.("This door is sealed");
                 } else {
-                    this.onPrompt?.(`[E] ${event.name}  •  ${event.tagline}`);
+                    this.onPrompt?.(`[E] ${t(event.name)}  •  ${t(event.tagline)}`);
                     if (isEJustPressed === true) this.onEnterEventRoom?.(event.id);
                 }
             } else if (id === EVENT_EXIT_INTERACTION) {

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Layers, Check } from "lucide-react";
 import type { ShardStateData } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface ShardSwitcherProps {
     state: ShardStateData | null;
@@ -11,6 +12,7 @@ interface ShardSwitcherProps {
 }
 
 export function ShardSwitcher({ state, onSwitch }: ShardSwitcherProps) {
+    const { t } = useLanguage();
     const [isOpen, setIsOpen] = useState(false);
 
     if (!state) return null;
@@ -23,7 +25,7 @@ export function ShardSwitcher({ state, onSwitch }: ShardSwitcherProps) {
             <button
                 onClick={() => setIsOpen((prev) => !prev)}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] bg-[rgba(12,12,14,0.75)] border border-[rgba(127,230,207,0.25)] text-[#7FE6CF] text-xs font-bold hover:border-[rgba(127,230,207,0.5)] transition-colors"
-                title="Switch layer"
+                title={t("g.shard.switch")}
             >
                 <Layers className="w-3.5 h-3.5" />
                 <span>Layer {state.instance}</span>
@@ -35,7 +37,7 @@ export function ShardSwitcher({ state, onSwitch }: ShardSwitcherProps) {
             {isOpen && (
                 <div className="absolute right-0 mt-1.5 min-w-[190px] bg-[rgba(10,12,18,0.96)] border border-[rgba(127,230,207,0.25)] rounded-[8px] p-1.5 shadow-xl z-50">
                     <div className="text-[10px] uppercase tracking-wide text-[#8B8F98] px-2 py-1">
-                        Location layers
+                        {t("g.shard.layers")}
                     </div>
 
                     {state.shards.map((shard) => {
@@ -50,7 +52,7 @@ export function ShardSwitcher({ state, onSwitch }: ShardSwitcherProps) {
                                     setIsOpen(false);
                                 }}
                                 disabled={isCurrent}
-                                title={isFull && !isCurrent ? "Full — you can still join a friend here" : undefined}
+                                title={isFull && !isCurrent ? t("g.shard.full") : undefined}
                                 className={`w-full flex items-center justify-between gap-3 px-2 py-1.5 rounded-[6px] text-xs transition-colors ${isCurrent
                                     ? "bg-[rgba(127,230,207,0.14)] text-[#7FE6CF] cursor-default"
                                     : "text-[#E5E7EB] hover:bg-white/5"

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { X, Sparkles, ScrollText, Swords, Coins, Check, Circle, RotateCcw } from "lucide-react";
 import { QuestInfoData, ProgressionStateData } from "../network/NetworkManager";
 import { SoundManager } from "../core/SoundManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
+import { NPC_DIALOGUES_BY_ID, type NpcId } from "../data/npcDialogues";
 
 type SolaTab = "quests" | "tokenInfo" | "respec";
 
@@ -21,6 +23,14 @@ interface SolaPanelProps {
 }
 
 export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose, onAccept, onTurnIn, onRequestTokenInfo, onRespec }: SolaPanelProps) {
+    const { t } = useLanguage();
+
+    // The server sends English name/role for the orientation targets, but the
+    // ids match our own catalogue, so prefer the translated entry.
+    const npcLabel = (id: string, field: "name" | "role", fallback: string) => {
+        const entry = NPC_DIALOGUES_BY_ID.get(id as NpcId);
+        return entry ? t(entry[field]) : fallback;
+    };
     const [tab, setTab] = useState<SolaTab>("quests");
     const [tokenCa, setTokenCa] = useState("");
     const [justSentCa, setJustSentCa] = useState(false);
@@ -49,7 +59,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <ScrollText className="w-5 h-5 text-[#4ADE80]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">Sola</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.npc.sola")}</h2>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         <X className="w-5 h-5" />
@@ -59,10 +69,10 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                 <div className="min-h-[140px]">
                     {tab === "quests" ? (
                         !quest ? (
-                            <div className="text-[#8B8F98] text-xs text-center py-10">Loading...</div>
+                            <div className="text-[#8B8F98] text-xs text-center py-10">{t("g.sola.loading")}</div>
                         ) : quest.status === "completed" ? (
                             <div className="text-[#8B8F98] text-sm text-center py-10">
-                                No quests available right now. Check back later.
+                                {t("g.sola.noQuests")}
                             </div>
                         ) : (
                             <>
@@ -71,7 +81,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
 
                                 <div className="flex items-center gap-1.5 text-[#FFD166] font-bold text-sm mb-5">
                                     <Sparkles className="w-4 h-4" />
-                                    Reward: {quest.rewardAsh} Ash
+                                    {t("g.sola.reward", { amount: quest.rewardAsh })}
                                     {quest.rewardXp ? <span className="text-[#7FE6CF]">+ {quest.rewardXp} XP</span> : null}
                                 </div>
 
@@ -80,7 +90,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                                         onClick={() => onAccept(quest.questId)}
                                         className="w-full bg-gradient-to-r from-[#4ADE80] to-[#22c55e] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all"
                                     >
-                                        Accept Quest
+                                        {t("g.sola.acceptQuest")}
                                     </button>
                                 )}
 
@@ -102,14 +112,14 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                                                         <Circle className="w-4 h-4 text-[#6B7280] flex-shrink-0" />
                                                     )}
                                                     <span className={`text-sm font-bold ${done ? "text-[#4ADE80]" : "text-[#E5E7EB]"}`}>
-                                                        {target.name}
+                                                        {npcLabel(target.id, "name", target.name)}
                                                     </span>
-                                                    <span className="text-[#6B7280] text-[11px] ml-auto">{target.role}</span>
+                                                    <span className="text-[#6B7280] text-[11px] ml-auto">{npcLabel(target.id, "role", target.role)}</span>
                                                 </div>
                                             );
                                         })}
                                         <p className="text-[#8B8F98] text-xs pt-1">
-                                            {quest.progress}/{quest.targetCount} stewards met — the lift crystal takes you between floors.
+                                            {t("g.sola.stewardsMet", { done: quest.progress, total: quest.targetCount })}
                                         </p>
                                     </div>
                                 )}
@@ -118,7 +128,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                                     <div>
                                         <div className="flex items-center gap-2 text-[#E5E7EB] text-sm font-bold mb-2">
                                             <Swords className="w-4 h-4 text-[#4ADE80]" />
-                                            Progress: {quest.progress}/{quest.targetCount}
+                                            {t("g.acct.progress", { done: quest.progress, total: quest.targetCount })}
                                         </div>
                                         <div className="w-full h-2 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden mb-3">
                                             <div
@@ -126,7 +136,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                                                 style={{ width: `${Math.min(100, (quest.progress / quest.targetCount) * 100)}%` }}
                                             />
                                         </div>
-                                        <p className="text-[#8B8F98] text-xs">Come back once you've cleared them out in the Main World.</p>
+                                        <p className="text-[#8B8F98] text-xs">{t("g.sola.comeBackCleared")}</p>
                                     </div>
                                 )}
 
@@ -135,7 +145,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                                         onClick={() => onTurnIn(quest.questId)}
                                         className="w-full bg-gradient-to-r from-[#FFD166] to-[#FFB347] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all"
                                     >
-                                        Claim {quest.rewardAsh} Ash
+                                        {t("g.sola.claimAsh", { amount: quest.rewardAsh })}
                                     </button>
                                 )}
                             </>
@@ -144,18 +154,17 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                         <div>
                             {!progression || progression.branch === null ? (
                                 <p className="text-[#8B8F98] text-sm text-center py-10">
-                                    You have not chosen a specialisation yet — nothing to unlearn.
+                                    {t("g.sola.noSpecialisation")}
                                 </p>
                             ) : (
                                 <>
                                     <p className="text-[#8B8F98] text-sm mb-4">
-                                        I can wipe your training clean. Every skill point comes back, and you pick a
-                                        specialisation from scratch.
+                                        {t("g.sola.respecIntro")}
                                     </p>
                                     <div className="flex items-center justify-between text-sm mb-4">
-                                        <span className="text-[#8B8F98]">Cost</span>
+                                        <span className="text-[#8B8F98]">{t("g.sola.cost")}</span>
                                         <span className="text-[#FFD166] font-bold">
-                                            {progression.respecCostAsh === 0 ? "Free" : `${progression.respecCostAsh} Ash`}
+                                            {progression.respecCostAsh === 0 ? t("g.sola.free") : t("g.ash.amount", { amount: progression.respecCostAsh })}
                                         </span>
                                     </div>
                                     <button
@@ -163,11 +172,11 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                                         disabled={ash < progression.respecCostAsh}
                                         className="w-full bg-gradient-to-r from-[#C79AE0] to-[#9F6FD0] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        Reset specialisation
+                                        {t("g.sola.resetSpecialisation")}
                                     </button>
                                     {ash < progression.respecCostAsh && (
                                         <p className="text-[#FF5757] text-xs mt-3 text-center">
-                                            You need {progression.respecCostAsh - ash} more Ash.
+                                            {t("g.sola.needMoreAsh", { amount: progression.respecCostAsh - ash })}
                                         </p>
                                     )}
                                 </>
@@ -176,14 +185,14 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                     ) : (
                         <div>
                             <p className="text-[#8B8F98] text-sm mb-4">
-                                Give me a token's contract address and I'll send the full rundown to your mail.
+                                {t("g.sola.tokenIntro")}
                             </p>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"
                                     value={tokenCa}
                                     onChange={(e) => setTokenCa(e.target.value)}
-                                    placeholder="Token contract address..."
+                                    placeholder={t("g.gate.ca.placeholder")}
                                     className="flex-1 bg-black/40 text-white px-3 py-2 rounded text-sm border border-[#4ADE80]/30 focus:border-[#4ADE80] outline-none min-w-0"
                                 />
                                 <button
@@ -191,12 +200,12 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                                     disabled={!tokenCa.trim()}
                                     className="bg-gradient-to-r from-[#4ADE80] to-[#22c55e] text-[rgba(12,12,14,0.9)] font-bold px-4 py-2 rounded-[8px] text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                 >
-                                    Send
+                                    {t("g.sola.send")}
                                 </button>
                             </div>
                             {justSentCa && (
                                 <p className="text-[#4ADE80] text-xs mt-3">
-                                    ✓ Got it — the information will arrive in your in-game mail shortly.
+                                    {t("g.sola.gotIt")}
                                 </p>
                             )}
                         </div>
@@ -210,7 +219,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                             }`}
                     >
                         <ScrollText className="w-3.5 h-3.5" />
-                        Quests
+                        {t("g.sola.tabQuests")}
                     </button>
                     <button
                         onClick={() => setTab("tokenInfo")}
@@ -218,7 +227,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                             }`}
                     >
                         <Coins className="w-3.5 h-3.5" />
-                        Token Info (CA)
+                        {t("g.sola.tabTokenInfo")}
                     </button>
                     <button
                         onClick={() => setTab("respec")}
@@ -226,7 +235,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                             }`}
                     >
                         <RotateCcw className="w-3.5 h-3.5" />
-                        Respec
+                        {t("g.sola.tabRespec")}
                     </button>
                 </div>
             </div>

@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface BubbleOwner {
     found: boolean;
@@ -33,6 +34,7 @@ interface BubbleInfoPanelProps {
 }
 
 export function BubbleInfoPanel({ bubbleIndex, onClose, onEnterRoom, onSetWaypoint }: BubbleInfoPanelProps) {
+    const { t } = useLanguage();
     const [owner, setOwner] = useState<BubbleOwner | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export function BubbleInfoPanel({ bubbleIndex, onClose, onEnterRoom, onSetWaypoi
                 setOwner(data);
             })
             .catch(() => {
-                if (!cancelled) setError("Could not read this bubble.");
+                if (!cancelled) setError(t("g.bubble.unreadable"));
             })
             .finally(() => {
                 if (!cancelled) setLoading(false);
@@ -88,7 +90,7 @@ export function BubbleInfoPanel({ bubbleIndex, onClose, onEnterRoom, onSetWaypoi
                 {loading && (
                     <div className="flex items-center gap-2 text-[#8B8F98] text-sm py-4">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Reading the bubble...
+                        {t("g.bubbleInfo.reading")}
                     </div>
                 )}
 
@@ -99,15 +101,15 @@ export function BubbleInfoPanel({ bubbleIndex, onClose, onEnterRoom, onSetWaypoi
                 )}
 
                 {owner && !owner.found && (
-                    <p className="text-[#8B8F98] text-sm">This bubble has no owner yet.</p>
+                    <p className="text-[#8B8F98] text-sm">{t("g.bubbleInfo.noOwner")}</p>
                 )}
 
                 {owner && owner.found && (
                     <div className="space-y-3">
                         <div className="bg-white/5 rounded-lg p-3">
-                            <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-1">Belongs to</div>
+                            <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-1">{t("g.bubbleInfo.belongsTo")}</div>
                             <div className="text-[#E5E7EB] font-bold text-lg">
-                                {owner.nickname ?? "Unnamed drifter"}
+                                {owner.nickname ?? t("g.bubble.unnamedDrifter")}
                             </div>
                             <div className="text-[#8B8F98] text-xs font-mono mt-1">{owner.wallet}</div>
                         </div>
@@ -120,7 +122,7 @@ export function BubbleInfoPanel({ bubbleIndex, onClose, onEnterRoom, onSetWaypoi
                                     <div className="w-9 h-9 rounded-full bg-white/10 flex-shrink-0" />
                                 )}
                                 <div>
-                                    <div className="text-[#8B8F98] text-xs uppercase tracking-wide">Faction</div>
+                                    <div className="text-[#8B8F98] text-xs uppercase tracking-wide">{t("g.bubbleInfo.faction")}</div>
                                     <div className={`font-bold text-sm ${owner.faction.isAdmin ? "text-[#E8A33D]" : "text-[#E5E7EB]"}`}>
                                         {owner.faction.name}
                                         {owner.faction.symbol && <span className="text-[#8B8F98]"> ${owner.faction.symbol}</span>}
@@ -128,7 +130,7 @@ export function BubbleInfoPanel({ bubbleIndex, onClose, onEnterRoom, onSetWaypoi
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-[#8B8F98] text-sm">Not aligned with any faction.</p>
+                            <p className="text-[#8B8F98] text-sm">{t("g.bubbleInfo.noFaction")}</p>
                         )}
 
                         <div className="text-[#8B8F98] text-xs">
@@ -144,11 +146,11 @@ export function BubbleInfoPanel({ bubbleIndex, onClose, onEnterRoom, onSetWaypoi
                                     }}
                                     className="btn-primary px-4 py-2 text-sm w-full"
                                 >
-                                    {owner.isSelf ? "Enter my room" : "Enter room"}
+                                    {owner.isSelf ? t("g.bubble.enterMyRoom") : t("g.bubble.enterRoom")}
                                 </button>
                             ) : (
                                 <p className="text-[#FFD166] text-sm bg-[#FFD166]/10 border border-[#FFD166]/20 rounded-lg px-3 py-2">
-                                    {owner.denialReason ?? "You cannot enter this room."}
+                                    {t(owner.denialReason ?? "g.room.deny.default")}
                                 </p>
                             )}
 
@@ -159,7 +161,7 @@ export function BubbleInfoPanel({ bubbleIndex, onClose, onEnterRoom, onSetWaypoi
                                 }}
                                 className="btn-secondary px-4 py-2 text-sm w-full"
                             >
-                                Mark this bubble
+                                {t("g.bubbleInfo.mark")}
                             </button>
                         </div>
                     </div>

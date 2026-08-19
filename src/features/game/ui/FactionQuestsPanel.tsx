@@ -6,6 +6,7 @@ import { ArrowLeft, Coins, ExternalLink, Gem, Megaphone, MessageSquare, Users } 
 import { FactionDetail, FactionQuestManageData } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { SubTabs } from "./shell/SubTabs";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 const X_POST_URL_PREFIX = "https://x.com/";
 const MAX_SLOTS = 10_000;
@@ -32,6 +33,7 @@ export function FactionQuestsPanel({
     onRequestManageList,
     onCreateQuest,
 }: FactionQuestsPanelProps) {
+    const { t } = useLanguage();
     const [subTab, setSubTab] = useState<"new" | "created">("new");
     const [draftType, setDraftType] = useState<string | null>(null);
     const [targetUrl, setTargetUrl] = useState("");
@@ -68,8 +70,7 @@ export function FactionQuestsPanel({
                 <div className="bg-[rgba(192,132,252,0.06)] border border-[rgba(192,132,252,0.2)] rounded-lg p-6 text-center space-y-2">
                     <Megaphone className="w-6 h-6 text-[#C084FC] mx-auto" />
                     <p className="text-[#8B8F98] text-sm">
-                        Only the verified token creator can publish paid quests for this faction. Verify your creator wallet in
-                        the Members tab first.
+                        {t("g.fq.onlyVerifiedCreator")}
                     </p>
                 </div>
             </div>
@@ -82,8 +83,8 @@ export function FactionQuestsPanel({
 
             <SubTabs
                 tabs={[
-                    { id: "new", label: "New Quest" },
-                    { id: "created", label: "Created Quests", badge: data?.quests.length || undefined },
+                    { id: "new", label: t("g.fq.newQuest") },
+                    { id: "created", label: t("g.fq.createdQuests"), badge: data?.quests.length || undefined },
                 ]}
                 active={subTab}
                 onChange={(id) => setSubTab(id as "new" | "created")}
@@ -92,11 +93,10 @@ export function FactionQuestsPanel({
             {subTab === "new" && !draftType && (
                 <div className="space-y-2">
                     <p className="text-[#8B8F98] text-xs">
-                        Pick a quest type. You pay the full reward pool up front — it is locked in the quest bank and can never
-                        be withdrawn, only paid out to players who complete the quest.
+                        {t("g.fq.pickTypeHint")}
                     </p>
                     {questTypes.length === 0 ? (
-                        <p className="text-[#8B8F98] text-sm text-center py-6">Loading quest types...</p>
+                        <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.fq.loadingTypes")}</p>
                     ) : (
                         questTypes.map((type) => (
                             <button
@@ -124,11 +124,11 @@ export function FactionQuestsPanel({
                         className="flex items-center gap-1.5 text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold transition-colors"
                     >
                         <ArrowLeft className="w-3.5 h-3.5" />
-                        Back to quest types
+                        {t("g.fq.backToTypes")}
                     </button>
 
                     <div>
-                        <span className="text-[#8B8F98] text-xs font-bold tracking-wider">POST LINK</span>
+                        <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.fq.postLink")}</span>
                         <input
                             type="text"
                             value={targetUrl}
@@ -137,13 +137,13 @@ export function FactionQuestsPanel({
                             className="mt-1 w-full bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#4FD1FF]/50 outline-none font-mono"
                         />
                         {targetUrl.trim().length > 0 && !urlValid && (
-                            <p className="text-red-400 text-xs mt-1">The link must start with {X_POST_URL_PREFIX}</p>
+                            <p className="text-red-400 text-xs mt-1">{t("g.fq.linkMustStart", { prefix: X_POST_URL_PREFIX })}</p>
                         )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider">PARTICIPANTS</span>
+                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.fq.participants")}</span>
                             <input
                                 type="number"
                                 min={1}
@@ -154,7 +154,7 @@ export function FactionQuestsPanel({
                             />
                         </div>
                         <div>
-                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider">REWARD (ASH)</span>
+                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.fq.rewardAsh")}</span>
                             <input
                                 type="number"
                                 min={1}
@@ -168,26 +168,25 @@ export function FactionQuestsPanel({
 
                     <div className="bg-[rgba(255,255,255,0.03)] border border-white/10 rounded-lg p-3 space-y-1.5 text-xs">
                         <div className="flex items-center justify-between">
-                            <span className="text-[#8B8F98]">Reward pool ({slotsValid ? slotsValue : 0} × {rewardValid ? rewardValue : 0})</span>
-                            <span className="text-[#E5E7EB] font-bold">{slotsValid && rewardValid ? slotsValue * rewardValue : 0} Ash</span>
+                            <span className="text-[#8B8F98]">{t("g.fq.rewardPool", { slots: slotsValid ? slotsValue : 0, reward: rewardValid ? rewardValue : 0 })}</span>
+                            <span className="text-[#E5E7EB] font-bold">{t("g.ash.amount", { amount: slotsValid && rewardValid ? slotsValue * rewardValue : 0 })}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                            <span className="text-[#8B8F98]">Listing fee</span>
-                            <span className="text-[#E5E7EB] font-bold">{listingFee} Ash</span>
+                            <span className="text-[#8B8F98]">{t("g.fq.listingFee")}</span>
+                            <span className="text-[#E5E7EB] font-bold">{t("g.ash.amount", { amount: listingFee })}</span>
                         </div>
                         <div className="flex items-center justify-between pt-1.5 border-t border-white/10">
-                            <span className="text-[#8B8F98]">Total to pay</span>
-                            <span className="text-[#FFD166] font-bold">{totalCost} Ash</span>
+                            <span className="text-[#8B8F98]">{t("g.fq.totalToPay")}</span>
+                            <span className="text-[#FFD166] font-bold">{t("g.ash.amount", { amount: totalCost })}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                            <span className="text-[#8B8F98]">Your balance</span>
-                            <span className={affordable || totalCost === 0 ? "text-[#E5E7EB]" : "text-red-400"}>{ash} Ash</span>
+                            <span className="text-[#8B8F98]">{t("g.fq.yourBalance")}</span>
+                            <span className={affordable || totalCost === 0 ? "text-[#E5E7EB]" : "text-red-400"}>{t("g.ash.amount", { amount: ash })}</span>
                         </div>
                     </div>
 
                     <p className="text-[#6B7280] text-xs">
-                        Once paid, the reward pool is locked in the quest bank — it can only be paid out to players, never
-                        withdrawn.
+                        {t("g.fq.lockedNotice")}
                     </p>
 
                     <button
@@ -201,7 +200,7 @@ export function FactionQuestsPanel({
                         className="btn-primary w-full px-4 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         <Coins className="w-4 h-4" />
-                        Pay {totalCost} Ash & Publish
+                        {t("g.fq.payAndPublish", { amount: totalCost })}
                     </button>
                 </div>
             )}
@@ -209,9 +208,9 @@ export function FactionQuestsPanel({
             {subTab === "created" && (
                 <div className="space-y-2">
                     {!data ? (
-                        <p className="text-[#8B8F98] text-sm text-center py-6">Loading quests...</p>
+                        <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.fq.loadingQuests")}</p>
                     ) : data.quests.length === 0 ? (
-                        <p className="text-[#8B8F98] text-sm text-center py-6">This faction hasn&apos;t published any quests yet.</p>
+                        <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.fq.noQuests")}</p>
                     ) : (
                         data.quests.map((quest) => (
                             <div key={quest.id} className="bg-[rgba(255,255,255,0.04)] rounded-lg p-3 space-y-2">
@@ -231,7 +230,7 @@ export function FactionQuestsPanel({
                                             : "bg-[rgba(255,255,255,0.08)] text-[#8B8F98]"
                                             }`}
                                     >
-                                        {quest.status === "active" ? "ACTIVE" : "FINISHED"}
+                                        {quest.status === "active" ? t("g.fq.active") : t("g.fq.finished")}
                                     </span>
                                 </div>
 
@@ -246,36 +245,36 @@ export function FactionQuestsPanel({
                                     <div className="flex items-center justify-between">
                                         <span className="text-[#8B8F98] flex items-center gap-1.5">
                                             <Users className="w-3 h-3" />
-                                            Rewarded
+                                            {t("g.fq.rewarded")}
                                         </span>
                                         <span className="text-[#E5E7EB] font-bold">{quest.slotsClaimed} / {quest.slotsTotal}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[#8B8F98]">Slots left</span>
+                                        <span className="text-[#8B8F98]">{t("g.fq.slotsLeft")}</span>
                                         <span className="text-[#E5E7EB] font-bold">{quest.slotsRemaining}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span className="text-[#8B8F98] flex items-center gap-1.5">
                                             <Gem className="w-3 h-3" />
-                                            Bank
+                                            {t("g.fq.bank")}
                                         </span>
-                                        <span className="text-[#FFD166] font-bold">{quest.bankAsh} Ash</span>
+                                        <span className="text-[#FFD166] font-bold">{t("g.ash.amount", { amount: quest.bankAsh })}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[#8B8F98]">Paid out</span>
-                                        <span className="text-[#E5E7EB] font-bold">{quest.paidOutAsh} Ash</span>
+                                        <span className="text-[#8B8F98]">{t("g.fq.paidOut")}</span>
+                                        <span className="text-[#E5E7EB] font-bold">{t("g.ash.amount", { amount: quest.paidOutAsh })}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[#8B8F98]">Bank left</span>
-                                        <span className="text-[#E5E7EB] font-bold">{quest.bankRemainingAsh} Ash</span>
+                                        <span className="text-[#8B8F98]">{t("g.fq.bankLeft")}</span>
+                                        <span className="text-[#E5E7EB] font-bold">{t("g.ash.amount", { amount: quest.bankRemainingAsh })}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[#8B8F98]">Reward each</span>
-                                        <span className="text-[#E5E7EB] font-bold">{quest.rewardAsh} Ash</span>
+                                        <span className="text-[#8B8F98]">{t("g.fq.rewardEach")}</span>
+                                        <span className="text-[#E5E7EB] font-bold">{t("g.ash.amount", { amount: quest.rewardAsh })}</span>
                                     </div>
                                 </div>
 
-                                <div className="text-[#6B7280] text-[11px]">Published {formatDate(quest.createdAt)}</div>
+                                <div className="text-[#6B7280] text-[11px]">{t("g.fq.published", { date: formatDate(quest.createdAt) })}</div>
                             </div>
                         ))
                     )}

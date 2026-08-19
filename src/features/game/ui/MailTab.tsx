@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Send, Inbox } from "lucide-react";
 import { PlayerTag } from "./shell/PlayerTag";
 import { MailEntry } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface MailTabProps {
     mail: MailEntry[];
@@ -37,6 +38,7 @@ function resolveTarget(query: string): { wallet?: string; nickname?: string } {
 }
 
 export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail, onMarkMailRead }: MailTabProps) {
+    const { t } = useLanguage();
     const [isComposing, setIsComposing] = useState(false);
     const [composeTarget, setComposeTarget] = useState("");
     const [composeSubject, setComposeSubject] = useState("");
@@ -67,7 +69,7 @@ export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail,
                     className="btn-primary px-3 py-1.5 text-xs flex items-center gap-1.5"
                 >
                     <Send className="w-3.5 h-3.5" />
-                    Compose
+                    {t("g.mail.compose")}
                 </button>
             </div>
 
@@ -77,7 +79,7 @@ export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail,
                         type="text"
                         value={composeTarget}
                         onChange={(e) => setComposeTarget(e.target.value)}
-                        placeholder="Recipient wallet or nickname..."
+                        placeholder={t("g.mail.recipient")}
                         className="w-full bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none"
                     />
                     <input
@@ -103,7 +105,7 @@ export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail,
                             Send
                         </button>
                         <button onClick={() => setIsComposing(false)} className="btn-secondary px-4 py-2 text-sm">
-                            Cancel
+                            {t("g.common.cancel")}
                         </button>
                     </div>
                 </div>
@@ -113,7 +115,7 @@ export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail,
                 {mail.length === 0 ? (
                     <div className="text-center py-10">
                         <Inbox className="w-8 h-8 text-[#6B7280] mx-auto mb-2" />
-                        <p className="text-[#8B8F98] text-sm">Your inbox is empty.</p>
+                        <p className="text-[#8B8F98] text-sm">{t("g.mail.empty")}</p>
                     </div>
                 ) : (
                     mail.map((m) => {

@@ -18,12 +18,12 @@ export interface TowerFloorConfig {
 }
 
 export const TOWER_FLOORS: TowerFloorConfig[] = [
-    { id: 'tower-main-hall', name: 'Main hall', locationClass: () => new MainHall(), description: 'Main Hall', icon: 'building' },
-    { id: 'tower-first-floor', name: 'Canyon', locationClass: () => new FirstFloor(), description: 'Slime Valley', icon: 'building' },
-    { id: 'tower-token-gates', name: 'Token Gates', locationClass: () => new TokenGatesFloor(), description: 'Desert Cave Hub', icon: 'building' },
-    { id: 'tower-basement', name: 'Crypto Universe', locationClass: () => new Basement(), description: 'MemeTower', icon: 'arrow-down' },
-    { id: 'main-world', name: 'Open World', locationClass: () => new MainWorld(), description: 'Open World', icon: 'arrow-up' },
-    { id: 'tower-events', name: 'Events', locationClass: () => new EventsLobby(), description: 'Events Hall', icon: 'building' },
+    { id: 'tower-main-hall', name: 'g.floorReg.tower-main-hall.name', locationClass: () => new MainHall(), description: 'g.floorReg.tower-main-hall.description', icon: 'building' },
+    { id: 'tower-first-floor', name: 'g.floorReg.tower-first-floor.name', locationClass: () => new FirstFloor(), description: 'g.floorReg.tower-first-floor.description', icon: 'building' },
+    { id: 'tower-token-gates', name: 'g.floorReg.tower-token-gates.name', locationClass: () => new TokenGatesFloor(), description: 'g.floorReg.tower-token-gates.description', icon: 'building' },
+    { id: 'tower-basement', name: 'g.floorReg.tower-basement.name', locationClass: () => new Basement(), description: 'g.floorReg.tower-basement.description', icon: 'arrow-down' },
+    { id: 'main-world', name: 'g.floorReg.main-world.name', locationClass: () => new MainWorld(), description: 'g.floorReg.main-world.description', icon: 'arrow-up' },
+    { id: 'tower-events', name: 'g.floorReg.tower-events.name', locationClass: () => new EventsLobby(), description: 'g.floorReg.tower-events.description', icon: 'building' },
 ];
 
 export const ALL_LOCATIONS: TowerFloorConfig[] = [

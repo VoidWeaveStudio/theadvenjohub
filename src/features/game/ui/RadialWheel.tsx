@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SoundManager } from "../core/SoundManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export interface WheelItem {
     id: string;
@@ -39,6 +40,7 @@ function layoutFor(count: number) {
 }
 
 export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelProps) {
+    const { t } = useLanguage();
     const [pageIndex, setPageIndex] = useState(0);
     const [hovered, setHovered] = useState<string | null>(null);
     const wasOpenRef = useRef(false);
@@ -114,7 +116,7 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
                         </div>
                     )}
                     {pages.length > 1 && (
-                        <div className="text-[#6B7280] text-[10px] mt-1.5">scroll or [Tab] to switch</div>
+                        <div className="text-[#6B7280] text-[10px] mt-1.5">{t("g.wheel.switchHint")}</div>
                     )}
                 </div>
 
@@ -140,7 +142,7 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
                                 onClick={() => !item.locked && onSelect(page.id, item.id)}
                                 onMouseEnter={() => setHovered(item.id)}
                                 onMouseLeave={() => setHovered((current) => (current === item.id ? null : current))}
-                                title={item.locked ? item.lockReason ?? "Locked" : item.hint ?? item.label}
+                                title={item.locked ? item.lockReason ?? t("g.wheel.locked") : item.hint ?? item.label}
                                 className={`w-full flex flex-col items-center gap-0.5 py-1.5 rounded-2xl border transition-transform transition-colors duration-150 bg-[rgba(13,17,23,0.94)] ${item.locked
                                     ? "border-white/5 opacity-40 cursor-not-allowed"
                                     : "border-white/10 hover:border-[#4FD1FF] hover:scale-110"

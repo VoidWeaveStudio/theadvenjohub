@@ -216,6 +216,7 @@ export class MainHall extends TowerFloor {
     }
 
     dispose() {
+        this.posts?.dispose();
         this.shell?.dispose();
         this.sky?.dispose();
         this.boards?.dispose();

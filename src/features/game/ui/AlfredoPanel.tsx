@@ -8,6 +8,7 @@ import { COSMETICS, CosmeticId } from "../data/cosmetics";
 import { CosmeticStateData } from "../network/NetworkManager";
 import { CosmeticCard } from "./CosmeticCard";
 import { useShopPrices } from "./hooks/useShopPrices";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface AlfredoPanelProps {
     isOpen: boolean;
@@ -30,6 +31,7 @@ export function AlfredoPanel({
     onRequestCosmetics,
     onBuyCosmetic,
 }: AlfredoPanelProps) {
+    const { t } = useLanguage();
     const [view, setView] = useState<"menu" | "wardrobe">("menu");
     const livePrices = useShopPrices(gameSlug, isOpen);
     const wasOpenRef = useRef(false);
@@ -56,7 +58,7 @@ export function AlfredoPanel({
                 <div className="flex items-center justify-between mb-4 flex-shrink-0">
                     <div className="flex items-center gap-2">
                         <Palette className="w-5 h-5 text-[#4FC3FF]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">Alfredo</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.npc.alfredo")}</h2>
                     </div>
                     <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1.5 text-[#FFD166] text-sm font-bold">
@@ -71,7 +73,7 @@ export function AlfredoPanel({
 
                 {view === "menu" && (
                     <>
-                        <p className="text-[#8B8F98] text-sm mb-5">What can I do for you today?</p>
+                        <p className="text-[#8B8F98] text-sm mb-5">{t("g.alfredo.greeting")}</p>
 
                         <div className="space-y-3">
                             <button
@@ -80,8 +82,8 @@ export function AlfredoPanel({
                             >
                                 <Palette className="w-6 h-6 text-[#4FC3FF] flex-shrink-0" />
                                 <div>
-                                    <div className="text-[#E5E7EB] font-bold text-sm">Personalization</div>
-                                    <div className="text-[#8B8F98] text-xs">Paint your character&apos;s model</div>
+                                    <div className="text-[#E5E7EB] font-bold text-sm">{t("g.alfredo.personalization")}</div>
+                                    <div className="text-[#8B8F98] text-xs">{t("g.alfredo.personalizationHint")}</div>
                                 </div>
                             </button>
 
@@ -91,8 +93,8 @@ export function AlfredoPanel({
                             >
                                 <Shirt className="w-6 h-6 text-[#4FC3FF] flex-shrink-0" />
                                 <div>
-                                    <div className="text-[#E5E7EB] font-bold text-sm">Wardrobe</div>
-                                    <div className="text-[#8B8F98] text-xs">Buy skins and accessories</div>
+                                    <div className="text-[#E5E7EB] font-bold text-sm">{t("g.alfredo.wardrobe")}</div>
+                                    <div className="text-[#8B8F98] text-xs">{t("g.alfredo.wardrobeHint")}</div>
                                 </div>
                             </button>
                         </div>
@@ -106,11 +108,11 @@ export function AlfredoPanel({
                             className="flex items-center gap-1.5 text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold mb-3 flex-shrink-0 transition-colors"
                         >
                             <ArrowLeft className="w-3.5 h-3.5" />
-                            Back
+                            {t("g.alfredo.back")}
                         </button>
 
                         <p className="text-[#8B8F98] text-xs mb-3 flex-shrink-0">
-                            Everything you buy is yours forever. Switch between what you own in the Appearance tab &mdash; press L.
+                            {t("g.alfredo.ownedForever")}
                         </p>
 
                         <div className="space-y-2 overflow-y-auto min-h-0">
@@ -129,8 +131,8 @@ export function AlfredoPanel({
                                         owned={isOwned}
                                         equipped={false}
                                         blocked={!isOwned && ash < cosmetic.priceAsh}
-                                        blockedReason={!isOwned && ash < cosmetic.priceAsh ? "Not enough Ash" : undefined}
-                                        actionLabel={isOwned ? "Owned" : "Buy"}
+                                        blockedReason={!isOwned && ash < cosmetic.priceAsh ? t("g.alfredo.notEnoughAsh") : undefined}
+                                        actionLabel={isOwned ? t("g.alfredo.owned") : t("g.alfredo.buy")}
                                         onAction={() => {
                                             if (!isOwned) onBuyCosmetic(cosmetic.id);
                                         }}

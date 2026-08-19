@@ -6,6 +6,7 @@ import { Globe2 } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import { ROOM_ACCESS_LABELS, canEnterRoom, isRoomAccess, roomAccessDenialReason, type RoomAccess } from "@/core/lib/roomAccess";
 import type { FactionGateData } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionBubblePanelProps {
     faction: FactionGateData | null;
@@ -22,6 +23,7 @@ function formatMC(value: number): string {
 }
 
 export function FactionBubblePanel({ faction, isMember, onClose, onEnter }: FactionBubblePanelProps) {
+    const { t } = useLanguage();
     const [marketCap, setMarketCap] = useState<number | null>(null);
 
     useEffect(() => {
@@ -58,7 +60,7 @@ export function FactionBubblePanel({ faction, isMember, onClose, onEnter }: Fact
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Globe2 className={`w-5 h-5 ${faction.isAdmin ? "text-[#E8A33D]" : "text-[#66CCFF]"}`} />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">Faction bubble</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.bubble.factionBubble")}</h2>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         ✕
@@ -82,17 +84,17 @@ export function FactionBubblePanel({ faction, isMember, onClose, onEnter }: Fact
                 <div className="space-y-2 text-sm mb-4">
                     {marketCap !== null && (
                         <div className="flex justify-between">
-                            <span className="text-[#8B8F98]">Market cap</span>
+                            <span className="text-[#8B8F98]">{t("g.bubble.marketCap")}</span>
                             <span className="text-[#FFD166] font-bold">{formatMC(marketCap)}</span>
                         </div>
                     )}
                     <div className="flex justify-between">
-                        <span className="text-[#8B8F98]">Access</span>
-                        <span className="text-[#E5E7EB]">{ROOM_ACCESS_LABELS[access]}</span>
+                        <span className="text-[#8B8F98]">{t("g.bubble.access")}</span>
+                        <span className="text-[#E5E7EB]">{t(ROOM_ACCESS_LABELS[access])}</span>
                     </div>
                     <div className="flex justify-between">
-                        <span className="text-[#8B8F98]">You</span>
-                        <span className="text-[#E5E7EB]">{isMember ? "Member" : "Not a member"}</span>
+                        <span className="text-[#8B8F98]">{t("g.bubble.you")}</span>
+                        <span className="text-[#E5E7EB]">{isMember ? t("g.bubble.member") : t("g.bubble.notMember")}</span>
                     </div>
                 </div>
 
@@ -104,11 +106,11 @@ export function FactionBubblePanel({ faction, isMember, onClose, onEnter }: Fact
                         }}
                         className="btn-primary px-4 py-2 text-sm w-full"
                     >
-                        Enter the gate
+                        {t("g.bubble.enterGate")}
                     </button>
                 ) : (
                     <p className="text-[#FFD166] text-sm bg-[#FFD166]/10 border border-[#FFD166]/20 rounded-lg px-3 py-2">
-                        {roomAccessDenialReason(access)}
+                        {t(roomAccessDenialReason(access))}
                     </p>
                 )}
             </div>

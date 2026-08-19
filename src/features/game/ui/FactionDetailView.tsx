@@ -6,6 +6,7 @@ import { FactionDetail } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { FactionRosterList } from "./FactionRosterList";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionDetailViewProps {
     faction: FactionDetail;
@@ -17,6 +18,7 @@ interface FactionDetailViewProps {
 }
 
 export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoinFaction, onBack, getNicknameMenuActions }: FactionDetailViewProps) {
+    const { t } = useLanguage();
     return (
         <div className="space-y-4">
             {onBack && (
@@ -25,7 +27,7 @@ export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoi
                     className="flex items-center gap-1.5 text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold transition-colors"
                 >
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    Back to search
+                    {t("g.faction.backToSearch")}
                 </button>
             )}
 
@@ -38,7 +40,7 @@ export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoi
                     className="btn-error w-full flex items-center justify-center gap-2 text-sm"
                 >
                     <LogOut className="w-4 h-4" />
-                    Leave Faction
+                    {t("g.faction.leave")}
                 </button>
             )}
 
@@ -48,7 +50,7 @@ export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoi
                     className="btn-success w-full flex items-center justify-center gap-2 text-sm"
                 >
                     <UserPlus className="w-4 h-4" />
-                    Join Faction
+                    {t("g.faction.join")}
                 </button>
             )}
         </div>

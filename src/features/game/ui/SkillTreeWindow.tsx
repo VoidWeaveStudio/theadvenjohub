@@ -8,6 +8,8 @@ import { ProgressionStateData } from "../network/NetworkManager";
 import { BRANCHES, TIERS, MEME_ABILITIES_BY_ID } from "../data/progression";
 import { SkillNode, columnsForBranch, nodesForColumn, columnPoints, canLearn, NODES_BY_ID } from "../data/skills";
 import { ABILITY_SLOTS, ABILITY_SLOT_KEYS, AbilitySlot } from "./AbilityBar";
+import { useLanguage } from "@/core/i18n/LanguageContext";
+import type { Translate } from "@/core/i18n/types";
 
 interface SkillTreeWindowProps {
     isOpen: boolean;
@@ -19,52 +21,53 @@ interface SkillTreeWindowProps {
 }
 
 const STAT_LABELS: Record<string, string> = {
-    maxHealth: "max health",
-    maxEnergy: "max energy",
-    energyRegen: "energy regen",
-    moveSpeed: "move speed",
-    lootBonus: "loot",
-    damageTaken: "damage taken",
-    weaponDamage: "weapon damage",
-    spellDamage: "spell damage",
-    magSize: "magazine",
-    armorPen: "armour pierce",
-    damageVsUnshielded: "damage vs unshielded",
-    reloadSpeed: "reload speed",
-    healOnKill: "health per kill",
-    energyOnKill: "energy per kill",
-    shieldStrength: "shield strength",
-    aoeDamage: "area damage",
-    aoeRadius: "area radius",
-    zoneRadius: "zone radius",
-    zoneDuration: "zone duration",
-    zoneTickDamage: "zone damage per second",
-    controlCooldown: "control cooldown",
-    supportCooldown: "support cooldown",
-    postDashSpeed: "speed after dash",
-    postDashDamageTaken: "damage taken after dash",
-    lowHealthDamageTaken: "damage taken while wounded",
-    dashCharges: "dash charges",
-    grenadeCharges: "grenade charges",
-    projectileSpeed: "projectile speed",
-    manaCost: "mana cost",
-    bleedDamage: "bleed damage",
-    burnDamage: "burn damage",
-    healingPower: "healing",
-    allyDamageInZone: "ally damage in zone",
-    markedAllyFireRate: "ally fire rate on mark",
-    ricochetChance: "ricochet chance",
-    ricochetDamage: "ricochet damage",
-    clusterCount: "cluster charges",
-    clusterDamage: "cluster damage",
-    explosiveDamage: "explosive damage",
-    explosiveRadius: "explosive radius",
-    explosiveEveryNthShot: "explosive every nth shot",
-    postShieldRegen: "health regen after shield",
+    maxHealth: "g.stat.maxHealth",
+    maxEnergy: "g.stat.maxEnergy",
+    energyRegen: "g.stat.energyRegen",
+    moveSpeed: "g.stat.moveSpeed",
+    lootBonus: "g.stat.lootBonus",
+    damageTaken: "g.stat.damageTaken",
+    weaponDamage: "g.stat.weaponDamage",
+    spellDamage: "g.stat.spellDamage",
+    magSize: "g.stat.magSize",
+    armorPen: "g.stat.armorPen",
+    damageVsUnshielded: "g.stat.damageVsUnshielded",
+    reloadSpeed: "g.stat.reloadSpeed",
+    healOnKill: "g.stat.healOnKill",
+    energyOnKill: "g.stat.energyOnKill",
+    shieldStrength: "g.stat.shieldStrength",
+    aoeDamage: "g.stat.aoeDamage",
+    aoeRadius: "g.stat.aoeRadius",
+    zoneRadius: "g.stat.zoneRadius",
+    zoneDuration: "g.stat.zoneDuration",
+    zoneTickDamage: "g.stat.zoneTickDamage",
+    controlCooldown: "g.stat.controlCooldown",
+    supportCooldown: "g.stat.supportCooldown",
+    postDashSpeed: "g.stat.postDashSpeed",
+    postDashDamageTaken: "g.stat.postDashDamageTaken",
+    lowHealthDamageTaken: "g.stat.lowHealthDamageTaken",
+    dashCharges: "g.stat.dashCharges",
+    grenadeCharges: "g.stat.grenadeCharges",
+    projectileSpeed: "g.stat.projectileSpeed",
+    manaCost: "g.stat.manaCost",
+    bleedDamage: "g.stat.bleedDamage",
+    burnDamage: "g.stat.burnDamage",
+    healingPower: "g.stat.healingPower",
+    allyDamageInZone: "g.stat.allyDamageInZone",
+    markedAllyFireRate: "g.stat.markedAllyFireRate",
+    ricochetChance: "g.stat.ricochetChance",
+    ricochetDamage: "g.stat.ricochetDamage",
+    clusterCount: "g.stat.clusterCount",
+    clusterDamage: "g.stat.clusterDamage",
+    explosiveDamage: "g.stat.explosiveDamage",
+    explosiveRadius: "g.stat.explosiveRadius",
+    explosiveEveryNthShot: "g.stat.explosiveEveryNthShot",
+    postShieldRegen: "g.stat.postShieldRegen",
 };
 
-function statLabel(stat: string): string {
-    return STAT_LABELS[stat] ?? stat.replace(/([A-Z])/g, " $1").toLowerCase();
+function statLabel(stat: string, t: Translate): string {
+    const key = STAT_LABELS[stat];
+    return key ? t(key) : stat.replace(/([A-Z])/g, " $1").toLowerCase();
 }
 
 function nodeIcon(node: SkillNode) {
@@ -76,21 +79,23 @@ function nodeIcon(node: SkillNode) {
 }
 
 function nodeKindLabel(node: SkillNode): string {
-    if (node.capstone) return "Ultimate";
-    if (node.kind === "active") return "Active";
-    if (node.kind === "mode") return "Weapon mode";
-    if (node.kind === "trigger") return "Triggered";
-    return "Passive";
+    if (node.capstone) return "g.skill.ultimate";
+    if (node.kind === "active") return "g.skill.active";
+    if (node.kind === "mode") return "g.skill.weaponMode";
+    if (node.kind === "trigger") return "g.skill.triggered";
+    return "g.skill.passive";
 }
 
-function formatEffect(stat: string, op: string, value: number): string {
-    const label = statLabel(stat);
-    if (op === "addPercent") return `${value > 0 ? "+" : ""}${value}% ${label}`;
-    if (op === "add") return `${value > 0 ? "+" : ""}${value} ${label}`;
-    return `${label}: ${value}`;
+function formatEffect(stat: string, op: string, value: number, t: Translate): string {
+    const label = statLabel(stat, t);
+    const signed = `${value > 0 ? "+" : ""}${value}`;
+    if (op === "addPercent") return t("g.skill.effect.percent", { value: signed, label });
+    if (op === "add") return t("g.skill.effect.flat", { value: signed, label });
+    return t("g.skill.effect.set", { value, label });
 }
 
 export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind, onOpenSpecialization }: SkillTreeWindowProps) {
+    const { t } = useLanguage();
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
     const branch = progression?.branch ?? null;
@@ -126,26 +131,26 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
         <WindowFrame
             isOpen={isOpen}
             onClose={onClose}
-            title="Skills"
+            title={t("g.skill.title")}
             size="xl"
             icon={<Zap className="w-7 h-7" />}
         >
             {!progression ? (
-                <p className="text-[#8B8F98] text-sm text-center py-16">Loading your progression...</p>
+                <p className="text-[#8B8F98] text-sm text-center py-16">{t("g.skill.loading")}</p>
             ) : !branch ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-4">
                     <Lock className="w-10 h-10 text-[#6B7280]" />
                     <p className="text-[#8B8F98] text-sm text-center max-w-sm">
                         {progression.branchUnlocked
-                            ? "Pick a specialisation to open your skill tree."
-                            : "Finish Sola's orientation quest to unlock specialisations."}
+                            ? t("g.skill.pickSpec")
+                            : t("g.skill.finishOrientation")}
                     </p>
                     {progression.branchUnlocked && (
                         <button
                             onClick={onOpenSpecialization}
                             className="bg-gradient-to-r from-[#4FD1FF] to-[#3BA9E8] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px]"
                         >
-                            Choose specialisation
+                            {t("g.skill.chooseSpec")}
                         </button>
                     )}
                 </div>
@@ -175,7 +180,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                 <div className="text-[#E5E7EB] text-sm font-bold leading-none">
                                     {progression.memeAbilities.length}/{TIERS.length}
                                 </div>
-                                <div className="text-[#6B7280] text-[10px] tracking-wider">DEGEN</div>
+                                <div className="text-[#6B7280] text-[10px] tracking-wider">{t("g.wheel.degen")}</div>
                             </div>
                             <div
                                 className="text-right rounded-[8px] px-3 py-1.5"
@@ -187,7 +192,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                 >
                                     {available}
                                 </div>
-                                <div className="text-[#6B7280] text-[10px] tracking-wider">POINTS</div>
+                                <div className="text-[#6B7280] text-[10px] tracking-wider">{t("g.skill.points")}</div>
                             </div>
                         </div>
                     </div>
@@ -311,7 +316,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                                 className="text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0"
                                                 style={{ background: `${selectedAccent}22`, color: selectedAccent }}
                                             >
-                                                {nodeKindLabel(selected).toUpperCase()}
+                                                {t(nodeKindLabel(selected)).toUpperCase()}
                                             </span>
                                         </div>
                                         <div className="text-[#6B7280] text-[10px] mt-1">
@@ -324,7 +329,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
 
                                         {selected.effects && (
                                             <div className="space-y-1">
-                                                <div className="text-[#6B7280] text-[10px] tracking-wider">PER RANK</div>
+                                                <div className="text-[#6B7280] text-[10px] tracking-wider">{t("g.skill.perRank")}</div>
                                                 {selected.effects.map((effect) =>
                                                     effect.perRank.map((value, i) => (
                                                         <div
@@ -342,7 +347,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                                                 {i + 1}
                                                             </span>
                                                             <span style={{ color: i < selectedRank ? "#E5E7EB" : "#8B8F98" }}>
-                                                                {formatEffect(effect.stat, effect.op, value)}
+                                                                {formatEffect(effect.stat, effect.op, value, t)}
                                                             </span>
                                                         </div>
                                                     ))
@@ -353,16 +358,16 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                         {selected.ability && (
                                             <div className="rounded-[8px] border border-white/8 bg-black/25 px-3 py-2 space-y-1">
                                                 <div className="flex justify-between text-[11px]">
-                                                    <span className="text-[#8B8F98]">Cooldown</span>
+                                                    <span className="text-[#8B8F98]">{t("g.skill.cooldown")}</span>
                                                     <span className="text-[#E5E7EB] font-bold">{selected.ability.cooldownMs / 1000}s</span>
                                                 </div>
                                                 <div className="flex justify-between text-[11px]">
-                                                    <span className="text-[#8B8F98]">Cost</span>
+                                                    <span className="text-[#8B8F98]">{t("g.skill.cost")}</span>
                                                     <span className="text-[#E5E7EB] font-bold">{selected.ability.energyCost} energy</span>
                                                 </div>
                                                 {typeof selected.ability.durationMs === "number" && (
                                                     <div className="flex justify-between text-[11px]">
-                                                        <span className="text-[#8B8F98]">Duration</span>
+                                                        <span className="text-[#8B8F98]">{t("g.skill.duration")}</span>
                                                         <span className="text-[#E5E7EB] font-bold">{selected.ability.durationMs / 1000}s</span>
                                                     </div>
                                                 )}
@@ -371,7 +376,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
 
                                         <div className="rounded-[8px] border border-white/8 bg-black/25 px-3 py-2 space-y-1">
                                             <div className="flex justify-between text-[11px]">
-                                                <span className="text-[#8B8F98]">Requires level</span>
+                                                <span className="text-[#8B8F98]">{t("g.skill.requiresLevel")}</span>
                                                 <span
                                                     className="font-bold"
                                                     style={{ color: level >= selected.requires.level ? "#4ADE80" : "#FF5757" }}
@@ -398,7 +403,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
 
                                         {selected.ability && selectedRank > 0 && (
                                             <div className="space-y-1.5">
-                                                <div className="text-[#6B7280] text-[10px] tracking-wider">BIND TO SLOT</div>
+                                                <div className="text-[#6B7280] text-[10px] tracking-wider">{t("g.skill.bindToSlot")}</div>
                                                 <div className="grid grid-cols-6 gap-1">
                                                     {ABILITY_SLOTS.map((slot: AbilitySlot) => {
                                                         const bound = progression.loadout?.[slot] === selected.ability!.id;
@@ -437,7 +442,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                         {selectedRank >= selected.maxRank ? (
                                             <div className="flex items-center justify-center gap-1.5 text-[#4ADE80] text-xs font-bold py-2">
                                                 <Check className="w-4 h-4" />
-                                                FULLY LEARNED
+                                                {t("g.skill.fullyLearned")}
                                             </div>
                                         ) : selectedCheck?.ok ? (
                                             <button
@@ -455,15 +460,15 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                                     : selectedCheck?.reason === "column_points_too_low"
                                                         ? `Invest ${selected.requires.columnPoints} points in ${selectedColumn?.name}`
                                                         : selectedCheck?.reason === "no_points"
-                                                            ? "No skill points left"
-                                                            : "Locked"}
+                                                            ? t("g.skill.noPoints")
+                                                            : t("g.skill.locked")}
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             ) : (
                                 <p className="text-[#6B7280] text-xs text-center px-6 py-10">
-                                    Pick a skill on the left to see what it does.
+                                    {t("g.skill.pickToSee")}
                                 </p>
                             )}
                         </div>
@@ -471,8 +476,8 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
 
                     <div className="flex-shrink-0 rounded-[12px] border border-white/8 bg-black/25 px-3 py-2">
                         <div className="flex items-center justify-between mb-1.5">
-                            <div className="text-[#FFD166] text-[10px] font-black tracking-wider">DEGEN TRACK</div>
-                            <div className="text-[#6B7280] text-[10px]">unlocks itself every 5 levels · cast from the wheel [T]</div>
+                            <div className="text-[#FFD166] text-[10px] font-black tracking-wider">{t("g.skill.degenTrack")}</div>
+                            <div className="text-[#6B7280] text-[10px]">{t("g.skill.degenHint")}</div>
                         </div>
                         <div className="flex gap-1.5 overflow-x-auto">
                             {TIERS.map((t) => {

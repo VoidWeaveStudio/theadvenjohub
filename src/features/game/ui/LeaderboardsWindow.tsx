@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Trophy, Users } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 import { PlayerTag } from "./shell/PlayerTag";
 import { FactionDetailView } from "./FactionDetailView";
 import { FactionLeaderboardList } from "./FactionRow";
@@ -46,6 +47,7 @@ export function LeaderboardsWindow({
     onViewProfile,
     onJoinFaction,
 }: LeaderboardsWindowProps) {
+    const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState<LeaderboardsTab>("players");
     const [viewingFactionId, setViewingFactionId] = useState<string | null>(null);
 
@@ -66,7 +68,7 @@ export function LeaderboardsWindow({
         <WindowFrame
             isOpen={isOpen}
             onClose={onClose}
-            title="Leaderboards"
+            title={t("g.leaderboard.title")}
             icon={
                 <Image
                     src="/icons/topmenu/leaderboard-v2.webp"
@@ -77,8 +79,8 @@ export function LeaderboardsWindow({
                 />
             }
             tabs={[
-                { id: "players", label: "Players", icon: <Trophy className="w-3.5 h-3.5" /> },
-                { id: "factions", label: "Factions", icon: <Users className="w-3.5 h-3.5" /> },
+                { id: "players", label: t("g.leaderboard.players"), icon: <Trophy className="w-3.5 h-3.5" /> },
+                { id: "factions", label: t("g.leaderboard.factions"), icon: <Users className="w-3.5 h-3.5" /> },
             ]}
             activeTab={activeTab}
             onTabChange={(id) => {
@@ -89,7 +91,7 @@ export function LeaderboardsWindow({
             {activeTab === "players" && (
                 <div className="space-y-2">
                     {playerLeaderboard.length === 0 ? (
-                        <p className="text-[#8B8F98] text-sm text-center py-6">No data yet.</p>
+                        <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.leaderboard.noData")}</p>
                     ) : (
                         playerLeaderboard.map((entry, index) => (
                             <button

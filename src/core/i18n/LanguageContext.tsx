@@ -4,15 +4,16 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from "react";
 import {
   Language,
-  getTranslation,
   getLanguageFromCookie,
-  setLanguageCookie
+  setActiveLanguage,
+  setLanguageCookie,
+  t as translate
 } from "@/core/i18n/index";
 
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -27,11 +28,13 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const savedLang = getLanguageFromCookie();
     if (savedLang) {
       setLanguageState(savedLang);
+      setActiveLanguage(savedLang);
     }
     setIsInitialized(true);
   }, []);
 
   useEffect(() => {
+    setActiveLanguage(language);
     if (!isInitialized) return;
     setLanguageCookie(language);
     document.documentElement.lang = language;
@@ -42,7 +45,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   };
 
   const t = useMemo(() => {
-    return (key: string) => getTranslation(key, language);
+    // language is the dependency on purpose: the module helper reads the active
+    // language, and this memo is what makes components re-render on a switch.
+    void language;
+    return (key: string, vars?: Record<string, string | number>) => translate(key, vars);
   }, [language]);
 
   return (

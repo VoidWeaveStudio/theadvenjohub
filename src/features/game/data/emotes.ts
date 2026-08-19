@@ -10,11 +10,11 @@ export interface EmoteDefinition {
 }
 
 export const EMOTES: EmoteDefinition[] = [
-    { key: "laugh", label: "Laugh", hint: "Crying with laughter", accent: "#FFD93B", emoji: "😂" },
-    { key: "fuck_you", label: "Fuck You", hint: "The universal gesture", accent: "#E8B08A", emoji: "🖕" },
-    { key: "angry", label: "Angry", hint: "Blowing off steam", accent: "#FF5A4D", emoji: "😡" },
-    { key: "to_the_moon", label: "To The Moon", hint: "Ignition and liftoff", accent: "#8FD8FF", emoji: "🚀" },
-    { key: "green_candle", label: "Green Candle", hint: "Pump, then dump", accent: "#27D14F", emoji: "🕯️" },
+    { key: "laugh", label: "g.emote.laugh.label", hint: "g.emote.laugh.hint", accent: "#FFD93B", emoji: "😂" },
+    { key: "fuck_you", label: "g.emote.fuck_you.label", hint: "g.emote.fuck_you.hint", accent: "#E8B08A", emoji: "🖕" },
+    { key: "angry", label: "g.emote.angry.label", hint: "g.emote.angry.hint", accent: "#FF5A4D", emoji: "😡" },
+    { key: "to_the_moon", label: "g.emote.to_the_moon.label", hint: "g.emote.to_the_moon.hint", accent: "#8FD8FF", emoji: "🚀" },
+    { key: "green_candle", label: "g.emote.green_candle.label", hint: "g.emote.green_candle.hint", accent: "#27D14F", emoji: "🕯️" },
 ];
 
 export const BODY_EMOTES: EmoteKey[] = ["green_candle"];

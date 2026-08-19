@@ -3,6 +3,7 @@
 
 import { X } from "lucide-react";
 import { InventoryGridItem } from "./InventoryGrid";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface VendorQuantityDialogProps {
     item: InventoryGridItem;
@@ -14,6 +15,7 @@ interface VendorQuantityDialogProps {
 }
 
 export function VendorQuantityDialog({ item, origin, quantity, onQuantityChange, onCancel, onConfirm }: VendorQuantityDialogProps) {
+    const { t } = useLanguage();
     return (
         <div
             className="absolute inset-0 bg-[rgba(0,0,0,0.5)] flex items-center justify-center z-10"
@@ -38,7 +40,7 @@ export function VendorQuantityDialog({ item, origin, quantity, onQuantityChange,
                     <div className="min-w-0">
                         <div className="text-[#E5E7EB] text-sm font-bold truncate">{item.name || item.symbol}</div>
                         <div className="text-[#8B8F98] text-[10px]">
-                            {origin === "sell" ? "You own" : "Available"} {item.quantity}
+                            {origin === "sell" ? t("g.vendorQty.youOwn") : t("g.vendorQty.available")} {item.quantity}
                         </div>
                     </div>
                 </div>

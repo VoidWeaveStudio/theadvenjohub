@@ -3,6 +3,7 @@
 
 import { Check, Gem, Lock, Shirt, Sparkles } from "lucide-react";
 import { CosmeticDefinition } from "../data/cosmetics";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface CosmeticCardProps {
     cosmetic: CosmeticDefinition;
@@ -23,6 +24,7 @@ export function CosmeticCard({
     actionLabel,
     onAction,
 }: CosmeticCardProps) {
+    const { t } = useLanguage();
     const Icon = cosmetic.slot === "skin" ? Shirt : Sparkles;
 
     return (
@@ -41,12 +43,12 @@ export function CosmeticCard({
 
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                    <span className="text-[#E5E7EB] text-sm font-bold truncate">{cosmetic.name}</span>
+                    <span className="text-[#E5E7EB] text-sm font-bold truncate">{t(cosmetic.name)}</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(255,255,255,0.08)] text-[#8B8F98] flex-shrink-0">
-                        {cosmetic.slot === "skin" ? "FULL SKIN" : "ACCESSORY"}
+                        {cosmetic.slot === "skin" ? t("g.cosmetic.fullSkin") : t("g.cosmetic.accessory")}
                     </span>
                 </div>
-                <div className="text-[#8B8F98] text-xs truncate">{cosmetic.description}</div>
+                <div className="text-[#8B8F98] text-xs truncate">{t(cosmetic.description)}</div>
                 {blocked && blockedReason && (
                     <div className="text-[#FFD166] text-[11px] mt-0.5">{blockedReason}</div>
                 )}
@@ -62,7 +64,7 @@ export function CosmeticCard({
                 {equipped ? (
                     <span className="flex items-center gap-1 text-[#4FD1FF] text-xs font-bold px-2">
                         <Check className="w-3.5 h-3.5" />
-                        Equipped
+                        {t("g.cosmetic.equipped")}
                     </span>
                 ) : (
                     <button

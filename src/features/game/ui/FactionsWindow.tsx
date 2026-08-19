@@ -14,6 +14,7 @@ import { FactionRow, FactionLeaderboardList } from "./FactionRow";
 import { FactionDetail, FactionSummary, FactionTaskDefinition, FactionQuestManageData } from "../network/NetworkManager";
 import { useFactionsViewState, FactionsTab, FACTION_DETAIL_TABS } from "./hooks/useFactionsViewState";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionsWindowProps {
     isOpen: boolean;
@@ -93,18 +94,20 @@ export function FactionsWindow({
 
     const inFactionDetail = FACTION_DETAIL_TABS.includes(view.activeTab);
 
+    const { t } = useLanguage();
+
     const rootTabs = [
-        { id: "my", label: "My Factions", icon: <Users className="w-3.5 h-3.5" /> },
-        { id: "search", label: "Search", icon: <Search className="w-3.5 h-3.5" /> },
-        { id: "leaderboard", label: "Leaderboard", icon: <Trophy className="w-3.5 h-3.5" /> },
-        { id: "create", label: "Create", icon: <Plus className="w-3.5 h-3.5" /> },
+        { id: "my", label: t("g.faction.mine"), icon: <Users className="w-3.5 h-3.5" /> },
+        { id: "search", label: t("g.faction.search"), icon: <Search className="w-3.5 h-3.5" /> },
+        { id: "leaderboard", label: t("g.faction.leaderboard"), icon: <Trophy className="w-3.5 h-3.5" /> },
+        { id: "create", label: t("g.faction.create"), icon: <Plus className="w-3.5 h-3.5" /> },
     ];
 
     const detailTabs = [
-        { id: "members", label: "Members", icon: <Users className="w-3.5 h-3.5" /> },
-        { id: "upgrades", label: "Upgrades", icon: <Sparkles className="w-3.5 h-3.5" /> },
-        { id: "tasks", label: "Tasks", icon: <ClipboardList className="w-3.5 h-3.5" /> },
-        { id: "quests", label: "Quests", icon: <ScrollText className="w-3.5 h-3.5" /> },
+        { id: "members", label: t("g.faction.members"), icon: <Users className="w-3.5 h-3.5" /> },
+        { id: "upgrades", label: t("g.faction.upgrades"), icon: <Sparkles className="w-3.5 h-3.5" /> },
+        { id: "tasks", label: t("g.faction.tasks"), icon: <ClipboardList className="w-3.5 h-3.5" /> },
+        { id: "quests", label: t("g.menu.quests"), icon: <ScrollText className="w-3.5 h-3.5" /> },
     ];
 
     const backToMyFactions = (
@@ -113,7 +116,7 @@ export function FactionsWindow({
             className="flex items-center gap-1 text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold mb-3"
         >
             <ChevronLeft className="w-3.5 h-3.5" />
-            All my factions
+            {t("g.faction.backToMine")}
         </button>
     );
 
@@ -121,7 +124,7 @@ export function FactionsWindow({
         <div>
             {backToMyFactions}
             {view.isViewingOwnDetail && viewedFaction ? panel : (
-                <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
+                <p className="text-[#8B8F98] text-sm text-center py-10">{t("g.common.loading")}</p>
             )}
         </div>
     );
@@ -130,7 +133,7 @@ export function FactionsWindow({
         <WindowFrame
             isOpen={isOpen}
             onClose={onClose}
-            title="Factions"
+            title={t("g.menu.factions")}
             icon={
                 <Image
                     src="/icons/topmenu/factions-v3.webp"
@@ -148,14 +151,14 @@ export function FactionsWindow({
                 <div className="space-y-3">
                     {myFactions.length === 0 ? (
                         <div className="text-center py-10 space-y-4">
-                            <p className="text-[#8B8F98] text-sm">You haven&apos;t founded or joined a faction yet.</p>
+                            <p className="text-[#8B8F98] text-sm">{t("g.factions.none")}</p>
                             <div className="flex items-center justify-center gap-3">
                                 <button onClick={() => view.setActiveTab("create")} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">
                                     <Plus className="w-4 h-4" />
-                                    Found a Faction
+                                    {t("g.faction.found")}
                                 </button>
                                 <button onClick={() => view.setActiveTab("search")} className="btn-secondary px-4 py-2 text-sm">
-                                    Search Factions
+                                    {t("g.faction.searchTitle")}
                                 </button>
                             </div>
                         </div>
@@ -172,7 +175,7 @@ export function FactionsWindow({
                                         </div>
                                         <button
                                             onClick={() => onSetDisplayedFaction(f.id)}
-                                            title={f.isDisplayed ? "Shown on your avatar" : "Show this faction on your avatar"}
+                                            title={f.isDisplayed ? t("g.faction.shownOnAvatar") : t("g.faction.showOnAvatar")}
                                             className={`flex-shrink-0 p-2 rounded-lg transition-colors ${f.isDisplayed ? "text-[#FFD166]" : "text-[#6B7280] hover:text-[#FFD166]"
                                                 }`}
                                         >
@@ -256,14 +259,14 @@ export function FactionsWindow({
                                     type="text"
                                     value={view.searchQuery}
                                     onChange={(e) => view.setSearchQuery(e.target.value)}
-                                    placeholder="Search by name or token CA..."
+                                    placeholder={t("g.faction.searchPlaceholder")}
                                     className="w-full bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] pl-9 pr-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#4FD1FF]/50 outline-none"
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 {view.displayedResults.length === 0 ? (
-                                    <p className="text-[#8B8F98] text-sm text-center py-6">No factions found.</p>
+                                    <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.faction.noneFound")}</p>
                                 ) : (
                                     view.displayedResults.map((f) => {
                                         const alreadyMember = myFactions.some((mf) => mf.id === f.id);
@@ -310,7 +313,7 @@ export function FactionsWindow({
                 <div className="space-y-4">
                     <div className="flex items-center gap-2 text-[#E5E7EB] font-bold">
                         <Flag className="w-4 h-4 text-[#a855f7]" />
-                        Found a Faction
+                        {t("g.faction.found")}
                     </div>
                     <p className="text-[#8B8F98] text-xs">
                         Same deal Alaric offers in the Main Hall — you can do it from here instead. You must hold the token in

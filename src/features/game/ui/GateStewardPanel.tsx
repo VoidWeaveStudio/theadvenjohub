@@ -6,6 +6,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { DoorOpen, Loader2 } from "lucide-react";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { gameFetch } from "../utils/gameFetch";
 import { SoundManager } from "../core/SoundManager";
@@ -51,20 +52,20 @@ type StewardTab = "rooms" | "purchase" | "find";
 
 function mapPurchaseError(code: string): string {
     switch (code) {
-        case "not_authorized": return "Only the faction's founder or verified creator can buy a gate.";
-        case "already_purchased": return "This faction already has a gate.";
-        case "faction_not_found": return "Faction not found.";
-        case "signature_already_used": return "This payment was already used.";
-        case "wrong_signer": return "Payment signer mismatch, try again.";
-        case "transfer_verification_failed": return "Could not verify the payment on-chain yet, wait a few seconds and try again.";
-        case "transaction_not_found": return "Transaction not found yet, wait a few seconds and try again.";
-        case "too_many_attempts": return "Too many attempts, try again later.";
-        default: return code || "Purchase failed.";
+        case "not_authorized": return "g.gate.err.notAuthorized";
+        case "already_purchased": return "g.gate.err.alreadyPurchased";
+        case "faction_not_found": return "g.gate.err.factionNotFound";
+        case "signature_already_used": return "g.gate.err.signatureUsed";
+        case "wrong_signer": return "g.gate.err.wrongSigner";
+        case "transfer_verification_failed": return "g.gate.err.transferUnverified";
+        case "transaction_not_found": return "g.gate.err.txNotFound";
+        case "too_many_attempts": return "g.gate.err.tooManyAttempts";
+        default: return code || "g.gate.err.failed";
     }
 }
 
 function mapLookupError(message: string): string {
-    return message === "invalid_ca" ? "That doesn't look like a valid contract address." : "Lookup failed, try again.";
+    return message === "invalid_ca" ? "g.gate.err.invalidCa" : "g.gate.err.lookupFailed";
 }
 
 export function GateStewardPanel({
@@ -76,6 +77,7 @@ export function GateStewardPanel({
     gateFactionIds,
     onEnterPersonalRoom,
 }: GateStewardPanelProps) {
+    const { t } = useLanguage();
     const { publicKey, connected, wallet } = useWallet();
     const { isAuthorized } = useAuth();
 
@@ -159,15 +161,15 @@ export function GateStewardPanel({
     const handlePurchase = useCallback(async () => {
         if (!result?.faction || isProcessingRef.current) return;
         if (!publicKey || !connected || !wallet?.adapter) {
-            setError("Connect your wallet first.");
+            setError("g.gate.err.connectWallet");
             return;
         }
         if (!isAuthorized) {
-            setError("Your session expired, reload the page and try again.");
+            setError("g.gate.err.sessionExpired");
             return;
         }
         if (typeof (wallet.adapter as any).signTransaction !== "function") {
-            setError("This wallet doesn't support transaction signing.");
+            setError("g.gate.err.noSigning");
             return;
         }
 
@@ -177,7 +179,7 @@ export function GateStewardPanel({
 
         try {
             const configRes = await fetch("/api/marketplace/config");
-            if (!configRes.ok) throw new Error("Failed to load payment config");
+            if (!configRes.ok) throw new Error("g.gate.err.configFailed");
             const config = await configRes.json();
 
             const connection = createRpcConnection();
@@ -200,7 +202,7 @@ export function GateStewardPanel({
                 signedTx = await (wallet.adapter as any).signTransaction(tx);
             } catch (signError: any) {
                 if (signError.code === 4001 || signError.message?.includes("rejected")) {
-                    throw new Error("Transaction rejected");
+                    throw new Error("g.gate.err.rejected");
                 }
                 throw signError;
             }
@@ -242,10 +244,10 @@ export function GateStewardPanel({
     if (!isOpen) return null;
 
     const payButtonLabel =
-        payState === "connecting" ? "Preparing payment..." :
-            payState === "signing" ? "Confirm in wallet..." :
-                payState === "confirming" ? "Confirming payment..." :
-                    `Buy Gate — ${GATE_PRICE_TNJ.toLocaleString("en-US")} TNJ`;
+        payState === "connecting" ? t("g.pay.preparing") :
+            payState === "signing" ? t("g.pay.confirmInWallet") :
+                payState === "confirming" ? t("g.pay.confirming") :
+                    t("g.gate.buyPrice", { amount: GATE_PRICE_TNJ.toLocaleString("en-US") });
 
     return (
         <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">
@@ -253,7 +255,7 @@ export function GateStewardPanel({
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <DoorOpen className="w-5 h-5 text-[#E8A33D]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">The Keeper</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.gate.title")}</h2>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         ✕
@@ -265,39 +267,39 @@ export function GateStewardPanel({
                         onClick={() => setActiveTab("rooms")}
                         className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "rooms" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        Rooms
+                        {t("g.gate.tab.rooms")}
                     </button>
                     <button
                         onClick={() => setActiveTab("purchase")}
                         className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "purchase" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        Buy a Gate
+                        {t("g.gate.tab.buy")}
                     </button>
                     <button
                         onClick={() => setActiveTab("find")}
                         className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "find" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        Find a Gate
+                        {t("g.gate.tab.find")}
                     </button>
                 </div>
 
                 {activeTab === "rooms" && (
                     <>
                         <p className="text-[#8B8F98] text-sm mb-4">
-                            I can pull you through to any room you belong to.
+                            {t("g.gate.rooms.intro")}
                         </p>
 
                         <button
                             onClick={() => { onEnterPersonalRoom(); onClose(); }}
                             className="btn-primary px-4 py-2 text-sm w-full mb-4"
                         >
-                            Enter my room
+                            {t("g.gate.rooms.enterMine")}
                         </button>
 
-                        <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">Faction rooms</div>
+                        <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">{t("g.gate.rooms.factionRooms")}</div>
 
                         {myFactions.length === 0 ? (
-                            <p className="text-[#8B8F98] text-sm">You don't belong to any faction yet.</p>
+                            <p className="text-[#8B8F98] text-sm">{t("g.gate.rooms.noFactions")}</p>
                         ) : (
                             <div className="space-y-2">
                                 {myFactions.map((faction) => {
@@ -311,7 +313,7 @@ export function GateStewardPanel({
                                             )}
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-[#E5E7EB] font-bold text-sm truncate">{faction.name}</div>
-                                                {!hasRoom && <div className="text-[#8B8F98] text-xs">No room yet</div>}
+                                                {!hasRoom && <div className="text-[#8B8F98] text-xs">{t("g.gate.rooms.noRoom")}</div>}
                                             </div>
                                             <button
                                                 onClick={() => {
@@ -327,7 +329,7 @@ export function GateStewardPanel({
                                                 disabled={!hasRoom}
                                                 className="btn-secondary px-3 py-1.5 text-xs flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                                             >
-                                                Enter
+                                                {t("g.gate.rooms.enter")}
                                             </button>
                                         </div>
                                     );
@@ -340,7 +342,7 @@ export function GateStewardPanel({
                 {activeTab === "purchase" && (
                     <>
                         <p className="text-[#8B8F98] text-sm mb-4">
-                            Paste a token's contract address — I'll tell you if that faction already has a gate here.
+                            {t("g.gate.buy.intro")}
                         </p>
 
                         <div className="flex gap-2 mb-3">
@@ -348,7 +350,7 @@ export function GateStewardPanel({
                                 type="text"
                                 value={ca}
                                 onChange={(e) => setCa(e.target.value.slice(0, 64))}
-                                placeholder="Token contract address..."
+                                placeholder={t("g.gate.ca.placeholder")}
                                 autoFocus
                                 className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
                             />
@@ -357,7 +359,7 @@ export function GateStewardPanel({
                                 disabled={ca.trim().length < 32 || searching}
                                 className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {searching ? "..." : "Look Up"}
+                                {searching ? "..." : t("g.gate.buy.lookUp")}
                             </button>
                         </div>
 
@@ -376,7 +378,7 @@ export function GateStewardPanel({
                                     </div>
 
                                     {result.hasGate ? (
-                                        <p className="text-[#4ADE80] text-sm">This faction already has a gate here.</p>
+                                        <p className="text-[#4ADE80] text-sm">{t("g.gate.buy.hasGate")}</p>
                                     ) : result.canPurchase ? (
                                         <button
                                             onClick={handlePurchase}
@@ -387,17 +389,17 @@ export function GateStewardPanel({
                                             {payButtonLabel}
                                         </button>
                                     ) : (
-                                        <p className="text-[#FFD166] text-sm">No gate yet — only this faction's founder or verified creator can buy one.</p>
+                                        <p className="text-[#FFD166] text-sm">{t("g.gate.buy.cannotBuy")}</p>
                                     )}
                                 </div>
                             ) : (
-                                <p className="text-[#8B8F98] text-sm">No faction is using that token yet.</p>
+                                <p className="text-[#8B8F98] text-sm">{t("g.gate.noFactionForToken")}</p>
                             )
                         )}
 
                         {error && (
                             <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
-                                {error}
+                                {t(error)}
                             </p>
                         )}
                     </>
@@ -406,7 +408,7 @@ export function GateStewardPanel({
                 {activeTab === "find" && (
                     <>
                         <p className="text-[#8B8F98] text-sm mb-4">
-                            Know a faction's token already? I'll walk you straight to their gate.
+                            {t("g.gate.find.intro")}
                         </p>
 
                         <div className="flex gap-2 mb-3">
@@ -414,7 +416,7 @@ export function GateStewardPanel({
                                 type="text"
                                 value={findCa}
                                 onChange={(e) => setFindCa(e.target.value.slice(0, 64))}
-                                placeholder="Token contract address..."
+                                placeholder={t("g.gate.ca.placeholder")}
                                 className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
                             />
                             <button
@@ -422,7 +424,7 @@ export function GateStewardPanel({
                                 disabled={findCa.trim().length < 32 || findSearching}
                                 className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {findSearching ? "..." : "Search"}
+                                {findSearching ? "..." : t("g.gate.find.search")}
                             </button>
                         </div>
 
@@ -445,20 +447,20 @@ export function GateStewardPanel({
                                             onClick={handleTeleport}
                                             className="btn-primary px-4 py-2 text-sm w-full"
                                         >
-                                            Teleport to their Gate
+                                            {t("g.gate.find.teleport")}
                                         </button>
                                     ) : (
-                                        <p className="text-[#FFD166] text-sm">This faction doesn't have a gate here yet.</p>
+                                        <p className="text-[#FFD166] text-sm">{t("g.gate.find.noGate")}</p>
                                     )}
                                 </div>
                             ) : (
-                                <p className="text-[#8B8F98] text-sm">No faction is using that token yet.</p>
+                                <p className="text-[#8B8F98] text-sm">{t("g.gate.noFactionForToken")}</p>
                             )
                         )}
 
                         {findError && (
                             <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
-                                {findError}
+                                {t(findError)}
                             </p>
                         )}
                     </>

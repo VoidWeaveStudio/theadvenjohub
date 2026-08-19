@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Gem, Minus, Plus } from "lucide-react";
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
 import type { LiveShopPrice } from "./hooks/useShopPrices";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface AshStoreProps {
     ash: number;
@@ -14,6 +15,7 @@ interface AshStoreProps {
 }
 
 export function AshStore({ ash, placeables, prices, onBuyItem }: AshStoreProps) {
+    const { t } = useLanguage();
     const [quantities, setQuantities] = useState<Record<string, number>>({});
 
     const items = PLACEABLE_ITEMS.filter((definition) => {
@@ -25,7 +27,7 @@ export function AshStore({ ash, placeables, prices, onBuyItem }: AshStoreProps) 
     return (
         <div className="flex flex-col h-full min-h-0">
             <div className="flex items-center justify-between mb-3">
-                <div className="text-[#8B8F98] text-xs font-bold tracking-wider">GOODS FOR ASH</div>
+                <div className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.shop.goods")}</div>
                 <div className="flex items-center gap-1.5 text-[#FFD166] text-sm font-bold">
                     <Gem className="w-4 h-4" />
                     {ash} Ash
@@ -64,9 +66,9 @@ export function AshStore({ ash, placeables, prices, onBuyItem }: AshStoreProps) 
                                 <div className="flex items-center gap-3 min-w-0">
                                     <span className="text-2xl flex-shrink-0">{definition.icon}</span>
                                     <div className="min-w-0">
-                                        <div className="text-[#E5E7EB] font-bold text-sm truncate">{definition.name}</div>
+                                        <div className="text-[#E5E7EB] font-bold text-sm truncate">{t(definition.name)}</div>
                                         <div className="text-[#FFD166] text-xs font-bold">{price} ash</div>
-                                        {definition.hint && <div className="text-[#6B7280] text-xs">{definition.hint}</div>}
+                                        {definition.hint && <div className="text-[#6B7280] text-xs">{t(definition.hint)}</div>}
                                         <div className="text-[#8B8F98] text-xs">
                                             Owned: {owned}{definition.maxOwned === null ? "" : `/${definition.maxOwned}`}
                                         </div>
@@ -74,7 +76,7 @@ export function AshStore({ ash, placeables, prices, onBuyItem }: AshStoreProps) 
                                 </div>
 
                                 {capRemaining <= 0 ? (
-                                    <span className="text-[#8B8F98] text-xs font-bold px-3 flex-shrink-0">Maxed out</span>
+                                    <span className="text-[#8B8F98] text-xs font-bold px-3 flex-shrink-0">{t("g.shop.maxed")}</span>
                                 ) : (
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         <div className="flex items-center gap-1 bg-black/30 rounded-lg px-1">

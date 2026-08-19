@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { HUDState } from "../core/Game";
 import { Crosshair } from "./Crosshair";
 import { OnlineCounter } from "./OnlineCounter";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 import { Heart, Shield, Activity, Mic, ShieldCheck, Swords, Crown } from "lucide-react";
 import { ShardSwitcher } from "./ShardSwitcher";
 import { XpBar } from "./XpBar";
@@ -30,6 +31,7 @@ interface HUDProps {
 }
 
 export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = false, spawnProtectionSeconds = 0, combatRemainingMs = 0, partyMembers = [], partyLeaderId = null, localPlayerId = null, shardState = null, onSwitchShard, progression = null, xpPopups = [], onOpenSkills, rightRail, topCenter }: HUDProps) {
+    const { t } = useLanguage();
     const partyFrames = partyMembers.filter((member) => member.id !== localPlayerId);
     const healthPercentage = (state.health / state.maxHealth) * 100;
 
@@ -42,7 +44,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                     <Heart className="w-5 h-5 text-[#FF5757] fill-[#FF5757]" />
-                                    <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">HEALTH</span>
+                                    <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">{t("g.hud.health")}</span>
                                 </div>
                                 <span className="text-[#E5E7EB] text-lg font-bold">{state.health}</span>
                             </div>
@@ -72,7 +74,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                                                 {member.id === partyLeaderId && <Crown className="w-3 h-3 text-[#FFD166] shrink-0" />}
                                                 <span className="text-[#C9CDD3] text-[11px] font-bold truncate">{member.nickname}</span>
                                                 <span className={`text-[10px] ml-auto ${member.alive ? "text-[#6B7280]" : "text-red-400 font-bold"}`}>
-                                                    {member.alive ? member.health : "DOWN"}
+                                                    {member.alive ? member.health : t("g.hud.down")}
                                                 </span>
                                             </div>
                                             <div className="mt-1 w-full h-1 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
@@ -91,7 +93,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                     {isTalking && (
                         <div className="bg-[rgba(74,222,128,0.15)] backdrop-blur-md border border-[#4ADE80]/30 rounded-[10px] px-3 py-2 flex items-center gap-2">
                             <Mic className="w-4 h-4 text-[#4ADE80] animate-pulse" />
-                            <span className="text-[#4ADE80] text-xs font-bold tracking-wider">TALKING</span>
+                            <span className="text-[#4ADE80] text-xs font-bold tracking-wider">{t("g.hud.talking")}</span>
                         </div>
                     )}
                 </div>
@@ -106,7 +108,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                         <div className="flex items-center gap-2">
                             <Swords className="w-4 h-4 text-[#F87171]" />
                             <span className="text-[#F87171] text-sm font-bold tracking-wider">
-                                IN COMBAT {Math.ceil(combatRemainingMs / 1000)}s
+                                {t("g.hud.inCombat")} {Math.ceil(combatRemainingMs / 1000)}s
                             </span>
                         </div>
                     </div>
@@ -126,9 +128,9 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                         <div className="flex items-center gap-2">
                             <ShieldCheck className="w-4 h-4 text-[#6FE0FF]" />
                             <span className="text-[#6FE0FF] text-sm font-bold tracking-wider">
-                                INVULNERABLE {spawnProtectionSeconds}s
+                                {t("g.hud.invulnerable")} {spawnProtectionSeconds}s
                             </span>
-                            <span className="text-[#6FE0FF]/60 text-xs">shoot to cancel</span>
+                            <span className="text-[#6FE0FF]/60 text-xs">{t("g.hud.shootToCancel")}</span>
                         </div>
                     </div>
                 )}
@@ -137,7 +139,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                     <div className="bg-[rgba(74,222,128,0.15)] backdrop-blur-md border border-[#4ADE80]/30 px-5 py-2 rounded-[10px]">
                         <div className="flex items-center gap-2">
                             <Shield className="w-4 h-4 text-[#4ADE80]" />
-                            <span className="text-[#4ADE80] text-sm font-bold tracking-wider">SAFE ZONE</span>
+                            <span className="text-[#4ADE80] text-sm font-bold tracking-wider">{t("g.hud.safeZone")}</span>
                         </div>
                     </div>
                 )}
@@ -153,7 +155,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
 
                         {state.weaponKind === "staff" ? (
                             <div className="flex items-baseline gap-3">
-                                <span className="text-[#C79AE0] text-4xl font-bold leading-none">MANA</span>
+                                <span className="text-[#C79AE0] text-4xl font-bold leading-none">{t("g.hud.mana")}</span>
                             </div>
                         ) : (
                             <div className="flex items-baseline gap-3">
@@ -189,10 +191,10 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                             ) : null}
                             <span className={`text-xs font-medium ${state.isReloading ? 'text-[#FF5757]' : 'text-[#8B8F98]'}`}>
                                 {state.isReloading
-                                    ? 'RELOADING...'
+                                    ? t("g.hud.reloading")
                                     : state.weaponKind === "staff"
-                                        ? 'Press [B] for fire mode'
-                                        : 'Press [R] to reload, [B] for fire mode'}
+                                        ? t("g.hud.hintFireMode")
+                                        : t("g.hud.hintReload")}
                             </span>
                         </div>
                     </div>

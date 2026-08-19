@@ -6,6 +6,7 @@ import { Coins, Store } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { SHOP_CATALOG } from "@/core/lib/shopCatalog";
 import { useShopPrices } from "./hooks/useShopPrices";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface ShopWindowProps {
     isOpen: boolean;
@@ -14,9 +15,9 @@ interface ShopWindowProps {
 }
 
 const WHERE_TO_BUY: Record<string, string> = {
-    faction_creation: "Alaric in the Main Hall",
-    faction_promo_code: "Alaric in the Main Hall",
-    faction_gate: "Alaric in the Main Hall",
+    faction_creation: "g.shop.fromAlaric",
+    faction_promo_code: "g.shop.fromAlaric",
+    faction_gate: "g.shop.fromAlaric",
 };
 
 function formatTnj(amount: number): string {
@@ -26,6 +27,7 @@ function formatTnj(amount: number): string {
 }
 
 export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
+    const { t } = useLanguage();
     const livePrices = useShopPrices(gameSlug, isOpen);
 
     const items = SHOP_CATALOG.filter((entry) => {
@@ -39,7 +41,7 @@ export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
         <WindowFrame
             isOpen={isOpen}
             onClose={onClose}
-            title="Shop"
+            title={t("g.shop.title")}
             icon={
                 <Image
                     src="/icons/topmenu/shop-v2.webp"
@@ -54,13 +56,13 @@ export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
             <div className="flex items-start gap-2.5 text-xs bg-[rgba(255,209,102,0.08)] border border-[#FFD166]/25 rounded-lg px-3 py-2.5 mb-4">
                 <Store className="w-4 h-4 text-[#FFD166] flex-shrink-0 mt-px" />
                 <span className="text-[#C9CDD3]">
-                    Everything here is paid for in TNJ. Goods bought with ash are on Tony&apos;s shelf in the Main Hall.
+                    {t("g.shop.tnjOnly")}
                 </span>
             </div>
 
             {items.length === 0 ? (
                 <div className="py-12 text-center text-[#6B7280] text-sm">
-                    Nothing is listed for TNJ right now.
+                    {t("g.shop.nothingListed")}
                 </div>
             ) : (
                 <div className="space-y-2">
@@ -79,7 +81,7 @@ export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
                                 <div className="min-w-0">
                                     <div className="text-[#E5E7EB] font-bold text-sm truncate">{entry.name}</div>
                                     <div className="text-[#8B8F98] text-xs">{entry.description}</div>
-                                    {where && <div className="text-[#6B7280] text-xs mt-0.5">Bought from {where}</div>}
+                                    {where && <div className="text-[#6B7280] text-xs mt-0.5">{t("g.shop.boughtFrom", { where: t(where) })}</div>}
                                 </div>
 
                                 <div className="text-right flex-shrink-0">

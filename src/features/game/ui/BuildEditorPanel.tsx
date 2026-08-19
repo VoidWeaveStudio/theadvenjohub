@@ -7,25 +7,26 @@ import { getBuildEntries, type BuildCategory } from "../world/building/BuildCata
 import { MAX_LEVELS } from "../world/building/BuildLayout";
 import { SKY_PRESETS, LIGHT_PRESETS } from "../world/building/environmentPresets";
 import type { BuildSessionState } from "../world/building/BuildSession";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 const CATEGORY_LABELS: Record<BuildCategory, string> = {
-    structure: "Structure",
-    openings: "Doors & Windows",
-    roofing: "Roofing",
-    outdoor: "Streets",
-    garden: "Garden",
-    lighting: "Lighting",
-    furniture: "Furniture",
-    decor: "Decor",
+    structure: "g.build.cat.structure",
+    openings: "g.build.cat.openings",
+    roofing: "g.build.cat.roofing",
+    outdoor: "g.build.cat.outdoor",
+    garden: "g.build.cat.garden",
+    lighting: "g.build.cat.lighting",
+    furniture: "g.build.cat.furniture",
+    decor: "g.build.cat.decor",
 };
 
 const CATEGORY_ORDER: BuildCategory[] = ["structure", "openings", "roofing", "outdoor", "garden", "lighting", "furniture", "decor"];
 
 const CATEGORY_HINTS: Partial<Record<BuildCategory, string>> = {
-    structure: "Stairs are walk-up ramps — face them toward the level above and your character climbs on its own, no jumping. The cell right above a staircase stays open automatically, so the flight always has somewhere to come out.",
-    roofing: "One slope tile climbs exactly one level. Ring the outer wall with slopes, then move up a level and ring the next row in — repeat until the rows meet. Cap the last row with Ridge Cap, close the sides with Gable End.",
-    lighting: "These fixtures cast real light. The ten closest to you stay lit, so spread them out instead of clustering them. Street lamps dim at daytime and switch on at night.",
-    decor: "Place a poster or billboard, then walk up to it in the lot and press E to draw on it. You can also select it here and hit Paint. Re-open it later to keep working on the same picture.",
+    structure: "g.build.hint.structure",
+    roofing: "g.build.hint.roofing",
+    lighting: "g.build.hint.lighting",
+    decor: "g.build.hint.decor",
 };
 
 interface BuildEditorPanelProps {
@@ -61,6 +62,7 @@ export function BuildEditorPanel({
     onSave,
     onExit,
 }: BuildEditorPanelProps) {
+    const { t } = useLanguage();
     const [category, setCategory] = useState<BuildCategory>("structure");
     const [showEnvironment, setShowEnvironment] = useState(false);
     const [confirmClear, setConfirmClear] = useState(false);
@@ -80,26 +82,26 @@ export function BuildEditorPanel({
                         onClick={() => onSetTool("select")}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${state.tool === "select" ? "bg-[#FFD166]/20 text-[#FFD166]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        <MousePointer2 className="w-4 h-4" /> Select
+                        <MousePointer2 className="w-4 h-4" /> {t("g.build.tool.select")}
                     </button>
                     <button
                         onClick={() => onSetTool("place")}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${state.tool === "place" ? "bg-[#4FD1FF]/20 text-[#4FD1FF]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        <Hammer className="w-4 h-4" /> Build
+                        <Hammer className="w-4 h-4" /> {t("g.build.tool.build")}
                     </button>
                     <button
                         onClick={() => onSetTool("erase")}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${state.tool === "erase" ? "bg-[#FF6B7A]/20 text-[#FF6B7A]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        <Eraser className="w-4 h-4" /> Erase
+                        <Eraser className="w-4 h-4" /> {t("g.build.tool.erase")}
                     </button>
 
                     <div className="w-px h-6 bg-white/10" />
 
                     <button
                         onClick={onRotate}
-                        title="Rotate (R)"
+                        title={t("g.build.rotateHint")}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#8B8F98] hover:text-[#E5E7EB] transition-colors"
                     >
                         <RotateCw className="w-4 h-4" /> {state.rotation * 90}°
@@ -111,7 +113,7 @@ export function BuildEditorPanel({
                             <button
                                 key={level}
                                 onClick={() => onSetLevel(level)}
-                                title={`Level ${level + 1}`}
+                                title={t("g.build.level", { level: level + 1 })}
                                 className={`w-6 h-6 p-0 rounded transition-colors ${state.level === level ? "bg-[#4FD1FF]/25 text-[#4FD1FF]" : "text-[#6B7280] hover:text-[#E5E7EB]"}`}
                             >
                                 <span className="block w-full text-center leading-6 text-[11px] font-bold tabular-nums">
@@ -127,27 +129,27 @@ export function BuildEditorPanel({
                         onClick={() => setShowEnvironment((open) => !open)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${showEnvironment ? "bg-[#FFD166]/20 text-[#FFD166]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        <Sun className="w-4 h-4" /> Sky
+                        <Sun className="w-4 h-4" /> {t("g.build.sky")}
                     </button>
                     <button
                         onClick={onSave}
                         disabled={state.saving || !state.dirty}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#7FE6CF] hover:text-[#B8F5E6] disabled:opacity-40 transition-colors"
                     >
-                        <Save className="w-4 h-4" /> {state.saving ? "Saving..." : "Save"}
+                        <Save className="w-4 h-4" /> {state.saving ? t("g.build.saving") : t("g.build.save")}
                     </button>
                     <button
                         onClick={onExit}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#8B8F98] hover:text-[#E5E7EB] transition-colors"
                     >
-                        <X className="w-4 h-4" /> Exit
+                        <X className="w-4 h-4" /> {t("g.build.exit")}
                     </button>
                 </div>
 
                 {showEnvironment && (
                     <div className="mt-2 bg-[rgba(10,14,20,0.95)] border border-[#4FD1FF]/25 rounded-xl p-3 space-y-3">
                         <div>
-                            <div className="text-[#8B8F98] text-[10px] uppercase tracking-wide mb-1.5">Sky</div>
+                            <div className="text-[#8B8F98] text-[10px] uppercase tracking-wide mb-1.5">{t("g.build.sky")}</div>
                             <div className="flex flex-wrap gap-1.5">
                                 {SKY_PRESETS.map((preset) => (
                                     <button
@@ -155,13 +157,13 @@ export function BuildEditorPanel({
                                         onClick={() => onSetEnvironment(preset.id, state.light)}
                                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${state.sky === preset.id ? "bg-[#4FD1FF]/20 text-[#4FD1FF]" : "bg-white/5 text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                                     >
-                                        {preset.name}
+                                        {t(preset.name)}
                                     </button>
                                 ))}
                             </div>
                         </div>
                         <div>
-                            <div className="text-[#8B8F98] text-[10px] uppercase tracking-wide mb-1.5">Lighting</div>
+                            <div className="text-[#8B8F98] text-[10px] uppercase tracking-wide mb-1.5">{t("g.build.cat.lighting")}</div>
                             <div className="flex flex-wrap gap-1.5">
                                 {LIGHT_PRESETS.map((preset) => (
                                     <button
@@ -169,7 +171,7 @@ export function BuildEditorPanel({
                                         onClick={() => onSetEnvironment(state.sky, preset.id)}
                                         className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${state.light === preset.id ? "bg-[#FFD166]/20 text-[#FFD166]" : "bg-white/5 text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                                     >
-                                        {preset.name}
+                                        {t(preset.name)}
                                     </button>
                                 ))}
                             </div>
@@ -187,14 +189,14 @@ export function BuildEditorPanel({
                                 onClick={() => setCategory(id)}
                                 className={`px-2 py-1 rounded-md text-[10px] font-bold transition-colors ${category === id ? "bg-[#4FD1FF]/20 text-[#4FD1FF]" : "text-[#6B7280] hover:text-[#E5E7EB]"}`}
                             >
-                                {CATEGORY_LABELS[id]}
+                                {t(CATEGORY_LABELS[id])}
                             </button>
                         ))}
                     </div>
 
                     {CATEGORY_HINTS[category] && (
                         <div className="mb-2 rounded-lg bg-[#FFD166]/10 border border-[#FFD166]/25 px-2.5 py-2 text-[10px] leading-relaxed text-[#FFD166]">
-                            {CATEGORY_HINTS[category]}
+                            {t(CATEGORY_HINTS[category]!)}
                         </div>
                     )}
 
@@ -208,7 +210,7 @@ export function BuildEditorPanel({
                                     : "bg-black/30 border-transparent hover:border-[#4FD1FF]/30"}`}
                             >
                                 <span className="text-lg">{entry.icon}</span>
-                                <span className="flex-1 text-[#E5E7EB] text-xs font-bold">{entry.name}</span>
+                                <span className="flex-1 text-[#E5E7EB] text-xs font-bold">{t(entry.name)}</span>
                             </button>
                         ))}
                     </div>
@@ -220,13 +222,13 @@ export function BuildEditorPanel({
                                     onClick={() => { onClearLot(); setConfirmClear(false); }}
                                     className="flex-1 px-2 py-1.5 rounded-md bg-[#FF4D4F]/20 text-[#FF6B7A] text-[11px] font-bold"
                                 >
-                                    Erase everything
+                                    {t("g.build.eraseEverything")}
                                 </button>
                                 <button
                                     onClick={() => setConfirmClear(false)}
                                     className="px-2 py-1.5 rounded-md bg-white/5 text-[#8B8F98] text-[11px] font-bold"
                                 >
-                                    No
+                                    {t("g.build.no")}
                                 </button>
                             </div>
                         ) : (
@@ -234,7 +236,7 @@ export function BuildEditorPanel({
                                 onClick={() => setConfirmClear(true)}
                                 className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-bold text-[#8B8F98] hover:text-[#FF6B7A] transition-colors"
                             >
-                                <Trash2 className="w-3.5 h-3.5" /> Clear lot
+                                <Trash2 className="w-3.5 h-3.5" /> {t("g.build.clearLot")}
                             </button>
                         )}
                     </div>
@@ -246,43 +248,43 @@ export function BuildEditorPanel({
                     <div className="flex items-center gap-2 bg-[rgba(10,14,20,0.94)] border border-[#FFD166]/40 rounded-xl px-3 py-2 shadow-[0_0_25px_rgba(255,209,102,0.12)]">
                         {state.carrying ? (
                             <>
-                                <span className="text-[#FFD166] text-xs font-bold">Click a cell to drop it</span>
+                                <span className="text-[#FFD166] text-xs font-bold">{t("g.build.dropHint")}</span>
                                 <button
                                     onClick={onCancelCarry}
                                     className="px-2.5 py-1 rounded-md bg-white/5 text-[#8B8F98] text-[11px] font-bold hover:text-[#E5E7EB] transition-colors"
                                 >
-                                    Cancel
+                                    {t("g.build.cancel")}
                                 </button>
                             </>
                         ) : (
                             <>
-                                <span className="text-[#E5E7EB] text-xs font-bold">{state.selectionLabel}</span>
+                                <span className="text-[#E5E7EB] text-xs font-bold">{t(state.selectionLabel!)}</span>
                                 <div className="w-px h-5 bg-white/10" />
                                 <button
                                     onClick={onMoveSelection}
                                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#4FD1FF] hover:bg-[#4FD1FF]/15 transition-colors"
                                 >
-                                    <Move className="w-3.5 h-3.5" /> Move
+                                    <Move className="w-3.5 h-3.5" /> {t("g.build.move")}
                                 </button>
                                 <button
                                     onClick={onRotateSelection}
                                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#8B8F98] hover:text-[#E5E7EB] transition-colors"
                                 >
-                                    <RotateCw className="w-3.5 h-3.5" /> Rotate
+                                    <RotateCw className="w-3.5 h-3.5" /> {t("g.build.rotate")}
                                 </button>
                                 {state.canPaint && (
                                     <button
                                         onClick={onPaintSelection}
                                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#7FE6CF] hover:bg-[#7FE6CF]/15 transition-colors"
                                     >
-                                        <Paintbrush className="w-3.5 h-3.5" /> Paint
+                                        <Paintbrush className="w-3.5 h-3.5" /> {t("g.build.paint")}
                                     </button>
                                 )}
                                 <button
                                     onClick={onDeleteSelection}
                                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#FF6B7A] hover:bg-[#FF4D4F]/15 transition-colors"
                                 >
-                                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                                    <Trash2 className="w-3.5 h-3.5" /> {t("g.build.delete")}
                                 </button>
                             </>
                         )}
@@ -292,7 +294,7 @@ export function BuildEditorPanel({
 
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none font-oxanium">
                 <div className="bg-[rgba(10,14,20,0.85)] border border-white/10 rounded-lg px-3 py-1.5 text-[11px] text-[#8B8F98]">
-                    LMB place or select · RMB drag to orbit · WASD pan (camera relative, Shift = fast) · Space/Ctrl or wheel zoom · R rotate · Q/E turn · [ ] level · X erase · Del remove
+                    {t("g.build.controls")}
                 </div>
             </div>
         </>

@@ -6,6 +6,7 @@ import { X, Eraser, Paintbrush, Undo2 } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import { ColorPalette } from "./shell/ColorPalette";
 import { canvasToPngBlob } from "../utils/exportPng";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface PosterPaintModalProps {
     isOpen: boolean;
@@ -36,6 +37,7 @@ export function PosterPaintModal({
     onSubmit,
     onNotification,
 }: PosterPaintModalProps) {
+    const { t } = useLanguage();
     const [color, setColor] = useState("#1f2937");
     const [brush, setBrush] = useState(8);
     const [erasing, setErasing] = useState(false);
@@ -171,7 +173,7 @@ export function PosterPaintModal({
             await onSubmit(blob);
             onClose();
         } catch (err) {
-            onNotification?.(`⚠️ ${err instanceof Error ? err.message : "Failed to paint the poster"}`, 3000);
+            onNotification?.(`⚠️ ${err instanceof Error ? t(err.message) : t("g.poster.saveFailed")}`, 3000);
         } finally {
             setIsSaving(false);
         }
@@ -240,7 +242,7 @@ export function PosterPaintModal({
                             <button
                                 key={tone}
                                 onClick={() => handleFill(tone)}
-                                title="Fill canvas"
+                                title={t("g.poster.fillCanvas")}
                                 className={`w-6 h-6 rounded-md border transition-transform hover:scale-110 ${background === tone ? "border-[#4FD1FF]" : "border-white/15"}`}
                                 style={{ background: tone }}
                             />
@@ -253,14 +255,14 @@ export function PosterPaintModal({
                         onClick={onClose}
                         className="flex-1 bg-black/40 border border-zinc-700 text-[#C5C9D1] font-bold px-4 py-2.5 rounded-[8px] transition-colors hover:border-zinc-500"
                     >
-                        Cancel
+                        {t("g.poster.cancel")}
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
                         className="flex-1 bg-gradient-to-r from-[#4FD1FF] to-[#3B9FD9] text-[rgba(12,12,14,0.9)] font-bold px-4 py-2.5 rounded-[8px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isSaving ? "Saving..." : "Hang it up"}
+                        {isSaving ? t("g.sign.saving") : t("g.poster.hangUp")}
                     </button>
                 </div>
             </div>

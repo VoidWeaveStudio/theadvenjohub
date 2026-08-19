@@ -14,6 +14,8 @@ import {
     type ResolvedEvent,
 } from "../data/eventDoors";
 import { fetchEventDetail } from "../data/eventClient";
+import { useLanguage } from "@/core/i18n/LanguageContext";
+import type { Translate } from "@/core/i18n/types";
 
 interface EventDoorPanelProps {
     eventId: string | null;
@@ -41,12 +43,12 @@ function formatDate(iso: string): string {
     return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function formatCooldown(minutes: number): string {
-    if (minutes <= 0) return "No cooldown";
-    if (minutes < 60) return `${minutes} min cooldown`;
+function formatCooldown(minutes: number, t: Translate): string {
+    if (minutes <= 0) return t("g.door.noCooldown");
+    if (minutes < 60) return t("g.door.cooldownMin", { minutes });
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
-    return rest === 0 ? `${hours} h cooldown` : `${hours} h ${rest} min cooldown`;
+    return rest === 0 ? t("g.door.cooldownH", { hours }) : t("g.door.cooldownHM", { hours, minutes: rest });
 }
 
 const RANK_COLORS = ["#FFD166", "#C9CDD3", "#CD7F32"];
@@ -64,19 +66,19 @@ function formatCountdown(ms: number): string {
     return `${seconds}s`;
 }
 
-function scheduleLine(window: EventWindow, now: number): { text: string; urgent: boolean } | null {
+function scheduleLine(window: EventWindow, now: number, t: Translate): { text: string; urgent: boolean } | null {
     if (window.state === "always") return null;
 
     if (window.state === "open") {
-        if (window.closesAt === null) return { text: "Running now", urgent: false };
-        return { text: `Closes in ${formatCountdown(window.closesAt - now)}`, urgent: window.closesAt - now < 600000 };
+        if (window.closesAt === null) return { text: t("g.door.runningNow"), urgent: false };
+        return { text: t("g.door.closesIn", { time: formatCountdown(window.closesAt - now) }), urgent: window.closesAt - now < 600000 };
     }
 
     if (window.state === "upcoming" && window.opensAt !== null) {
-        return { text: `Opens in ${formatCountdown(window.opensAt - now)}`, urgent: false };
+        return { text: t("g.door.opensIn", { time: formatCountdown(window.opensAt - now) }), urgent: false };
     }
 
-    return { text: "This event has finished", urgent: false };
+    return { text: t("g.door.finished"), urgent: false };
 }
 
 export function EventDoorPanel({
@@ -92,6 +94,7 @@ export function EventDoorPanel({
     onLeaveQueue,
     onEnterGrinder,
 }: EventDoorPanelProps) {
+    const { t } = useLanguage();
     const [event, setEvent] = useState<ResolvedEvent | null>(null);
     const [board, setBoard] = useState<EventBoardEntry[]>([]);
     const [loading, setLoading] = useState(false);
@@ -134,18 +137,18 @@ export function EventDoorPanel({
     if (!door) return null;
 
     const accent = `#${(event?.accent ?? door.accent).toString(16).padStart(6, "0")}`;
-    const title = event?.title ?? door.name;
+    const title = event?.title ?? t(door.name);
     const scored = door.scored;
     const partyOk = !event || (partySize >= event.minParty && partySize <= event.maxParty);
 
     const runWindow = event ? eventWindow(event, now) : null;
-    const schedule = runWindow ? scheduleLine(runWindow, now) : null;
+    const schedule = runWindow ? scheduleLine(runWindow, now, t) : null;
     const enabled = event ? event.enabled && runWindow!.open : door.live;
     const sealedLabel = !event || event.enabled === false
-        ? "Sealed — this door does not open yet"
+        ? t("g.door.sealed")
         : runWindow?.state === "upcoming"
-            ? `Opens in ${formatCountdown((runWindow.opensAt ?? now) - now)}`
-            : "This event has finished";
+            ? t("g.door.opensIn", { time: formatCountdown((runWindow.opensAt ?? now) - now) })
+            : t("g.door.finished");
 
     return (
         <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4">
@@ -162,7 +165,7 @@ export function EventDoorPanel({
                         <div className="min-w-0">
                             <h2 className="text-xl font-black text-[#E5E7EB] truncate">{title}</h2>
                             <div className="text-xs font-bold tracking-widest uppercase mt-0.5" style={{ color: accent }}>
-                                {event?.tagline ?? door.tagline}
+                                {event?.tagline ?? t(door.tagline)}
                             </div>
                         </div>
                     </div>
@@ -172,12 +175,12 @@ export function EventDoorPanel({
                 </div>
 
                 <div className="px-5 pb-5 space-y-4">
-                    <p className="text-[#C9CDD3] text-sm leading-relaxed">{event?.description ?? door.teaser}</p>
+                    <p className="text-[#C9CDD3] text-sm leading-relaxed">{event?.description ?? t(door.teaser)}</p>
 
                     <div className="space-y-2">
                         <div className="flex items-start gap-2.5 text-xs bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5">
                             <Gift className="w-4 h-4 flex-shrink-0 mt-px" style={{ color: accent }} />
-                            <span className="text-[#C9CDD3]">{event?.rewardText ?? door.rewardText}</span>
+                            <span className="text-[#C9CDD3]">{event?.rewardText ?? t(door.rewardText)}</span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -185,14 +188,14 @@ export function EventDoorPanel({
                                 <Users className="w-4 h-4 text-[#8B8F98] flex-shrink-0" />
                                 <span className={partyOk ? "text-[#C9CDD3]" : "text-[#FFD166]"}>
                                     {event && event.minParty === event.maxParty
-                                        ? `${event.maxParty} player${event.maxParty > 1 ? "s" : ""}`
-                                        : `${event?.minParty ?? 1}–${event?.maxParty ?? door.maxParty} players`}
+                                        ? t("g.door.partyExact", { count: event.maxParty })
+                                        : t("g.door.partyRange", { min: event?.minParty ?? 1, max: event?.maxParty ?? door.maxParty })}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2 text-xs bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5">
                                 <CalendarClock className="w-4 h-4 text-[#8B8F98] flex-shrink-0" />
                                 <span className="text-[#C9CDD3]">
-                                    {formatCooldown(event?.cooldownMinutes ?? door.cooldownMinutes)}
+                                    {formatCooldown(event?.cooldownMinutes ?? door.cooldownMinutes, t)}
                                 </span>
                             </div>
                         </div>
@@ -219,14 +222,14 @@ export function EventDoorPanel({
                         <div>
                             <div className="flex items-center gap-2 mb-2">
                                 <Trophy className="w-4 h-4" style={{ color: accent }} />
-                                <span className="text-[#E5E7EB] text-sm font-bold">Furthest waves</span>
+                                <span className="text-[#E5E7EB] text-sm font-bold">{t("g.door.furthestWaves")}</span>
                             </div>
 
                             {loading ? (
-                                <div className="text-[#6B7280] text-xs py-4 text-center">Reading the ledger…</div>
+                                <div className="text-[#6B7280] text-xs py-4 text-center">{t("g.door.readingLedger")}</div>
                             ) : board.length === 0 ? (
                                 <div className="text-[#6B7280] text-xs py-4 text-center bg-white/[0.03] border border-white/10 rounded-lg">
-                                    Nobody has finished a run yet. The first name here is up for grabs.
+                                    {t("g.door.noRunsYet")}
                                 </div>
                             ) : (
                                 <div className="bg-white/[0.03] border border-white/10 rounded-lg divide-y divide-white/5 max-h-60 overflow-y-auto">
@@ -268,8 +271,8 @@ export function EventDoorPanel({
                             <div className="flex items-center justify-center gap-2 text-xs text-[#8B8F98]">
                                 <Users className="w-3.5 h-3.5" />
                                 <span>
-                                    {queue ? `${queue.queued} / ${queue.needed} in the queue` : "Queue is empty"}
-                                    {queue && queue.queued >= queue.minimum ? " — starting soon" : ""}
+                                    {queue ? t("g.door.inQueue", { queued: queue.queued, needed: queue.needed }) : t("g.door.queueEmpty")}
+                                    {queue && queue.queued >= queue.minimum ? t("g.door.startingSoon") : ""}
                                 </span>
                             </div>
 
@@ -283,7 +286,7 @@ export function EventDoorPanel({
                                 }
                             >
                                 <DoorOpen className="w-4 h-4" />
-                                <span>{inQueue ? "Leave the queue" : "Queue up"}</span>
+                                <span>{inQueue ? t("g.door.leaveQueue") : t("g.door.queueUp")}</span>
                             </button>
 
                             {eventId === GRINDER_EVENT_ID && (
@@ -294,7 +297,7 @@ export function EventDoorPanel({
                                         className="w-full flex items-center justify-center gap-2 font-black px-4 py-3 rounded-[8px] border border-[#FF5757]/45 bg-[rgba(255,87,87,0.1)] text-[#FF8A8A] transition-all hover:bg-[rgba(255,87,87,0.18)]"
                                     >
                                         <Swords className="w-4 h-4" />
-                                        <span>{GRINDER_NAME} — walk straight in</span>
+                                        <span>{t("g.door.walkStraightIn", { name: GRINDER_NAME })}</span>
                                     </button>
                                 </div>
                             )}
@@ -306,7 +309,7 @@ export function EventDoorPanel({
                             style={{ background: `linear-gradient(90deg, ${accent} 0%, ${accent}cc 100%)` }}
                         >
                             <DoorOpen className="w-4 h-4" />
-                            <span>Step through</span>
+                            <span>{t("g.door.stepThrough")}</span>
                         </button>
                     ) : (
                         <button

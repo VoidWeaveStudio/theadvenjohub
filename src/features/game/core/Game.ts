@@ -64,6 +64,7 @@ import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone, beg
 import { BuildSession } from "../world/building/BuildSession";
 import { SoundManager } from "./SoundManager";
 import { QuestMarkerKind, createQuestMarker, animateQuestMarker, disposeQuestMarker } from "../entities/questMarker";
+import { t } from "@/core/i18n";
 
 export interface GameSession {
     gameToken: string;
@@ -1002,8 +1003,13 @@ export class Game {
             }
 
             if (!options?.silent) {
-                const enteredAs = options?.factionName ? ` as ${options.factionName}` : "";
-                this.onNotification?.(`📍 Teleported to ${newLocation.name}${enteredAs}`, 2000);
+                const where = t(newLocation.name);
+                this.onNotification?.(
+                    options?.factionName
+                        ? t("g.notify.teleportedAs", { place: where, faction: options.factionName })
+                        : t("g.notify.teleported", { place: where }),
+                    2000
+                );
             }
             this.onLocationChange?.(newLocation.id);
 

@@ -12,9 +12,9 @@ export interface PlaceableItem {
 }
 
 export const PLACEABLE_ITEMS: PlaceableItem[] = [
-    { id: "sign-on-a-stick", name: "Sign on a Stick", icon: "🪧", price: 100, maxOwned: 10, placementScope: "main-world" },
-    { id: "sphere", name: "Sphere", icon: "🔮", price: 100, maxOwned: 50, placeable: false, tradeable: true },
-    { id: "home-teleport", name: "Homeward Charge", icon: "🌀", price: 250, maxOwned: 10, placeable: false, hint: "5s cast, 10 min cooldown" },
-    { id: "storage-crate", name: "Storage Crate", icon: "📦", price: 200, maxOwned: null, placeable: false, hint: "Build it in your own room — 50 slots" },
-    { id: "run-insurance", name: "Run Insurance", icon: "🛡️", price: 1000, maxOwned: 1, placeable: false, hint: "Keeps your tokens through one death" },
+    { id: "sign-on-a-stick", name: "g.placeable.sign-on-a-stick.name", icon: "🪧", price: 100, maxOwned: 10, placementScope: "main-world" },
+    { id: "sphere", name: "g.placeable.sphere.name", icon: "🔮", price: 100, maxOwned: 50, placeable: false, tradeable: true },
+    { id: "home-teleport", name: "g.placeable.home-teleport.name", icon: "🌀", price: 250, maxOwned: 10, placeable: false, hint: "g.placeable.home-teleport.hint" },
+    { id: "storage-crate", name: "g.placeable.storage-crate.name", icon: "📦", price: 200, maxOwned: null, placeable: false, hint: "g.placeable.storage-crate.hint" },
+    { id: "run-insurance", name: "g.placeable.run-insurance.name", icon: "🛡️", price: 1000, maxOwned: 1, placeable: false, hint: "g.placeable.run-insurance.hint" },
 ];

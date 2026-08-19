@@ -2,6 +2,7 @@
 "use client";
 
 import { Sword, Axe, Pickaxe, Flame, Apple, Box, Backpack, Lock, Smile, Sparkles, Wrench } from "lucide-react";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface HotbarSlot {
     id: string;
@@ -39,6 +40,7 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export function Hotbar({ slots, onSlotClick, onOpenTools, onOpenEmotes, onOpenDegen }: HotbarProps) {
+    const { t } = useLanguage();
     return (
         <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-auto font-oxanium">
             {slots.map((slot, i) => {
@@ -112,7 +114,7 @@ export function Hotbar({ slots, onSlotClick, onOpenTools, onOpenEmotes, onOpenDe
             >
                 <span className="absolute top-1.5 left-2 text-[10px] font-bold text-[#8B8F98]">{TOOL_KEY}</span>
                 <Wrench className="w-7 h-7 text-[#4FD1FF]" />
-                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">TOOLS</span>
+                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">{t("g.wheel.tools")}</span>
             </button>
 
             <button
@@ -122,7 +124,7 @@ export function Hotbar({ slots, onSlotClick, onOpenTools, onOpenEmotes, onOpenDe
             >
                 <span className="absolute top-1.5 left-2 text-[10px] font-bold text-[#8B8F98]">{EMOTE_KEY}</span>
                 <Smile className="w-7 h-7 text-[#FFD166]" />
-                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">EMOTES</span>
+                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">{t("g.wheel.emotes")}</span>
             </button>
 
             <button
@@ -132,7 +134,7 @@ export function Hotbar({ slots, onSlotClick, onOpenTools, onOpenEmotes, onOpenDe
             >
                 <span className="absolute top-1.5 left-2 text-[10px] font-bold text-[#8B8F98]">{DEGEN_KEY}</span>
                 <Sparkles className="w-7 h-7 text-[#A855F7]" />
-                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">DEGEN</span>
+                <span className="text-[9px] font-bold tracking-wide text-[#8B8F98]">{t("g.wheel.degen")}</span>
             </button>
         </div>
     );

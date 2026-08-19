@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import "./TokenPanel.css";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface TokenData {
     image?: string;
@@ -54,6 +55,7 @@ function isSafeDexscreenerUrl(url: string | undefined): url is string {
 }
 
 export function TokenPanel({ ca, onClose }: TokenPanelProps) {
+    const { t } = useLanguage();
     const [data, setData] = useState<TokenData | null>(null);
     const [notFound, setNotFound] = useState(false);
     const [failed, setFailed] = useState(false);
@@ -103,10 +105,10 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                     <button className="close-btn" onClick={onClose}>✖</button>
                     <div className="loading-state">
                         {failed
-                            ? "⚠️ Connection error. Retrying..."
+                            ? t("g.token.connectionError")
                             : notFound
-                                ? "❔ No market data found for this token."
-                                : "⏳ Loading token data..."}
+                                ? t("g.token.noMarketData")
+                                : t("g.token.loading")}
                     </div>
                 </div>
             </div>
@@ -132,15 +134,15 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
 
                 <div className="top-metrics">
                     <div>
-                        <span>Market Cap</span>
+                        <span>{t("g.token.marketCap")}</span>
                         <b>${format(data.mc)}</b>
                     </div>
                     <div>
-                        <span>Liquidity</span>
+                        <span>{t("g.token.liquidity")}</span>
                         <b>${format(data.liquidity)}</b>
                     </div>
                     <div>
-                        <span>24h Volume</span>
+                        <span>{t("g.token.volume24h")}</span>
                         <b>${format(data.volume?.h24)}</b>
                     </div>
                 </div>
@@ -153,35 +155,35 @@ export function TokenPanel({ ca, onClose }: TokenPanelProps) {
                 </div>
 
                 <div className="tabs">
-                    <button onClick={() => setTab("overview")} className={tab === "overview" ? "active" : ""}>Overview</button>
-                    <button onClick={() => setTab("trading")} className={tab === "trading" ? "active" : ""}>Trading</button>
+                    <button onClick={() => setTab("overview")} className={tab === "overview" ? "active" : ""}>{t("g.token.overview")}</button>
+                    <button onClick={() => setTab("trading")} className={tab === "trading" ? "active" : ""}>{t("g.token.trading")}</button>
                 </div>
 
                 <div className="tab-content">
                     {tab === "overview" && (
                         <div className="stats-grid">
-                            <Stat label="Price (Native)" value={data.priceNative || "0"} />
-                            <Stat label="Liquidity (Base)" value={format(data.liquidityBase)} />
-                            <Stat label="Liquidity (Quote)" value={format(data.liquidityQuote)} />
-                            <Stat label="Pair Address" value={`${data.pairAddress?.slice(0, 6)}...${data.pairAddress?.slice(-4)}` || "N/A"} />
-                            <Stat label="DEX" value={data.dex?.toUpperCase() || "Unknown"} />
-                            <Stat label="Chain" value="Solana" />
+                            <Stat label={t("g.token.priceNative")} value={data.priceNative || "0"} />
+                            <Stat label={t("g.token.liquidityBase")} value={format(data.liquidityBase)} />
+                            <Stat label={t("g.token.liquidityQuote")} value={format(data.liquidityQuote)} />
+                            <Stat label={t("g.token.pairAddress")} value={`${data.pairAddress?.slice(0, 6)}...${data.pairAddress?.slice(-4)}` || "N/A"} />
+                            <Stat label={t("g.token.dex")} value={data.dex?.toUpperCase() || t("g.token.unknownDex")} />
+                            <Stat label={t("g.token.chain")} value="Solana" />
                         </div>
                     )}
 
                     {tab === "trading" && (
                         <div className="stats-grid">
-                            <Stat label="5m Volume" value={`$${format(data.volume?.m5)}`} />
-                            <Stat label="1h Volume" value={`$${format(data.volume?.h1)}`} />
-                            <Stat label="6h Volume" value={`$${format(data.volume?.h6)}`} />
+                            <Stat label={t("g.token.volume5m")} value={`${format(data.volume?.m5)}`} />
+                            <Stat label={t("g.token.volume1h")} value={`${format(data.volume?.h1)}`} />
+                            <Stat label={t("g.token.volume6h")} value={`${format(data.volume?.h6)}`} />
 
-                            <Stat label="5m TX" value={`${data.txns?.m5?.buys || 0} / ${data.txns?.m5?.sells || 0}`} />
-                            <Stat label="1h TX" value={`${data.txns?.h1?.buys || 0} / ${data.txns?.h1?.sells || 0}`} />
-                            <Stat label="24h TX" value={`${data.txns?.h24?.buys || 0} / ${data.txns?.h24?.sells || 0}`} />
+                            <Stat label={t("g.token.tx5m")} value={`${data.txns?.m5?.buys || 0} / ${data.txns?.m5?.sells || 0}`} />
+                            <Stat label={t("g.token.tx1h")} value={`${data.txns?.h1?.buys || 0} / ${data.txns?.h1?.sells || 0}`} />
+                            <Stat label={t("g.token.tx24h")} value={`${data.txns?.h24?.buys || 0} / ${data.txns?.h24?.sells || 0}`} />
 
-                            <Stat label="5m Change" value={`${(data.priceChange?.m5 || 0).toFixed(2)}%`} />
-                            <Stat label="1h Change" value={`${(data.priceChange?.h1 || 0).toFixed(2)}%`} />
-                            <Stat label="6h Change" value={`${(data.priceChange?.h6 || 0).toFixed(2)}%`} />
+                            <Stat label={t("g.token.change5m")} value={`${(data.priceChange?.m5 || 0).toFixed(2)}%`} />
+                            <Stat label={t("g.token.change1h")} value={`${(data.priceChange?.h1 || 0).toFixed(2)}%`} />
+                            <Stat label={t("g.token.change6h")} value={`${(data.priceChange?.h6 || 0).toFixed(2)}%`} />
                         </div>
                     )}
 

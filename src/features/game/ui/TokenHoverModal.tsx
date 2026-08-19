@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Copy, Check, Pin, X } from "lucide-react";
 import { formatMC } from "../utils/formatMC";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export interface HoveredToken {
     address: string;
@@ -22,6 +23,7 @@ interface TokenHoverModalProps {
 }
 
 export function TokenHoverModal({ token, marketCap, pinned, onUnpin, onMouseEnter, onMouseLeave }: TokenHoverModalProps) {
+    const { t } = useLanguage();
     const [copied, setCopied] = useState(false);
 
     if (!token) return null;
@@ -44,11 +46,11 @@ export function TokenHoverModal({ token, marketCap, pinned, onUnpin, onMouseEnte
                 {pinned && (
                     <div className="w-full flex items-center justify-between -mt-2">
                         <span className="flex items-center gap-1.5 text-[#4FD1FF] text-[10px] font-bold tracking-wider">
-                            <Pin className="w-3 h-3" /> PINNED
+                            <Pin className="w-3 h-3" /> {t("g.token.pinned")}
                         </span>
                         <button
                             onClick={onUnpin}
-                            title="Unpin"
+                            title={t("g.tokenHover.unpin")}
                             className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors"
                         >
                             <X className="w-4 h-4" />
@@ -64,18 +66,18 @@ export function TokenHoverModal({ token, marketCap, pinned, onUnpin, onMouseEnte
                 />
 
                 <div className="text-center">
-                    <div className="text-[#E5E7EB] text-lg font-bold">{token.name || "Unknown Token"}</div>
+                    <div className="text-[#E5E7EB] text-lg font-bold">{token.name || t("g.token.unknown")}</div>
                     <div className="text-[#8B8F98] text-sm">${token.symbol || "?"}</div>
                 </div>
 
                 <div className="w-full border-t border-[rgba(255,255,255,0.08)]" />
 
                 <div className="w-full">
-                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-1.5">CONTRACT ADDRESS</div>
+                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-1.5">{t("g.token.contractAddress")}</div>
                     <button
                         onClick={handleCopy}
                         className="w-full flex items-center justify-between gap-2 bg-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.1)] rounded-[8px] px-3 py-2 transition-colors group"
-                        title="Copy contract address"
+                        title={t("g.token.copyCa")}
                     >
                         <span className="text-[#E5E7EB] font-mono text-[11px] break-all text-left">
                             {token.address || "N/A"}
@@ -91,7 +93,7 @@ export function TokenHoverModal({ token, marketCap, pinned, onUnpin, onMouseEnte
                 </div>
 
                 <div className="w-full flex items-center justify-between">
-                    <span className="text-[#8B8F98] text-xs font-bold tracking-wider">MARKET CAP</span>
+                    <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.tokenHover.marketCap")}</span>
                     <span className="text-[#4FD1FF] font-bold text-sm">
                         {marketCap === null ? "N/A" : marketCap !== undefined ? formatMC(marketCap) : "Loading..."}
                     </span>

@@ -8,6 +8,7 @@ import { getAnisotropy } from "../utils/textureQuality";
 import { createVelvetMaterial } from "../textures";
 import type { ShellMaterials } from "./HallShell";
 import { HALL_NPCS, HallNpc, POST_RADIUS, inwardRotation, isLowEndDevice, localToWorld } from "../layout";
+import { t, onLanguageChange } from "@/core/i18n";
 
 const SCREEN_TILE_WIDTH = 768;
 const SCREEN_TILE_HEIGHT = 288;
@@ -62,15 +63,15 @@ function paintScreenTile(ctx: CanvasRenderingContext2D, npc: HallNpc, top: numbe
     ctx.font = "bold 74px Arial";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(npc.npcName.toUpperCase(), 36, 78);
+    ctx.fillText(t(npc.npcName).toUpperCase(), 36, 78);
 
     ctx.fillStyle = "#e8edf5";
     ctx.font = "bold 34px Arial";
-    ctx.fillText(npc.role.toUpperCase(), 38, 142);
+    ctx.fillText(t(npc.role).toUpperCase(), 38, 142);
 
     ctx.fillStyle = "#8b95a6";
     ctx.font = "bold 24px Arial";
-    ctx.fillText(npc.tagline, 38, 190);
+    ctx.fillText(t(npc.tagline), 38, 190);
 
     ctx.fillStyle = npc.accent;
     ctx.fillRect(36, 224, 240, 4);
@@ -200,6 +201,14 @@ function paintSignTile(ctx: CanvasRenderingContext2D, npc: HallNpc, index: numbe
 }
 
 export class TradingPosts {
+    // The plaques are painted into two atlases, so a language switch only has to
+    // repaint the tiles and flag the textures — no geometry is rebuilt.
+    private screenAtlas: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
+    private signAtlas: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
+    private screenTexture: THREE.CanvasTexture | null = null;
+    private signTexture: THREE.CanvasTexture | null = null;
+    private stopLanguageWatch: (() => void) | null = null;
+
     constructor(
         private readonly scene: THREE.Scene,
         private readonly collisionGrid: CollisionGrid,
@@ -224,6 +233,8 @@ export class TradingPosts {
 
         const screenAtlas = makeAtlas(SCREEN_TILE_WIDTH, SCREEN_TILE_HEIGHT * HALL_NPCS.length);
         const signAtlas = makeAtlas(SIGN_TILE_WIDTH, SIGN_TILE_HEIGHT * HALL_NPCS.length);
+        this.screenAtlas = screenAtlas;
+        this.signAtlas = signAtlas;
         const lowEnd = isLowEndDevice();
 
         HALL_NPCS.forEach((npc, index) => {
@@ -267,6 +278,7 @@ export class TradingPosts {
         const screenTexture = this.bin.texture(new THREE.CanvasTexture(screenAtlas.canvas));
         screenTexture.colorSpace = THREE.SRGBColorSpace;
         screenTexture.anisotropy = getAnisotropy();
+        this.screenTexture = screenTexture;
 
         const screenMesh = screenBatch.build(this.bin.material(new THREE.MeshStandardMaterial({
             map: screenTexture,
@@ -281,6 +293,7 @@ export class TradingPosts {
         const signTexture = this.bin.texture(new THREE.CanvasTexture(signAtlas.canvas));
         signTexture.colorSpace = THREE.SRGBColorSpace;
         signTexture.anisotropy = getAnisotropy();
+        this.signTexture = signTexture;
 
         const signMesh = signBatch.build(this.bin.material(new THREE.MeshBasicMaterial({
             map: signTexture,
@@ -289,6 +302,34 @@ export class TradingPosts {
             depthWrite: false,
         })));
         if (signMesh) this.scene.add(signMesh);
+
+        this.stopLanguageWatch = onLanguageChange(() => this.repaintLabels());
+    }
+
+    private repaintLabels() {
+        const screenAtlas = this.screenAtlas;
+        const signAtlas = this.signAtlas;
+        if (!screenAtlas || !signAtlas) return;
+
+        screenAtlas.ctx.clearRect(0, 0, screenAtlas.canvas.width, screenAtlas.canvas.height);
+        signAtlas.ctx.clearRect(0, 0, signAtlas.canvas.width, signAtlas.canvas.height);
+
+        HALL_NPCS.forEach((npc, index) => {
+            paintScreenTile(screenAtlas.ctx, npc, index * SCREEN_TILE_HEIGHT);
+            paintSignTile(signAtlas.ctx, npc, index, index * SIGN_TILE_HEIGHT);
+        });
+
+        if (this.screenTexture) this.screenTexture.needsUpdate = true;
+        if (this.signTexture) this.signTexture.needsUpdate = true;
+    }
+
+    dispose() {
+        this.stopLanguageWatch?.();
+        this.stopLanguageWatch = null;
+        this.screenAtlas = null;
+        this.signAtlas = null;
+        this.screenTexture = null;
+        this.signTexture = null;
     }
 
     private insertPostCollision(angle: number) {

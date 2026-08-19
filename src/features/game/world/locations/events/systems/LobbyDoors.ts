@@ -17,6 +17,7 @@ import {
     placeOnRing,
 } from "../lobbyLayout";
 import type { ShellMaterials } from "./LobbyShell";
+import { t, onLanguageChange } from "@/core/i18n";
 
 const LEAF_WIDTH = DOOR_CLEAR_WIDTH / 2 - 0.1;
 const LEAF_HEIGHT = DOOR_CLEAR_HEIGHT - 0.3;
@@ -77,6 +78,7 @@ export class LobbyDoors {
     private moteTexture: THREE.Texture | null = null;
     private elapsed = 0;
     private scheduleCheck = 0;
+    private stopLanguageWatch: (() => void) | null = null;
 
     constructor(
         private readonly scene: THREE.Scene,
@@ -92,6 +94,24 @@ export class LobbyDoors {
         EVENT_DOORS.forEach((event, index) => {
             this.buildDoorway(event, bayAngle(index), materials, index);
         });
+
+        // A plaque is a baked canvas, so switching language has to repaint it.
+        this.stopLanguageWatch = onLanguageChange(() => this.repaintPlaques());
+    }
+
+    private repaintPlaques() {
+        for (const door of this.doors) {
+            const resolved = door.config;
+            door.plaque.map?.dispose();
+            door.plaque.map = createPlaqueTexture(
+                this.bin,
+                resolved?.title ?? t(door.event.name),
+                resolved?.tagline ?? t(door.event.tagline),
+                `#${new THREE.Color(resolved?.accent ?? door.event.accent).getHexString()}`,
+                resolved ? isEventLive(resolved) : door.event.live
+            );
+            door.plaque.needsUpdate = true;
+        }
     }
 
     private buildDoorway(event: EventDoor, angle: number, materials: ShellMaterials, index: number) {
@@ -327,7 +347,7 @@ export class LobbyDoors {
         }
 
         const plaqueMaterial = this.bin.material(new THREE.MeshBasicMaterial({
-            map: createPlaqueTexture(this.bin, event.name, event.tagline, `#${new THREE.Color(event.accent).getHexString()}`, event.live),
+            map: createPlaqueTexture(this.bin, t(event.name), t(event.tagline), `#${new THREE.Color(event.accent).getHexString()}`, event.live),
             transparent: true,
             toneMapped: false,
             fog: false,
@@ -584,6 +604,8 @@ export class LobbyDoors {
     }
 
     dispose() {
+        this.stopLanguageWatch?.();
+        this.stopLanguageWatch = null;
         this.doors.length = 0;
         this.moteTexture = null;
     }

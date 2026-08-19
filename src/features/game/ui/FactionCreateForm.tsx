@@ -9,6 +9,7 @@ import { Users, Loader2 } from "lucide-react";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { gameFetch } from "../utils/gameFetch";
 import { createRpcConnection, confirmSignature } from "@/core/lib/solanaClient";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -35,26 +36,29 @@ export function buildFactionDescriptionPreview(name: string, symbol: string): st
     return symbol ? `Community faction for ${name} ($${symbol}).` : `Community faction for ${name}.`;
 }
 
+// Returns a translation key, or the raw server code when there is no mapping
+// for it — the caller runs it through t(), which falls back to the code itself.
 export function mapCreateError(code: string): string {
     switch (code) {
-        case "no_license": return "You need to own this game to found a faction.";
-        case "token_not_found": return "Could not find a token for that address.";
-        case "insufficient_token_balance": return "You need to hold this faction's token in your wallet.";
-        case "balance_check_failed": return "Could not verify your token balance right now, try again shortly.";
-        case "name_taken": return "A faction for that token already exists.";
-        case "signature_already_used": return "This payment was already used.";
-        case "wrong_signer": return "Payment signer mismatch, try again.";
-        case "transfer_verification_failed": return "Could not verify the payment on-chain yet, wait a few seconds and try again.";
-        case "transaction_not_found": return "Transaction not found yet, wait a few seconds and try again.";
-        case "invalid_csrf_token": case "Invalid CSRF token": return "Session expired, reload and try again.";
-        case "too_many_attempts": return "Too many attempts, try again later.";
-        case "price_unavailable": return "Could not fetch the current TNJ price, try again in a moment.";
-        case "not_for_sale": return "Faction creation is currently disabled.";
-        default: return code || "Faction creation failed.";
+        case "no_license": return "g.factionCreate.noLicense";
+        case "token_not_found": return "g.factionCreate.tokenNotFound";
+        case "insufficient_token_balance": return "g.factionCreate.noBalance";
+        case "balance_check_failed": return "g.factionCreate.balanceCheckFailed";
+        case "name_taken": return "g.factionCreate.nameTaken";
+        case "signature_already_used": return "g.factionCreate.signatureUsed";
+        case "wrong_signer": return "g.factionCreate.wrongSigner";
+        case "transfer_verification_failed": return "g.factionCreate.transferUnverified";
+        case "transaction_not_found": return "g.factionCreate.txNotFound";
+        case "invalid_csrf_token": case "Invalid CSRF token": return "g.factionCreate.sessionExpired";
+        case "too_many_attempts": return "g.factionCreate.tooManyAttempts";
+        case "price_unavailable": return "g.factionCreate.priceUnavailable";
+        case "not_for_sale": return "g.factionCreate.disabled";
+        default: return code || "g.factionCreate.failed";
     }
 }
 
 export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProps) {
+    const { t } = useLanguage();
     const { publicKey, connected, wallet } = useWallet();
     const { isAuthorized } = useAuth();
 
@@ -132,15 +136,15 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
     const handlePayAndCreate = useCallback(async () => {
         if (!tokenPreview || isProcessingRef.current) return;
         if (!publicKey || !connected || !wallet?.adapter) {
-            setCreateError("Connect your wallet first.");
+            setCreateError("g.factionCreate.connectWallet");
             return;
         }
         if (!isAuthorized) {
-            setCreateError("Your session expired, reload the page and try again.");
+            setCreateError("g.factionCreate.sessionExpired");
             return;
         }
         if (typeof (wallet.adapter as any).signTransaction !== "function") {
-            setCreateError("This wallet doesn't support transaction signing.");
+            setCreateError("g.gate.err.noSigning");
             return;
         }
 
@@ -150,7 +154,7 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
 
         try {
             const configRes = await fetch("/api/marketplace/config");
-            if (!configRes.ok) throw new Error("Failed to load payment config");
+            if (!configRes.ok) throw new Error("g.gate.err.configFailed");
             const config = await configRes.json();
 
             const connection = createRpcConnection();
@@ -179,7 +183,7 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
                 signedTx = await (wallet.adapter as any).signTransaction(tx);
             } catch (signError: any) {
                 if (signError.code === 4001 || signError.message?.includes("rejected")) {
-                    throw new Error("Transaction rejected");
+                    throw new Error("g.gate.err.rejected");
                 }
                 throw signError;
             }
@@ -221,32 +225,31 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
     }, [tokenPreview, publicKey, connected, wallet, isAuthorized, createCa, gameSlug, onCreated, fetchPrice, livePrice]);
 
     const payButtonLabel =
-        payState === "connecting" ? "Preparing payment..." :
-            payState === "signing" ? "Confirm in wallet..." :
-                payState === "confirming" ? "Confirming payment..." :
+        payState === "connecting" ? t("g.pay.preparing") :
+            payState === "signing" ? t("g.pay.confirmInWallet") :
+                payState === "confirming" ? t("g.pay.confirming") :
                     livePrice
-                        ? `Pay ${livePrice.payableTnj.toLocaleString("en-US")} TNJ & Create`
-                        : "Loading price...";
+                        ? t("g.factionCreate.payAndCreate", { amount: livePrice.payableTnj.toLocaleString("en-US") })
+                        : t("g.factionCreate.loadingPrice");
 
     return (
         <div className="space-y-3">
             <p className="text-[#8B8F98] text-sm">
-                Paste the contract address of the token your faction represents. Name, symbol and image are pulled
-                automatically.
+                {t("g.factionCreate.intro")}
             </p>
 
             <input
                 type="text"
                 value={createCa}
                 onChange={(e) => setCreateCa(e.target.value.slice(0, 64))}
-                placeholder="Paste token CA..."
+                placeholder={t("g.factionCreate.caPlaceholder")}
                 disabled={!!payState}
                 className="w-full bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#a855f7]/50 outline-none font-mono disabled:opacity-50"
             />
 
-            {previewStatus === "loading" && <p className="text-[#8B8F98] text-sm">Looking up token...</p>}
+            {previewStatus === "loading" && <p className="text-[#8B8F98] text-sm">{t("g.factionCreate.lookingUp")}</p>}
             {previewStatus === "not_found" && (
-                <p className="text-red-400 text-sm">Token not found for that address.</p>
+                <p className="text-red-400 text-sm">{t("g.factionCreate.tokenNotFound")}</p>
             )}
 
             {tokenPreview && (
@@ -272,7 +275,7 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
 
             {createError && (
                 <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                    {createError}
+                    {t(createError)}
                 </p>
             )}
 

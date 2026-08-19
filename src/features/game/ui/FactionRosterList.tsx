@@ -6,6 +6,7 @@ import { FactionDetail } from "../network/NetworkManager";
 import { PlayerTag } from "./shell/PlayerTag";
 import { CopyableText } from "./shell/CopyableText";
 import { NicknameMenu, NicknameMenuActions } from "./shell/NicknameMenu";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionRosterListProps {
     faction: FactionDetail;
@@ -18,6 +19,7 @@ function truncateWallet(wallet: string): string {
 }
 
 export function FactionRosterList({ faction, getNicknameMenuActions }: FactionRosterListProps) {
+    const { t } = useLanguage();
     const sortedRoster = [...faction.roster].sort((a, b) => {
         const rank = (member: typeof a) =>
             member.role === "founder" || member.wallet === faction.verifiedCreatorWallet ? 0 : 1;
@@ -26,7 +28,7 @@ export function FactionRosterList({ faction, getNicknameMenuActions }: FactionRo
 
     return (
         <div>
-            <span className="text-[#8B8F98] text-xs font-bold tracking-wider">MEMBERS</span>
+            <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.faction.members").toUpperCase()}</span>
             <div className="mt-2 space-y-1 max-h-52 overflow-y-auto">
                 {sortedRoster.map((member) => {
                     const isFactionCreator = faction.verifiedCreatorWallet === member.wallet;
@@ -37,9 +39,9 @@ export function FactionRosterList({ faction, getNicknameMenuActions }: FactionRo
                             className="flex items-center justify-between bg-[rgba(255,255,255,0.03)] rounded-lg px-3 py-2"
                         >
                             {getNicknameMenuActions ? (
-                                <NicknameMenu {...getNicknameMenuActions(member.wallet, member.nickname || "Unnamed")}>
+                                <NicknameMenu {...getNicknameMenuActions(member.wallet, member.nickname || t("g.common.unnamed"))}>
                                     <PlayerTag
-                                        nickname={member.nickname || "Unnamed"}
+                                        nickname={member.nickname || t("g.common.unnamed")}
                                         faction={{ image: faction.image, symbol: faction.symbol, number: faction.number }}
                                         badge={badge}
                                         size="sm"

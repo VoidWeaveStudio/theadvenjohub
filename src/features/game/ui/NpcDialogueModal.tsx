@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { NpcDialogue } from "../data/npcDialogues";
 import { SoundManager } from "../core/SoundManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface NpcDialogueModalProps {
     dialogue: NpcDialogue | null;
@@ -13,6 +14,7 @@ interface NpcDialogueModalProps {
 }
 
 export function NpcDialogueModal({ dialogue, onFinish, onSkip }: NpcDialogueModalProps) {
+    const { t } = useLanguage();
     const [lineIndex, setLineIndex] = useState(0);
 
     useEffect(() => {
@@ -66,15 +68,15 @@ export function NpcDialogueModal({ dialogue, onFinish, onSkip }: NpcDialogueModa
                         {dialogue.emoji}
                     </span>
                     <div>
-                        <div className="text-[#E5E7EB] text-base font-black leading-tight">{dialogue.name}</div>
+                        <div className="text-[#E5E7EB] text-base font-black leading-tight">{t(dialogue.name)}</div>
                         <div className="text-[11px]" style={{ color: dialogue.accent }}>
-                            {dialogue.role}
+                            {t(dialogue.role)}
                         </div>
                     </div>
                 </div>
 
                 <div className="px-5 py-5 min-h-[92px] flex items-center">
-                    <p className="text-[#E5E7EB] text-sm leading-relaxed">{dialogue.lines[lineIndex]}</p>
+                    <p className="text-[#E5E7EB] text-sm leading-relaxed">{t(dialogue.lines[lineIndex])}</p>
                 </div>
 
                 <div className="flex items-center justify-between px-5 py-3 border-t border-white/8">
@@ -100,7 +102,7 @@ export function NpcDialogueModal({ dialogue, onFinish, onSkip }: NpcDialogueModa
                             className="flex items-center gap-1.5 text-xs font-black px-4 py-2 rounded-[8px] border-0"
                             style={{ background: dialogue.accent, color: "#0C0C0E" }}
                         >
-                            {isLast ? dialogue.action : "Next"}
+                            {isLast ? t(dialogue.action) : t("g.npcDialogue.next")}
                             <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                     </div>

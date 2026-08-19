@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { ArrowLeftRight, Box, X } from "lucide-react";
 import { InventoryGrid, InventoryGridItem } from "./InventoryGrid";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface StorageWindowProps {
     isOpen: boolean;
@@ -18,6 +19,7 @@ interface StorageWindowProps {
 type Side = "inventory" | "crate";
 
 export function StorageWindow({ isOpen, slots, entries, inventory, onClose, onDeposit, onWithdraw }: StorageWindowProps) {
+    const { t } = useLanguage();
     const [side, setSide] = useState<Side>("inventory");
     const [selected, setSelected] = useState<InventoryGridItem | null>(null);
 
@@ -42,7 +44,7 @@ export function StorageWindow({ isOpen, slots, entries, inventory, onClose, onDe
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Box className="w-4 h-4 text-[#8AD4FF]" />
-                        <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">STORAGE CRATE</span>
+                        <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">{t("g.storage.crate")}</span>
                         <span className="text-[#6B7280] text-[11px]">{entries.length}/{slots} stacks</span>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
@@ -60,7 +62,7 @@ export function StorageWindow({ isOpen, slots, entries, inventory, onClose, onDe
                                 : "bg-[rgba(255,255,255,0.03)] text-[#8B8F98] border border-white/10 hover:text-[#E5E7EB]"
                                 }`}
                         >
-                            {tab === "inventory" ? "YOUR BAG" : "IN THE CRATE"}
+                            {tab === "inventory" ? t("g.storage.yourBag") : t("g.storage.inCrate")}
                         </button>
                     ))}
                 </div>
@@ -72,7 +74,7 @@ export function StorageWindow({ isOpen, slots, entries, inventory, onClose, onDe
                     interactive
                     selectedAddress={active?.address ?? null}
                     onSlotClick={(item) => setSelected((prev) => (prev?.address === item.address ? null : item))}
-                    emptyMessage={side === "crate" ? "This crate is empty" : "Nothing in your bag"}
+                    emptyMessage={side === "crate" ? t("g.storage.crateEmpty") : t("g.storage.bagEmpty")}
                 />
 
                 <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.08)]">
@@ -92,19 +94,19 @@ export function StorageWindow({ isOpen, slots, entries, inventory, onClose, onDe
                                 onClick={() => transfer(Math.max(1, Math.floor(active.quantity / 2)))}
                                 className="bg-[rgba(255,255,255,0.06)] border border-white/10 hover:border-[#8AD4FF] text-[#E5E7EB] text-xs font-bold px-3 py-2 rounded-lg transition-colors"
                             >
-                                Half
+                                {t("g.storage.half")}
                             </button>
                             <button
                                 onClick={() => transfer(active.quantity)}
                                 className="flex items-center gap-1.5 bg-[rgba(138,212,255,0.15)] border border-[#8AD4FF]/40 hover:border-[#8AD4FF] text-[#8AD4FF] text-xs font-bold px-3 py-2 rounded-lg transition-colors"
                             >
                                 <ArrowLeftRight className="w-3.5 h-3.5" />
-                                {side === "inventory" ? "Store all" : "Take all"}
+                                {side === "inventory" ? t("g.storage.storeAll") : t("g.storage.takeAll")}
                             </button>
                         </div>
                     ) : (
                         <div className="text-[#6B7280] text-[11px] text-center py-2">
-                            Pick a stack to move it {side === "inventory" ? "into the crate" : "back into your bag"}.
+                            {side === "inventory" ? t("g.storage.pickToStore") : t("g.storage.pickToTake")}
                         </div>
                     )}
                 </div>

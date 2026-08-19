@@ -3,14 +3,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
-import { Language, languageNames } from "@/core/i18n/index";
+import { Language, LANGUAGES, languageFlags, languageNames } from "@/core/i18n/index";
 
 export function LanguageSwitcher() {
   const { language, setLanguage } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const languages: Language[] = ["en", "ru", "zh", "ko", "ja"];
+  const languages: Language[] = LANGUAGES;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -41,7 +41,7 @@ export function LanguageSwitcher() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-surface border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-52 max-h-[70vh] overflow-y-auto bg-surface border border-border rounded-lg shadow-lg z-50">
           {languages.map((lang) => (
             <button
               key={lang}
@@ -51,6 +51,7 @@ export function LanguageSwitcher() {
                   : "text-text-secondary hover:text-foreground hover:bg-surface/50"
                 }`}
             >
+              <span className="w-6 text-center">{languageFlags[lang]}</span>
               <span>{languageNames[lang]}</span>
             </button>
           ))}

@@ -7,6 +7,7 @@ import { PlayerTag } from "./shell/PlayerTag";
 import { NicknameMenu, NicknameMenuActions } from "./shell/NicknameMenu";
 import { FactionSummary } from "../network/NetworkManager";
 import { DmThread } from "./hooks/usePrivateMessagesState";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface ChatMessage {
     id: string;
@@ -56,6 +57,7 @@ export function Chat({
     isVisible,
     getNicknameMenuActions,
 }: ChatProps) {
+    const { t } = useLanguage();
     const [input, setInput] = useState("");
     const [isInputFocused, setIsInputFocused] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
@@ -91,7 +93,7 @@ export function Chat({
     } else {
         activeMessages = (activeDmThread?.messages || []).map((m, i) => ({
             id: `dm-${activeDmWallet}-${i}`,
-            sender: m.fromMe ? "You" : activeDmThread?.nickname || "Player",
+            sender: m.fromMe ? t("g.chat.you") : activeDmThread?.nickname || t("g.chat.player"),
             message: m.text,
             timestamp: m.timestamp,
             type: "player" as const,
@@ -168,7 +170,7 @@ export function Chat({
                                 borderBottom: isActiveTab("general") ? `2px solid ${tabAccent("general")}` : "2px solid transparent",
                             }}
                         >
-                            General
+                            {t("g.chat.general")}
                         </button>
 
                         {myFactions.length > 0 && (
@@ -180,7 +182,7 @@ export function Chat({
                                     borderBottom: isActiveTab("faction") ? `2px solid ${tabAccent("faction")}` : "2px solid transparent",
                                 }}
                             >
-                                Faction
+                                {t("g.chat.faction")}
                             </button>
                         )}
 
@@ -240,7 +242,7 @@ export function Chat({
                 <div className="h-64 overflow-y-auto p-3 space-y-2">
                     {activeMessages.length === 0 ? (
                         <div className="text-zinc-500 text-sm text-center py-8">
-                            No messages yet. Press Enter to start chatting.
+                            {t("g.chat.noMessages")}
                         </div>
                     ) : (
                         <>
@@ -297,7 +299,7 @@ export function Chat({
                             onFocus={() => setIsInputFocused(true)}
                             onBlur={() => setIsInputFocused(false)}
                             onKeyDown={handleKeyDown}
-                            placeholder={isInputFocused ? "Type message..." : "Press Enter to chat"}
+                            placeholder={isInputFocused ? t("g.chat.placeholder") : t("g.chat.pressEnter")}
                             className="flex-1 bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none"
                             maxLength={200}
                         />
@@ -306,7 +308,7 @@ export function Chat({
                             disabled={!input.trim()}
                             className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm font-medium transition-colors"
                         >
-                            Send
+                            {t("g.chat.send")}
                         </button>
                     </form>
                 </div>

@@ -6,6 +6,7 @@ import { Backpack, X, Sparkles, ShieldCheck, Loader2 } from "lucide-react";
 import { InventoryGrid, InventoryGridItem } from "./InventoryGrid";
 import { useMarketCaps } from "./useMarketCaps";
 import { TokenHoverModal } from "./TokenHoverModal";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export type InventoryEntry = InventoryGridItem;
 
@@ -20,6 +21,7 @@ interface InventoryProps {
 }
 
 export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTeleport, onTeleportHome }: InventoryProps) {
+    const { t } = useLanguage();
     const marketCaps = useMarketCaps(items.map((i) => i.address), isOpen);
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
     const [pinnedAddress, setPinnedAddress] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTe
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <Backpack className="w-4 h-4 text-[#4FD1FF]" />
-                        <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">INVENTORY</span>
+                        <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">{t("g.inv.title")}</span>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         <X className="w-4 h-4" />
@@ -108,7 +110,7 @@ export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTe
                 <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-[#FFD166]" />
-                        <span className="text-[#8B8F98] text-xs font-bold tracking-wider">ASH</span>
+                        <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.stat.ashCaps")}</span>
                     </div>
                     <span className="text-[#FFD166] text-lg font-bold">{ash}</span>
                 </div>
@@ -116,8 +118,8 @@ export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTe
                 {(placeables["run-insurance"] || 0) > 0 && (
                     <div className="mt-2 flex items-center gap-2 bg-[rgba(74,222,128,0.1)] border border-[#4ADE80]/30 rounded-lg px-3 py-2">
                         <ShieldCheck className="w-4 h-4 text-[#4ADE80]" />
-                        <span className="text-[#4ADE80] text-xs font-bold tracking-wider">INSURED</span>
-                        <span className="text-[#6B7280] text-[10px] ml-auto">Your tokens survive one death</span>
+                        <span className="text-[#4ADE80] text-xs font-bold tracking-wider">{t("g.inv.insured")}</span>
+                        <span className="text-[#6B7280] text-[10px] ml-auto">{t("g.inv.insuredHint")}</span>
                     </div>
                 )}
 
@@ -127,7 +129,7 @@ export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTe
                     className="mt-2 w-full flex items-center justify-center gap-2 bg-[rgba(138,212,255,0.12)] border border-[#8AD4FF]/30 hover:border-[#8AD4FF] disabled:border-white/10 disabled:text-zinc-600 disabled:cursor-not-allowed rounded-lg px-3 py-2 text-[#8AD4FF] text-xs font-bold tracking-wider transition-colors"
                 >
                     {homeTeleport?.casting ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>🌀</span>}
-                    <span>{homeTeleport?.casting ? "CHANNELLING…" : "TELEPORT HOME"}</span>
+                    <span>{homeTeleport?.casting ? t("g.inv.channelling") : t("g.inv.teleportHome")}</span>
                     <span className="ml-auto text-[#6B7280] text-[10px]">x{placeables["home-teleport"] || 0}</span>
                 </button>
 

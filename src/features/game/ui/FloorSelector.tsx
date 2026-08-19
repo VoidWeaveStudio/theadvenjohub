@@ -5,6 +5,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { X, DoorOpen, Lock } from "lucide-react";
 import { TOWER_FLOORS } from "../world/locations/tower/TowerRegistry";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FloorSelectorProps {
     isOpen: boolean;
@@ -48,6 +49,7 @@ const NODE_DELAY: Record<string, number> = {
 };
 
 export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationId }: FloorSelectorProps) {
+    const { t } = useLanguage();
     const [hoveredId, setHoveredId] = useState<string | null>(null);
 
     if (!isOpen) return null;
@@ -61,7 +63,7 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
 
                 <div className="text-center mb-4">
                     <h2 className="text-3xl font-black bg-gradient-to-r from-[#4FD1FF] to-[#3B82F6] bg-clip-text text-transparent mb-1">
-                        Select Destination
+                        {t("g.floor.select")}
                     </h2>
                     <p className="text-[#8B8F98] text-sm font-medium">
                         The crystal portal is ready for transportation.
@@ -94,7 +96,7 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                                 onMouseEnter={() => setHoveredId(floor.id)}
                                 onMouseLeave={() => setHoveredId((prev) => (prev === floor.id ? null : prev))}
                                 disabled={isCurrent || isLocked}
-                                title={isLocked ? "Sealed — under reconstruction" : isCurrent ? "You are here" : floor.description}
+                                title={isLocked ? t("g.floor.sealed") : isCurrent ? t("g.floor.youAreHere") : t(floor.description)}
                                 className={`absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 bg-transparent border-0 p-0 ${isCurrent || isLocked ? "cursor-not-allowed" : "cursor-pointer"}`}
                                 style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                             >
@@ -105,7 +107,7 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                                     {!isLocked && <span className="portal-glow" style={{ background: NODE_GLOW[floor.id] }} />}
                                     <Image
                                         src={icon}
-                                        alt={floor.name}
+                                        alt={t(floor.name)}
                                         width={112}
                                         height={112}
                                         loading="eager"
@@ -120,13 +122,13 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                                 <span
                                     className={`text-xs font-bold px-2.5 py-1 rounded-[6px] whitespace-nowrap backdrop-blur-sm ${isCurrent || isLocked ? "text-[#8B8F98] bg-[rgba(12,12,14,0.55)]" : "text-[#E5E7EB] bg-[rgba(12,12,14,0.75)]"}`}
                                 >
-                                    {floor.name}
+                                    {t(floor.name)}
                                 </span>
                                 {isCurrent && (
-                                    <span className="text-[10px] text-[#4ADE80] font-bold">You are here</span>
+                                    <span className="text-[10px] text-[#4ADE80] font-bold">{t("g.floor.youAreHere")}</span>
                                 )}
                                 {isLocked && !isCurrent && (
-                                    <span className="text-[10px] text-[#8B8F98] font-bold">Sealed</span>
+                                    <span className="text-[10px] text-[#8B8F98] font-bold">{t("g.floor.sealedShort")}</span>
                                 )}
                             </button>
                         );
@@ -136,7 +138,9 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                 <div className="mt-4 pt-3 border-t border-[rgba(255,255,255,0.08)] text-center flex items-center justify-center gap-2 text-[#8B8F98] text-xs">
                     <DoorOpen className="w-3.5 h-3.5" />
                     <span>
-                        press <kbd className="bg-[rgba(79,209,255,0.15)] border border-[rgba(79,209,255,0.3)] px-2 py-0.5 rounded text-[#4FD1FF] font-bold text-[10px]">ESC</kbd> to cancel
+                        {t("g.floor.escToCancel").split("{key}")[0]}
+                        <kbd className="bg-[rgba(79,209,255,0.15)] border border-[rgba(79,209,255,0.3)] px-2 py-0.5 rounded text-[#4FD1FF] font-bold text-[10px]">ESC</kbd>
+                        {t("g.floor.escToCancel").split("{key}")[1]}
                     </span>
                 </div>
             </div>

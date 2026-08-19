@@ -6,6 +6,7 @@ import { SlidersHorizontal, Loader2, Trash2, UserPlus, Hammer } from "lucide-rea
 import { SoundManager } from "../core/SoundManager";
 import { gameFetch } from "../utils/gameFetch";
 import { ROOM_ACCESS_LABELS, type RoomAccess } from "@/core/lib/roomAccess";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 const PERSONAL_ACCESS: RoomAccess[] = ["public", "invite", "closed"];
 const FACTION_ACCESS: RoomAccess[] = ["public", "members", "closed"];
@@ -33,6 +34,7 @@ interface RoomConsolePanelProps {
 }
 
 export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotification, onOpenBuildEditor }: RoomConsolePanelProps) {
+    const { t } = useLanguage();
     const [state, setState] = useState<RoomAccessResponse | null>(null);
     const [invites, setInvites] = useState<RoomInvite[]>([]);
     const [nickname, setNickname] = useState("");
@@ -126,17 +128,17 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
 
             if (!res.ok) {
                 onNotification(
-                    data?.error === "player_not_found" ? "⚠️ No player with that name" : "⚠️ Invite failed",
+                    data?.error === "player_not_found" ? t("g.roomConsole.noSuchPlayer") : t("g.roomConsole.inviteFailed"),
                     2500
                 );
                 return;
             }
 
             setNickname("");
-            onNotification(permanent ? "✉️ Permanent invite issued" : "✉️ One-time invite issued", 2000);
+            onNotification(permanent ? t("g.roomConsole.permanentIssued") : t("g.roomConsole.oneTimeIssued"), 2000);
             await loadInvites();
         } catch {
-            onNotification("⚠️ Invite failed", 2500);
+            onNotification(t("g.roomConsole.inviteFailed"), 2500);
         } finally {
             setBusy(false);
         }
@@ -168,7 +170,7 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
                     <div className="flex items-center gap-2">
                         <SlidersHorizontal className="w-5 h-5 text-[#66CCFF]" />
                         <h2 className="text-xl font-black text-[#E5E7EB]">
-                            {isFactionRoom ? "Faction room controls" : "Room controls"}
+                            {isFactionRoom ? t("g.roomConsole.factionTitle") : t("g.roomConsole.title")}
                         </h2>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
@@ -181,21 +183,21 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
                         onClick={() => { onClose(); onOpenBuildEditor(); }}
                         className="w-full flex items-center justify-center gap-2 mb-4 px-3 py-2.5 rounded-lg bg-[#4FD1FF]/15 border border-[#4FD1FF]/40 text-[#4FD1FF] text-sm font-black hover:bg-[#4FD1FF]/25 transition-colors"
                     >
-                        <Hammer className="w-4 h-4" /> Open build editor
+                        <Hammer className="w-4 h-4" /> {t("g.roomConsole.openBuildEditor")}
                     </button>
                 )}
 
                 {!state ? (
                     <div className="flex items-center gap-2 text-[#8B8F98] text-sm">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Reading the console...
+                        <Loader2 className="w-4 h-4 animate-spin" /> {t("g.roomConsole.reading")}
                     </div>
                 ) : !canManage ? (
                     <p className="text-[#FFD166] text-sm bg-[#FFD166]/10 border border-[#FFD166]/20 rounded-lg px-3 py-2">
-                        Only the faction's founder or verified creator can change these settings.
+                        {t("g.roomConsole.onlyFounder")}
                     </p>
                 ) : (
                     <>
-                        <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">Who may enter</div>
+                        <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">{t("g.roomConsole.whoMayEnter")}</div>
                         <div className="grid grid-cols-1 gap-1.5 mb-5">
                             {options.map((access) => (
                                 <button
@@ -207,19 +209,18 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
                                         : "bg-white/5 text-[#8B8F98] border border-white/10 hover:text-[#E5E7EB]"
                                         }`}
                                 >
-                                    {ROOM_ACCESS_LABELS[access]}
+                                    {t(ROOM_ACCESS_LABELS[access])}
                                 </button>
                             ))}
                         </div>
 
                         {isFactionRoom ? (
                             <p className="text-[#8B8F98] text-sm">
-                                Faction rooms have no personal invites — membership is the key. Set it to Members only
-                                and everyone in the faction gets in.
+                                {t("g.roomConsole.factionNoInvites")}
                             </p>
                         ) : (
                             <>
-                                <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">Invitations</div>
+                                <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">{t("g.roomConsole.invitations")}</div>
 
                                 <div className="flex gap-2 mb-2">
                                     <input
@@ -227,7 +228,7 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
                                         value={nickname}
                                         onChange={(e) => setNickname(e.target.value.slice(0, 30))}
                                         onKeyDown={(e) => e.key === "Enter" && sendInvite()}
-                                        placeholder="Player nickname..."
+                                        placeholder={t("g.roomConsole.nicknamePlaceholder")}
                                         className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#66CCFF]/50 outline-none"
                                     />
                                     <button
@@ -246,11 +247,11 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
                                         onChange={(e) => setPermanent(e.target.checked)}
                                         className="accent-[#66CCFF]"
                                     />
-                                    Permanent pass (otherwise the invite burns after one visit)
+                                    {t("g.roomConsole.permanentPassHint")}
                                 </label>
 
                                 {invites.length === 0 ? (
-                                    <p className="text-[#8B8F98] text-sm">No invitations issued.</p>
+                                    <p className="text-[#8B8F98] text-sm">{t("g.roomConsole.noInvites")}</p>
                                 ) : (
                                     <div className="space-y-1.5">
                                         {invites.map((invite) => (
@@ -260,14 +261,14 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
                                                         {invite.nickname ?? invite.wallet}
                                                     </div>
                                                     <div className="text-[#8B8F98] text-xs">
-                                                        {invite.permanent ? "Permanent pass" : `One-time · ${invite.usesLeft} left`}
+                                                        {invite.permanent ? t("g.roomConsole.permanentPass") : t("g.roomConsole.oneTimeLeft", { count: invite.usesLeft ?? 0 })}
                                                     </div>
                                                 </div>
                                                 <button
                                                     onClick={() => revokeInvite(invite.id)}
                                                     disabled={busy}
                                                     className="bg-transparent border-0 p-1 text-[#8B8F98] hover:text-[#FF5757] transition-colors disabled:opacity-50"
-                                                    title="Revoke"
+                                                    title={t("g.roomConsole.revoke")}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>

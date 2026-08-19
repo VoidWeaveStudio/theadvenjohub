@@ -4,6 +4,7 @@
 import { Users, Trophy } from "lucide-react";
 import { FactionSummary } from "../network/NetworkManager";
 import { CopyableText } from "./shell/CopyableText";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionHeaderProps {
     faction: FactionSummary;
@@ -15,6 +16,7 @@ function truncateWallet(wallet: string): string {
 }
 
 export function FactionHeader({ faction }: FactionHeaderProps) {
+    const { t } = useLanguage();
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-4">
@@ -76,7 +78,7 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
 
             {faction.tokenCa && (
                 <div>
-                    <span className="text-[#8B8F98] text-xs font-bold tracking-wider">TOKEN CA</span>
+                    <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.faction.tokenCa")}</span>
                     <div className="mt-1">
                         <CopyableText
                             value={faction.tokenCa}
@@ -87,7 +89,7 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
                 </div>
             )}
 
-            <p className="text-[#8B8F98] text-sm">{faction.description || "No description."}</p>
+            <p className="text-[#8B8F98] text-sm">{faction.description || t("g.faction.noDescription")}</p>
         </div>
     );
 }

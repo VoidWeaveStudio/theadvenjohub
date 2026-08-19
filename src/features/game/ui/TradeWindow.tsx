@@ -9,6 +9,7 @@ import { X, ArrowLeftRight, Package, Loader2, CheckCircle2, XCircle } from "luci
 import { TradeSessionData } from "../network/NetworkManager";
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
 import { TradeItemPicker } from "./TradeItemPicker";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 import { CopyableText } from "./shell/CopyableText";
 import { SoundManager } from "../core/SoundManager";
 import { createRpcConnection, confirmSignature, readTokenAccountBalance } from "@/core/lib/solanaClient";
@@ -36,6 +37,7 @@ function PayButton({
     onSubmitPayment: (tradeId: string, signature: string) => void;
     onPaid: (signature: string) => void;
 }) {
+    const { t: tr } = useLanguage();
     const { publicKey, connected, wallet } = useWallet();
     const [state, setState] = useState<PayState>(false);
     const [error, setError] = useState<string | null>(null);
@@ -108,7 +110,7 @@ function PayButton({
             onSubmitPayment(tradeId, signature);
         } catch (err: any) {
             console.error("[Trade] Payment error:", err);
-            setError(err.message?.includes("rejected") ? "Transaction rejected" : err.message || "Payment failed");
+            setError(err.message?.includes("rejected") ? tr("g.gate.err.rejected") : err.message || tr("g.trade.paymentFailed"));
         } finally {
             isProcessingRef.current = false;
             setState(false);
@@ -116,13 +118,13 @@ function PayButton({
     }, [publicKey, connected, wallet, tradeId, sellerWallet, priceTnj, onSubmitPayment, onPaid]);
 
     if (!publicKey || !connected) {
-        return <p className="text-[#8B8F98] text-xs text-center">Connect your wallet to pay</p>;
+        return <p className="text-[#8B8F98] text-xs text-center">{tr("g.trade.connectWallet")}</p>;
     }
 
     const label =
-        state === "connecting" ? "Preparing..." :
-        state === "signing" ? "Sign in wallet..." :
-        state === "confirming" ? "Confirming..." :
+        state === "connecting" ? tr("g.trade.preparing") :
+        state === "signing" ? tr("g.trade.signWallet") :
+        state === "confirming" ? tr("g.trade.confirming") :
         `Pay ${priceTnj.toLocaleString("en-US")} TNJ`;
 
     return (
@@ -152,6 +154,7 @@ interface TradeWindowProps {
 }
 
 export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetReady, onSubmitPayment, onCancel, onDismiss }: TradeWindowProps) {
+    const { t } = useLanguage();
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [pendingItemId, setPendingItemId] = useState<string | null>(null);
     const [priceInput, setPriceInput] = useState("");
@@ -207,15 +210,15 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
     };
 
     const phaseLabel: Record<string, string> = {
-        pending_accept: "Waiting for confirmation…",
-        negotiating: "Negotiating",
-        awaiting_payment: "Both ready — awaiting payment",
-        settling: "Processing payment…",
-        completed: "Trade completed",
-        failed: "Trade failed",
-        declined: "Trade declined",
-        cancelled: "Trade cancelled",
-        expired: "Trade expired",
+        pending_accept: t("g.trade.pending"),
+        negotiating: t("g.trade.negotiating"),
+        awaiting_payment: t("g.trade.awaitingPayment"),
+        settling: t("g.trade.settling"),
+        completed: t("g.trade.completed"),
+        failed: t("g.trade.failed"),
+        declined: t("g.trade.declined"),
+        cancelled: t("g.trade.cancelled"),
+        expired: t("g.trade.expired"),
     };
 
     return (
@@ -223,7 +226,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
             <div className="flex items-center justify-between w-full max-w-2xl">
                 <div className="flex items-center gap-2">
                     <ArrowLeftRight className="w-5 h-5 text-[#4FD1FF]" />
-                    <h2 className="text-xl font-black text-[#E5E7EB]">Trade</h2>
+                    <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.trade.title")}</h2>
                     <span className="text-xs text-[#8B8F98] font-semibold ml-2">{phaseLabel[session.phase] ?? session.phase}</span>
                 </div>
                 <button
@@ -253,7 +256,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                             key={p?.userId ?? idx}
                             className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-4 shadow-2xl"
                         >
-                            <div className="text-[#8B8F98] text-[10px] font-bold tracking-wider mb-2">{idx === 0 ? "YOU" : "THEM"}</div>
+                            <div className="text-[#8B8F98] text-[10px] font-bold tracking-wider mb-2">{idx === 0 ? t("g.trade.you") : t("g.trade.them")}</div>
                             <div className="text-[#E5E7EB] font-bold mb-1 truncate">{p?.nickname ?? "..."}</div>
                             {p && <CopyableText value={p.wallet} display={truncateWallet(p.wallet)} className="text-[11px] text-[#6B7280]" />}
                             <label className="flex items-center gap-2 mt-3 text-sm text-[#C9CDD3]">
@@ -264,7 +267,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                                     onChange={(e) => onSetReady(session.tradeId, e.target.checked)}
                                     className="w-4 h-4 accent-[#4FD1FF]"
                                 />
-                                Ready
+                                {t("g.trade.ready")}
                             </label>
                         </div>
                     ))}
@@ -275,20 +278,20 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                 <div className="w-full max-w-2xl bg-[rgba(20,16,8,0.92)] border-2 border-[#FFD166]/50 rounded-[16px] p-4 shadow-[0_0_35px_rgba(255,209,102,0.15)]">
                     <div className="flex items-center gap-2 mb-3">
                         <Package className="w-4 h-4 text-[#FFD166]" />
-                        <span className="text-[#FFD166] text-xs font-bold tracking-wider">ITEM FOR SALE</span>
+                        <span className="text-[#FFD166] text-xs font-bold tracking-wider">{t("g.trade.itemForSale")}</span>
                     </div>
 
                     {pendingItem ? (
                         <div className="flex items-center gap-3">
                             <span className="text-2xl">{pendingItem.icon}</span>
-                            <span className="flex-1 text-[#E5E7EB] font-bold">{pendingItem.name}</span>
+                            <span className="flex-1 text-[#E5E7EB] font-bold">{t(pendingItem.name)}</span>
                             <input
                                 type="number"
                                 min={1}
                                 step={1}
                                 value={priceInput}
                                 onChange={(e) => setPriceInput(e.target.value)}
-                                placeholder="Price in TNJ"
+                                placeholder={t("g.trade.pricePlaceholder")}
                                 className="w-32 bg-black/40 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-[#E5E7EB]"
                             />
                             <button
@@ -296,13 +299,13 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                                 disabled={!Number.isInteger(Number.parseInt(priceInput, 10)) || Number.parseInt(priceInput, 10) <= 0}
                                 className="bg-[#4FD1FF] disabled:opacity-40 text-[rgba(12,12,14,0.9)] font-bold px-3 py-1.5 rounded-lg text-sm"
                             >
-                                Confirm
+                                {t("g.trade.confirm")}
                             </button>
                             <button
                                 onClick={() => { setPendingItemId(null); setPriceInput(""); }}
                                 className="bg-transparent border-0 text-[#8B8F98] hover:text-[#E5E7EB] text-sm"
                             >
-                                Cancel
+                                {t("g.trade.cancel")}
                             </button>
                         </div>
                     ) : session.itemId ? (
@@ -315,7 +318,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                                     onClick={() => onSetOffer(session.tradeId, null, null)}
                                     className="bg-transparent border-0 text-[#8B8F98] hover:text-red-400 text-sm"
                                 >
-                                    Remove
+                                    {t("g.trade.remove")}
                                 </button>
                             )}
                         </div>
@@ -324,10 +327,10 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                             onClick={() => setIsPickerOpen(true)}
                             className="w-full bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,209,102,0.12)] border border-dashed border-[#FFD166]/40 rounded-lg py-3 text-[#FFD166] text-sm font-bold transition-colors"
                         >
-                            + Add item to sell
+                            {t("g.trade.addItem")}
                         </button>
                     ) : (
-                        <p className="text-[#6B7280] text-sm text-center py-2">Waiting for the other player to offer an item…</p>
+                        <p className="text-[#6B7280] text-sm text-center py-2">{t("g.trade.waitingOffer")}</p>
                     )}
                 </div>
             )}
@@ -337,13 +340,13 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                     {paidSignature ? (
                         <div className="space-y-1.5">
                             <p className="text-[#8B8F98] text-xs text-center">
-                                Payment already sent — verification did not finish. Retry it instead of paying again.
+                                {t("g.trade.paymentSentRetry")}
                             </p>
                             <button
                                 onClick={() => onSubmitPayment(session.tradeId, paidSignature)}
                                 className="w-full bg-[#4FD1FF] text-[rgba(12,12,14,0.9)] font-bold px-4 py-2.5 rounded-[8px] transition-all"
                             >
-                                Retry verification
+                                {t("g.trade.retryVerification")}
                             </button>
                             <CopyableText
                                 value={paidSignature}
@@ -363,15 +366,15 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                 </div>
             )}
             {session.phase === "awaiting_payment" && isSeller && (
-                <p className="text-[#8B8F98] text-xs text-center">Waiting for the buyer to send payment…</p>
+                <p className="text-[#8B8F98] text-xs text-center">{t("g.trade.waitingPayment")}</p>
             )}
             {session.phase === "settling" && (
                 <div className="flex items-center gap-2 text-[#8B8F98] text-sm">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Verifying payment on-chain…
+                    <Loader2 className="w-4 h-4 animate-spin" /> {t("g.trade.verifying")}
                 </div>
             )}
             {session.phase === "pending_accept" && (
-                <p className="text-[#8B8F98] text-sm text-center">Waiting for {them?.nickname ?? "the other player"} to accept your trade request…</p>
+                <p className="text-[#8B8F98] text-sm text-center">{t("g.trade.waitingAccept", { name: them?.nickname ?? t("g.trade.otherPlayer") })}</p>
             )}
 
             <TradeItemPicker

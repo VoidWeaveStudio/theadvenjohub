@@ -67,8 +67,8 @@ export function useVendorCart(inventory: InventoryGridItem[], marketCaps: Record
             if (cartOrigin && cartOrigin !== origin) {
                 showWarning(
                     origin === "sell"
-                        ? "Clear the exchange before selling."
-                        : "Clear the exchange before buying."
+                        ? "g.vendor.clearBeforeSell"
+                        : "g.vendor.clearBeforeBuy"
                 );
                 return;
             }

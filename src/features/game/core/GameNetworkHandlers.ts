@@ -13,6 +13,7 @@ import { apiPost } from "@/core/api/client";
 import { SoundManager } from "./SoundManager";
 import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, applyStuckTeleport, beginTeleportGrace, moveToServerPlacement, placeAtPoint } from "./GameLocationOrchestration";
 import { applyWorldStatus } from "./GameWorldState";
+import { t } from "@/core/i18n";
 import { isBodyEmote } from "../data/emotes";
 import { STORAGE_CRATE_PIECE } from "@/core/lib/roomLayoutGrid";
 
@@ -225,11 +226,11 @@ export function registerNetworkHandlers(game: Game) {
     });
 
     game.networkManager.onSessionRevoked = () => {
-        game.onNotification?.("⚠️ Connected from another tab/device", 5000);
+        game.onNotification?.(t("g.net.otherTab"), 5000);
     };
 
     game.networkManager.onDisconnected = () => {
-        game.onNotification?.("⚠️ Connection lost, reconnecting...", 3000);
+        game.onNotification?.(t("g.net.reconnecting"), 3000);
     };
 
     game.networkManager.onAuthError = (error) => {
@@ -240,7 +241,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onReconnectFailed = () => {
-        game.onNotification?.("❌ Lost connection to game server", 5000);
+        game.onNotification?.(t("g.net.lost"), 5000);
     };
 
     game.networkManager.connect(game.session);
@@ -501,7 +502,7 @@ export function registerNetworkHandlers(game: Game) {
             game.player.clearSlow();
             game.hudState.health = game.player.health;
             game.emitState(true);
-            game.onNotification?.('✨ Respawned!', 2000);
+            game.onNotification?.(t("g.notify.respawned"), 2000);
             game.isDead = false;
             game.killerName = null;
             game.onDeathStateChange?.(false, null);
@@ -521,27 +522,27 @@ export function registerNetworkHandlers(game: Game) {
         });
 
         if (data.casting) {
-            game.onNotification?.('🌀 Channelling — stay out of trouble for 5 seconds', 3000);
+            game.onNotification?.(t("g.notify.channelling"), 3000);
             return;
         }
 
         if (data.done) {
             if (data.locationId) moveToServerPlacement(game, data.locationId, data.position);
-            game.onNotification?.('🏠 Home', 2000);
+            game.onNotification?.(t("g.notify.home"), 2000);
             return;
         }
 
         const messages: Record<string, string> = {
-            damaged: '🌀 Teleport interrupted',
-            in_combat: '⚔️ Not while you are in combat',
-            canyon: '⛰️ Not from inside a canyon run',
-            cooldown: '⏳ Homeward charge is still recharging',
-            no_charge: '🌀 You have no homeward charges left',
-            no_beacon: '🌟 Build a spawn beacon in your room first',
-            dead: '💀 You are already down',
-            casting: '🌀 Already channelling',
+            damaged: "g.tp.damaged",
+            in_combat: "g.tp.inCombat",
+            canyon: "g.tp.canyon",
+            cooldown: "g.tp.cooldown",
+            no_charge: "g.tp.noCharge",
+            no_beacon: "g.tp.noBeacon",
+            dead: "g.tp.dead",
+            casting: "g.tp.casting",
         };
-        game.onNotification?.(messages[data.reason ?? ''] ?? '🌀 Teleport failed', 2500);
+        game.onNotification?.(t(messages[data.reason ?? ''] ?? "g.tp.failed"), 2500);
     };
 
     game.networkManager.onStorageState = (data) => {
@@ -560,16 +561,16 @@ export function registerNetworkHandlers(game: Game) {
             if (data.reason === 'state') return;
 
             const messages: Record<string, string> = {
-                in_combat: '⚔️ Not while you are in combat',
-                cooldown: '⏳ Emergency teleport is still recharging',
-                dead: '💀 You are already down',
+                in_combat: "g.tp.inCombat",
+                cooldown: "g.stuck.cooldown",
+                dead: "g.tp.dead",
             };
-            game.onNotification?.(messages[data.reason ?? ''] ?? '⚠️ Could not teleport you right now', 2500);
+            game.onNotification?.(t(messages[data.reason ?? ''] ?? "g.stuck.failed"), 2500);
             return;
         }
 
         if (data.reason === 'canyon_death') {
-            game.onNotification?.('💀 Bailing out of a run counts as a death', 3500);
+            game.onNotification?.(t("g.notify.bailIsDeath"), 3500);
             return;
         }
 
@@ -719,14 +720,14 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onCaveChestOpened = ({ chestId, ash }) => {
         const location = game.locationManager.getCurrentLocation();
         if (location instanceof Cave) location.markChestOpened(chestId);
-        game.onNotification?.(`💰 Chest looted — ${ash} Ash`, 3000);
+        game.onNotification?.(t("g.notify.chestLooted", { amount: ash }), 3000);
     };
 
     game.networkManager.onCaveBossState = ({ defeated }) => {
         game.caveBossDefeated = defeated;
         const location = game.locationManager.getCurrentLocation();
         if (location instanceof Cave) location.setBossDefeated(defeated);
-        if (defeated) game.onNotification?.("🩸 The warden falls — something unseals below", 4000);
+        if (defeated) game.onNotification?.(t("g.notify.wardenFalls"), 4000);
     };
 
     game.networkManager.onShardState = (state) => {
@@ -772,14 +773,14 @@ export function registerNetworkHandlers(game: Game) {
         if (data.moved <= 0) return;
         game.onNotification?.(
             data.remaining > 0
-                ? `📦 Recovered ${data.moved} stack${data.moved === 1 ? '' : 's'} — the crate is still not empty`
-                : `📦 Recovered ${data.moved} stack${data.moved === 1 ? '' : 's'}`,
+                ? t("g.notify.crateSome", { count: data.moved })
+                : t("g.notify.crateAll", { count: data.moved }),
             2500
         );
     };
 
     game.networkManager.onInsuranceConsumed = () => {
-        game.onNotification?.('🛡️ Insurance paid out — your tokens are safe', 4000);
+        game.onNotification?.(t("g.notify.insurancePaid"), 4000);
     };
 
     game.networkManager.onPartyState = (state) => {
@@ -912,7 +913,7 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onGrinderRoundEnd = (data) => {
         game.onGrinderRoundEnd?.(data);
         game.onNotification?.(
-            data.winnerName ? `🏆 ${data.winnerName} takes the grinder` : "🏁 Round over",
+            data.winnerName ? t("g.notify.grinderWinner", { name: data.winnerName }) : t("g.notify.roundOver"),
             5000
         );
     };
@@ -921,26 +922,26 @@ export function registerNetworkHandlers(game: Game) {
         placeAtPoint(game, data.position);
         game.isDead = false;
         game.onDeathStateChange?.(false, null);
-        game.onNotification?.(data.side === 't' ? '💣 Attack' : '🛡️ Defend', 2000);
+        game.onNotification?.(data.side === 't' ? t("g.notify.defusalAttack") : t("g.notify.defusalDefend"), 2000);
     };
 
     game.networkManager.onDefusalRoundEnd = (data) => {
         const why = data.reason === 'defused'
-            ? 'bomb defused'
+            ? t("g.defusal.whyDefused")
             : data.reason === 'exploded'
-                ? 'bomb detonated'
+                ? t("g.defusal.whyExploded")
                 : data.reason === 'time'
-                    ? 'time ran out'
-                    : 'team eliminated';
-        game.onNotification?.(`${data.side === 't' ? '💣 Attackers' : '🛡️ Defenders'} take the round — ${why}`, 4000);
+                    ? t("g.defusal.whyTime")
+                    : t("g.defusal.whyEliminated");
+        game.onNotification?.(t("g.defusal.roundTaken", { side: data.side === 't' ? t("g.defusal.attackers") : t("g.defusal.defenders"), why }), 4000);
     };
 
     game.networkManager.onDefusalBombPlanted = (data) => {
-        game.onNotification?.(`💣 Bomb planted at ${data.site}`, 3000);
+        game.onNotification?.(t("g.defusal.bombPlanted", { site: data.site }), 3000);
     };
 
     game.networkManager.onDefusalBombDefused = () => {
-        game.onNotification?.('🛡️ Contract audited — the rug is safe', 3000);
+        game.onNotification?.(t("g.defusal.audited"), 3000);
     };
 
     game.networkManager.onDefusalGrenadeThrown = (data) => {
@@ -965,18 +966,18 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onDefusalBombExploded = () => {
-        game.onNotification?.('💥 The bomb went off', 3000);
+        game.onNotification?.(t("g.defusal.bombExploded"), 3000);
     };
 
     game.networkManager.onDefusalSideSwap = () => {
-        game.onNotification?.('🔄 Sides swapped', 4000);
+        game.onNotification?.(t("g.defusal.sidesSwapped"), 4000);
     };
 
     game.networkManager.onDefusalMatchEnd = (data) => {
         game.onDefusalState?.(null);
         game.clearDefusalView();
         game.onNotification?.(
-            `🏆 ${data.winner === 't' ? 'Attackers' : 'Defenders'} win ${data.score.t}–${data.score.ct}`,
+            t("g.defusal.matchWin", { side: data.winner === 't' ? t("g.defusal.attackers") : t("g.defusal.defenders"), t: data.score.t, ct: data.score.ct }),
             6000
         );
     };
@@ -986,28 +987,28 @@ export function registerNetworkHandlers(game: Game) {
         if (data.ok) return;
 
         const messages: Record<string, string> = {
-            cooldown: '⏳ The arena needs time to reset for you',
-            instance_busy: '🔥 A run is already going in this hall — switch shard or wait',
-            already_running: '🔥 You are already in a run',
-            wrong_place: '🔥 Step into the Candle Sanctum first',
-            no_run: '🔥 There is no run to join',
-            not_invited: '🔥 Only a party member can join that run',
-            full: '🔥 That run is full',
-            dead: '💀 You are down',
-            sealed: '🔒 This event is sealed right now',
-            not_started: '⏳ This event has not opened yet',
-            window_closed: '⏳ This event is over for now',
-            need_party: '👥 Bring more of your party into the sanctum first',
+            cooldown: "g.arenaStart.cooldown",
+            instance_busy: "g.arenaStart.instanceBusy",
+            already_running: "g.arenaStart.alreadyRunning",
+            wrong_place: "g.arenaStart.wrongPlace",
+            no_run: "g.arenaStart.noRun",
+            not_invited: "g.arenaStart.notInvited",
+            full: "g.arenaStart.full",
+            dead: "g.arenaStart.dead",
+            sealed: "g.arenaStart.sealed",
+            not_started: "g.arenaStart.notStarted",
+            window_closed: "g.arenaStart.windowClosed",
+            need_party: "g.arenaStart.needParty",
         };
-        game.onNotification?.(messages[data.reason ?? ''] ?? '🔥 Could not start the run', 3000);
+        game.onNotification?.(t(messages[data.reason ?? ''] ?? "g.arenaStart.default"), 3000);
     };
 
     game.networkManager.onArenaWaveStart = (data) => {
-        game.onNotification?.(data.boss ? `🔥 Wave ${data.wave} — boss` : `🔥 Wave ${data.wave}`, 2500);
+        game.onNotification?.(data.boss ? t("g.notify.waveBoss", { wave: data.wave }) : t("g.notify.wave", { wave: data.wave }), 2500);
     };
 
     game.networkManager.onArenaWaveEnd = (data) => {
-        game.onNotification?.(`✅ Wave ${data.wave} cleared — raise your fallen`, 3000);
+        game.onNotification?.(t("g.notify.waveCleared", { wave: data.wave }), 3000);
     };
 
     game.networkManager.onArenaCandleDamage = (data) => {
@@ -1016,14 +1017,14 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onArenaPlayerRevived = (data) => {
-        if (data.playerId === game.localPlayerNetId) game.onNotification?.('💚 You are back on your feet', 2500);
+        if (data.playerId === game.localPlayerNetId) game.onNotification?.(t("g.notify.backOnFeet"), 2500);
     };
 
     game.networkManager.onArenaReviveResult = (data) => {
         game.onArenaReviveResult?.(data);
-        if (data.done) game.onNotification?.('💚 Ally raised', 2000);
-        else if (data.cancelled && data.reason === 'too_far') game.onNotification?.('🔥 Get closer to them', 2000);
-        else if (data.cancelled && data.reason === 'not_paused') game.onNotification?.('🔥 Only between waves', 2000);
+        if (data.done) game.onNotification?.(t("g.notify.allyRaised"), 2000);
+        else if (data.cancelled && data.reason === 'too_far') game.onNotification?.(t("g.notify.getCloser"), 2000);
+        else if (data.cancelled && data.reason === 'not_paused') game.onNotification?.(t("g.notify.onlyBetweenWaves"), 2000);
     };
 
     game.networkManager.onArenaEnded = (data) => {
@@ -1035,7 +1036,7 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onPartyDisbanded = (data) => {
         game.onPartyDisbanded?.(data.reason);
-        game.onNotification?.(data.reason === 'kicked' ? '👥 You were removed from the party' : '👥 The party broke up', 3000);
+        game.onNotification?.(data.reason === 'kicked' ? t("g.notify.partyKicked") : t("g.notify.partyBrokeUp"), 3000);
     };
 
     game.networkManager.onInventoryUpdate = ({ inventory, ash, placeables }) => {
@@ -1049,12 +1050,15 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onSellResult = (data) => {
         game.onSellResult?.(data);
-        game.onNotification?.(`💨 Sold ${data.quantitySold}x for ${data.ashEarned} ash`, 2500);
+        game.onNotification?.(t("g.notify.sold", { count: data.quantitySold, amount: data.ashEarned }), 2500);
     };
 
     game.networkManager.onServerError = (message) => {
-        game.onNotification?.(`⚠️ ${message}`, 2500);
-        game.rejectPendingSignSave(message);
+        // The server sends a key where it has one and plain text where it does
+        // not; t() returns an unknown key unchanged, so both arrive readable.
+        const text = t(message);
+        game.onNotification?.(`⚠️ ${text}`, 2500);
+        game.rejectPendingSignSave(text);
     };
 
     game.networkManager.onNicknameChanged = (nickname) => {
@@ -1231,16 +1235,16 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onQuestUpdate = (data) => {
         game.onQuestUpdate?.(data);
         if (data.visitedName) {
-            game.onNotification?.(`🤝 Met ${data.visitedName} (${data.progress}/${data.targetCount})`, 2500);
+            game.onNotification?.(t("g.notify.metNpc", { name: data.visitedName, done: data.progress, total: data.targetCount }), 2500);
         } else if (data.status === "active" && data.progress === 0) {
-            game.onNotification?.(`📜 Quest accepted: kill ${data.targetCount} slimes in Slime Valley`, 3000);
+            game.onNotification?.(t("g.notify.questAcceptedSlimes", { count: data.targetCount }), 3000);
         }
 
         if (data.status === "ready_to_turn_in") {
-            game.onNotification?.("✨ Quest complete! Return to Sola for your reward", 3000);
+            game.onNotification?.(t("g.notify.questComplete"), 3000);
         } else if (data.status === "completed") {
-            const xp = data.rewardXp ? ` and ${data.rewardXp} XP` : "";
-            game.onNotification?.(`🎉 Quest turned in: +${data.rewardAsh ?? 0} ash${xp}`, 3000);
+            const xp = data.rewardXp ? t("g.notify.andXp", { xp: data.rewardXp }) : "";
+            game.onNotification?.(t("g.notify.questTurnedIn", { amount: data.rewardAsh ?? 0, xp }), 3000);
         }
     };
 
@@ -1270,7 +1274,7 @@ export function registerNetworkHandlers(game: Game) {
         if (currentLoc instanceof FirstFloor) {
             currentLoc.applyBossDefeated(data);
         }
-        game.onNotification?.("🎉 Boss defeated! The way forward has opened.", 3000);
+        game.onNotification?.(t("g.notify.bossDefeated"), 3000);
     };
 
     game.networkManager.onCanyonMap = (data) => {
@@ -1299,13 +1303,13 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onFactionJoined = (faction) => {
         game.interactionSystem.myFactionIds.add(faction.id);
         game.onFactionJoined?.(faction);
-        game.onNotification?.(`🚩 Joined faction "${faction.name}"`, 2500);
+        game.onNotification?.(t("g.notify.factionJoined", { name: faction.name }), 2500);
     };
 
     game.networkManager.onFactionLeft = (factionId) => {
         game.interactionSystem.myFactionIds.delete(factionId);
         game.onFactionLeft?.(factionId);
-        game.onNotification?.("🚩 Left faction", 2000);
+        game.onNotification?.(t("g.notify.factionLeft"), 2000);
     };
 
     game.networkManager.onFactionMyListResult = (factions) => {
@@ -1363,17 +1367,17 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onFactionTaskAccepted = (faction) => {
         game.onFactionTaskAccepted?.(faction);
-        game.onNotification?.("🎯 Faction task accepted", 2500);
+        game.onNotification?.(t("g.notify.factionTaskAccepted"), 2500);
     };
 
     game.networkManager.onFactionTaskCompleted = (data) => {
         game.onFactionTaskCompleted?.(data);
-        game.onNotification?.(`🏆 "${data.label}" complete! ${data.rewardAsh} Ash sent to ${data.rewardNickname || "faction leadership"}`, 4000);
+        game.onNotification?.(t("g.notify.factionTaskDone", { label: data.label, amount: data.rewardAsh, who: data.rewardNickname || t("g.notify.factionLeadership") }), 4000);
     };
 
     game.networkManager.onFactionCreatorClaimResult = (data) => {
         game.onFactionCreatorClaimResult?.(data);
-        game.onNotification?.(data.isCreator ? "💎 Verified as token creator!" : "Wallet doesn't match the token creator", 3000);
+        game.onNotification?.(data.isCreator ? t("g.notify.creatorVerified") : t("g.notify.creatorMismatch"), 3000);
     };
 
     game.networkManager.onFactionCreatorVerified = (faction) => {
@@ -1396,12 +1400,12 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onFactionQuestCreated = (data) => {
         game.onFactionQuestCreated?.(data);
-        game.onNotification?.(`📣 Quest published — ${data.chargedAsh} Ash locked in the quest bank`, 3500);
+        game.onNotification?.(t("g.notify.questPublished", { amount: data.chargedAsh }), 3500);
     };
 
     game.networkManager.onFactionQuestClaimed = (data) => {
         game.onFactionQuestClaimed?.(data);
-        game.onNotification?.(`✅ Quest reward claimed — +${data.rewardAsh} Ash`, 3000);
+        game.onNotification?.(t("g.notify.questRewardClaimed", { amount: data.rewardAsh }), 3000);
     };
 
     game.networkManager.onFriendRequestSent = (friend, status) => {
@@ -1445,7 +1449,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onTokenInfoSent = () => {
-        game.onNotification?.('📬 Token info sent to your mail', 2500);
+        game.onNotification?.(t("g.notify.tokenInfoMailed"), 2500);
     };
 
     game.networkManager.onSupportTicketSent = () => {

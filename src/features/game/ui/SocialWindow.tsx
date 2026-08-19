@@ -15,6 +15,7 @@ import { CosmeticId } from "../data/cosmetics";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
 import { PartyPanel } from "./PartyPanel";
 import { FriendEntry, FriendRequestEntry, MailEntry, PartyStateData, PlayerProfileData, QuestInfoData, BlockedEntry, CosmeticStateData } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export type SocialTab = "friends" | "party" | "mail" | "account" | "appearance" | "blocked" | "trades";
 
@@ -101,6 +102,7 @@ export function SocialWindow({
     onPartyLeave,
     onPartyKick,
 }: SocialWindowProps) {
+    const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState<SocialTab>(initialTab);
     const wasOpenRef = useRef(false);
 
@@ -117,7 +119,7 @@ export function SocialWindow({
         <WindowFrame
             isOpen={isOpen}
             onClose={onClose}
-            title="Social"
+            title={t("g.social.title")}
             icon={
                 <Image
                     src="/icons/topmenu/social-v3.webp"

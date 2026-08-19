@@ -4,20 +4,21 @@ import { AbilityMeterData, AbilityResultData, ProgressionStateData } from "../..
 
 const ENERGY_TICK_MS = 120;
 
+// Returns a key, like the other error mappers — the caller runs it through t().
 const REJECTION_MESSAGES: Record<string, string> = {
-    cooldown: "Skill is still recharging",
-    energy: "Not enough energy",
-    safe_zone: "Cannot use combat skills in a safe zone",
-    no_target: "No target in sight",
-    not_bound: "Bind that skill to a slot first",
-    not_learned: "You have not learned that skill",
-    dead: "You are down",
-    bad_aim: "Could not read your aim",
+    cooldown: "g.ability.reject.cooldown",
+    energy: "g.ability.reject.energy",
+    safe_zone: "g.ability.reject.safeZone",
+    no_target: "g.ability.reject.noTarget",
+    not_bound: "g.ability.reject.notBound",
+    not_learned: "g.ability.reject.notLearned",
+    dead: "g.ability.reject.dead",
+    bad_aim: "g.ability.reject.badAim",
 };
 
 export function rejectionMessage(reason: string | undefined): string {
-    if (!reason) return "Could not use that skill";
-    return REJECTION_MESSAGES[reason] ?? "Could not use that skill";
+    if (!reason) return "g.ability.reject.default";
+    return REJECTION_MESSAGES[reason] ?? "g.ability.reject.default";
 }
 
 export function useAbilityState(progression: ProgressionStateData | null) {

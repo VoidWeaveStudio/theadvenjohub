@@ -45,7 +45,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "arena",
         locationId: "event-arena",
-        name: "Candle Sanctum",
+        name: "g.roomTheme.arena",
         radius: 60,
         wallHeight: 26,
         accent: 0x4ade80,
@@ -75,7 +75,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "dust2",
         locationId: "event-dust2",
-        name: "Dust II",
+        name: "g.roomTheme.dust2",
         radius: 56,
         wallHeight: 30,
         accent: 0xff5757,
@@ -105,7 +105,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "pump",
         locationId: "event-pump",
-        name: "The Ascent",
+        name: "g.roomTheme.pump",
         radius: 58,
         wallHeight: 28,
         accent: 0xffd166,
@@ -135,7 +135,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "whale",
         locationId: "event-whale",
-        name: "The Trench",
+        name: "g.roomTheme.whale",
         radius: 62,
         wallHeight: 34,
         accent: 0x4fd1ff,
@@ -165,7 +165,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "mint",
         locationId: "event-mint",
-        name: "The Mint",
+        name: "g.roomTheme.mint",
         radius: 54,
         wallHeight: 24,
         accent: 0xd4af50,
@@ -195,7 +195,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "bridge",
         locationId: "event-bridge",
-        name: "The Span",
+        name: "g.roomTheme.bridge",
         radius: 58,
         wallHeight: 32,
         accent: 0xa855f7,
@@ -225,7 +225,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "audit",
         locationId: "event-audit",
-        name: "The Chamber",
+        name: "g.roomTheme.audit",
         radius: 52,
         wallHeight: 26,
         accent: 0x8ad4ff,
@@ -255,7 +255,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "airdrop",
         locationId: "event-airdrop",
-        name: "The Drop Zone",
+        name: "g.roomTheme.airdrop",
         radius: 60,
         wallHeight: 22,
         accent: 0x7dffb0,
@@ -285,7 +285,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "burn",
         locationId: "event-burn",
-        name: "The Pyre",
+        name: "g.roomTheme.burn",
         radius: 56,
         wallHeight: 28,
         accent: 0xff8a3c,
@@ -315,7 +315,7 @@ export const EVENT_ROOM_THEMES: EventRoomTheme[] = [
     {
         id: "diamond",
         locationId: "event-diamond",
-        name: "The Vault of Hands",
+        name: "g.roomTheme.diamond",
         radius: 54,
         wallHeight: 30,
         accent: 0xb8f2ff,

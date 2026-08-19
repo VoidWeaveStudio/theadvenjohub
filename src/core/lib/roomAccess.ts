@@ -5,10 +5,10 @@ export const ROOM_ACCESS_VALUES = ["public", "members", "invite", "closed"] as c
 export type RoomAccess = (typeof ROOM_ACCESS_VALUES)[number];
 
 export const ROOM_ACCESS_LABELS: Record<RoomAccess, string> = {
-    public: "Public — anyone may enter",
-    members: "Members only",
-    invite: "By invitation",
-    closed: "Closed — owner only",
+    public: "g.room.access.public",
+    members: "g.room.access.members",
+    invite: "g.room.access.invite",
+    closed: "g.room.access.closed",
 };
 
 export function isRoomAccess(value: string): value is RoomAccess {
@@ -41,12 +41,12 @@ export function canEnterRoom(context: RoomAccessContext): boolean {
 export function roomAccessDenialReason(access: RoomAccess): string {
     switch (access) {
         case "members":
-            return "Members only.";
+            return "g.room.deny.members";
         case "invite":
-            return "This room is by invitation only.";
+            return "g.room.deny.invite";
         case "closed":
-            return "This room is closed.";
+            return "g.room.deny.closed";
         default:
-            return "You cannot enter this room.";
+            return "g.room.deny.default";
     }
 }

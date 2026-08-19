@@ -3,6 +3,7 @@
 
 import { Users } from "lucide-react";
 import { FactionSummary } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionRowProps {
     faction: FactionSummary;
@@ -46,8 +47,10 @@ export function FactionLeaderboardList({
     factions: FactionSummary[];
     onSelect: (factionId: string) => void;
 }) {
+    const { t } = useLanguage();
+
     if (factions.length === 0) {
-        return <p className="text-[#8B8F98] text-sm text-center py-6">No factions yet.</p>;
+        return <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.faction.noneYet")}</p>;
     }
 
     return (

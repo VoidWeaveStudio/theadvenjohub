@@ -3,6 +3,7 @@
 
 import { X, UserPlus } from "lucide-react";
 import { FactionSummary } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionInvitePickerProps {
     target: { wallet: string; nickname: string } | null;
@@ -12,6 +13,7 @@ interface FactionInvitePickerProps {
 }
 
 export function FactionInvitePicker({ target, myFactions, onClose, onInvite }: FactionInvitePickerProps) {
+    const { t } = useLanguage();
     if (!target) return null;
 
     return (
@@ -28,7 +30,7 @@ export function FactionInvitePicker({ target, myFactions, onClose, onInvite }: F
                 </div>
 
                 {myFactions.length === 0 ? (
-                    <p className="text-[#8B8F98] text-sm text-center py-6">You are not a member of any faction.</p>
+                    <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.invitePicker.noFactions")}</p>
                 ) : (
                     <div className="space-y-2">
                         {myFactions.map((f) => (

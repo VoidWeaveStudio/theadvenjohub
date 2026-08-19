@@ -5,6 +5,7 @@ import { Sparkles } from "lucide-react";
 import { ProgressionStateData } from "../network/NetworkManager";
 import { BRANCHES } from "../data/progression";
 import { SKILL_NODES } from "../data/skills";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export const ABILITY_SLOTS = ["s1", "s2", "s3", "s4", "s5", "s6"] as const;
 export type AbilitySlot = (typeof ABILITY_SLOTS)[number];
@@ -29,6 +30,7 @@ interface AbilityBarProps {
 const ABILITY_NODES = new Map(SKILL_NODES.filter((n) => n.ability).map((n) => [n.ability!.id, n]));
 
 export function AbilityBar({ progression, cooldowns = {}, energy, shield = 0, onSlotClick }: AbilityBarProps) {
+    const { t } = useLanguage();
     if (!progression || progression.branch === null) return null;
 
     const accent = BRANCHES.find((b) => b.id === progression.branch)?.accent ?? "#4FD1FF";
@@ -69,7 +71,7 @@ export function AbilityBar({ progression, cooldowns = {}, energy, shield = 0, on
                         <div
                             key={slot}
                             onClick={() => onSlotClick?.(slot)}
-                            title={node ? `[${ABILITY_SLOT_KEYS[slot]}] ${node.name} — ${ability!.energyCost} energy` : "Empty — bind a skill in the tree [K]"}
+                            title={node ? `[${ABILITY_SLOT_KEYS[slot]}] ${node.name} — ${ability!.energyCost} ${t("g.skill.energy")}` : t("g.skill.emptySlot")}
                             className="relative w-12 h-12 rounded-[8px] border backdrop-blur-md flex flex-col items-center justify-center cursor-pointer transition-colors"
                             style={{
                                 borderColor: node ? `${isUltimate ? "#FFD166" : accent}66` : "rgba(255,255,255,0.1)",

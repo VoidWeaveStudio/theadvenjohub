@@ -6,6 +6,8 @@ import { WindowFrame } from "./shell/WindowFrame";
 import { PlayerTag } from "./shell/PlayerTag";
 import { CopyableText } from "./shell/CopyableText";
 import { FriendEntry, FriendRequestEntry, PlayerProfileData } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
+import type { Translate } from "@/core/i18n/types";
 
 interface PlayerProfileCardProps {
     isOpen: boolean;
@@ -17,11 +19,11 @@ interface PlayerProfileCardProps {
     onSendFriendRequest: (target: { wallet?: string; nickname?: string }) => void;
 }
 
-function formatPlaytime(seconds: number): string {
+function formatPlaytime(seconds: number, t: Translate): string {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
+    if (hours > 0) return t("g.time.hm", { hours, minutes });
+    return t("g.time.m", { minutes });
 }
 
 export function PlayerProfileCard({
@@ -33,6 +35,7 @@ export function PlayerProfileCard({
     onClose,
     onSendFriendRequest,
 }: PlayerProfileCardProps) {
+    const { t } = useLanguage();
     const isSelf = !!profile && profile.wallet === myWallet;
     const isFriend = !!profile && friends.some((f) => f.wallet === profile.wallet);
     const isPending = !!profile && outgoingRequests.some((r) => r.wallet === profile.wallet);
@@ -42,7 +45,7 @@ export function PlayerProfileCard({
     return (
         <WindowFrame isOpen={isOpen} onClose={onClose} title="Player" icon={<User className="w-4 h-4" />} size="sm">
             {!profile ? (
-                <p className="text-[#8B8F98] text-sm text-center py-8">Player not found.</p>
+                <p className="text-[#8B8F98] text-sm text-center py-8">{t("g.profile.notFound")}</p>
             ) : (
                 <div className="space-y-4">
                     <div className="space-y-1">
@@ -79,20 +82,20 @@ export function PlayerProfileCard({
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
-                            <div className="text-[#8B8F98] text-xs">Kills</div>
+                            <div className="text-[#8B8F98] text-xs">{t("g.stat.kills")}</div>
                             <div className="text-[#E5E7EB] text-lg font-bold">{profile.kills}</div>
                         </div>
                         <div className="bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
-                            <div className="text-[#8B8F98] text-xs">Deaths</div>
+                            <div className="text-[#8B8F98] text-xs">{t("g.stat.deaths")}</div>
                             <div className="text-[#E5E7EB] text-lg font-bold">{profile.deaths}</div>
                         </div>
                         <div className="bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
-                            <div className="text-[#8B8F98] text-xs">Ash</div>
+                            <div className="text-[#8B8F98] text-xs">{t("g.stat.ash")}</div>
                             <div className="text-[#FFD166] text-lg font-bold">{profile.ash}</div>
                         </div>
                         <div className="bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
-                            <div className="text-[#8B8F98] text-xs">Playtime</div>
-                            <div className="text-[#E5E7EB] text-lg font-bold">{formatPlaytime(profile.playtimeSeconds)}</div>
+                            <div className="text-[#8B8F98] text-xs">{t("g.stat.playtime")}</div>
+                            <div className="text-[#E5E7EB] text-lg font-bold">{formatPlaytime(profile.playtimeSeconds, t)}</div>
                         </div>
                     </div>
 
@@ -124,7 +127,7 @@ export function PlayerProfileCard({
                             className="btn-success w-full flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <UserPlus className="w-4 h-4" />
-                            {isFriend ? "Already Friends" : isPending ? "Request Sent" : "Add Friend"}
+                            {isFriend ? t("g.profile.alreadyFriends") : isPending ? t("g.profile.requestSent") : t("g.profile.addFriend")}
                         </button>
                     )}
                 </div>

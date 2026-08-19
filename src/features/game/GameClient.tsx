@@ -80,6 +80,7 @@ import { TradeSessionData, type InventoryEntry } from "./network/NetworkManager"
 import { useHudState } from "./ui/hooks/useHudState";
 import { useProgressionState } from "./ui/hooks/useProgressionState";
 import { useAbilityState, rejectionMessage } from "./ui/hooks/useAbilityState";
+import { t } from "@/core/i18n";
 import { modeById } from "./data/skills";
 import { useQuestState, SOLA_NPC_ID } from "./ui/hooks/useQuestState";
 import { useInventoryState } from "./ui/hooks/useInventoryState";
@@ -111,7 +112,7 @@ type WheelMode = "tools" | "emotes" | "degen" | null;
 const SOLA_INTERACTION_ID = "quest-giver-sola";
 
 function fireModeLabel(mode: string): string {
-  return mode === "single" ? "Single" : modeById(mode)?.name ?? mode;
+  return mode === "single" ? t("g.fireMode.single") : modeById(mode)?.name ?? mode;
 }
 
 interface GameClientProps {
@@ -248,10 +249,10 @@ export function GameClient({ slug }: GameClientProps) {
 
   const getSlotLockReason = (slotId: string, isEquipped: boolean): string | null => {
     if (slotId === "rifle" && currentLocationId === "tower-main-hall" && !isEquipped) {
-      return "🔒 Weapons are not allowed in the Main Hall";
+      return t("g.lock.noWeaponsMainHall");
     }
     if (slotId === "blueprint" && currentLocationId !== "main-world" && !isInOwnFactionRoom && !isEquipped) {
-      return "🔒 Blueprint can only be used in the open world or your faction's room";
+      return t("g.lock.blueprintPlaces");
     }
     return null;
   };
@@ -305,34 +306,34 @@ export function GameClient({ slug }: GameClientProps) {
   const toolWheelPages: WheelPage[] = [
     {
       id: "tools",
-      label: "Tools",
+      label: t("g.wheel.tools"),
       items: [
         {
           id: "weapon",
-          label: isWeaponEquipped ? "Put Away" : isArcanist ? "Staff" : "Rifle",
+          label: isWeaponEquipped ? t("g.wheel.putAway") : isArcanist ? t("g.wheel.staff") : t("g.wheel.rifle"),
           emoji: isArcanist ? "🪄" : "🔫",
           accent: "#FF7A4D",
-          hint: isWeaponEquipped ? "Holster your weapon" : "Draw your weapon",
+          hint: isWeaponEquipped ? t("g.wheel.holster") : t("g.wheel.draw"),
           locked: !!getSlotLockReason("rifle", isWeaponEquipped),
           lockReason: getSlotLockReason("rifle", isWeaponEquipped) ?? undefined,
         },
         {
           id: "blueprint",
-          label: isBlueprintEquipped ? "Put Away" : "Blueprint",
+          label: isBlueprintEquipped ? t("g.wheel.putAway") : t("g.wheel.blueprint"),
           emoji: "📐",
           accent: "#4FD1FF",
-          hint: "Toggle the build tool",
+          hint: t("g.wheel.toggleBuild"),
           locked: !!getSlotLockReason("blueprint", isBlueprintEquipped),
           lockReason: getSlotLockReason("blueprint", isBlueprintEquipped) ?? undefined,
         },
         {
           id: "placeables",
-          label: "Placeables",
+          label: t("g.wheel.placeables"),
           emoji: "🪑",
           accent: "#FFD166",
-          hint: "Choose what to place",
+          hint: t("g.wheel.choosePlaceable"),
           locked: !isBlueprintEquipped,
-          lockReason: "Equip the blueprint first",
+          lockReason: t("g.wheel.equipBlueprint"),
         },
       ],
     },
@@ -341,13 +342,13 @@ export function GameClient({ slug }: GameClientProps) {
   const emoteWheelPages: WheelPage[] = [
     {
       id: "emotes",
-      label: "Emotes",
+      label: t("g.wheel.emotes"),
       items: EMOTES.map((emote) => ({
         id: emote.key,
-        label: emote.label,
+        label: t(emote.label),
         emoji: emote.emoji,
         accent: emote.accent,
-        hint: emote.hint,
+        hint: t(emote.hint),
       })),
     },
   ];
@@ -639,35 +640,35 @@ export function GameClient({ slug }: GameClientProps) {
         game.onBranchSelected = (branch) => {
           if (cancelled) return;
           setIsSpecializationOpen(false);
-          notifications.addNotification(`✨ Specialisation set: ${branch === "gunslinger" ? "Gunslinger" : "Arcanist"}`, 3500);
+          notifications.addNotification(t("g.notify.specSet", { branch: branch === "gunslinger" ? t("g.spec.gunslinger") : t("g.spec.arcanist") }), 3500);
         };
         game.onSkillLearnRejected = (data) => {
           if (cancelled) return;
           const reasons: Record<string, string> = {
-            level_too_low: "🔒 Your level is too low for that skill",
-            column_points_too_low: "🔒 Invest more points in that column first",
-            no_points: "🔒 No skill points left",
-            max_rank: "Already at max rank",
-            wrong_branch: "🔒 That skill belongs to the other specialisation",
+            level_too_low: "g.skillReject.levelTooLow",
+            column_points_too_low: "g.skillReject.columnPoints",
+            no_points: "g.skillReject.noPoints",
+            max_rank: "g.skillReject.maxRank",
+            wrong_branch: "g.skillReject.wrongBranch",
           };
-          notifications.addNotification(reasons[data.reason] ?? "🔒 Cannot learn that skill", 2500);
+          notifications.addNotification(t(reasons[data.reason] ?? "g.skillReject.default"), 2500);
         };
         game.onSkillsRespecced = (data) => {
           if (cancelled) return;
           notifications.addNotification(
-            data.costAsh > 0 ? `🌀 Skills reset for ${data.costAsh} Ash` : "🌀 Skills reset",
+            data.costAsh > 0 ? t("g.notify.respecPaid", { amount: data.costAsh }) : t("g.notify.respec"),
             3500
           );
         };
         game.onAbilityResult = (data) => {
           if (cancelled) return;
           abilityState.handleAbilityResult(data);
-          if (!data.ok) notifications.addNotification(rejectionMessage(data.reason), 2000);
+          if (!data.ok) notifications.addNotification(t(rejectionMessage(data.reason)), 2000);
         };
         game.onAbilityMeter = (data) => { if (!cancelled) abilityState.handleAbilityMeter(data); };
         game.onFireModeChanged = (mode) => {
           if (cancelled) return;
-          notifications.addNotification(`🎯 Fire mode: ${fireModeLabel(mode)}`, 2000);
+          notifications.addNotification(t("g.notify.fireMode", { mode: fireModeLabel(mode) }), 2000);
         };
         game.onMemeResult = (data) => {
           if (cancelled) return;
@@ -677,17 +678,17 @@ export function GameClient({ slug }: GameClientProps) {
           const meme = MEME_ABILITIES_BY_ID.get(data.memeId);
           notifications.addNotification(
             data.reason === "cooldown"
-              ? `${meme?.emoji ?? "🚧"} ${meme?.name ?? "That"} is still recharging`
+              ? t("g.notify.memeCooldown", { emoji: meme?.emoji ?? "🚧", name: meme?.name ?? t("g.notify.thatAbility") })
               : data.reason === "locked"
-                ? `🔒 ${meme?.name ?? "That"} unlocks at a higher tier`
-                : "Could not pull that off right now",
+                ? t("g.notify.memeLocked", { name: meme?.name ?? t("g.notify.thatAbility") })
+                : t("g.notify.memeFailed"),
             2000
           );
         };
         game.onAbilityTrigger = (data) => {
           if (cancelled) return;
           notifications.addNotification(
-            data.triggerId === "second_wind" ? "💥 Second Wind — you got back up" : "🔮 Soul Tether — you got back up",
+            data.triggerId === "second_wind" ? t("g.notify.secondWind") : t("g.notify.soulTether"),
             3500
           );
         };
@@ -754,40 +755,40 @@ export function GameClient({ slug }: GameClientProps) {
         game.onPrivateMessageSent = (data) => { if (!cancelled) pm.handlePrivateMessageSent(data); };
         game.onPrivateMessageError = (data) => {
           if (cancelled) return;
-          if (data.code === 'offline') notifications.addNotification('⚠️ Player is offline', 2500);
-          else notifications.addNotification('⚠️ Message could not be delivered', 2500);
+          if (data.code === 'offline') notifications.addNotification(t("g.notify.playerOffline"), 2500);
+          else notifications.addNotification(t("g.notify.messageUndelivered"), 2500);
         };
         game.onFactionChatMessage = (message) => { if (!cancelled) chat.handleFactionChatMessage(message); };
         game.onTradeSession = (data) => {
           if (cancelled) return;
           setTradeSession(data);
           if (data.phase === 'completed') {
-            notifications.addNotification(`✅ Trade completed: ${data.itemName ?? 'item'}`, 3000);
+            notifications.addNotification(t("g.notify.tradeCompleted", { item: data.itemName ?? t("g.notify.anItem") }), 3000);
           } else if (data.phase === 'failed') {
             notifications.addNotification(
-              data.critical ? '⚠️ Payment sent but the trade failed to record — contact support with your tx signature' : '❌ Trade failed',
+              data.critical ? t("g.notify.tradeCritical") : t("g.notify.tradeFailed"),
               3500
             );
           } else if (data.phase === 'declined') {
-            notifications.addNotification('Trade declined', 2200);
+            notifications.addNotification(t("g.notify.tradeDeclined"), 2200);
           } else if (data.phase === 'cancelled') {
-            notifications.addNotification('Trade cancelled', 2200);
+            notifications.addNotification(t("g.notify.tradeCancelled"), 2200);
           } else if (data.phase === 'expired') {
-            notifications.addNotification('Trade expired', 2200);
+            notifications.addNotification(t("g.notify.tradeExpired"), 2200);
           }
         };
         game.onTradeInviteReceived = (data) => { if (!cancelled) setPendingTradeInvite(data); };
         game.onTradeInviteError = (data) => {
           if (cancelled) return;
           const messages: Record<string, string> = {
-            offline: '⚠️ Player is offline',
-            self: "⚠️ You can't trade with yourself",
-            already_active: '⚠️ You already have an active trade',
-            target_busy: '⚠️ That player is already trading with someone',
-            blocked: '⚠️ Unable to trade with this player',
-            rate_limited: '⚠️ Please wait before sending another trade invite',
+            offline: "g.notify.playerOffline",
+            self: "g.tradeInvite.self",
+            already_active: "g.tradeInvite.alreadyActive",
+            target_busy: "g.tradeInvite.targetBusy",
+            blocked: "g.tradeInvite.blocked",
+            rate_limited: "g.tradeInvite.rateLimited",
           };
-          notifications.addNotification(messages[data.code] || '⚠️ Could not start trade', 2500);
+          notifications.addNotification(t(messages[data.code] || "g.tradeInvite.default"), 2500);
         };
         game.onDamageEvent = (event) => { if (!cancelled) hud.handleDamageEvent(event); };
         game.onDeathStateChange = (dead, killer, options, loot) => { if (!cancelled) hud.handleDeathStateChange(dead, killer, options, loot); };
@@ -1163,7 +1164,7 @@ export function GameClient({ slug }: GameClientProps) {
         if (abilitySlot && !e.repeat) {
           const abilityId = progressionState.progression?.loadout?.[abilitySlot];
           if (!abilityId) {
-            notifications.addNotification("No skill bound to that slot — open the tree with [K]", 2000);
+            notifications.addNotification(t("g.notify.noSkillBound"), 2000);
             return;
           }
           if ((abilityState.cooldowns[abilityId] ?? 0) > Date.now()) return;
@@ -1202,7 +1203,7 @@ export function GameClient({ slug }: GameClientProps) {
 
     const data: { url: string } = await res.json();
     gameRef.current?.applyAndBroadcastSkin(data.url);
-    notifications.addNotification("🎨 Your look has been saved", 2500);
+    notifications.addNotification(t("g.notify.lookSaved"), 2500);
   };
 
   const handleSignSaveText = async (signId: string, text: string) => {
@@ -1269,7 +1270,7 @@ export function GameClient({ slug }: GameClientProps) {
       setShowFloorSelector(false);
       gameRef.current?.closeFloorSelector();
       if (factionState.myFactions.length === 0) {
-        notifications.addNotification("⚠️ Join a faction first to enter Events", 2500);
+        notifications.addNotification(t("g.notify.joinFactionForEvents"), 2500);
         return;
       }
       setIsEventsPickerOpen(true);

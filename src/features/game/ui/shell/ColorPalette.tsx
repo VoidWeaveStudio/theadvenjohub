@@ -1,6 +1,8 @@
 // src/features/game/ui/shell/ColorPalette.tsx
 "use client";
 
+import { useLanguage } from "@/core/i18n/LanguageContext";
+
 interface ColorPaletteProps {
     color: string;
     onChange: (color: string) => void;
@@ -15,6 +17,8 @@ const PRESET_COLORS = [
 ];
 
 export function ColorPalette({ color, onChange, swatchClassName = "w-6 h-6" }: ColorPaletteProps) {
+    const { t } = useLanguage();
+
     return (
         <div className="flex flex-wrap items-center gap-1.5">
             {PRESET_COLORS.map((c) => (
@@ -30,7 +34,7 @@ export function ColorPalette({ color, onChange, swatchClassName = "w-6 h-6" }: C
             <label
                 className={`${swatchClassName} relative rounded-full border-2 border-white/20 cursor-pointer overflow-hidden flex-shrink-0`}
                 style={{ background: "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)" }}
-                title="Custom color"
+                title={t("g.palette.customColor")}
             >
                 <input
                     type="color"

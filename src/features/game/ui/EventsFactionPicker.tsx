@@ -3,6 +3,7 @@
 
 import { Flag } from "lucide-react";
 import { FactionSummary } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface EventsFactionPickerProps {
     isOpen: boolean;
@@ -12,6 +13,7 @@ interface EventsFactionPickerProps {
 }
 
 export function EventsFactionPicker({ isOpen, onClose, myFactions, onConfirm }: EventsFactionPickerProps) {
+    const { t } = useLanguage();
     if (!isOpen) return null;
 
     return (
@@ -26,14 +28,14 @@ export function EventsFactionPicker({ isOpen, onClose, myFactions, onConfirm }: 
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Flag className="w-5 h-5 text-[#a855f7]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">Enter Events</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.events.enter")}</h2>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         ✕
                     </button>
                 </div>
 
-                <p className="text-[#8B8F98] text-sm mb-4">Which faction are you walking in as?</p>
+                <p className="text-[#8B8F98] text-sm mb-4">{t("g.events.whichFaction")}</p>
 
                 <div className="space-y-2 max-h-72 overflow-y-auto">
                     {myFactions.map((f) => (

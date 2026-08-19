@@ -5,6 +5,7 @@ import type { BuildPlot } from "./BuildPlot";
 import { pieceKey, type BuildPiece } from "./BuildLayout";
 import { LIMITED_BUILD_PIECES, getBuildEntry } from "./BuildCatalog";
 import { gameFetch } from "../../utils/gameFetch";
+import { t } from "@/core/i18n";
 
 export type LotOwnerType = "personal" | "faction";
 
@@ -124,8 +125,8 @@ export class BuildSession {
             if (!res.ok) {
                 this.onNotification?.(
                     res.status === 401
-                        ? "🔒 Your session expired — sign in again to load this lot"
-                        : "⚠️ Could not load this lot",
+                        ? t("g.lot.loadExpired")
+                        : t("g.lot.loadFailed"),
                     3000
                 );
                 return;
@@ -135,7 +136,7 @@ export class BuildSession {
             if (payload?.data) this.plot.loadLayout(payload.data);
             this.emit();
         } catch {
-            this.onNotification?.("⚠️ Could not reach the server to load this lot", 3000);
+            this.onNotification?.(t("g.lot.loadUnreachable"), 3000);
         }
     }
 
@@ -172,7 +173,7 @@ export class BuildSession {
 
     public canRemove(key: string, piece: BuildPiece): boolean {
         if (!this.isFilledCrate(key, piece)) return true;
-        this.onNotification?.("📦 Take the tokens out before removing this crate", 3000);
+        this.onNotification?.(t("g.lot.emptyCrateFirst"), 3000);
         return false;
     }
 
@@ -193,21 +194,21 @@ export class BuildSession {
 
         if (piece.t === LIMITED_BUILD_PIECES.beacon) {
             const elsewhere = this.plot.layout.list().some((other) => other.t === piece.t && pieceKey(other) !== key);
-            if (elsewhere) return "🌟 One spawn beacon per lot — move the one you already have";
+            if (elsewhere) return t("g.lot.oneBeacon");
         }
 
         if (piece.t === LIMITED_BUILD_PIECES.storage) {
             const placed = this.plot.layout.list().filter((other) => other.t === piece.t && pieceKey(other) !== key).length;
             if (placed >= this.ownedCrates) {
                 return this.ownedCrates === 0
-                    ? "📦 Buy a storage crate in the Shop first"
-                    : `📦 All ${this.ownedCrates} of your storage crates are already placed`;
+                    ? t("g.lot.buyCrate")
+                    : t("g.lot.allCratesPlaced", { count: this.ownedCrates });
             }
         }
 
         for (const conflict of this.plot.stairwellConflicts(piece)) {
             if (this.isFilledCrate(conflict, this.plot.layout.at(conflict))) {
-                return "📦 A full storage crate is in the way — empty it first";
+                return t("g.lot.fullCrateInWay");
             }
         }
 
@@ -218,7 +219,7 @@ export class BuildSession {
         if (!this.plot || !this.canEdit) return;
 
         if (this.plot.blocksStairwell(piece)) {
-            this.onNotification?.("🪜 A staircase comes up here — keep this cell open", 2600);
+            this.onNotification?.(t("g.lot.stairwellHere"), 2600);
             return;
         }
 
@@ -263,7 +264,7 @@ export class BuildSession {
 
         const filled = this.plot.layout.list().some((piece) => this.isFilledCrate(pieceKey(piece), piece));
         if (filled) {
-            this.onNotification?.("📦 Empty your storage crates before clearing the lot", 3500);
+            this.onNotification?.(t("g.lot.emptyBeforeClear"), 3500);
             return;
         }
 
@@ -313,18 +314,18 @@ export class BuildSession {
             if (!res.ok) {
                 this.onNotification?.(
                     res.status === 401 || res.status === 403
-                        ? "🔒 Session expired — your build is still here, sign in again and hit Save"
-                        : "⚠️ Could not save the lot — your build is still here, try Save again",
+                        ? t("g.lot.saveExpired")
+                        : t("g.lot.saveFailed"),
                     4000
                 );
                 return false;
             }
 
             this.dirty = false;
-            this.onNotification?.("💾 Lot saved", 1800);
+            this.onNotification?.(t("g.lot.saved"), 1800);
             return true;
         } catch {
-            this.onNotification?.("⚠️ Could not reach the server — your build is still here, try Save again", 4000);
+            this.onNotification?.(t("g.lot.saveUnreachable"), 4000);
             return false;
         } finally {
             this.saving = false;

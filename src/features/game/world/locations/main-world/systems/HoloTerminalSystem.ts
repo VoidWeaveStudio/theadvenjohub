@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { WorldStatusData } from "../../../../network/NetworkManager";
 import type { TerrainSystem } from "./TerrainSystem";
+import { t, onLanguageChange } from "@/core/i18n";
 
 const TERMINAL_X = 0;
 const TERMINAL_Z = 9;
@@ -25,17 +26,17 @@ const WARN = "#ffb454";
 const GOOD = "#7dffb0";
 
 const UNLOCK_LABELS: Record<string, string> = {
-    lakes: "THE LAKES",
-    rift: "THE RIFT",
-    port: "THE PORT",
-    tower: "THE TOWER",
+    lakes: "g.holo.lakes",
+    rift: "g.holo.rift",
+    port: "g.holo.port",
+    tower: "g.holo.tower",
 };
 
 const UNLOCK_NOTES: Record<string, string> = {
-    lakes: "FISHING",
-    rift: "CAVE ACCESS",
-    port: "HARBOR",
-    tower: "OUTER GATE",
+    lakes: "g.holo.lakesNote",
+    rift: "g.holo.riftNote",
+    port: "g.holo.portNote",
+    tower: "g.holo.towerNote",
 };
 
 const holoVertexShader = /* glsl */`
@@ -108,6 +109,7 @@ function formatCountdown(ms: number): string {
 }
 
 export class HoloTerminalSystem {
+    private stopLanguageWatch: (() => void) | null = null;
     public readonly position = new THREE.Vector3();
 
     private group: THREE.Group | null = null;
@@ -152,6 +154,13 @@ export class HoloTerminalSystem {
         this.texture.magFilter = THREE.LinearFilter;
         this.texture.generateMipmaps = true;
         this.uniforms.uPanel.value = this.texture;
+
+        // The panel is a canvas, and draw() skips work when nothing changed —
+        // so a language switch clears the cache key and redraws once.
+        this.stopLanguageWatch = onLanguageChange(() => {
+            this.renderedKey = "";
+            this.draw();
+        });
 
         this.material = new THREE.ShaderMaterial({
             uniforms: this.uniforms,
@@ -252,19 +261,19 @@ export class HoloTerminalSystem {
 
     private portalLine(): { text: string; color: string } {
         const status = this.status;
-        if (!status) return { text: "OFFLINE", color: DIM };
+        if (!status) return { text: t("g.holo.offline"), color: DIM };
 
         const rift = status.unlocks.find((entry) => entry.id === "rift");
 
         if (status.portal.status === "active") {
-            return { text: "ACTIVE", color: GOOD };
+            return { text: t("g.holo.active"), color: GOOD };
         }
 
         if (status.portal.status === "cooldown") {
             return { text: formatCountdown(status.portal.cooldownUntil - Date.now()), color: WARN };
         }
 
-        return { text: rift ? formatUsd(rift.mc) : "LOCKED", color: DIM };
+        return { text: rift ? formatUsd(rift.mc) : t("g.holo.locked"), color: DIM };
     }
 
     private draw() {
@@ -301,19 +310,19 @@ export class HoloTerminalSystem {
             ctx.fillText(text, x, y);
         };
 
-        label("TANJO WORLD", PADDING, 62, 34, ACCENT);
-        label("STATUS", right, 62, 26, DIM, "right");
+        label(t("g.holo.title"), PADDING, 62, 34, ACCENT);
+        label(t("g.holo.status"), right, 62, 26, DIM, "right");
         divider(80);
 
         if (!status) {
-            label("AWAITING SIGNAL", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 44, DIM, "center");
+            label(t("g.holo.awaitingSignal"), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 44, DIM, "center");
             this.texture.needsUpdate = true;
             return;
         }
 
         const hasMarketCap = Number.isFinite(status.mc) && status.mc > 0;
-        label("MARKET CAP", PADDING, 138, 24, DIM);
-        label(hasMarketCap ? formatUsd(status.mc) : "NO FEED", PADDING, 208, 72, hasMarketCap ? ACCENT : WARN);
+        label(t("g.holo.marketCap"), PADDING, 138, 24, DIM);
+        label(hasMarketCap ? formatUsd(status.mc) : t("g.holo.noFeed"), PADDING, 208, 72, hasMarketCap ? ACCENT : WARN);
 
         const barY = 232;
         const barWidth = CANVAS_WIDTH - PADDING * 2;
@@ -325,25 +334,25 @@ export class HoloTerminalSystem {
             const progress = Math.max(0, Math.min(1, (status.mc - status.tierMc) / span));
             ctx.fillStyle = ACCENT;
             ctx.fillRect(PADDING, barY, barWidth * progress, 12);
-            label(`NEXT ${formatUsd(status.nextTierMc)}`, right, barY + 44, 24, DIM, "right");
+            label(t("g.holo.next", { value: formatUsd(status.nextTierMc) }), right, barY + 44, 24, DIM, "right");
         } else {
             ctx.fillStyle = GOOD;
             ctx.fillRect(PADDING, barY, barWidth, 12);
-            label("MAX", right, barY + 44, 24, GOOD, "right");
+            label(t("g.holo.max"), right, barY + 44, 24, GOOD, "right");
         }
 
         const rampart = status.radius === null
-            ? "RAMPART   FALLEN"
-            : `RAMPART   TIER ${status.tier} / ${status.maxTier}   ·   R ${status.radius}M`;
+            ? t("g.holo.rampartFallen")
+            : t("g.holo.rampartTier", { tier: status.tier, maxTier: status.maxTier, radius: status.radius });
         label(rampart, PADDING, 322, 28, status.radius === null ? GOOD : ACCENT);
         divider(344);
 
-        label("UNLOCKS", PADDING, 388, 22, DIM);
+        label(t("g.holo.unlocks"), PADDING, 388, 22, DIM);
 
         let rowY = 432;
         for (const entry of status.unlocks) {
-            const name = UNLOCK_LABELS[entry.id] ?? entry.id.toUpperCase();
-            const note = UNLOCK_NOTES[entry.id] ?? "";
+            const name = UNLOCK_LABELS[entry.id] ? t(UNLOCK_LABELS[entry.id]) : entry.id.toUpperCase();
+            const note = UNLOCK_NOTES[entry.id] ? t(UNLOCK_NOTES[entry.id]) : "";
 
             if (entry.id === "rift") {
                 const line = this.portalLine();
@@ -354,7 +363,7 @@ export class HoloTerminalSystem {
                 label(name, PADDING, rowY, 28, entry.unlocked ? ACCENT : DIM);
                 label(note, PADDING + 232, rowY, 20, "rgba(61, 143, 168, 0.75)");
                 label(
-                    entry.unlocked ? "OPEN" : formatUsd(entry.mc),
+                    entry.unlocked ? t("g.holo.open") : formatUsd(entry.mc),
                     right,
                     rowY,
                     26,
@@ -368,7 +377,7 @@ export class HoloTerminalSystem {
 
         divider(rowY - 16);
 
-        label("THREAT", PADDING, rowY + 30, 22, DIM);
+        label(t("g.holo.threat"), PADDING, rowY + 30, 22, DIM);
         label(status.monster.id.toUpperCase(), PADDING, rowY + 74, 28, WARN);
         label(
             status.monster.status.toUpperCase(),
@@ -379,7 +388,7 @@ export class HoloTerminalSystem {
             "right"
         );
 
-        label("TRADERS ONLINE", PADDING, CANVAS_HEIGHT - 32, 24, DIM);
+        label(t("g.holo.tradersOnline"), PADDING, CANVAS_HEIGHT - 32, 24, DIM);
         label(String(status.traders), right, CANVAS_HEIGHT - 32, 30, ACCENT, "right");
 
         this.texture.needsUpdate = true;
@@ -399,6 +408,9 @@ export class HoloTerminalSystem {
     }
 
     public dispose() {
+        this.stopLanguageWatch?.();
+        this.stopLanguageWatch = null;
+
         if (this.group) {
             this.scene.remove(this.group);
             this.group.traverse((object) => {

@@ -4,6 +4,7 @@
 import { useEffect, useRef } from "react";
 import { X, User } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export interface SignViewData {
     id: string;
@@ -20,6 +21,7 @@ interface SignViewerModalProps {
 }
 
 export function SignViewerModal({ isOpen, onClose, sign }: SignViewerModalProps) {
+    const { t } = useLanguage();
     const wasOpenRef = useRef(false);
     useEffect(() => {
         if (isOpen && !wasOpenRef.current) {
@@ -50,11 +52,11 @@ export function SignViewerModal({ isOpen, onClose, sign }: SignViewerModalProps)
                 )}
 
                 {sign.contentType === "draw" && sign.drawingUrl && (
-                    <img src={sign.drawingUrl} alt="Sign drawing" className="w-full rounded-lg border border-zinc-700" />
+                    <img src={sign.drawingUrl} alt={t("g.signView.drawingAlt")} className="w-full rounded-lg border border-zinc-700" />
                 )}
 
                 {!sign.contentType && (
-                    <p className="text-[#6B7280] text-sm text-center py-6">This sign is still blank.</p>
+                    <p className="text-[#6B7280] text-sm text-center py-6">{t("g.signView.blank")}</p>
                 )}
             </div>
         </div>

@@ -11,6 +11,7 @@ import { VendorQuantityDialog } from "./VendorQuantityDialog";
 import { SoundManager } from "../core/SoundManager";
 import { AshStore } from "./AshStore";
 import { useShopPrices } from "./hooks/useShopPrices";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface VendorPanelProps {
     isOpen: boolean;
@@ -30,6 +31,7 @@ const PENDING_TIMEOUT = 12000;
 const SELL_SEND_SPACING = 70;
 
 export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, placeables, onClose, onSell, onBuyItem }: VendorPanelProps) {
+    const { t } = useLanguage();
     const [tab, setTab] = useState<VendorTab>("tokens");
     const shopPrices = useShopPrices(gameSlug, isOpen);
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
@@ -156,11 +158,11 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
             <div className="flex items-center justify-between w-full max-w-6xl">
                 <div className="flex items-center gap-2">
                     <Store className="w-5 h-5 text-[#FFD166]" />
-                    <h2 className="text-xl font-black text-[#E5E7EB]">Tony</h2>
+                    <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.npc.tony")}</h2>
                 </div>
 
                 <div className="flex gap-1 bg-[rgba(12,12,14,0.8)] border border-white/10 rounded-[10px] p-1">
-                    {([["tokens", "Tokens"], ["goods", "Goods"]] as [VendorTab, string][]).map(([id, label]) => (
+                    {([["tokens", t("g.vendor.tabTokens")], ["goods", t("g.vendor.tabGoods")]] as [VendorTab, string][]).map(([id, label]) => (
                         <button
                             key={id}
                             onClick={() => setTab(id)}
@@ -187,7 +189,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
 
             <div className={`gap-4 w-full max-w-6xl items-stretch ${tab === "tokens" ? "flex" : "hidden"}`}>
                 <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
-                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">VENDOR</div>
+                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">{t("g.vendor.vendor")}</div>
                     <InventoryGrid
                         items={cart.vendorItems}
                         columns={6}
@@ -196,7 +198,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                         onSlotClick={(item) => cart.handleSlotClick(item, "buy")}
                         onSlotRightClick={(item) => cart.removeFromCart(item.address)}
                         onHoverChange={handleHoverChange}
-                        emptyMessage="Nothing for sale yet. Check back later."
+                        emptyMessage={t("g.vendor.nothingForSale")}
                     />
                 </div>
 
@@ -204,7 +206,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                     <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                             <ArrowLeftRight className="w-4 h-4 text-[#FFD166]" />
-                            <span className="text-[#FFD166] text-xs font-bold tracking-wider">EXCHANGE</span>
+                            <span className="text-[#FFD166] text-xs font-bold tracking-wider">{t("g.vendor.exchange")}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <span className={`text-[10px] font-bold ${cart.cartFull ? "text-red-400" : "text-[#8B8F98]"}`}>
@@ -215,17 +217,17 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                                     onClick={cart.clearCart}
                                     className="text-[#8B8F98] hover:text-red-400 text-[10px] font-bold underline"
                                 >
-                                    Clear
+                                    {t("g.vendor.clear")}
                                 </button>
                             )}
                         </div>
                     </div>
                     {cart.warning && (
-                        <div className="text-red-400 text-[10px] font-semibold mb-2">{cart.warning}</div>
+                        <div className="text-red-400 text-[10px] font-semibold mb-2">{t(cart.warning)}</div>
                     )}
                     {!cart.warning && cart.cartFull && (
                         <div className="text-red-400 text-[10px] font-semibold mb-2">
-                            Exchange full — confirm or clear before adding more.
+                            {t("g.vendor.exchangeFull")}
                         </div>
                     )}
 
@@ -236,20 +238,20 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                             columns={4}
                             interactive
                             onSlotClick={(item) => cart.removeFromCart(item.address)}
-                            emptyMessage="Click items to stage a sale or purchase here."
+                            emptyMessage={t("g.vendor.stageHint")}
                         />
                     </div>
 
                     {Object.keys(pending).length > 0 && (
                         <div className="text-[#7FE6CF] text-[10px] font-semibold mb-1">
-                            Selling… waiting for the vendor to settle up.
+                            {t("g.vendor.selling")}
                         </div>
                     )}
 
                     <div className="pt-3 mt-3 border-t border-[rgba(255,209,102,0.2)]">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-[#8B8F98] text-xs font-bold tracking-wider">
-                                {cart.cartOrigin === "buy" ? "COST" : "TOTAL"}
+                                {cart.cartOrigin === "buy" ? t("g.vendor.cost") : t("g.vendor.total")}
                             </span>
                             <div className="flex items-center gap-1.5 text-[#FFD166] font-bold">
                                 <Sparkles className="w-4 h-4" />
@@ -259,16 +261,16 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                         <button
                             onClick={handleConfirm}
                             disabled={cart.cartEntries.length === 0 || cart.cartOrigin === "buy"}
-                            title={cart.cartOrigin === "buy" ? "Buying isn't available yet" : undefined}
+                            title={cart.cartOrigin === "buy" ? t("g.vendor.buyingUnavailable") : undefined}
                             className="w-full bg-gradient-to-r from-[#FFD166] to-[#FFB347] disabled:opacity-40 disabled:cursor-not-allowed text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all"
                         >
-                            {cart.cartOrigin === "buy" ? "Buying isn't available yet" : "Sell"}
+                            {cart.cartOrigin === "buy" ? t("g.vendor.buyingUnavailable") : t("g.vendor.sell")}
                         </button>
                     </div>
                 </div>
 
                 <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
-                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">YOUR INVENTORY</div>
+                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">{t("g.vendor.yourInventory")}</div>
                     <InventoryGrid
                         items={availableInventory}
                         columns={6}
@@ -278,8 +280,8 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                         onHoverChange={handleHoverChange}
                         emptyMessage={
                             cart.cartEntries.length > 0
-                                ? "Everything you own is staged in the exchange."
-                                : "You have nothing to sell."
+                                ? t("g.vendor.allStaged")
+                                : t("g.vendor.nothingToSell")
                         }
                     />
                 </div>

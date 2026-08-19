@@ -7,6 +7,7 @@ import { WindowFrame } from "./shell/WindowFrame";
 import { FactionQuestEntry } from "../network/NetworkManager";
 import { useMarketCaps } from "./useMarketCaps";
 import { formatMC } from "../utils/formatMC";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 const VIEW_CONFIRM_SECONDS = 15;
 
@@ -29,6 +30,7 @@ function formatPrice(price?: string): string | null {
 }
 
 export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, onClaimQuest }: QuestsWindowProps) {
+    const { t } = useLanguage();
     const [openedAt, setOpenedAt] = useState<Record<string, number>>({});
     const [now, setNow] = useState(() => Date.now());
 
@@ -59,7 +61,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
         <WindowFrame
             isOpen={isOpen}
             onClose={onClose}
-            title="Quests"
+            title={t("g.menu.quests")}
             icon={<ScrollText className="w-7 h-7" />}
         >
             <div className="flex items-center justify-between mb-4">
@@ -74,7 +76,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
             </div>
 
             {quests.length === 0 ? (
-                <p className="text-[#8B8F98] text-sm text-center py-10">No faction quests are live right now.</p>
+                <p className="text-[#8B8F98] text-sm text-center py-10">{t("g.quest.noneLive")}</p>
             ) : (
                 <div className="space-y-2">
                     {quests.map((quest) => {
@@ -109,12 +111,12 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
                                     </div>
                                     <div className="text-right flex-shrink-0">
                                         <div className="text-[#FFD166] text-lg font-bold leading-none">+{quest.rewardAsh}</div>
-                                        <div className="text-[#8B8F98] text-[11px]">Ash reward</div>
+                                        <div className="text-[#8B8F98] text-[11px]">{t("g.quest.ashReward")}</div>
                                     </div>
                                 </div>
 
                                 <div className="flex items-center justify-between gap-3 text-xs">
-                                    <span className="text-[#E5E7EB] font-bold">View a post on X</span>
+                                    <span className="text-[#E5E7EB] font-bold">{t("g.quest.viewPost")}</span>
                                     <span className="text-[#8B8F98]">
                                         {quest.slotsClaimed} / {quest.slotsTotal} rewarded
                                     </span>
@@ -137,7 +139,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
                                         You published this quest — it pays out to other players.
                                     </div>
                                 ) : soldOut ? (
-                                    <div className="text-center text-[#8B8F98] text-xs py-2">All reward slots are taken.</div>
+                                    <div className="text-center text-[#8B8F98] text-xs py-2">{t("g.quest.slotsTaken")}</div>
                                 ) : (
                                     <div className="flex items-center gap-2">
                                         <button
@@ -145,7 +147,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
                                             className="btn-secondary flex-1 px-3 py-2 text-xs flex items-center justify-center gap-1.5"
                                         >
                                             <ExternalLink className="w-3.5 h-3.5" />
-                                            {opened ? "Open post again" : "Open post on X"}
+                                            {opened ? t("g.quest.openAgain") : t("g.quest.openPost")}
                                         </button>
                                         <button
                                             onClick={() => onClaimQuest(quest.id)}
@@ -154,7 +156,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
                                         >
                                             {opened && remainingSeconds > 0 && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                             {!opened
-                                                ? "Open the post first"
+                                                ? t("g.quest.openFirst")
                                                 : remainingSeconds > 0
                                                     ? `Confirming... ${remainingSeconds}s`
                                                     : `Claim +${quest.rewardAsh} Ash`}

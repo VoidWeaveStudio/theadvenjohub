@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Flame, Skull, Timer } from "lucide-react";
 import type { ArenaReviveState, ArenaStateData } from "../network/NetworkManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface ArenaHUDProps {
     arena: ArenaStateData | null;
@@ -30,6 +31,7 @@ function useCountdown(until: number): number {
 }
 
 export function ArenaHUD({ arena, revive, localPlayerId }: ArenaHUDProps) {
+    const { t } = useLanguage();
     const phaseLeft = useCountdown(arena && arena.phase !== "wave" ? arena.phaseUntil : 0);
 
     if (!arena) return null;
@@ -48,7 +50,7 @@ export function ArenaHUD({ arena, revive, localPlayerId }: ArenaHUDProps) {
                     <div className="flex items-center gap-2">
                         <Flame className="w-4 h-4 text-[#FFD166]" />
                         <span className="text-[#E5E7EB] text-sm font-black tracking-wider">
-                            {arena.phase === "prep" ? "GET READY" : `WAVE ${arena.wave}`}
+                            {arena.phase === "prep" ? t("g.arena.getReady") : `WAVE ${arena.wave}`}
                         </span>
                     </div>
 
@@ -62,7 +64,7 @@ export function ArenaHUD({ arena, revive, localPlayerId }: ArenaHUDProps) {
 
                 <div className="mt-2">
                     <div className="flex items-center justify-between text-[10px] mb-1">
-                        <span className="text-[#8B8F98] tracking-wider font-bold">GREEN CANDLE</span>
+                        <span className="text-[#8B8F98] tracking-wider font-bold">{t("g.arena.greenCandle")}</span>
                         <span style={{ color: candleColor }} className="font-bold">
                             {arena.candleHealth} / {arena.candleMaxHealth}
                         </span>
@@ -99,7 +101,7 @@ export function ArenaHUD({ arena, revive, localPlayerId }: ArenaHUDProps) {
                 )}
 
                 {revive.channelling && (
-                    <div className="mt-2 text-[#4ADE80] text-[10px] font-bold">Raising your ally…</div>
+                    <div className="mt-2 text-[#4ADE80] text-[10px] font-bold">{t("g.arena.raising")}</div>
                 )}
             </div>
         </div>

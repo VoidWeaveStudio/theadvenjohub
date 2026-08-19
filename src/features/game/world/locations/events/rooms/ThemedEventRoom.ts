@@ -5,8 +5,10 @@ import { ResourceManager } from "../../../../core/ResourceManager";
 import { EventRoomTheme } from "../roomThemes";
 import { createPlaqueTexture } from "../lobbyTextures";
 import { EVENT_DOORS_BY_ID } from "../../../../data/eventDoors";
+import { t, onLanguageChange } from "@/core/i18n";
 
 export class ThemedEventRoom extends EventRoom {
+    private stopLanguageWatch: (() => void) | null = null;
     private beacon: THREE.Mesh | null = null;
     private beaconMaterial: THREE.MeshBasicMaterial | null = null;
     private beaconLight: THREE.PointLight | null = null;
@@ -394,15 +396,28 @@ export class ThemedEventRoom extends EventRoom {
             group.add(post);
         }
 
-        const panel = new THREE.Mesh(
-            new THREE.PlaneGeometry(9.6, 2.4),
-            this.bin.material(new THREE.MeshBasicMaterial({
-                map: createPlaqueTexture(this.bin, event.name, `${event.tagline} — preparing`, accent, true),
-                transparent: true,
-                side: THREE.DoubleSide,
-                toneMapped: false,
-            }))
-        );
+        const plaqueMaterial = this.bin.material(new THREE.MeshBasicMaterial({
+            map: createPlaqueTexture(this.bin, t(event.name), t("g.event.preparing", { tagline: t(event.tagline) }), accent, true),
+            transparent: true,
+            side: THREE.DoubleSide,
+            toneMapped: false,
+        }));
+
+        // The plaque is a baked canvas, so a language switch has to repaint it.
+        this.stopLanguageWatch?.();
+        this.stopLanguageWatch = onLanguageChange(() => {
+            plaqueMaterial.map?.dispose();
+            plaqueMaterial.map = createPlaqueTexture(
+                this.bin,
+                t(event.name),
+                t("g.event.preparing", { tagline: t(event.tagline) }),
+                accent,
+                true
+            );
+            plaqueMaterial.needsUpdate = true;
+        });
+
+        const panel = new THREE.Mesh(new THREE.PlaneGeometry(9.6, 2.4), plaqueMaterial);
         panel.position.set(0, 6, 0.2);
         group.add(panel);
 
@@ -448,6 +463,8 @@ export class ThemedEventRoom extends EventRoom {
     }
 
     dispose() {
+        this.stopLanguageWatch?.();
+        this.stopLanguageWatch = null;
         this.beacon = null;
         this.beaconMaterial = null;
         this.beaconLight = null;

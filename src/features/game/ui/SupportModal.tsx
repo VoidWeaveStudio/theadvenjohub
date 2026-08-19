@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X, LifeBuoy } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface SupportModalProps {
     isOpen: boolean;
@@ -14,6 +15,7 @@ interface SupportModalProps {
 }
 
 export function SupportModal({ isOpen, onClose, onSend, initialSubject, initialMessage }: SupportModalProps) {
+    const { t } = useLanguage();
     const [subject, setSubject] = useState(initialSubject || "");
     const [message, setMessage] = useState(initialMessage || "");
 
@@ -48,7 +50,7 @@ export function SupportModal({ isOpen, onClose, onSend, initialSubject, initialM
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <LifeBuoy className="w-5 h-5 text-[#4FD1FF]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">Contact Support</h2>
+                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.support.title")}</h2>
                     </div>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         <X className="w-5 h-5" />
@@ -56,21 +58,21 @@ export function SupportModal({ isOpen, onClose, onSend, initialSubject, initialM
                 </div>
 
                 <p className="text-[#8B8F98] text-sm mb-3">
-                    Describe your issue. The reply will arrive in your in-game mail.
+                    {t("g.support.intro")}
                 </p>
 
                 <input
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value.slice(0, 100))}
-                    placeholder="Subject"
+                    placeholder={t("g.support.subject")}
                     className="w-full bg-black/40 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-[#4FD1FF] outline-none mb-2"
                 />
 
                 <textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value.slice(0, 2000))}
-                    placeholder="What's going on?"
+                    placeholder={t("g.support.body")}
                     rows={5}
                     className="w-full bg-black/40 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-[#4FD1FF] outline-none resize-none"
                 />
@@ -80,7 +82,7 @@ export function SupportModal({ isOpen, onClose, onSend, initialSubject, initialM
                     disabled={!subject.trim() || !message.trim()}
                     className="w-full mt-3 bg-gradient-to-r from-[#4FD1FF] to-[#3B9FD9] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Send to Support
+                    {t("g.support.send")}
                 </button>
             </div>
         </div>
