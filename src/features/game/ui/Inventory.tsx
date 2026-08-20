@@ -134,7 +134,7 @@ export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTe
                 </button>
 
                 <div className="mt-2 text-[#6B7280] text-[10px]">
-                    Click a coin to pin its details, click it again to unpin.
+                    {t("g.inv.pinHint")}
                 </div>
             </div>
 

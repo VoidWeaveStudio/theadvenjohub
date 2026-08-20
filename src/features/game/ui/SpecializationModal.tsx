@@ -46,9 +46,7 @@ export function SpecializationModal({ isOpen, onClose, onSelect }: Specializatio
                         <X className="w-5 h-5" />
                     </button>
                 </div>
-                <p className="text-[#8B8F98] text-xs mb-5">
-                    This picks your weapon and your whole skill tree. Sola can reset it later for Ash.
-                </p>
+                <p className="text-[#8B8F98] text-xs mb-5">{t("g.spec.intro")}</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {BRANCHES.map((branch) => {
@@ -73,11 +71,11 @@ export function SpecializationModal({ isOpen, onClose, onSelect }: Specializatio
                                         <Sparkles className="w-5 h-5" style={{ color: branch.accent }} />
                                     )}
                                     <span className="text-lg font-black" style={{ color: branch.accent }}>
-                                        {branch.name}
+                                        {t(branch.name)}
                                     </span>
                                 </div>
 
-                                <p className="text-[#8B8F98] text-xs mb-4">{branch.tagline}</p>
+                                <p className="text-[#8B8F98] text-xs mb-4">{t(branch.tagline)}</p>
 
                                 <div className="text-[10px] font-bold tracking-wider text-[#6B7280] mb-1.5">
                                     {t("g.spec.startsWith")}
@@ -92,7 +90,7 @@ export function SpecializationModal({ isOpen, onClose, onSelect }: Specializatio
                                 <ul className="space-y-0.5">
                                     {skills.map((name) => (
                                         <li key={name} className="text-[#E5E7EB] text-xs">
-                                            · {name}
+                                            · {t(name)}
                                         </li>
                                     ))}
                                 </ul>
@@ -106,7 +104,7 @@ export function SpecializationModal({ isOpen, onClose, onSelect }: Specializatio
                     disabled={!pending}
                     className="w-full mt-5 bg-gradient-to-r from-[#4FD1FF] to-[#3BA9E8] text-[rgba(12,12,14,0.9)] font-bold px-6 py-3 rounded-[8px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                    {pending ? t("g.spec.become", { name: BRANCHES.find((b) => b.id === pending)?.name ?? "" }) : t("g.spec.pick")}
+                    {pending ? t("g.spec.become", { name: t(BRANCHES.find((b) => b.id === pending)?.name ?? "") }) : t("g.spec.pick")}
                 </button>
             </div>
         </div>

@@ -43,7 +43,7 @@ export function PlayerProfileCard({
     const isFactionCreator = !!profile && profile.factions.some((f) => f.verifiedCreatorWallet === profile.wallet);
 
     return (
-        <WindowFrame isOpen={isOpen} onClose={onClose} title="Player" icon={<User className="w-4 h-4" />} size="sm">
+        <WindowFrame isOpen={isOpen} onClose={onClose} title={t("g.profile.windowTitle")} icon={<User className="w-4 h-4" />} size="sm">
             {!profile ? (
                 <p className="text-[#8B8F98] text-sm text-center py-8">{t("g.profile.notFound")}</p>
             ) : (

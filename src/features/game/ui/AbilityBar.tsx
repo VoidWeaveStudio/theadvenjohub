@@ -71,7 +71,7 @@ export function AbilityBar({ progression, cooldowns = {}, energy, shield = 0, on
                         <div
                             key={slot}
                             onClick={() => onSlotClick?.(slot)}
-                            title={node ? `[${ABILITY_SLOT_KEYS[slot]}] ${node.name} — ${ability!.energyCost} ${t("g.skill.energy")}` : t("g.skill.emptySlot")}
+                            title={node ? `[${ABILITY_SLOT_KEYS[slot]}] ${t(node.name)} — ${ability!.energyCost} ${t("g.skill.energy")}` : t("g.skill.emptySlot")}
                             className="relative w-12 h-12 rounded-[8px] border backdrop-blur-md flex flex-col items-center justify-center cursor-pointer transition-colors"
                             style={{
                                 borderColor: node ? `${isUltimate ? "#FFD166" : accent}66` : "rgba(255,255,255,0.1)",
@@ -95,7 +95,7 @@ export function AbilityBar({ progression, cooldowns = {}, energy, shield = 0, on
                                         className="text-[8px] font-bold leading-none mt-0.5 px-0.5 text-center truncate w-full"
                                         style={{ color: onCooldown ? "#6B7280" : "#E5E7EB" }}
                                     >
-                                        {node.name.split(" ")[0]}
+                                        {t(node.name).split(" ")[0]}
                                     </span>
                                 </>
                             ) : (

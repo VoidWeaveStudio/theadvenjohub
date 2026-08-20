@@ -318,8 +318,7 @@ function toEpoch(value: Date | string | number | null | undefined): number | nul
     return Number.isFinite(time) ? time : null;
 }
 
-// Where the event sits relative to its scheduled window. With repeatDays set,
-// the window recurs every N days from the first occurrence and never "ends".
+
 export function eventWindow(event: ResolvedEvent, now: number = Date.now()): EventWindow {
     const { startsAt, endsAt } = event;
 

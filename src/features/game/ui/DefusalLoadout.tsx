@@ -1,6 +1,7 @@
 // src/features/game/ui/DefusalLoadout.tsx
 "use client";
 
+import { useLanguage } from "@/core/i18n/LanguageContext";
 import { ARSENAL_BY_ID } from "../data/defusalArsenal";
 import { WeaponIcon } from "./WeaponIcon";
 import type { BuyMenuEntry } from "./BuyMenu";
@@ -29,6 +30,8 @@ function itemIdFor(me: BuyMenuEntry, slot: HeldSlot): string | null {
 }
 
 export function DefusalLoadout({ me, onSelect }: DefusalLoadoutProps) {
+    const { t } = useLanguage();
+
     if (!me) return null;
 
     return (
@@ -44,7 +47,7 @@ export function DefusalLoadout({ me, onSelect }: DefusalLoadoutProps) {
                         key={slot}
                         onClick={() => !empty && onSelect(slot)}
                         disabled={empty}
-                        title={item?.name}
+                        title={item ? t(item.name) : undefined}
                         className={`relative w-[92px] h-[58px] rounded-[8px] border-2 flex flex-col items-center justify-center transition-all ${empty
                             ? "border-white/5 bg-[rgba(12,12,14,0.4)] opacity-35 cursor-default"
                             : held
@@ -58,11 +61,11 @@ export function DefusalLoadout({ me, onSelect }: DefusalLoadoutProps) {
                             <>
                                 <WeaponIcon itemId={item.id} className={`w-11 h-5 ${held ? "text-[#FFD9A0]" : "text-[#9AA0A9]"}`} />
                                 <span className={`text-[9px] font-bold tracking-wide mt-0.5 truncate max-w-[84px] ${held ? "text-[#FFD9A0]" : "text-[#8B8F98]"}`}>
-                                    {item.name}
+                                    {t(item.name)}
                                 </span>
                             </>
                         ) : (
-                            <span className="text-[10px] text-[#4A4F58]">empty</span>
+                            <span className="text-[10px] text-[#4A4F58]">{t("g.loadout.empty")}</span>
                         )}
                     </button>
                 );

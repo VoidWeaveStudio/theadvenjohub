@@ -369,7 +369,7 @@ export default function ProfileContent() {
                   </div>
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                     <span className="text-text-secondary">{t("profile.walletType")}</span>
-                    <span className="text-foreground">{selectedWalletName || "Unknown"}</span>
+                    <span className="text-foreground">{selectedWalletName || t("profile.unknownWallet")}</span>
                   </div>
                   <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
                     <span className="text-text-secondary">{t("profile.network")}</span>

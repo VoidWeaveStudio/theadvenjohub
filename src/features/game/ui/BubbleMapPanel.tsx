@@ -437,7 +437,7 @@ export function BubbleMapPanel({
                             onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
                             className="btn-secondary px-3 py-1 text-sm"
                         >
-                            Reset view
+                            {t("g.bubble.resetView")}
                         </button>
                         {waypointIndex !== null && (
                             <button
@@ -447,7 +447,7 @@ export function BubbleMapPanel({
                                 }}
                                 className="btn-secondary px-3 py-1 text-sm"
                             >
-                                Clear marker
+                                {t("g.bubble.clearMarker")}
                             </button>
                         )}
                         <button onClick={onClose} className="bg-transparent border-0 p-1 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">

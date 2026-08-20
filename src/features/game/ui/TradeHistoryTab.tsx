@@ -67,7 +67,7 @@ export function TradeHistoryTab() {
                                 </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-[#E5E7EB] text-sm font-bold">{trade.itemName}</span>
+                                <span className="text-[#E5E7EB] text-sm font-bold">{t(trade.itemName)}</span>
                                 <span className="text-[#FFD166] text-sm font-bold">{trade.priceTnj.toLocaleString("en-US")} TNJ</span>
                             </div>
                             <div className="flex items-center justify-between mt-1.5">

@@ -96,7 +96,7 @@ export function ArenaHUD({ arena, revive, localPlayerId }: ArenaHUDProps) {
 
                 {arena.phase === "pause" && others.some((member) => member.down) && !revive.channelling && (
                     <div className="mt-2 text-[#8AD4FF] text-[10px]">
-                        Stand next to a fallen ally and press <span className="font-bold">E</span> to raise them.
+                        {t("g.arena.reviveHint", { key: "E" })}
                     </div>
                 )}
 

@@ -79,7 +79,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                             onClick={() => onEquip(cosmetics.skinId, null)}
                             className="text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold transition-colors"
                         >
-                            Take off accessory
+                            {t("g.appearance.takeOffAccessory")}
                         </button>
                     )}
                 </div>

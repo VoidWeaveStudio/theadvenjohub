@@ -44,7 +44,7 @@ export function FactionMembersPanel({ faction, onClaimCreator, onLeaveFaction, g
                 className="btn-error w-full flex items-center justify-center gap-2 text-sm"
             >
                 <LogOut className="w-4 h-4" />
-                Leave Faction
+                {t("g.faction.leave")}
             </button>
         </div>
     );

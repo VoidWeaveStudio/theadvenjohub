@@ -149,7 +149,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                 <div className="absolute bottom-8 right-8">
                     <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-5 min-w-[180px]">
                         <div className="flex items-baseline justify-between gap-3 mb-2">
-                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider uppercase">{state.weaponName}</span>
+                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider uppercase">{t(state.weaponName)}</span>
                             <span className="text-[#4FD1FF] text-[10px] font-bold tracking-wider uppercase">{state.fireMode}</span>
                         </div>
 

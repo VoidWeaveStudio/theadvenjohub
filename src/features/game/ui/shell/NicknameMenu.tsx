@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Info, MessageCircle, Flag, Ban, UserPlus, ArrowLeftRight, Users } from "lucide-react";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export interface NicknameMenuActions {
     isBlocked?: boolean;
@@ -35,6 +36,7 @@ export function NicknameMenu({
     children,
     className,
 }: NicknameMenuProps) {
+    const { t } = useLanguage();
     const [isOpen, setIsOpen] = useState(false);
     const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
@@ -102,13 +104,13 @@ export function NicknameMenu({
                         onClick={() => run(onPrivateMessage)}
                         className="bg-transparent border-0 rounded-none w-full flex items-center gap-2 px-3 py-2 text-sm text-[#E5E7EB] hover:bg-white/5 transition-colors"
                     >
-                        <MessageCircle className="w-4 h-4 text-[#4FD1FF] flex-shrink-0" /> Private Message
+                        <MessageCircle className="w-4 h-4 text-[#4FD1FF] flex-shrink-0" /> {t("g.nickname.privateMessage")}
                     </button>
                     <button
                         onClick={() => run(onReport)}
                         className="bg-transparent border-0 rounded-none w-full flex items-center gap-2 px-3 py-2 text-sm text-[#E5E7EB] hover:bg-white/5 transition-colors"
                     >
-                        <Flag className="w-4 h-4 text-[#FFD166] flex-shrink-0" /> Report
+                        <Flag className="w-4 h-4 text-[#FFD166] flex-shrink-0" /> {t("g.nickname.report")}
                     </button>
                     <button
                         onClick={() => run(onToggleBlock)}
@@ -129,7 +131,7 @@ export function NicknameMenu({
                             onClick={() => run(onInviteToParty)}
                             className="bg-transparent border-0 rounded-none w-full flex items-center gap-2 px-3 py-2 text-sm text-[#E5E7EB] hover:bg-white/5 transition-colors"
                         >
-                            <Users className="w-4 h-4 text-[#8AD4FF] flex-shrink-0" /> Invite to party
+                            <Users className="w-4 h-4 text-[#8AD4FF] flex-shrink-0" /> {t("g.nickname.inviteToParty")}
                         </button>
                     )}
                     {canInviteToFaction && onInviteToFaction && (
@@ -137,7 +139,7 @@ export function NicknameMenu({
                             onClick={() => run(onInviteToFaction)}
                             className="bg-transparent border-0 rounded-none w-full flex items-center gap-2 px-3 py-2 text-sm text-[#E5E7EB] hover:bg-white/5 transition-colors"
                         >
-                            <UserPlus className="w-4 h-4 text-[#4ADE80] flex-shrink-0" /> Invite to Faction
+                            <UserPlus className="w-4 h-4 text-[#4ADE80] flex-shrink-0" /> {t("g.nickname.inviteToFaction")}
                         </button>
                     )}
                 </div>,

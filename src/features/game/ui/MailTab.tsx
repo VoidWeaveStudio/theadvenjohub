@@ -86,13 +86,13 @@ export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail,
                         type="text"
                         value={composeSubject}
                         onChange={(e) => setComposeSubject(e.target.value.slice(0, 100))}
-                        placeholder="Subject..."
+                        placeholder={t("g.mail.subjectPlaceholder")}
                         className="w-full bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none"
                     />
                     <textarea
                         value={composeBody}
                         onChange={(e) => setComposeBody(e.target.value.slice(0, 2000))}
-                        placeholder="Message..."
+                        placeholder={t("g.mail.bodyPlaceholder")}
                         rows={4}
                         className="w-full bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none resize-none"
                     />

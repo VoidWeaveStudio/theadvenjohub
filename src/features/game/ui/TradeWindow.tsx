@@ -311,7 +311,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                     ) : session.itemId ? (
                         <div className="flex items-center gap-3">
                             <span className="text-2xl">{PLACEABLE_ITEMS.find((i) => i.id === session.itemId)?.icon ?? "📦"}</span>
-                            <span className="flex-1 text-[#E5E7EB] font-bold">{session.itemName}</span>
+                            <span className="flex-1 text-[#E5E7EB] font-bold">{session.itemName ? t(session.itemName) : ""}</span>
                             <span className="text-[#FFD166] font-bold">{session.priceTnj?.toLocaleString("en-US")} TNJ</span>
                             {canOffer && (
                                 <button

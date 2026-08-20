@@ -17,7 +17,7 @@ export function useHudState() {
     isReloading: false,
     isWeaponEquipped: true,
     equippedTool: "weapon",
-    weaponName: "Standard Rifle",
+    weaponName: "g.weapontier.1.rifle",
     weaponKind: "rifle",
     fireMode: "Single",
     chargeProgress: 0,

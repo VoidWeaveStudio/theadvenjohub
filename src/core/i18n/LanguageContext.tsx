@@ -45,8 +45,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   };
 
   const t = useMemo(() => {
-    // language is the dependency on purpose: the module helper reads the active
-    // language, and this memo is what makes components re-render on a switch.
+
     void language;
     return (key: string, vars?: Record<string, string | number>) => translate(key, vars);
   }, [language]);

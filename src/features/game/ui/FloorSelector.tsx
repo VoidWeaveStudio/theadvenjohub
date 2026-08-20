@@ -66,7 +66,7 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
                         {t("g.floor.select")}
                     </h2>
                     <p className="text-[#8B8F98] text-sm font-medium">
-                        The crystal portal is ready for transportation.
+                        {t("g.floor.portalReady")}
                     </p>
                 </div>
 

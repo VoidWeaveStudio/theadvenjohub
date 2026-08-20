@@ -63,7 +63,7 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
                 <div className="bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
                     <div className="text-[#8B8F98] text-xs flex items-center gap-1.5">
                         <Users className="w-3.5 h-3.5" />
-                        Members
+                        {t("g.faction.members")}
                     </div>
                     <div className="text-[#E5E7EB] text-lg font-bold">{faction.memberCount}</div>
                 </div>

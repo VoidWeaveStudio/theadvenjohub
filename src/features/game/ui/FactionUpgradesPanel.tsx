@@ -2,6 +2,7 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 import { FactionDetail } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { CopyableText } from "./shell/CopyableText";
@@ -16,6 +17,7 @@ interface FactionUpgradesPanelProps {
 const PROMO_CODE_PRICE_TNJ = 1_000_000;
 
 export function FactionUpgradesPanel({ faction, myWallet, onPurchased }: FactionUpgradesPanelProps) {
+    const { t } = useLanguage();
     const canManage = faction.founderWallet === myWallet || faction.verifiedCreatorWallet === myWallet;
 
     return (
@@ -25,7 +27,7 @@ export function FactionUpgradesPanel({ faction, myWallet, onPurchased }: Faction
             <div className="bg-[rgba(255,255,255,0.03)] border border-white/10 rounded-lg p-6 space-y-3">
                 <div className="flex items-center gap-2 text-[#E5E7EB] font-bold">
                     <Sparkles className="w-4 h-4 text-[#FFD166]" />
-                    Promo Code
+                    {t("g.faction.promoCode")}
                 </div>
 
                 {faction.promoCode ? (

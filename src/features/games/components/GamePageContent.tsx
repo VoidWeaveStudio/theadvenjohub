@@ -207,7 +207,7 @@ export default function GamePageContent() {
                                 ) : game.screenshots.length > 0 ? (
                                     <Image
                                         src={game.screenshots[activeScreenshot]?.url || game.screenshots[0].url}
-                                        alt="Screenshot"
+                                        alt={t("game.screenshot")}
                                         width={1280}
                                         height={720}
                                         className="w-full h-full object-cover"

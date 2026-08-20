@@ -1054,11 +1054,8 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onServerError = (message) => {
-        // The server sends a key where it has one and plain text where it does
-        // not; t() returns an unknown key unchanged, so both arrive readable.
-        const text = t(message);
-        game.onNotification?.(`⚠️ ${text}`, 2500);
-        game.rejectPendingSignSave(text);
+        game.onNotification?.(`⚠️ ${message}`, 2500);
+        game.rejectPendingSignSave(message);
     };
 
     game.networkManager.onNicknameChanged = (nickname) => {

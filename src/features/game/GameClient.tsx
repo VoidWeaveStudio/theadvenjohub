@@ -356,7 +356,7 @@ export function GameClient({ slug }: GameClientProps) {
   const degenWheelPages: WheelPage[] = [
     {
       id: "degen",
-      label: "Degen",
+      label: t("g.wheel.degen"),
       items: MEME_ABILITIES.map((ability) => {
         const unlocked = progressionState.progression?.memeAbilities.includes(ability.id) ?? false;
         const readyAt = progressionState.memeCooldowns[ability.id] ?? 0;
@@ -364,14 +364,14 @@ export function GameClient({ slug }: GameClientProps) {
 
         return {
           id: ability.id,
-          label: ability.name,
+          label: t(ability.name),
           emoji: ability.emoji,
           accent: TIERS.find((t) => t.memeAbility === ability.id)?.accent ?? "#FFD166",
-          hint: remaining > 0 ? `Ready in ${Math.ceil(remaining / 1000)}s` : ability.description,
+          hint: remaining > 0 ? t("g.wheel.readyIn", { seconds: Math.ceil(remaining / 1000) }) : t(ability.description),
           locked: !unlocked || remaining > 0,
           lockReason: unlocked
-            ? `Recharging — ${Math.ceil(remaining / 1000)}s left`
-            : `Unlocks at level ${TIERS.find((t) => t.memeAbility === ability.id)?.minLevel ?? 1}`,
+            ? t("g.wheel.recharging", { seconds: Math.ceil(remaining / 1000) })
+            : t("g.wheel.unlocksAtLevel", { level: TIERS.find((tier) => tier.memeAbility === ability.id)?.minLevel ?? 1 }),
         };
       }),
     },
@@ -678,9 +678,9 @@ export function GameClient({ slug }: GameClientProps) {
           const meme = MEME_ABILITIES_BY_ID.get(data.memeId);
           notifications.addNotification(
             data.reason === "cooldown"
-              ? t("g.notify.memeCooldown", { emoji: meme?.emoji ?? "🚧", name: meme?.name ?? t("g.notify.thatAbility") })
+              ? t("g.notify.memeCooldown", { emoji: meme?.emoji ?? "🚧", name: meme ? t(meme.name) : t("g.notify.thatAbility") })
               : data.reason === "locked"
-                ? t("g.notify.memeLocked", { name: meme?.name ?? t("g.notify.thatAbility") })
+                ? t("g.notify.memeLocked", { name: meme ? t(meme.name) : t("g.notify.thatAbility") })
                 : t("g.notify.memeFailed"),
             2000
           );
@@ -763,7 +763,7 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           setTradeSession(data);
           if (data.phase === 'completed') {
-            notifications.addNotification(t("g.notify.tradeCompleted", { item: data.itemName ?? t("g.notify.anItem") }), 3000);
+            notifications.addNotification(t("g.notify.tradeCompleted", { item: data.itemName ? t(data.itemName) : t("g.notify.anItem") }), 3000);
           } else if (data.phase === 'failed') {
             notifications.addNotification(
               data.critical ? t("g.notify.tradeCritical") : t("g.notify.tradeFailed"),
@@ -1300,14 +1300,14 @@ export function GameClient({ slug }: GameClientProps) {
                 onClick={() => window.location.reload()}
                 className="btn-primary px-6 py-2"
               >
-                Try Again
+                {t("common.tryAgain")}
               </button>
             )}
             <button
               onClick={() => (window.location.href = "/")}
               className="btn-secondary px-6 py-2"
             >
-              Back to Store
+              {t("common.backToStore")}
             </button>
           </div>
         </div>

@@ -36,7 +36,7 @@ export function AshStore({ ash, placeables, prices, onBuyItem }: AshStoreProps) 
 
             {items.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center text-[#6B7280] text-sm">
-                    Tony has nothing on the shelf right now.
+                    {t("g.ashStore.empty")}
                 </div>
             ) : (
                 <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">

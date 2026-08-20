@@ -1,4 +1,5 @@
 // src/features/game/network/NetworkManager.ts
+import { t } from "@/core/i18n";
 import { EmoteKey, isEmoteKey } from "../data/emotes";
 import { CosmeticId, normalizeLoadout } from "../data/cosmetics";
 import { BranchId, isBranchId } from "../data/progression";
@@ -1734,7 +1735,9 @@ export class NetworkManager {
         this.onCanyonHub?.(data);
         break;
       case "error":
-        this.onServerError?.(data.message || "Server error");
+        this.onServerError?.(
+          data.messageKey ? t(data.messageKey, data.messageVars) : data.message || "Server error"
+        );
         break;
       case "count":
         this.onCount?.(data.count);

@@ -1,5 +1,6 @@
 // src/core/i18n/index.ts
 import type { Language, AllTranslations } from "./types";
+import { languageFromCookieHeader, normaliseTag, resolveLanguage } from "./detect";
 import { en } from "./locales/en";
 import { ru } from "./locales/ru";
 import { zh } from "./locales/zh";
@@ -13,6 +14,7 @@ import { fil } from "./locales/fil";
 import { be } from "./locales/be";
 
 export { LanguageSwitcher } from "./LanguageSwitcher";
+export { normaliseTag, resolveLanguage } from "./detect";
 export { LANGUAGES } from "./types";
 export type { Language, Translations, Translate } from "./types";
 
@@ -62,25 +64,18 @@ export function getTranslation(key: string, lang: Language): string {
   return translations[lang]?.[key] || translations.en[key] || key;
 }
 
-// The three-letter tag has to be tested before the two-letter one, otherwise
-// "fil" would be read as "fi".
-function normaliseTag(tag: string): Language | null {
-  const lower = tag.toLowerCase();
-  if (lower.startsWith("fil") || lower.startsWith("tl")) return "fil";
-  if (lower.startsWith("zh")) return "zh";
-  if (lower.startsWith("in")) return "id";
-
-  const base = lower.split("-")[0] as Language;
-  return translations[base] ? base : null;
-}
 
 export function getLanguageFromCookie(): Language {
-  if (typeof document !== "undefined") {
-    const match = document.cookie.match(/language=([^;]+)/);
-    if (match) {
-      const stored = decodeURIComponent(match[1]) as Language;
-      if (translations[stored]) return stored;
+  if (typeof window !== "undefined") {
+    const override = new URLSearchParams(window.location.search).get("lang");
+    if (override) {
+      const resolved = normaliseTag(override);
+      if (resolved) return resolved;
     }
+  }
+  if (typeof document !== "undefined") {
+    const stored = languageFromCookieHeader(document.cookie);
+    if (stored) return stored;
   }
   if (typeof navigator !== "undefined") {
     for (const tag of navigator.languages ?? [navigator.language]) {
@@ -97,19 +92,11 @@ export function setLanguageCookie(lang: Language): void {
   }
 }
 
-export function getLanguageFromHeaders(cookieHeader?: string | null): Language {
-  if (!cookieHeader) return "en";
-  const match = cookieHeader.match(/language=([^;]+)/);
-  if (match) {
-    const stored = decodeURIComponent(match[1]) as Language;
-    if (translations[stored]) return stored;
-  }
-  return "en";
+export function getLanguageFromHeaders(cookieHeader?: string | null, acceptLanguage?: string | null): Language {
+  return resolveLanguage({ cookie: cookieHeader, acceptLanguage });
 }
 
-// The game runs a lot of code outside React — systems, notifications, the world
-// itself — so the active language also lives in a module the provider keeps in
-// step, and t() works from anywhere.
+
 let activeLanguage: Language = "en";
 const listeners = new Set<(lang: Language) => void>();
 

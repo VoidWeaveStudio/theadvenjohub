@@ -1,6 +1,5 @@
 // src/features/game/data/defusalArsenal.ts
-// Canonical arsenal for the Dust II defusal event. game-server/defusalArsenal.js
-// mirrors this table — change both together, scripts/check-arsenal.js diffs them.
+
 
 export type ArsenalSlot = "melee" | "pistol" | "primary" | "armor" | "grenade" | "kit";
 export type ArsenalSide = "t" | "ct" | "both";
@@ -43,7 +42,7 @@ export const DEFUSAL_ECONOMY = {
 export const ARSENAL: ArsenalItem[] = [
     {
         id: "rug-beater",
-        name: "Rug Beater",
+        name: "g.arsenal.rug-beater.name",
         flavour: "A carpet beater on a broom handle. Nobody knows who left it here.",
         slot: "melee",
         side: "both",
@@ -64,7 +63,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "dust-nine",
-        name: "Dust Nine",
+        name: "g.arsenal.dust-nine.name",
         flavour: "Standard issue. Everyone spawns with one, nobody is happy about it.",
         slot: "pistol",
         side: "both",
@@ -85,7 +84,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "whale-cannon",
-        name: "Whale Cannon",
+        name: "g.arsenal.whale-cannon.name",
         flavour: "Hand cannon chambered for something that should not fit in a hand.",
         slot: "pistol",
         side: "both",
@@ -106,7 +105,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "pump-rifle",
-        name: "Pump AK",
+        name: "g.arsenal.pump-rifle.name",
         flavour: "Kicks like a chart correction. Rewards anyone who taps it.",
         slot: "primary",
         side: "t",
@@ -127,7 +126,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "bluechip-rifle",
-        name: "Blue Chip",
+        name: "g.arsenal.bluechip-rifle.name",
         flavour: "Boring, dependable, holds its value. The rifle equivalent of index funds.",
         slot: "primary",
         side: "ct",
@@ -148,7 +147,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "moon-ladder",
-        name: "Moon Ladder",
+        name: "g.arsenal.moon-ladder.name",
         flavour: "The barrel is four metres long. It is not a joke to anyone downrange.",
         slot: "primary",
         side: "both",
@@ -169,7 +168,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "cold-wallet",
-        name: "Cold Wallet",
+        name: "g.arsenal.cold-wallet.name",
         flavour: "Body armour. Keeps most of your balance off the table.",
         slot: "armor",
         side: "both",
@@ -190,7 +189,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "seed-phrase",
-        name: "Cold Wallet + Seed Phrase",
+        name: "g.arsenal.seed-phrase.name",
         flavour: "Armour and a helmet. Your keys survive a headshot, mostly.",
         slot: "armor",
         side: "both",
@@ -211,7 +210,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "rug-flash",
-        name: "Rug Flash",
+        name: "g.arsenal.rug-flash.name",
         flavour: "Detonates into pure white candle light. Nobody sees the dump coming.",
         slot: "grenade",
         side: "both",
@@ -232,7 +231,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "fud-cloud",
-        name: "FUD Cloud",
+        name: "g.arsenal.fud-cloud.name",
         flavour: "Screams fake sell orders in every direction and fogs the lane.",
         slot: "grenade",
         side: "both",
@@ -253,7 +252,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "liquidation",
-        name: "Liquidation",
+        name: "g.arsenal.liquidation.name",
         flavour: "Straightforward. Everything nearby loses most of its value at once.",
         slot: "grenade",
         side: "both",
@@ -274,7 +273,7 @@ export const ARSENAL: ArsenalItem[] = [
     },
     {
         id: "audit-kit",
-        name: "Audit Kit",
+        name: "g.arsenal.audit-kit.name",
         flavour: "Reads the contract twice as fast. Defenders only.",
         slot: "kit",
         side: "ct",
@@ -310,10 +309,9 @@ export function isBuyable(item: ArsenalItem): boolean {
     return item.price > 0;
 }
 
-// The thing you plant. Not a bomb — a rolled-up rug wired to a contract.
 export const RUG = {
     id: "the-rug",
-    name: "The Rug",
+    name: "g.arsenal.the-rug.name",
     plantVerb: "Roll it out",
     defuseVerb: "Audit the contract",
     plantedLabel: "RUG DEPLOYED",

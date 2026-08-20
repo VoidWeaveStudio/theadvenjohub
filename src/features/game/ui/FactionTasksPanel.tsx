@@ -48,12 +48,12 @@ export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onReques
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-[#E5E7EB] font-bold">
                                 <Target className="w-4 h-4 text-[#4FD1FF]" />
-                                {taskDefinitions.find((t) => t.key === activeTask.key)?.label || activeTask.key}
+                                {t(taskDefinitions.find((def) => def.key === activeTask.key)?.label ?? activeTask.key)}
                             </div>
                             <span className="text-[#FFD166] text-sm font-bold">+{activeTask.rewardAsh} Ash</span>
                         </div>
                         <p className="text-[#8B8F98] text-xs">
-                            {taskDefinitions.find((t) => t.key === activeTask.key)?.description}
+                            {t(taskDefinitions.find((def) => def.key === activeTask.key)?.description ?? "")}
                         </p>
                         <div className="h-2 rounded-full bg-[rgba(255,255,255,0.06)] overflow-hidden">
                             <div
@@ -85,8 +85,8 @@ export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onReques
                                             {metricIcon(task.metric)}
                                         </div>
                                         <div className="min-w-0">
-                                            <div className="text-[#E5E7EB] text-sm font-bold truncate">{task.label}</div>
-                                            <div className="text-[#8B8F98] text-xs truncate">{task.description}</div>
+                                            <div className="text-[#E5E7EB] text-sm font-bold truncate">{t(task.label)}</div>
+                                            <div className="text-[#8B8F98] text-xs truncate">{t(task.description)}</div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3 flex-shrink-0">
@@ -118,7 +118,7 @@ export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onReques
                                 <div className="flex items-center gap-2 min-w-0">
                                     <Trophy className="w-3.5 h-3.5 text-[#FFD166] flex-shrink-0" />
                                     <span className="text-[#E5E7EB] text-xs truncate">
-                                        {taskDefinitions.find((t) => t.key === entry.taskKey)?.label || entry.taskKey}
+                                        {t(taskDefinitions.find((def) => def.key === entry.taskKey)?.label ?? entry.taskKey)}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0 text-xs">

@@ -2,6 +2,7 @@
 "use client";
 
 import React from "react";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface SpinnerProps {
   size?: "sm" | "md" | "lg";
@@ -9,6 +10,8 @@ interface SpinnerProps {
 }
 
 export function Spinner({ size = "md", className = "" }: SpinnerProps) {
+  const { t } = useLanguage();
+
   const sizeClasses = {
     sm: "w-8 h-8",
     md: "w-12 h-12", 
@@ -19,11 +22,11 @@ export function Spinner({ size = "md", className = "" }: SpinnerProps) {
     <div 
       className={`${sizeClasses[size]} animate-spin animate-pulse ${className}`}
       role="status"
-      aria-label="Loading"
+      aria-label={t("common.loading")}
     >
       <img
         src="/logo-spinner.png"
-        alt="Loading..."
+        alt={t("common.loading")}
         className="w-full h-full object-contain animate-shimmer"
         draggable={false}
       />

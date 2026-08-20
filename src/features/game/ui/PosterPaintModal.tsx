@@ -184,7 +184,7 @@ export function PosterPaintModal({
             <div className="w-full max-w-2xl bg-[rgba(12,14,16,0.95)] border-2 border-[#4FD1FF]/40 rounded-[16px] p-5 shadow-[0_0_35px_rgba(79,209,255,0.15)]">
                 <div className="flex items-center justify-between mb-3">
                     <h2 className="text-xl font-black text-[#E5E7EB] flex items-center gap-2">
-                        <Paintbrush className="w-5 h-5 text-[#4FD1FF]" /> Paint the poster
+                        <Paintbrush className="w-5 h-5 text-[#4FD1FF]" /> {t("g.poster.paintTitle")}
                     </h2>
                     <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                         <X className="w-5 h-5" />
@@ -227,7 +227,7 @@ export function PosterPaintModal({
                         onClick={() => setErasing((active) => !active)}
                         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-colors ${erasing ? "bg-[#FFD166]/20 text-[#FFD166]" : "bg-white/5 text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                     >
-                        <Eraser className="w-3.5 h-3.5" /> Eraser
+                        <Eraser className="w-3.5 h-3.5" /> {t("g.poster.eraser")}
                     </button>
 
                     <button

@@ -29,7 +29,7 @@ export function TradeItemPicker({ isOpen, onClose, placeables, onSelect }: Trade
                 <h3 className="text-[#E5E7EB] text-sm font-black mb-3 tracking-wide">{t("g.tradePicker.title")}</h3>
                 {owned.length === 0 ? (
                     <p className="text-[#6B7280] text-xs text-center py-4">
-                        You don't own any tradeable items yet. Buy some from the Shop.
+                        {t("g.tradePicker.empty")}
                     </p>
                 ) : (
                     <div className="space-y-1.5">

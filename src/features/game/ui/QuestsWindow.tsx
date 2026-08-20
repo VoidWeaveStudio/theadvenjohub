@@ -132,7 +132,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
                                 {quest.completedByMe ? (
                                     <div className="flex items-center justify-center gap-2 text-[#4ADE80] text-xs font-bold py-2">
                                         <CheckCircle2 className="w-4 h-4" />
-                                        Reward already claimed
+                                        {t("g.quests.rewardClaimed")}
                                     </div>
                                 ) : quest.isOwnQuest ? (
                                     <div className="text-center text-[#8B8F98] text-xs py-2">

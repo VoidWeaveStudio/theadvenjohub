@@ -76,7 +76,7 @@ export function VendorQuantityDialog({ item, origin, quantity, onQuantityChange,
                         onClick={onCancel}
                         className="flex-1 py-2.5 rounded-[8px] bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] text-[#8B8F98] font-bold text-sm transition-all"
                     >
-                        Cancel
+                        {t("g.common.cancel")}
                     </button>
                     <button
                         onClick={() => onConfirm()}

@@ -230,7 +230,7 @@ export class Game {
         reloadProgress: 0,
         isWeaponEquipped: true,
         equippedTool: "weapon",
-        weaponName: "Standard Rifle",
+        weaponName: "g.weapontier.1.rifle",
         weaponKind: "rifle",
         fireMode: "Single",
         chargeProgress: 0,
@@ -324,8 +324,7 @@ export class Game {
         });
     }
 
-    // Numpad0 opens whichever rig is actually on screen: the third-person
-    // weapon outside Dust II, the first-person view model inside it.
+
     public toggleWeaponTuner() {
         if (this.dust2Mode && this.viewModelTuner.isReady()) {
             this.viewModelTuner.toggle();
@@ -1915,8 +1914,7 @@ export class Game {
     private defusalViewModel: DefusalViewModel | null = null;
     private throwCooldown = 0;
 
-    // The held slot arrives with every match state broadcast; the view model and
-    // the scope follow whatever the server says we are carrying.
+
     public applyDefusalHeld(itemId: string | null, holdingGrenade: boolean, holdingMelee = false) {
         this.defusalHoldingGrenade = holdingGrenade;
         this.defusalHoldingMelee = holdingMelee;

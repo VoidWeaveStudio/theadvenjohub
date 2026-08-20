@@ -7,6 +7,9 @@ import { Inter, Oxanium } from "next/font/google";
 import { Header } from "@/core/ui/Header";
 import { SolanaProviders } from "@/core/providers/SolanaProviders";
 import { LanguageProvider } from "@/core/i18n/LanguageContext";
+import { getTranslation, LANGUAGES } from "@/core/i18n";
+import { resolveLanguage } from "@/core/i18n/detect";
+import type { Language } from "@/core/i18n/types";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -24,21 +27,48 @@ const oxanium = Oxanium({
   variable: "--font-oxanium",
 });
 
-export const metadata: Metadata = {
-  title: "TANJO Game Store | Indie Games Platform",
-  description: "TANJO Game Store - Discover and play indie games",
-  icons: {
-    icon: [
-      { url: "/favicon.ico" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon-96x96.png", type: "image/png", sizes: "96x96" },
-    ],
-    apple: "/apple-touch-icon.png",
-  },
-  manifest: "/site.webmanifest",
-  appleWebApp: { capable: true },
-  other: { "mobile-web-app-capable": "yes" },
-};
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "") || "https://theadvenjo.online";
+
+async function requestLanguage(): Promise<{ language: Language; pathname: string }> {
+  const headerList = await headers();
+  return {
+    language: resolveLanguage({
+      override: headerList.get("x-language"),
+      cookie: headerList.get("cookie"),
+      acceptLanguage: headerList.get("accept-language"),
+    }),
+    pathname: headerList.get("x-pathname") || "/",
+  };
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { language, pathname } = await requestLanguage();
+  const canonical = `${SITE_URL}${pathname}`;
+
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: getTranslation("meta.title", language),
+    description: getTranslation("meta.description", language),
+    alternates: {
+      canonical,
+      languages: {
+        ...Object.fromEntries(LANGUAGES.map((code) => [code, `${canonical}?lang=${code}`])),
+        "x-default": canonical,
+      },
+    },
+    icons: {
+      icon: [
+        { url: "/favicon.ico" },
+        { url: "/favicon.svg", type: "image/svg+xml" },
+        { url: "/favicon-96x96.png", type: "image/png", sizes: "96x96" },
+      ],
+      apple: "/apple-touch-icon.png",
+    },
+    manifest: "/site.webmanifest",
+    appleWebApp: { capable: true },
+    other: { "mobile-web-app-capable": "yes" },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#161618",
@@ -52,9 +82,10 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get("x-nonce") || undefined;
+  const { language } = await requestLanguage();
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={language} suppressHydrationWarning>
       <head>
         <script
           nonce={nonce}

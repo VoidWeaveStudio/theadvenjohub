@@ -108,8 +108,8 @@ export function FactionQuestsPanel({
                                     <MessageSquare className="w-4 h-4" />
                                 </div>
                                 <div className="min-w-0">
-                                    <div className="text-[#E5E7EB] text-sm font-bold truncate">{type.label}</div>
-                                    <div className="text-[#8B8F98] text-xs">{type.description}</div>
+                                    <div className="text-[#E5E7EB] text-sm font-bold truncate">{t(type.label)}</div>
+                                    <div className="text-[#8B8F98] text-xs">{t(type.description)}</div>
                                 </div>
                             </button>
                         ))

@@ -42,7 +42,7 @@ export function CanyonMapPanel({ isOpen, data, onClose, onWarp }: CanyonMapPanel
                 </div>
 
                 {!data ? (
-                    <div className="text-[#8B8F98] text-xs text-center py-10">Loading...</div>
+                    <div className="text-[#8B8F98] text-xs text-center py-10">{t("g.common.loading")}</div>
                 ) : (
                     <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                         {Array.from({ length: data.maxSegmentReached }, (_, i) => i + 1).map((segment) => {

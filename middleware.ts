@@ -1,6 +1,7 @@
 // middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { resolveLanguage } from '@/core/i18n/detect';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -96,8 +97,16 @@ export function middleware(request: NextRequest) {
   const nonce = crypto.randomUUID().replace(/-/g, '');
   const csp = buildCsp(nonce);
 
+  const language = resolveLanguage({
+    override: request.nextUrl.searchParams.get('lang'),
+    cookie: request.headers.get('cookie'),
+    acceptLanguage: request.headers.get('accept-language'),
+  });
+
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('x-language', language);
+  requestHeaders.set('x-pathname', pathname);
   requestHeaders.set('content-security-policy', csp);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });

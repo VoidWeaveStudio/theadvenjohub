@@ -6,7 +6,7 @@ import { useLanguage } from "@/core/i18n/LanguageContext";
 import { Language, LANGUAGES, languageFlags, languageNames } from "@/core/i18n/index";
 
 export function LanguageSwitcher() {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -32,7 +32,7 @@ export function LanguageSwitcher() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-foreground hover:bg-surface/50 rounded-md transition-colors"
-        aria-label="Change language"
+        aria-label={t("common.changeLanguage")}
       >
         <span>{languageNames[language]}</span>
         <svg className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

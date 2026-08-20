@@ -210,8 +210,8 @@ export function FriendsTab({
                                 return (
                                     <div key={r.userId} className="flex items-center justify-between bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
                                         {renderNickname(r.wallet, r.nickname, r.faction, r.isAdmin, r.isFactionCreator)}
-                                        {status === "friend" && <span className="text-[#4ADE80] text-xs flex-shrink-0">Friends</span>}
-                                        {status === "outgoing" && <span className="text-[#6B7280] text-xs flex-shrink-0">Pending</span>}
+                                        {status === "friend" && <span className="text-[#4ADE80] text-xs flex-shrink-0">{t("g.friends.statusFriends")}</span>}
+                                        {status === "outgoing" && <span className="text-[#6B7280] text-xs flex-shrink-0">{t("g.friends.pending")}</span>}
                                         {status === "incoming" && (
                                             <button
                                                 onClick={() => onAcceptFriendRequest(r.userId)}

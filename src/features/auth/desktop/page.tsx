@@ -204,7 +204,7 @@ export default function DesktopAuthPage() {
             }
           </p>
           <p className="text-text-muted text-xs mt-2">
-            If the window didn't appear, check your extension
+            {t("auth.windowNotAppeared")}
           </p>
         </div>
       </div>
@@ -221,9 +221,9 @@ export default function DesktopAuthPage() {
             </svg>
           </div>
           <h1 className="text-xl font-bold text-foreground mb-2">TANJO Desktop</h1>
-          <p className="text-success font-medium mb-1">Success! Redirecting...</p>
+          <p className="text-success font-medium mb-1">{t("auth.successRedirecting")}</p>
           <p className="text-text-muted text-xs">
-            If the app didn't open, launch TANJO Client manually
+            {t("auth.appNotOpened")}
           </p>
         </div>
       </div>
@@ -240,7 +240,7 @@ export default function DesktopAuthPage() {
             </svg>
           </div>
           <h1 className="text-xl font-bold text-foreground mb-2">TANJO Desktop</h1>
-          <p className="text-text-secondary text-sm">Select your wallet to continue</p>
+          <p className="text-text-secondary text-sm">{t("auth.selectWalletToContinue")}</p>
         </div>
 
         {error && (
@@ -261,7 +261,7 @@ export default function DesktopAuthPage() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="12" cy="12" r="10" />
           </svg>
-          Select Wallet
+          {t("auth.selectWallet")}
         </button>
 
         {status === "error" && (
@@ -271,14 +271,14 @@ export default function DesktopAuthPage() {
               className="btn-secondary w-full"
               type="button"
             >
-              Try Again
+              {t("common.tryAgain")}
             </button>
             <button
               onClick={handleChangeWallet}
               className="btn-ghost w-full text-sm"
               type="button"
             >
-              Change Wallet
+              {t("auth.changeWallet")}
             </button>
           </div>
         )}

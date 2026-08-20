@@ -167,10 +167,10 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                             <span className="text-3xl leading-none">{tier?.emoji}</span>
                             <div>
                                 <div className="text-[#E5E7EB] text-base font-black tracking-wide leading-tight">
-                                    {branchInfo?.name}
+                                    {branchInfo ? t(branchInfo.name) : ""}
                                 </div>
                                 <div className="text-[11px]" style={{ color: tier?.accent ?? "#8B8F98" }}>
-                                    {tier?.name} · level {level}
+                                    {tier ? t(tier.name) : ""} · {t("g.skill.levelSuffix", { level })}
                                 </div>
                             </div>
                         </div>
@@ -214,7 +214,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                             style={{ background: isCore ? "rgba(255,255,255,0.03)" : `${accentBase}0F` }}
                                         >
                                             <div className="text-[#E5E7EB] text-[11px] font-black tracking-wider uppercase">
-                                                {column.name}
+                                                {t(column.name)}
                                             </div>
                                             <div className="text-[10px]" style={{ color: spent > 0 ? accentBase : "#6B7280" }}>
                                                 {spent} invested
@@ -278,7 +278,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                                                     className="block text-[11px] font-bold leading-tight truncate"
                                                                     style={{ color: rank > 0 ? accent : "#E5E7EB" }}
                                                                 >
-                                                                    {node.name}
+                                                                    {t(node.name)}
                                                                 </span>
                                                                 <span className="flex items-center gap-1 mt-0.5">
                                                                     {Array.from({ length: node.maxRank }).map((_, i) => (
@@ -311,7 +311,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                         style={{ background: `${selectedAccent}12` }}
                                     >
                                         <div className="flex items-start justify-between gap-2">
-                                            <div className="text-[#E5E7EB] text-sm font-black leading-tight">{selected.name}</div>
+                                            <div className="text-[#E5E7EB] text-sm font-black leading-tight">{t(selected.name)}</div>
                                             <span
                                                 className="text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0"
                                                 style={{ background: `${selectedAccent}22`, color: selectedAccent }}
@@ -320,12 +320,12 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                             </span>
                                         </div>
                                         <div className="text-[#6B7280] text-[10px] mt-1">
-                                            {selectedColumn?.name} · rank {selectedRank}/{selected.maxRank}
+                                            {selectedColumn ? t(selectedColumn.name) : ""} · {t("g.skill.rankSuffix", { current: selectedRank, max: selected.maxRank })}
                                         </div>
                                     </div>
 
                                     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-                                        <p className="text-[#C9CDD4] text-[12px] leading-relaxed">{selected.description}</p>
+                                        <p className="text-[#C9CDD4] text-[12px] leading-relaxed">{t(selected.description)}</p>
 
                                         {selected.effects && (
                                             <div className="space-y-1">
@@ -386,7 +386,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                             </div>
                                             {selected.requires.columnPoints > 0 && (
                                                 <div className="flex justify-between text-[11px]">
-                                                    <span className="text-[#8B8F98]">Points in {selectedColumn?.name}</span>
+                                                    <span className="text-[#8B8F98]">{t("g.skill.pointsIn", { column: selectedColumn ? t(selectedColumn.name) : "" })}</span>
                                                     <span
                                                         className="font-bold"
                                                         style={{
@@ -456,9 +456,9 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                         ) : (
                                             <div className="text-center text-[#FF5757] text-[11px] font-bold py-2">
                                                 {selectedCheck?.reason === "level_too_low"
-                                                    ? `Reach level ${selected.requires.level} first`
+                                                    ? t("g.skill.reachLevel", { level: selected.requires.level })
                                                     : selectedCheck?.reason === "column_points_too_low"
-                                                        ? `Invest ${selected.requires.columnPoints} points in ${selectedColumn?.name}`
+                                                        ? t("g.skill.investPoints", { points: selected.requires.columnPoints, column: selectedColumn ? t(selectedColumn.name) : "" })
                                                         : selectedCheck?.reason === "no_points"
                                                             ? t("g.skill.noPoints")
                                                             : t("g.skill.locked")}
@@ -480,30 +480,30 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                             <div className="text-[#6B7280] text-[10px]">{t("g.skill.degenHint")}</div>
                         </div>
                         <div className="flex gap-1.5 overflow-x-auto">
-                            {TIERS.map((t) => {
-                                const ability = MEME_ABILITIES_BY_ID.get(t.memeAbility);
-                                const unlocked = level >= t.minLevel;
+                            {TIERS.map((tierEntry) => {
+                                const ability = MEME_ABILITIES_BY_ID.get(tierEntry.memeAbility);
+                                const unlocked = level >= tierEntry.minLevel;
 
                                 return (
                                     <div
-                                        key={t.id}
-                                        title={`${ability?.name ?? t.name} — ${unlocked ? ability?.description ?? "" : `unlocks at level ${t.minLevel}`}`}
+                                        key={tierEntry.id}
+                                        title={`${ability ? t(ability.name) : t(tierEntry.name)} — ${unlocked ? (ability ? t(ability.description) : "") : t("g.skill.unlocksAtLevel", { level: tierEntry.minLevel })}`}
                                         className="flex-1 min-w-[74px] rounded-[8px] border px-2 py-1.5 flex items-center gap-1.5"
                                         style={{
-                                            borderColor: unlocked ? `${t.accent}55` : "rgba(255,255,255,0.07)",
-                                            background: unlocked ? `${t.accent}12` : "rgba(0,0,0,0.2)",
+                                            borderColor: unlocked ? `${tierEntry.accent}55` : "rgba(255,255,255,0.07)",
+                                            background: unlocked ? `${tierEntry.accent}12` : "rgba(0,0,0,0.2)",
                                             opacity: unlocked ? 1 : 0.45,
                                         }}
                                     >
-                                        <span className="text-base leading-none flex-shrink-0">{ability?.emoji ?? t.emoji}</span>
+                                        <span className="text-base leading-none flex-shrink-0">{ability?.emoji ?? tierEntry.emoji}</span>
                                         <span className="min-w-0">
                                             <span
                                                 className="block text-[10px] font-bold leading-tight truncate"
-                                                style={{ color: unlocked ? t.accent : "#8B8F98" }}
+                                                style={{ color: unlocked ? tierEntry.accent : "#8B8F98" }}
                                             >
-                                                {ability?.name ?? t.name}
+                                                {ability ? t(ability.name) : t(tierEntry.name)}
                                             </span>
-                                            <span className="block text-[#6B7280] text-[9px] leading-tight">lv {t.minLevel}</span>
+                                            <span className="block text-[#6B7280] text-[9px] leading-tight">{t("g.skill.lvShort", { level: tierEntry.minLevel })}</span>
                                         </span>
                                     </div>
                                 );

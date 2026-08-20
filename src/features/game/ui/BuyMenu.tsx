@@ -65,6 +65,7 @@ export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose,
     const items = (free ? ARSENAL.filter((item) => item.slot !== "kit" && item.slot !== "melee") : arsenalFor(side))
         .filter((item) => item.price > 0);
     const grenadeCount = (me.grenades ?? []).length;
+    const heldItem = ARSENAL_BY_ID.get(me.held === "primary" ? me.primary ?? "" : me.pistol ?? "");
 
     return (
         <div className="absolute inset-0 bg-[rgba(6,6,8,0.78)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4 font-oxanium">
@@ -126,7 +127,7 @@ export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose,
                                                 <WeaponIcon itemId={item.id} className="w-10 h-6 flex-shrink-0 text-[#C9CDD3]" />
 
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="text-[#E5E7EB] text-sm font-bold truncate">{item.name}</div>
+                                                    <div className="text-[#E5E7EB] text-sm font-bold truncate">{t(item.name)}</div>
                                                     <div className="text-[#6B7280] text-[11px] truncate">
                                                         {item.slot === "primary" || item.slot === "pistol"
                                                             ? t("g.buy.stats", { damage: item.damage, mag: item.magSize })
@@ -152,7 +153,7 @@ export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose,
 
                 <div className="px-5 py-2.5 border-t border-white/10 text-[#6B7280] text-[11px] flex items-center justify-between">
                     <span>
-                        {t("g.buy.holding")}: {ARSENAL_BY_ID.get(me.held === "primary" ? me.primary ?? "" : me.pistol ?? "")?.name ?? "—"}
+                        {t("g.buy.holding")}: {heldItem ? t(heldItem.name) : "—"}
                     </span>
                     <div className="flex items-center gap-4">
                         <span>{t("g.buy.hint")}</span>

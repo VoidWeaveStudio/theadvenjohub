@@ -3,6 +3,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import { getTranslation } from "@/core/i18n";
 import { AdminTableRef } from "./AdminTableRef";
 
 interface TradeRow {
@@ -107,7 +108,7 @@ export const AdminTradeHistoryTable = forwardRef<AdminTableRef>(function AdminTr
 
                             <div className="flex items-center justify-between">
                                 <span className="text-[#E5E7EB] text-sm">
-                                    {t.itemName}{t.quantity > 1 ? ` x${t.quantity}` : ""}
+                                    {getTranslation(t.itemName, "en")}{t.quantity > 1 ? ` x${t.quantity}` : ""}
                                 </span>
                                 <span className="text-[#FFD166] text-sm font-bold">{t.priceTnj.toLocaleString("en-US")} TNJ</span>
                             </div>
