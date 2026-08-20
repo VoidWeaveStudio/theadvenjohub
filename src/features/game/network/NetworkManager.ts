@@ -791,7 +791,7 @@ export class NetworkManager {
 
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private lastPong: number = Date.now();
-  private heartbeatTimeoutMs: number = 15000;
+  private heartbeatTimeoutMs: number = 20000;
 
   public onPlayerLocationChange?: (data: {
     playerId: string;
@@ -1936,16 +1936,14 @@ export class NetworkManager {
   }
 
   private startHeartbeat() {
+    this.stopHeartbeat();
     this.lastPong = Date.now();
     this.heartbeatInterval = setInterval(() => {
       if (!this.authenticated) return;
 
       if (Date.now() - this.lastPong > this.heartbeatTimeoutMs) {
         this.ws?.close(4000, "Heartbeat timeout");
-        return;
       }
-
-      this.send({ type: "pong", t: Date.now() });
     }, 5000);
   }
 

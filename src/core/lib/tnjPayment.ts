@@ -9,6 +9,9 @@ const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqC
 
 const DEFAULT_MAX_PAYMENT_AGE_SECONDS = 60 * 60;
 const MAX_CLOCK_SKEW_SECONDS = 120;
+const RPC_LOOKUP_DEADLINE_MS = 15_000;
+const RPC_LOOKUP_MAX_ATTEMPTS = 5;
+const RPC_CALL_TIMEOUT_MS = 5_000;
 
 export interface TnjPaymentVerifyParams {
   signature: string;
@@ -46,10 +49,17 @@ export async function verifyTnjTransfer(
     return { ok: false, error: "server_config_error", status: 500 };
   }
 
-  const connection = new Connection(rpcUrl, "confirmed");
+  const connection = new Connection(rpcUrl, {
+    commitment: "confirmed",
+    fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(RPC_CALL_TIMEOUT_MS) }),
+  });
 
+  const deadline = Date.now() + RPC_LOOKUP_DEADLINE_MS;
   let tx: ParsedTransactionWithMeta | null = null;
-  for (let attempt = 0; attempt < 8; attempt++) {
+
+  for (let attempt = 0; attempt < RPC_LOOKUP_MAX_ATTEMPTS; attempt++) {
+    if (Date.now() >= deadline) break;
+
     try {
       tx = await connection.getParsedTransaction(signature, {
         maxSupportedTransactionVersion: 0,
@@ -58,7 +68,12 @@ export async function verifyTnjTransfer(
       if (tx) break;
     } catch {
     }
-    await new Promise((res) => setTimeout(res, 1000 * Math.min(2 ** attempt, 8)));
+
+    if (attempt === RPC_LOOKUP_MAX_ATTEMPTS - 1) break;
+
+    const backoffMs = Math.min(1000 * 2 ** attempt, 4000);
+    if (Date.now() + backoffMs >= deadline) break;
+    await new Promise((res) => setTimeout(res, backoffMs));
   }
 
   if (!tx) {

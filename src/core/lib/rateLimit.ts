@@ -1,15 +1,45 @@
 // src/core/lib/rateLimit.ts
 import { Redis } from '@upstash/redis';
 
-export function getClientIp(req: Request): string {
-  const realIp = req.headers.get('x-real-ip')?.trim();
-  if (realIp) return realIp;
+function normalizeHop(raw: string): string {
+  const hop = raw.trim().replace(/^\[|\]$/g, '');
+  if (hop.toLowerCase().startsWith('::ffff:')) return hop.slice(7);
+  return hop;
+}
 
+function isRoutableClientIp(hop: string): boolean {
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hop)) {
+    const [a, b] = hop.split('.').map(Number);
+    if (a === 0 || a === 10 || a === 127) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    return true;
+  }
+
+  if (hop.includes(':')) {
+    const v6 = hop.toLowerCase();
+    if (v6 === '::1' || v6 === '::') return false;
+    if (v6.startsWith('fe80:') || v6.startsWith('fc') || v6.startsWith('fd')) return false;
+    return true;
+  }
+
+  return false;
+}
+
+export function getClientIp(req: Request): string {
   const forwardedFor = req.headers.get('x-forwarded-for');
   if (forwardedFor) {
-    const hops = forwardedFor.split(',').map((h) => h.trim()).filter(Boolean);
-    if (hops.length > 0) return hops[0];
+    const hops = forwardedFor.split(',').map(normalizeHop).filter(Boolean);
+    for (let i = hops.length - 1; i >= 0; i--) {
+      if (isRoutableClientIp(hops[i])) return hops[i];
+    }
+    if (hops.length > 0) return hops[hops.length - 1];
   }
+
+  const realIp = normalizeHop(req.headers.get('x-real-ip') || '');
+  if (realIp && isRoutableClientIp(realIp)) return realIp;
 
   return 'unknown';
 }
@@ -47,6 +77,26 @@ interface RateLimitRecord {
   resetAt: number;
 }
 const memoryStore = new Map<string, RateLimitRecord>();
+const MEMORY_STORE_MAX_KEYS = 50_000;
+let lastMemorySweep = 0;
+
+function sweepMemoryStore(now: number): void {
+  if (now - lastMemorySweep < 60_000 && memoryStore.size < MEMORY_STORE_MAX_KEYS) return;
+  lastMemorySweep = now;
+
+  for (const [key, record] of memoryStore) {
+    if (now > record.resetAt) memoryStore.delete(key);
+  }
+
+  if (memoryStore.size <= MEMORY_STORE_MAX_KEYS) return;
+
+  const overflow = memoryStore.size - MEMORY_STORE_MAX_KEYS;
+  let removed = 0;
+  for (const key of memoryStore.keys()) {
+    memoryStore.delete(key);
+    if (++removed >= overflow) break;
+  }
+}
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -94,6 +144,8 @@ export async function checkRateLimit(
       console.warn('Redis rate limit failed, falling back to memory:', err);
     }
   }
+
+  sweepMemoryStore(now);
 
   const record = memoryStore.get(key);
 
