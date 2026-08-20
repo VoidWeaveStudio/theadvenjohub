@@ -14,6 +14,7 @@ const ARENA_REVIVE_PREFIX = "arena-revive:";
 
 interface TokenInfo {
     name: string;
+    state?: "loading" | "empty" | "unknown";
     symbol?: string;
     balance?: number;
 }
@@ -119,40 +120,40 @@ export class InteractionSystem extends System {
             if (id?.startsWith("faction-gate-")) {
                 const factionId = id.slice("faction-gate-".length);
                 const factionName = (nearest.obj.userData.factionName as string | undefined) ?? "Faction";
-                this.onPrompt?.(`[E] Inspect ${factionName}`);
+                this.onPrompt?.(t("g.prompt.inspectFaction", { name: factionName }));
                 if (isEJustPressed === true) {
                     this.onOpenFactionBubble?.(factionId);
                 }
             } else if (id === "room-console") {
-                this.onPrompt?.("[E] Room controls");
+                this.onPrompt?.(t("g.prompt.roomConsole"));
                 if (isEJustPressed === true) {
                     this.onOpenRoomConsole?.();
                 }
             } else if (id === "room-portal") {
-                this.onPrompt?.("[E] Use the portal");
+                this.onPrompt?.(t("g.prompt.usePortal"));
                 if (isEJustPressed === true) {
                     this.onOpenRoomPortal?.();
                 }
             } else if (id === "gate-steward") {
-                this.onPrompt?.("[E] Speak to the Keeper");
+                this.onPrompt?.(t("g.prompt.gateSteward"));
                 if (isEJustPressed === true) {
                     this.onOpenGateSteward?.();
                 }
             } else if (id?.startsWith("player-bubble-")) {
                 const bubbleIndex = Number(id.slice("player-bubble-".length));
-                this.onPrompt?.("[E] Inspect bubble");
+                this.onPrompt?.(t("g.prompt.inspectBubble"));
                 if (isEJustPressed === true && Number.isFinite(bubbleIndex)) {
                     this.onOpenPlayerBubble?.(bubbleIndex);
                 }
             } else if (id?.startsWith("column-")) {
-                this.onPrompt?.("[E] View Token Info");
+                this.onPrompt?.(t("g.prompt.tokenInfo"));
                 if (isEJustPressed === true) {
                     const info = nearest.obj.userData.tokenInfo as TokenInfo | undefined;
 
-                    if (!info || info.name === "Loading...") {
-                        this.onNotification?.("⏳ Loading token data...", 2000);
-                    } else if (info.name === "Empty Pedestal") {
-                        this.onNotification?.("🪨 Empty pedestal", 2000);
+                    if (!info || info.state === "loading") {
+                        this.onNotification?.(t("g.token.loading"), 2000);
+                    } else if (info.state === "empty") {
+                        this.onNotification?.(t("g.column.emptyNotice"), 2000);
                     } else {
                         this.onOpenTokenUI?.({
                             ...info,
@@ -161,7 +162,7 @@ export class InteractionSystem extends System {
                     }
                 }
             } else if (id === "tower-crystal") {
-                this.onPrompt?.("[E] Use the portal");
+                this.onPrompt?.(t("g.prompt.usePortal"));
                 if (isEJustPressed === true) {
                     if (this.onCrystalInteract) {
                         this.onCrystalInteract();
@@ -170,92 +171,92 @@ export class InteractionSystem extends System {
                     }
                 }
             } else if (id === "crystal") {
-                this.onPrompt?.("[E] Interact with Crystal");
+                this.onPrompt?.(t("g.prompt.crystal"));
                 if (isEJustPressed === true) {
-                    this.onNotification?.("⚡ Events coming soon!", 3000);
+                    this.onNotification?.(t("g.notify.eventsSoon"), 3000);
                 }
             } else if (id === "token-vendor") {
-                this.onPrompt?.("[E] Trade tokens for Ash");
+                this.onPrompt?.(t("g.prompt.tokenVendor"));
                 if (isEJustPressed === true) {
                     this.onOpenVendor?.();
                 }
             } else if (id === "quest-giver-sola") {
-                this.onPrompt?.("[E] Talk to Sola");
+                this.onPrompt?.(t("g.prompt.talkSola"));
                 if (isEJustPressed === true) {
                     this.onOpenSola?.();
                 }
             } else if (id === "faction-broker") {
-                this.onPrompt?.("[E] Talk to Alaric");
+                this.onPrompt?.(t("g.prompt.talkAlaric"));
                 if (isEJustPressed === true) {
                     this.onOpenFactionBroker?.();
                 }
             } else if (id === "npc-alfredo") {
-                this.onPrompt?.("[E] Talk to Alfredo");
+                this.onPrompt?.(t("g.prompt.talkAlfredo"));
                 if (isEJustPressed === true) {
                     this.onOpenAlfredo?.();
                 }
             } else if (id === "canyon-dispatcher") {
-                this.onPrompt?.("[E] View Canyon Map");
+                this.onPrompt?.(t("g.prompt.canyonMap"));
                 if (isEJustPressed === true) {
                     this.onOpenCanyonMap?.();
                 }
             } else if (id === "canyon-return") {
-                this.onPrompt?.("[E] Return to the Outpost");
+                this.onPrompt?.(t("g.prompt.canyonReturn"));
                 if (isEJustPressed === true) {
                     this.onCanyonReturn?.();
                 }
             } else if (id?.startsWith(ARENA_REVIVE_PREFIX)) {
-                this.onPrompt?.("[E] Raise your ally");
+                this.onPrompt?.(t("g.prompt.raiseAlly"));
                 if (isEJustPressed === true) {
                     this.onArenaRevive?.(id.slice(ARENA_REVIVE_PREFIX.length));
                 }
             } else if (id?.startsWith(EVENT_DOOR_PREFIX)) {
                 const event = EVENT_DOORS_BY_ID.get(id.slice(EVENT_DOOR_PREFIX.length));
                 if (!event) {
-                    this.onPrompt?.("This door is sealed");
+                    this.onPrompt?.(t("g.prompt.doorSealed"));
                 } else {
                     this.onPrompt?.(`[E] ${t(event.name)}  •  ${t(event.tagline)}`);
                     if (isEJustPressed === true) this.onEnterEventRoom?.(event.id);
                 }
             } else if (id === EVENT_EXIT_INTERACTION) {
-                this.onPrompt?.("[E] Back to the Events Hall");
+                this.onPrompt?.(t("g.prompt.eventsExit"));
                 if (isEJustPressed === true) this.onLeaveEventRoom?.();
             } else if (id === ARENA_ALTAR_INTERACTION) {
-                this.onPrompt?.("[E] Light the candle");
+                this.onPrompt?.(t("g.prompt.lightCandle"));
                 if (isEJustPressed === true) this.onOpenArena?.();
             } else if (id?.startsWith(DEATH_CRATE_PREFIX)) {
-                this.onPrompt?.("[E] Loot the crate");
+                this.onPrompt?.(t("g.prompt.lootCrate"));
                 if (isEJustPressed === true) {
                     this.onLootCrate?.(id.slice(DEATH_CRATE_PREFIX.length));
                 }
             } else if (id === SPAWN_BEACON_INTERACTION) {
-                this.onPrompt?.("Your spawn beacon — you respawn here");
+                this.onPrompt?.(t("g.prompt.spawnBeacon"));
             } else if (id?.startsWith(`${STORAGE_INTERACTION}:`)) {
                 if (this.isOwnRoom) {
-                    this.onPrompt?.("[E] Open storage");
+                    this.onPrompt?.(t("g.prompt.openStorage"));
                     if (isEJustPressed === true) {
                         this.onOpenStorage?.(id.slice(STORAGE_INTERACTION.length + 1));
                     }
                 } else {
-                    this.onPrompt?.("Only the owner can open this crate");
+                    this.onPrompt?.(t("g.prompt.crateOwnerOnly"));
                 }
             } else if (id?.startsWith(PAINT_PREFIX)) {
                 if (this.canPaintLot) {
-                    this.onPrompt?.("[E] Draw on it");
+                    this.onPrompt?.(t("g.prompt.drawOnIt"));
                     if (isEJustPressed === true) {
                         this.onOpenPosterPaint?.(id.slice(PAINT_PREFIX.length));
                     }
                 } else {
-                    this.onPrompt?.("Only the lot owner can draw here");
+                    this.onPrompt?.(t("g.prompt.lotOwnerOnly"));
                 }
             } else if (id?.startsWith("sign-")) {
                 const ownerId = nearest.obj.userData.ownerId;
                 const hasContent = !!nearest.obj.userData.contentType;
                 const isOwner = ownerId === this.localUserId;
                 if (isOwner && this.isBlueprintActive) {
-                    this.onPrompt?.("[E] Read Sign  •  [RMB] Delete sign forever (no refund)");
+                    this.onPrompt?.(t("g.prompt.readSignOwner"));
                 } else {
-                    this.onPrompt?.("[E] Read Sign");
+                    this.onPrompt?.(t("g.prompt.readSign"));
                 }
                 if (isEJustPressed === true) {
                     const signId = id.slice("sign-".length);

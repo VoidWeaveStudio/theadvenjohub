@@ -1143,7 +1143,7 @@ export class Game {
         const isEJustPressed = this.inputManager.isKeyJustPressed("KeyE");
 
         if (portal) {
-            this.interactionSystem.onPrompt?.(`[E] Enter ${portal.targetLocationId}`);
+            this.interactionSystem.onPrompt?.(t("g.prompt.enterPlace", { place: t(`g.floorReg.${portal.targetLocationId}.name`) }));
             if (isEJustPressed) {
                 await this.changeLocation(portal.targetLocationId);
             }

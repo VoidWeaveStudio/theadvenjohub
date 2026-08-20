@@ -283,7 +283,7 @@ export function BubbleMapPanel({
             ctx.fillStyle = "#FFD166";
             ctx.font = "bold 11px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("my bubble", px, py - markerRadius - 6);
+            ctx.fillText(t("g.map.myBubble"), px, py - markerRadius - 6);
         }
 
         if (waypointIndex !== null && waypointIndex < accountCount) {
@@ -324,7 +324,7 @@ export function BubbleMapPanel({
         ctx.fillStyle = "#B8F5E6";
         ctx.font = "bold 11px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("platform", platformX, platformY + 18);
+        ctx.fillText(t("g.map.platform"), platformX, platformY + 18);
 
         const player = getPlayerPosition();
         if (player) {

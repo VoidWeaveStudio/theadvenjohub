@@ -14,12 +14,6 @@ interface ShopWindowProps {
     onClose: () => void;
 }
 
-const WHERE_TO_BUY: Record<string, string> = {
-    faction_creation: "g.shop.fromAlaric",
-    faction_promo_code: "g.shop.fromAlaric",
-    faction_gate: "g.shop.fromAlaric",
-};
-
 function formatTnj(amount: number): string {
     if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(amount % 1_000_000 === 0 ? 0 : 1)}M`;
     if (amount >= 1_000) return `${(amount / 1_000).toFixed(amount % 1_000 === 0 ? 0 : 1)}K`;
@@ -31,6 +25,7 @@ export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
     const livePrices = useShopPrices(gameSlug, isOpen);
 
     const items = SHOP_CATALOG.filter((entry) => {
+        if (entry.kind === "faction") return false;
         const live = livePrices.get(entry.itemId);
         const currency = live?.currency ?? entry.defaultCurrency;
         if (live && live.enabled === false) return false;
@@ -71,7 +66,6 @@ export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
                         const tnj = live?.payableTnj ?? (live?.priceTnj || entry.defaultPriceTnj);
                         const usdCents = live?.priceUsdCents ?? entry.defaultPriceUsdCents;
                         const currency = live?.currency ?? entry.defaultCurrency;
-                        const where = WHERE_TO_BUY[entry.itemId];
 
                         return (
                             <div
@@ -79,9 +73,8 @@ export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
                                 className="flex items-center justify-between gap-3 bg-[rgba(255,255,255,0.03)] border border-white/10 rounded-lg px-4 py-3"
                             >
                                 <div className="min-w-0">
-                                    <div className="text-[#E5E7EB] font-bold text-sm truncate">{entry.name}</div>
-                                    <div className="text-[#8B8F98] text-xs">{entry.description}</div>
-                                    {where && <div className="text-[#6B7280] text-xs mt-0.5">{t("g.shop.boughtFrom", { where: t(where) })}</div>}
+                                    <div className="text-[#E5E7EB] font-bold text-sm truncate">{t(entry.nameKey)}</div>
+                                    <div className="text-[#8B8F98] text-xs">{t(entry.descriptionKey)}</div>
                                 </div>
 
                                 <div className="text-right flex-shrink-0">

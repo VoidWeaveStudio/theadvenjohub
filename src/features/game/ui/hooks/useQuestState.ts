@@ -1,6 +1,7 @@
 // src/features/game/ui/hooks/useQuestState.ts
 import { useCallback, useState } from "react";
 import { QuestInfoData, QuestUpdateData } from "../../network/NetworkManager";
+import { t } from "@/core/i18n";
 
 export const SOLA_NPC_ID = "sola";
 
@@ -42,7 +43,7 @@ export function useQuestState() {
           progress: data.progress,
           targetCount: data.targetCount,
           visited: data.visited,
-          title: prev && prev.questId === data.questId ? prev.title : "Sola's Task",
+          title: prev && prev.questId === data.questId ? prev.title : t("g.quest.solaTask"),
           npc: prev?.npc,
         };
       }

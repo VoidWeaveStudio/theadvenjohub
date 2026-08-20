@@ -59,7 +59,7 @@ export function PartyPanel({ party, localPlayerId, onLeave, onKick }: PartyPanel
             <div className="flex items-center gap-2 bg-[rgba(138,212,255,0.08)] border border-[#8AD4FF]/25 rounded-lg px-3 py-2">
                 <ShieldOff className="w-4 h-4 text-[#8AD4FF] shrink-0" />
                 <span className="text-[#C9CDD3] text-[11px]">
-                    Party members cannot damage each other — bullets, abilities and zones all pass through.
+                    {t("g.party.noFriendlyFireLong")}
                 </span>
             </div>
 

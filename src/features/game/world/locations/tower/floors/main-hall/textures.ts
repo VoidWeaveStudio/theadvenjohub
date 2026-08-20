@@ -1,5 +1,6 @@
 // src/features/game/world/locations/tower/floors/main-hall/textures.ts
 import * as THREE from "three";
+import { t } from "@/core/i18n";
 import type { AssetBin } from "./utils/assetBin";
 import { getAnisotropy } from "./utils/textureQuality";
 
@@ -270,11 +271,11 @@ export function createFloorMedallionTexture(bin: AssetBin, random: () => number)
         ctx.textBaseline = "middle";
         ctx.fillStyle = "rgba(199,154,75,0.85)";
         ctx.font = "bold 54px Arial";
-        ctx.fillText("MEMETOWER EXCHANGE", 0, 350);
+        ctx.fillText(t("g.board.exchange"), 0, 350);
 
         ctx.fillStyle = "rgba(139,149,166,0.7)";
         ctx.font = "bold 28px Arial";
-        ctx.fillText("OPEN 24 / 7  ·  SETTLED IN ASH", 0, 300);
+        ctx.fillText(t("g.board.exchangeHours"), 0, 300);
 
         ctx.restore();
     }

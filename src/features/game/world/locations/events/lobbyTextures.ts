@@ -1,5 +1,6 @@
 // src/features/game/world/locations/events/lobbyTextures.ts
 import * as THREE from "three";
+import { t } from "@/core/i18n";
 import { AssetBin } from "../../AssetBin";
 
 function makeCanvas(width: number, height: number) {
@@ -402,7 +403,7 @@ export function drawDirectory(canvas: HTMLCanvasElement, rows: DirectoryRow[]) {
     ctx.fillStyle = "#f6f2e8";
     ctx.font = `bold 58px ${SERIF}`;
     ctx.textAlign = "center";
-    ctx.fillText("HALL OF EVENTS", width / 2, 92);
+    ctx.fillText(t("g.lobby.hallOfEvents"), width / 2, 92);
 
     ctx.strokeStyle = "rgba(216,180,106,0.55)";
     ctx.lineWidth = 3;

@@ -1,5 +1,6 @@
 // src/features/game/world/locations/cave/Cave.ts
 import * as THREE from "three";
+import { t } from "@/core/i18n";
 import { Location } from "../../Location";
 import { ResourceManager } from "../../../core/ResourceManager";
 import { CollisionGrid } from "../../CollisionGrid";
@@ -782,8 +783,8 @@ export class Cave extends Location {
             this.activeSecret = door;
             this.activeChest = null;
             this.activePrompt = door.definition.requiresBoss && !this.bossDefeated
-                ? "The seal will not break while the warden lives"
-                : door.definition.prompt;
+                ? t("g.cave.wardenAlive")
+                : t(door.definition.prompt);
         }
 
         for (const chest of this.chests) {
@@ -794,7 +795,7 @@ export class Cave extends Location {
             bestDistance = distance;
             this.activeChest = chest;
             this.activeSecret = null;
-            this.activePrompt = "[E] Force the chest open";
+            this.activePrompt = t("g.cave.forceChest");
         }
 
         if (!isEPressed) return;

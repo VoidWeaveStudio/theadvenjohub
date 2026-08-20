@@ -103,17 +103,17 @@ export function PlayerProfileCard({
                         <div className="space-y-1.5">
                             <div className="text-[#8B8F98] text-xs font-bold tracking-wider flex items-center gap-1.5">
                                 <Trophy className="w-3.5 h-3.5" />
-                                ACHIEVEMENTS ({profile.achievements.length})
+                                {t("g.profile.achievements", { count: profile.achievements.length })}
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 {profile.achievements.map((a) => (
                                     <div
                                         key={a.key}
-                                        title={a.description}
+                                        title={t(`g.ach.${a.key}.description`)}
                                         className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.2)] rounded-lg px-2.5 py-1.5"
                                     >
-                                        <div className="text-[#FFD166] text-xs font-bold truncate">{a.label}</div>
-                                        <div className="text-[#8B8F98] text-[10px] truncate">{a.description}</div>
+                                        <div className="text-[#FFD166] text-xs font-bold truncate">{t(`g.ach.${a.key}.label`)}</div>
+                                        <div className="text-[#8B8F98] text-[10px] truncate">{t(`g.ach.${a.key}.description`)}</div>
                                     </div>
                                 ))}
                             </div>

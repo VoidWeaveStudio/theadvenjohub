@@ -237,7 +237,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [pendingTradeInvite, setPendingTradeInvite] = useState<{ tradeId: string; fromWallet: string; fromNickname: string } | null>(null);
 
   const [hotbarSlots, setHotbarSlots] = useState<HotbarSlot[]>([
-    { id: "rifle", icon: "🔫", name: "Rifle", equipped: true },
+    { id: "rifle", icon: "🔫", name: t("g.wheel.rifle"), equipped: true },
     { id: "slot2", icon: "", name: "", equipped: false },
     { id: "slot3", icon: "", name: "", equipped: false },
     { id: "slot4", icon: "", name: "", equipped: false },

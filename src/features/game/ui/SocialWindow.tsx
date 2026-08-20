@@ -130,13 +130,13 @@ export function SocialWindow({
                 />
             }
             tabs={[
-                { id: "friends", label: "Friends", icon: <Users className="w-3.5 h-3.5" />, badge: incomingRequests.length > 0 },
-                { id: "party", label: "Party", icon: <Swords className="w-3.5 h-3.5" />, badge: party.members.length > 0 },
-                { id: "mail", label: "Mail", icon: <MailIcon className="w-3.5 h-3.5" />, badge: unreadMailCount > 0 },
-                { id: "blocked", label: "Blocked", icon: <UserX className="w-3.5 h-3.5" /> },
-                { id: "trades", label: "Trades", icon: <ArrowLeftRight className="w-3.5 h-3.5" /> },
-                { id: "appearance", label: "Appearance", icon: <Shirt className="w-3.5 h-3.5" /> },
-                { id: "account", label: "Account", icon: <User className="w-3.5 h-3.5" /> },
+                { id: "friends", label: t("g.social.tab.friends"), icon: <Users className="w-3.5 h-3.5" />, badge: incomingRequests.length > 0 },
+                { id: "party", label: t("g.social.tab.party"), icon: <Swords className="w-3.5 h-3.5" />, badge: party.members.length > 0 },
+                { id: "mail", label: t("g.social.tab.mail"), icon: <MailIcon className="w-3.5 h-3.5" />, badge: unreadMailCount > 0 },
+                { id: "blocked", label: t("g.social.tab.blockList"), icon: <UserX className="w-3.5 h-3.5" /> },
+                { id: "trades", label: t("g.social.tab.trades"), icon: <ArrowLeftRight className="w-3.5 h-3.5" /> },
+                { id: "appearance", label: t("g.social.tab.appearance"), icon: <Shirt className="w-3.5 h-3.5" /> },
+                { id: "account", label: t("g.social.tab.account"), icon: <User className="w-3.5 h-3.5" /> },
             ]}
             activeTab={activeTab}
             onTabChange={(id) => setActiveTab(id as SocialTab)}

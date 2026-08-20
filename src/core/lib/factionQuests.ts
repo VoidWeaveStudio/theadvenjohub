@@ -9,8 +9,8 @@ export const QUEST_MAX_REWARD_ASH = 100_000;
 export const FACTION_QUEST_TYPES = [
     {
         key: "x_post_view",
-        label: "View a post on X",
-        description: "Players open your post on X and confirm the view to earn the reward.",
+        labelKey: "g.fq.x_post_view.label",
+        descriptionKey: "g.fq.x_post_view.description",
     },
 ] as const;
 

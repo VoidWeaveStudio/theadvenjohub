@@ -9,6 +9,7 @@ import { LoadGate } from "../../../../../../utils/loadGate";
 import { GeometryBatch, atlasColumn, atlasRow } from "../utils/geometryBatch";
 import { insertLocalBox } from "../utils/collision";
 import { factionImageUrl, loadFactionImage } from "../utils/factionImages";
+import { onLanguageChange } from "@/core/i18n";
 import { getAnisotropy } from "../utils/textureQuality";
 import type { ShellMaterials } from "./HallShell";
 import {
@@ -108,6 +109,8 @@ export class BoardSystem {
     private quests: FactionQuestEntry[] = [];
     private time = 0;
 
+    private stopLanguageWatch: (() => void) | null = null;
+
     private readonly dataGate = new LoadGate();
     private readonly received = { players: false, factions: false, quests: false };
 
@@ -178,6 +181,12 @@ export class BoardSystem {
         this.paintBoards();
         this.paintBanners();
         this.paintPlates();
+
+        this.stopLanguageWatch = onLanguageChange(() => {
+            this.paintBoards();
+            this.paintBanners();
+            this.paintPlates();
+        });
     }
 
     private registerTexture(canvas: HTMLCanvasElement): THREE.CanvasTexture {
@@ -627,6 +636,8 @@ export class BoardSystem {
     }
 
     dispose() {
+        this.stopLanguageWatch?.();
+        this.stopLanguageWatch = null;
         this.pedestals = [];
     }
 }

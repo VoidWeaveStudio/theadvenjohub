@@ -11,6 +11,7 @@ import { TradingRing } from "./systems/TradingRing";
 import { TradingPosts } from "./systems/TradingPosts";
 import { BoardSystem } from "./systems/BoardSystem";
 import { createMainHallNpcs, MainHallNpc } from "./systems/NpcSystem";
+import { disposeNpcNameTags } from "../../../../../entities/npcNameTag";
 import { configureTextureQuality } from "./utils/textureQuality";
 import { whenFactionImagesSettled } from "./utils/factionImages";
 import { HALL_RADIUS, MEZZANINE_Y, RING_TOP_Y, SPAWN_POINT, VAULT_HEIGHT, isLowEndDevice } from "./layout";
@@ -220,6 +221,7 @@ export class MainHall extends TowerFloor {
         this.shell?.dispose();
         this.sky?.dispose();
         this.boards?.dispose();
+        for (const npc of this.npcs) disposeNpcNameTags(npc.handle.group);
         this.npcs = [];
         this.keyLight = null;
 

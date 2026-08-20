@@ -30,8 +30,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
     return (
         <div className="space-y-5">
             <p className="text-[#8B8F98] text-xs">
-                Buy outfits from Alfredo in the Main Hall. A full skin replaces your whole look, so an accessory can only be
-                worn while no full skin is equipped.
+                {t("g.appearance.intro")}
             </p>
 
             <div>

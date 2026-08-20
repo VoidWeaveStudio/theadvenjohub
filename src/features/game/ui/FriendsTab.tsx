@@ -143,7 +143,7 @@ export function FriendsTab({
                     )}
 
                     <div>
-                        <span className="text-[#8B8F98] text-xs font-bold tracking-wider">FRIENDS ({friends.length})</span>
+                        <span className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.friends.header", { count: friends.length })}</span>
                         <div className="mt-2 space-y-2">
                             {friends.length === 0 ? (
                                 <p className="text-[#8B8F98] text-sm text-center py-6">{t("g.friends.none")}</p>

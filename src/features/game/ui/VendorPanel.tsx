@@ -25,14 +25,14 @@ interface VendorPanelProps {
     onBuyItem: (itemId: string, quantity: number) => void;
 }
 
-type VendorTab = "tokens" | "goods";
+type VendorTab = "buy" | "sell";
 
 const PENDING_TIMEOUT = 12000;
 const SELL_SEND_SPACING = 70;
 
 export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, placeables, onClose, onSell, onBuyItem }: VendorPanelProps) {
     const { t } = useLanguage();
-    const [tab, setTab] = useState<VendorTab>("tokens");
+    const [tab, setTab] = useState<VendorTab>("buy");
     const shopPrices = useShopPrices(gameSlug, isOpen);
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
     const [pending, setPending] = useState<Record<string, number>>({});
@@ -162,7 +162,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                 </div>
 
                 <div className="flex gap-1 bg-[rgba(12,12,14,0.8)] border border-white/10 rounded-[10px] p-1">
-                    {([["tokens", t("g.vendor.tabTokens")], ["goods", t("g.vendor.tabGoods")]] as [VendorTab, string][]).map(([id, label]) => (
+                    {([["buy", t("g.vendor.tabBuy")], ["sell", t("g.vendor.tabSell")]] as [VendorTab, string][]).map(([id, label]) => (
                         <button
                             key={id}
                             onClick={() => setTab(id)}
@@ -181,24 +181,27 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                 </button>
             </div>
 
-            {tab === "goods" && (
+            {tab === "buy" && (
                 <div className="w-full max-w-3xl h-[60vh] bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
                     <AshStore ash={ash} placeables={placeables} prices={shopPrices} onBuyItem={onBuyItem} />
                 </div>
             )}
 
-            <div className={`gap-4 w-full max-w-6xl items-stretch ${tab === "tokens" ? "flex" : "hidden"}`}>
+            <div className={`gap-4 w-full max-w-4xl items-stretch ${tab === "sell" ? "flex" : "hidden"}`}>
                 <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
-                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">{t("g.vendor.vendor")}</div>
+                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">{t("g.vendor.yourInventory")}</div>
                     <InventoryGrid
-                        items={cart.vendorItems}
+                        items={availableInventory}
                         columns={6}
-                        stagedQuantities={cart.buyStaged}
                         interactive
-                        onSlotClick={(item) => cart.handleSlotClick(item, "buy")}
+                        onSlotClick={(item) => cart.handleSlotClick(item, "sell")}
                         onSlotRightClick={(item) => cart.removeFromCart(item.address)}
                         onHoverChange={handleHoverChange}
-                        emptyMessage={t("g.vendor.nothingForSale")}
+                        emptyMessage={
+                            cart.cartEntries.length > 0
+                                ? t("g.vendor.allStaged")
+                                : t("g.vendor.nothingToSell")
+                        }
                     />
                 </div>
 
@@ -251,7 +254,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                     <div className="pt-3 mt-3 border-t border-[rgba(255,209,102,0.2)]">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-[#8B8F98] text-xs font-bold tracking-wider">
-                                {cart.cartOrigin === "buy" ? t("g.vendor.cost") : t("g.vendor.total")}
+                                {t("g.vendor.total")}
                             </span>
                             <div className="flex items-center gap-1.5 text-[#FFD166] font-bold">
                                 <Sparkles className="w-4 h-4" />
@@ -260,30 +263,12 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                         </div>
                         <button
                             onClick={handleConfirm}
-                            disabled={cart.cartEntries.length === 0 || cart.cartOrigin === "buy"}
-                            title={cart.cartOrigin === "buy" ? t("g.vendor.buyingUnavailable") : undefined}
+                            disabled={cart.cartEntries.length === 0}
                             className="w-full bg-gradient-to-r from-[#FFD166] to-[#FFB347] disabled:opacity-40 disabled:cursor-not-allowed text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all"
                         >
-                            {cart.cartOrigin === "buy" ? t("g.vendor.buyingUnavailable") : t("g.vendor.sell")}
+                            {t("g.vendor.sell")}
                         </button>
                     </div>
-                </div>
-
-                <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
-                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">{t("g.vendor.yourInventory")}</div>
-                    <InventoryGrid
-                        items={availableInventory}
-                        columns={6}
-                        interactive
-                        onSlotClick={(item) => cart.handleSlotClick(item, "sell")}
-                        onSlotRightClick={(item) => cart.removeFromCart(item.address)}
-                        onHoverChange={handleHoverChange}
-                        emptyMessage={
-                            cart.cartEntries.length > 0
-                                ? t("g.vendor.allStaged")
-                                : t("g.vendor.nothingToSell")
-                        }
-                    />
                 </div>
             </div>
 

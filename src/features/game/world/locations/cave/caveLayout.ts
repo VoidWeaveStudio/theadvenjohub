@@ -95,9 +95,9 @@ export const CAVE_TUNNELS: CaveTunnel[] = [
 ];
 
 export const CAVE_SECRETS: CaveSecret[] = [
-    { id: "crack", doorX: -74, doorZ: -25.7, doorAngle: 1.166, prompt: "[E] The wall here sounds hollow", requiresBoss: false },
-    { id: "lever", doorX: 81, doorZ: -75.8, doorAngle: -1.03, prompt: "[E] A rusted lever hides behind the stone", requiresBoss: false },
-    { id: "vault", doorX: 24, doorZ: -296, doorAngle: 0, prompt: "[E] The seal is cold and unmoving", requiresBoss: true },
+    { id: "crack", doorX: -74, doorZ: -25.7, doorAngle: 1.166, prompt: "g.cave.crack", requiresBoss: false },
+    { id: "lever", doorX: 81, doorZ: -75.8, doorAngle: -1.03, prompt: "g.cave.lever", requiresBoss: false },
+    { id: "vault", doorX: 24, doorZ: -296, doorAngle: 0, prompt: "g.cave.vault", requiresBoss: true },
 ];
 
 export const CAVE_CHESTS: CaveChest[] = [

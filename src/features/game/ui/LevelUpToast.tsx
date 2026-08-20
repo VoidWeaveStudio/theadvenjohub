@@ -6,6 +6,7 @@ import { ChevronsUp, Sparkles, Swords } from "lucide-react";
 import { LevelUpData } from "../network/NetworkManager";
 import { TIERS, MEME_ABILITIES_BY_ID, WEAPON_TIERS } from "../data/progression";
 import { SoundManager } from "../core/SoundManager";
+import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface LevelUpToastProps {
     event: LevelUpData | null;
@@ -16,6 +17,7 @@ const TIERS_BY_ID = new Map(TIERS.map((t) => [t.id, t]));
 const WEAPON_TIERS_BY_INDEX = new Map(WEAPON_TIERS.map((t) => [t.tier, t]));
 
 export function LevelUpToast({ event, onDismiss }: LevelUpToastProps) {
+    const { t } = useLanguage();
     useEffect(() => {
         if (event) SoundManager.getInstance().play("modal-open");
     }, [event]);
@@ -70,7 +72,7 @@ export function LevelUpToast({ event, onDismiss }: LevelUpToastProps) {
 
                 {event.branchUnlocked && (
                     <div className="mt-3 pt-3 border-t border-white/10 text-[#4FD1FF] text-xs font-bold">
-                        Specialisation unlocked — talk to Sola
+                        {t("g.notify.branchUnlocked")}
                     </div>
                 )}
             </div>

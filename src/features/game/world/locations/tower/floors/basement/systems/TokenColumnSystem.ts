@@ -1,6 +1,7 @@
 // src/features/game/world/locations/tower/floors/basement/systems/TokenColumnSystem.ts
 import * as THREE from "three";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
+import { t } from "@/core/i18n";
 import { createCoinMesh, disposeCoinMesh } from "../utils/meshFactory";
 import {
     createColumnField,
@@ -75,8 +76,8 @@ export class TokenColumnSystem {
             col.ca = ca;
             col.group.userData.ca = ca;
             col.group.userData.tokenInfo = ca
-                ? { name: "Loading...", symbol: "...", mc: 0 }
-                : { name: "Empty Pedestal", symbol: "N/A", mc: 0 };
+                ? { name: t("g.column.loading"), state: "loading", symbol: "...", mc: 0 }
+                : { name: t("g.column.empty"), state: "empty", symbol: "N/A", mc: 0 };
 
             this.clearColumnVisuals(col);
             if (ca) this.pendingColumnLoads.push(this.updateColumn(col));
@@ -164,8 +165,8 @@ export class TokenColumnSystem {
             group.userData.interactionId = `column-${i}`;
             group.userData.ca = ca;
             group.userData.tokenInfo = ca
-                ? { name: "Loading...", symbol: "...", mc: 0 }
-                : { name: "Empty Pedestal", symbol: "N/A", mc: 0 };
+                ? { name: t("g.column.loading"), state: "loading", symbol: "...", mc: 0 }
+                : { name: t("g.column.empty"), state: "empty", symbol: "N/A", mc: 0 };
 
             this.floor.scene.add(group);
             this.columns.push({ group, coin, ca, baseCoinY });
@@ -194,8 +195,8 @@ export class TokenColumnSystem {
             if (col.ca !== ca) return;
 
             if (!data) {
-                this.setColumnLabel(col, "Unknown token");
-                col.group.userData.tokenInfo = { name: "Unknown token", symbol: "?", mc: 0 };
+                this.setColumnLabel(col, t("g.column.unknown"));
+                col.group.userData.tokenInfo = { name: t("g.column.unknown"), state: "unknown", symbol: "?", mc: 0 };
                 return;
             }
 

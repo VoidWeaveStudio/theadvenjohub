@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
 import { createNpcModel, NpcHandle } from "../../../../../../entities/npcModel";
 import { createNpcNameTag } from "../../../../../../entities/npcNameTag";
+import { disposeNpcNameTags } from "../../../../../../entities/npcNameTag";
+import { t } from "@/core/i18n";
 import type { Basement } from "../Basement";
 
 const STEWARD_POSITION = new THREE.Vector3(-16, 0, 12);
@@ -41,7 +43,7 @@ export class StewardNpc {
         steward.group.position.copy(STEWARD_POSITION);
         steward.group.userData.interactionId = "gate-steward";
         steward.group.userData.interactionRadius = 5;
-        steward.group.add(createNpcNameTag("Keeper of Gates", "#7FE6CF"));
+        steward.group.add(createNpcNameTag("g.npc.keeper", "#7FE6CF"));
 
         this.floor.scene.add(steward.group);
         this.floor.collisionGrid.insert(new THREE.Box3(
@@ -62,6 +64,7 @@ export class StewardNpc {
 
     dispose() {
         if (!this.npc) return;
+        disposeNpcNameTags(this.npc.group);
         this.npc.group.traverse((child) => {
             const mesh = child as THREE.Mesh;
             if (mesh.isMesh) {

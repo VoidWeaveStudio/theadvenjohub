@@ -3,9 +3,11 @@ import type { LeaderboardEntry, FactionSummary, FactionQuestEntry } from "../../
 import { FACTION_QUEST_TYPES } from "../../../../../../../../core/lib/factionQuests";
 import { factionColor } from "../layout";
 import { drawFactionLogo } from "./factionImages";
+import { t } from "@/core/i18n";
 
 function questLabel(key: string): string {
-    return FACTION_QUEST_TYPES.find((type) => type.key === key)?.label ?? key.replace(/_/g, " ");
+    const type = FACTION_QUEST_TYPES.find((entry) => entry.key === key);
+    return type ? t(type.labelKey) : key.replace(/_/g, " ");
 }
 
 export const BOARD_WIDTH = 1536;
@@ -130,10 +132,10 @@ function paintSparkline(ctx: CanvasRenderingContext2D, x: number, y: number, w: 
 }
 
 export function drawPlayerBoard(ctx: CanvasRenderingContext2D, entries: LeaderboardEntry[]) {
-    paintShell(ctx, "TOP TRADERS", "SCORE  ·  KILLS  ·  ASH", ACCENT_COLOR);
+    paintShell(ctx, t("g.board.topTraders"), t("g.board.traderCols"), ACCENT_COLOR);
 
     if (entries.length === 0) {
-        paintEmpty(ctx, "awaiting market data");
+        paintEmpty(ctx, t("g.board.awaitingData"));
         return;
     }
 
@@ -170,7 +172,7 @@ export function drawPlayerBoard(ctx: CanvasRenderingContext2D, entries: Leaderbo
         ctx.font = index < 3 ? "bold 38px Arial" : "bold 32px Arial";
         ctx.fillText(shortName(walletName(entry), 18), 126 + logoSize, centerY - 8);
 
-        const tag = entry.faction?.name ?? "unaffiliated";
+        const tag = entry.faction?.name ?? t("g.board.unaffiliated");
         ctx.fillStyle = MUTED_COLOR;
         ctx.font = "bold 22px Arial";
         ctx.fillText(shortName(tag, 22), 126 + logoSize, centerY + 20);
@@ -192,10 +194,10 @@ export function drawPlayerBoard(ctx: CanvasRenderingContext2D, entries: Leaderbo
 }
 
 export function drawFactionBoard(ctx: CanvasRenderingContext2D, factions: FactionSummary[]) {
-    paintShell(ctx, "TOP FACTIONS", "LEVEL  ·  MEMBERS  ·  ASH", "#c79ae0");
+    paintShell(ctx, t("g.board.topFactions"), t("g.board.factionCols"), "#c79ae0");
 
     if (factions.length === 0) {
-        paintEmpty(ctx, "no factions listed");
+        paintEmpty(ctx, t("g.board.noFactions"));
         return;
     }
 
@@ -233,7 +235,7 @@ export function drawFactionBoard(ctx: CanvasRenderingContext2D, factions: Factio
         ctx.textAlign = "right";
         ctx.fillStyle = ACCENT_COLOR;
         ctx.font = "bold 34px Arial";
-        ctx.fillText("LV " + faction.level, 1160, centerY);
+        ctx.fillText(t("g.board.lv", { level: faction.level }), 1160, centerY);
 
         ctx.fillStyle = TEXT_COLOR;
         ctx.font = "bold 30px Arial";
@@ -282,7 +284,7 @@ export function drawBanner(ctx: CanvasRenderingContext2D, faction: FactionSummar
     if (!faction) {
         ctx.fillStyle = "rgba(232,237,245,0.6)";
         ctx.font = "bold 40px Arial";
-        ctx.fillText("vacant", BANNER_WIDTH / 2, 380);
+        ctx.fillText(t("g.board.vacant"), BANNER_WIDTH / 2, 380);
         return;
     }
 
@@ -306,7 +308,7 @@ export function drawBanner(ctx: CanvasRenderingContext2D, faction: FactionSummar
 
     ctx.fillStyle = "rgba(13,16,22,0.78)";
     ctx.font = "bold 28px Arial";
-    ctx.fillText("LV " + faction.level + "  ·  " + faction.memberCount + " members", BANNER_WIDTH / 2, 546);
+    ctx.fillText(t("g.board.bannerMeta", { level: faction.level, members: faction.memberCount }), BANNER_WIDTH / 2, 546);
 
     ctx.strokeStyle = "rgba(13,16,22,0.5)";
     ctx.lineWidth = 3;
@@ -317,19 +319,16 @@ export function drawBanner(ctx: CanvasRenderingContext2D, faction: FactionSummar
 
     ctx.fillStyle = "rgba(13,16,22,0.72)";
     ctx.font = "bold 24px Arial";
-    ctx.fillText("MEMETOWER SYNDICATE", BANNER_WIDTH / 2, 616);
+    ctx.fillText(t("g.board.syndicate"), BANNER_WIDTH / 2, 616);
 }
 
 export function drawNoticeBoard(ctx: CanvasRenderingContext2D) {
-    paintShell(ctx, "FLOOR NOTICES", "MEMETOWER EXCHANGE", ACCENT_COLOR);
+    paintShell(ctx, t("g.board.floorNotices"), t("g.board.exchange"), ACCENT_COLOR);
 
-    const lines = [
-        ["Trading pit", "the raised ring is the settlement floor"],
-        ["Safe zone", "weapons stay holstered inside the hall"],
-        ["Balcony", "stairs east and west lead to the gallery"],
-        ["Events hall", "faction events open on schedule"],
-        ["Crypto universe", "token columns wait in the basement"],
-    ];
+    const lines = ["pit", "safeZone", "balcony", "events", "universe"].map((id) => [
+        t(`g.notice.${id}.title`),
+        t(`g.notice.${id}.text`),
+    ]);
 
     const rowHeight = (BOARD_HEIGHT - 104) / lines.length;
     lines.forEach(([title, text], index) => {
@@ -350,10 +349,10 @@ export function drawNoticeBoard(ctx: CanvasRenderingContext2D) {
 }
 
 export function drawQuestBoard(ctx: CanvasRenderingContext2D, quests: FactionQuestEntry[]) {
-    paintShell(ctx, "FACTION QUESTS", "REWARD  ·  SLOTS", UP_COLOR);
+    paintShell(ctx, t("g.board.factionQuests"), t("g.board.questCols"), UP_COLOR);
 
     if (quests.length === 0) {
-        paintEmpty(ctx, "no open quests right now");
+        paintEmpty(ctx, t("g.board.noQuests"));
         return;
     }
 
@@ -395,12 +394,12 @@ export function drawQuestBoard(ctx: CanvasRenderingContext2D, quests: FactionQue
         ctx.textAlign = "left";
         ctx.fillStyle = MUTED_COLOR;
         ctx.font = "bold 20px Arial";
-        ctx.fillText(remaining + " / " + quest.slotsTotal + " left", barX, centerY + 28);
+        ctx.fillText(t("g.board.slotsLeft", { left: remaining, total: quest.slotsTotal }), barX, centerY + 28);
 
         ctx.textAlign = "right";
         ctx.fillStyle = ACCENT_COLOR;
         ctx.font = "bold 38px Arial";
-        ctx.fillText(formatNumber(quest.rewardAsh) + " ASH", BOARD_WIDTH - 36, centerY);
+        ctx.fillText(t("g.board.rewardAsh", { amount: formatNumber(quest.rewardAsh) }), BOARD_WIDTH - 36, centerY);
     });
 }
 

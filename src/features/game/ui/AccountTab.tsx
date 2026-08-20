@@ -214,14 +214,14 @@ export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile
                             {selfProfile.achievements.map((a) => (
                                 <div
                                     key={a.key}
-                                    title={a.description}
+                                    title={t(`g.ach.${a.key}.description`)}
                                     className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.2)] rounded-lg px-3 py-2"
                                 >
                                     <div className="flex items-center gap-1.5 text-[#FFD166] text-sm font-bold">
                                         <Trophy className="w-3.5 h-3.5 flex-shrink-0" />
-                                        {a.label}
+                                        {t(`g.ach.${a.key}.label`)}
                                     </div>
-                                    <div className="text-[#8B8F98] text-xs mt-0.5">{a.description}</div>
+                                    <div className="text-[#8B8F98] text-xs mt-0.5">{t(`g.ach.${a.key}.description`)}</div>
                                 </div>
                             ))}
                         </div>

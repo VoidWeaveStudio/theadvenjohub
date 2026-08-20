@@ -316,8 +316,7 @@ export function FactionsWindow({
                         {t("g.faction.found")}
                     </div>
                     <p className="text-[#8B8F98] text-xs">
-                        Same deal Alaric offers in the Main Hall — you can do it from here instead. You must hold the token in
-                        your wallet, and only one founded faction per player.
+                        {t("g.factions.createHint")}
                     </p>
                     <FactionCreateForm
                         gameSlug={gameSlug}

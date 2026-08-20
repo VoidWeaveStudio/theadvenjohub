@@ -101,7 +101,7 @@ export function FactionTasksPanel({ faction, myWallet, taskDefinitions, onReques
                     </div>
                 ) : (
                     <p className="mt-2 text-[#8B8F98] text-sm text-center py-6">
-                        Waiting for the faction leader or verified token creator to start a task.
+                        {t("g.ft.waitingLeader")}
                     </p>
                 )}
             </div>

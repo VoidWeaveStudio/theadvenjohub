@@ -33,7 +33,7 @@ export function FactionUpgradesPanel({ faction, myWallet, onPurchased }: Faction
                 {faction.promoCode ? (
                     <div className="space-y-2">
                         <p className="text-[#8B8F98] text-xs">
-                            Share this code — anyone who redeems it gets the game and instantly joins your faction.
+                            {t("g.factionUp.promoShare")}
                         </p>
                         <div className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.25)] rounded-lg px-4 py-3">
                             <CopyableText value={faction.promoCode} className="text-[#FFD166] text-lg font-bold tracking-widest" />
@@ -42,13 +42,13 @@ export function FactionUpgradesPanel({ faction, myWallet, onPurchased }: Faction
                 ) : canManage ? (
                     <div className="space-y-2">
                         <p className="text-[#8B8F98] text-xs">
-                            Unlock a shareable promo code that grants the game and instant faction membership to anyone who redeems it.
+                            {t("g.factionUp.promoUnlock")}
                         </p>
                         <PurchaseButton factionId={faction.id} price={PROMO_CODE_PRICE_TNJ} onSuccess={onPurchased} />
                     </div>
                 ) : (
                     <p className="text-[#8B8F98] text-sm text-center py-4">
-                        Waiting for the faction leader or verified token creator to unlock a promo code.
+                        {t("g.factionUp.promoWaiting")}
                     </p>
                 )}
             </div>

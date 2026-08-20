@@ -136,7 +136,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
                                     </div>
                                 ) : quest.isOwnQuest ? (
                                     <div className="text-center text-[#8B8F98] text-xs py-2">
-                                        You published this quest — it pays out to other players.
+                                        {t("g.quests.ownQuest")}
                                     </div>
                                 ) : soldOut ? (
                                     <div className="text-center text-[#8B8F98] text-xs py-2">{t("g.quest.slotsTaken")}</div>

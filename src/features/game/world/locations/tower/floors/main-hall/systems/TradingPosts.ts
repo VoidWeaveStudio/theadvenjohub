@@ -109,7 +109,7 @@ function paintScreenArt(ctx: CanvasRenderingContext2D, npc: HallNpc) {
         ctx.stroke();
 
         ctx.font = "bold 54px Arial";
-        ctx.fillText("ASH", 168, 2);
+        ctx.fillText(t("g.post.ashTicker"), 168, 2);
     } else if (npc.style === "contracts") {
         ctx.strokeRect(-84, -74, 168, 148);
         ctx.lineWidth = 5;
@@ -125,8 +125,8 @@ function paintScreenArt(ctx: CanvasRenderingContext2D, npc: HallNpc) {
         ctx.font = "bold 34px Arial";
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        ctx.fillText("OPEN", 104, -22);
-        ctx.fillText("QUESTS", 104, 22);
+        ctx.fillText(t("g.post.questsTop"), 104, -22);
+        ctx.fillText(t("g.post.questsBottom"), 104, 22);
     } else if (npc.style === "atelier") {
         ctx.beginPath();
         ctx.arc(-30, -46, 16, 0, Math.PI * 2);
@@ -168,8 +168,8 @@ function paintScreenArt(ctx: CanvasRenderingContext2D, npc: HallNpc) {
         ctx.font = "bold 34px Arial";
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        ctx.fillText("JOIN A", 104, -22);
-        ctx.fillText("SYNDICATE", 104, 22);
+        ctx.fillText(t("g.post.joinTop"), 104, -22);
+        ctx.fillText(t("g.post.joinBottom"), 104, 22);
     }
 
     ctx.restore();
@@ -190,12 +190,12 @@ function paintSignTile(ctx: CanvasRenderingContext2D, npc: HallNpc, index: numbe
     ctx.textAlign = "left";
     ctx.fillStyle = "#8b95a6";
     ctx.font = "bold 44px Arial";
-    ctx.fillText("DESK " + String(index + 1).padStart(2, "0"), 34, 96);
+    ctx.fillText(t("g.post.desk", { n: String(index + 1).padStart(2, "0") }), 34, 96);
 
     ctx.textAlign = "right";
     ctx.fillStyle = npc.accent;
     ctx.font = "bold 62px Arial";
-    ctx.fillText(npc.role.toUpperCase(), SIGN_TILE_WIDTH - 34, 96);
+    ctx.fillText(t(npc.role).toUpperCase(), SIGN_TILE_WIDTH - 34, 96);
 
     ctx.restore();
 }

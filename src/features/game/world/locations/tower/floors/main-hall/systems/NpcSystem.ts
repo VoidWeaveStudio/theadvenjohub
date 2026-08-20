@@ -4,6 +4,7 @@ import { CollisionGrid } from "../../../../../CollisionGrid";
 import { ResourceManager } from "../../../../../../core/ResourceManager";
 import { createNpcModel, NpcHandle } from "../../../../../../entities/npcModel";
 import { createNpcNameTag } from "../../../../../../entities/npcNameTag";
+import { t } from "@/core/i18n";
 import { HALL_NPCS, POST_PLINTH_TOP, POST_RADIUS, inwardRotation, localToWorld } from "../layout";
 
 export interface MainHallNpc {

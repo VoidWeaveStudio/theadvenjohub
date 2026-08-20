@@ -36,7 +36,7 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
                         </span>
                     </div>
                     <div className="text-[#8B8F98] text-xs font-mono mt-0.5 flex items-center gap-1">
-                        <span>#{faction.number} · Founded by</span>
+                        <span>#{faction.number} · {t("g.faction.foundedBy")}</span>
                         <CopyableText
                             value={faction.founderWallet}
                             display={truncateWallet(faction.founderWallet)}
@@ -48,7 +48,7 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
 
             <div>
                 <div className="flex items-center justify-between text-xs text-[#8B8F98] mb-1">
-                    <span>Faction Level {faction.level}</span>
+                    <span>{t("g.faction.level", { level: faction.level })}</span>
                     <span>{faction.levelProgressAsh} / {faction.xpForNextLevel} Ash</span>
                 </div>
                 <div className="h-1.5 w-full bg-[rgba(255,255,255,0.06)] rounded-full overflow-hidden">
@@ -70,7 +70,7 @@ export function FactionHeader({ faction }: FactionHeaderProps) {
                 <div className="bg-[rgba(255,255,255,0.04)] rounded-lg p-3">
                     <div className="text-[#8B8F98] text-xs flex items-center gap-1.5">
                         <Trophy className="w-3.5 h-3.5" />
-                        Rank
+                        {t("g.faction.rank")}
                     </div>
                     <div className="text-[#FFD166] text-lg font-bold">{faction.rank ? `#${faction.rank}` : "—"}</div>
                 </div>
