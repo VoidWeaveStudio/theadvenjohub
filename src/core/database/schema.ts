@@ -660,6 +660,24 @@ export const trades = pgTable("trades", {
   index("idx_trades_created").on(table.createdAt),
 ]);
 
+export const shopPurchases = pgTable("shop_purchases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  itemId: varchar("item_id", { length: 60 }).notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  priceTnj: bigint("price_tnj", { mode: "number" }).notNull(),
+  txSignature: varchar("tx_signature", { length: 100 }).notNull().unique(),
+  status: varchar("status", { length: 20 }).notNull(),
+  failureReason: text("failure_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_shop_purchases_user").on(table.userId),
+  index("idx_shop_purchases_game").on(table.gameId),
+  index("idx_shop_purchases_tx").on(table.txSignature),
+]);
+
 export const friendships = pgTable("friendships", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id),

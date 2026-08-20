@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { PLACEABLE_ITEMS } from "../../game/data/placeableItems";
+import { getTranslation } from "@/core/i18n";
 import { MAX_LEVEL, skillPointsForLevel } from "../../game/data/progression";
 
 interface PlayerDetail {
@@ -91,6 +92,10 @@ function formatPlaytime(seconds: number): string {
     const minutes = Math.floor((seconds % 3600) / 60);
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
+}
+
+function adminLabel(key: string): string {
+    return key.startsWith("g.") ? getTranslation(key, "en") : key;
 }
 
 export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminPlayerDetailModalProps) {
@@ -388,11 +393,11 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                             <div className="grid grid-cols-2 gap-1.5 mb-2">
                                 <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
                                     <div className="text-[#6B7280]">Equipped skin</div>
-                                    <div className="text-white font-bold">{player.cosmetics?.equippedSkin?.name || "—"}</div>
+                                    <div className="text-white font-bold">{player.cosmetics?.equippedSkin ? adminLabel(player.cosmetics.equippedSkin.name) : "—"}</div>
                                 </div>
                                 <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
                                     <div className="text-[#6B7280]">Equipped accessory</div>
-                                    <div className="text-white font-bold">{player.cosmetics?.equippedAccessory?.name || "—"}</div>
+                                    <div className="text-white font-bold">{player.cosmetics?.equippedAccessory ? adminLabel(player.cosmetics.equippedAccessory.name) : "—"}</div>
                                 </div>
                             </div>
                             {!player.cosmetics || player.cosmetics.owned.length === 0 ? (
@@ -401,7 +406,7 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                 <div className="grid grid-cols-2 gap-1.5">
                                     {player.cosmetics.owned.map((item) => (
                                         <div key={item.id} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white flex items-center justify-between gap-2">
-                                            <span className="truncate">{item.name}</span>
+                                            <span className="truncate">{adminLabel(item.name)}</span>
                                             <span className="text-[#6B7280] text-[10px] uppercase flex-shrink-0">{item.slot}</span>
                                         </div>
                                     ))}
@@ -417,7 +422,7 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                 <div className="grid grid-cols-2 gap-1.5">
                                     {Object.entries(player.placeables).map(([itemId, qty]) => (
                                         <div key={itemId} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white">
-                                            {PLACEABLE_ITEMS.find((p) => p.id === itemId)?.name || itemId} × {qty}
+                                            {adminLabel(PLACEABLE_ITEMS.find((p) => p.id === itemId)?.name || itemId)} × {qty}
                                         </div>
                                     ))}
                                 </div>
@@ -536,7 +541,7 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                         className="flex-1 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
                                     >
                                         {PLACEABLE_ITEMS.map((item) => (
-                                            <option key={item.id} value={item.id}>{item.name}</option>
+                                            <option key={item.id} value={item.id}>{adminLabel(item.name)}</option>
                                         ))}
                                     </select>
                                     <input

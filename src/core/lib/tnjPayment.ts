@@ -2,7 +2,7 @@
 import { Connection, PublicKey, ParsedTransactionWithMeta } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { db } from "@/core/database";
-import { gameLicenses, marketplacePurchases, factions, factionGates, trades } from "@/core/database/schema";
+import { gameLicenses, marketplacePurchases, factions, factionGates, trades, shopPurchases } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
@@ -204,17 +204,19 @@ export type SignatureUse =
   | { kind: "faction_promo"; id: string }
   | { kind: "faction_creation"; id: string }
   | { kind: "faction_gate"; id: string }
-  | { kind: "trade"; id: string };
+  | { kind: "trade"; id: string }
+  | { kind: "shop"; id: string };
 
 
 export async function findExistingSignatureUse(signature: string): Promise<SignatureUse | null> {
-  const [lic, purch, factPromo, factCreation, factGate, trade] = await Promise.all([
+  const [lic, purch, factPromo, factCreation, factGate, trade, shop] = await Promise.all([
     db.query.gameLicenses.findFirst({ where: eq(gameLicenses.txSignature, signature) }),
     db.query.marketplacePurchases.findFirst({ where: eq(marketplacePurchases.txSignature, signature) }),
     db.query.factions.findFirst({ where: eq(factions.promoCodePurchaseTx, signature) }),
     db.query.factions.findFirst({ where: eq(factions.creationTx, signature) }),
     db.query.factionGates.findFirst({ where: eq(factionGates.purchaseTx, signature) }),
     db.query.trades.findFirst({ where: eq(trades.txSignature, signature) }),
+    db.query.shopPurchases.findFirst({ where: eq(shopPurchases.txSignature, signature) }),
   ]);
   if (lic) return { kind: "license", id: lic.id };
   if (purch) return { kind: "purchase", id: purch.id };
@@ -222,5 +224,6 @@ export async function findExistingSignatureUse(signature: string): Promise<Signa
   if (factCreation) return { kind: "faction_creation", id: factCreation.id };
   if (factGate) return { kind: "faction_gate", id: factGate.id };
   if (trade) return { kind: "trade", id: trade.id };
+  if (shop) return { kind: "shop", id: shop.id };
   return null;
 }

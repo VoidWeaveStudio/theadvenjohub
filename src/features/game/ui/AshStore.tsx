@@ -19,6 +19,7 @@ export function AshStore({ ash, placeables, prices, onBuyItem }: AshStoreProps) 
     const [quantities, setQuantities] = useState<Record<string, number>>({});
 
     const items = PLACEABLE_ITEMS.filter((definition) => {
+        if (definition.pet) return false;
         const live = prices.get(definition.id);
         if (!live) return true;
         return live.enabled !== false && live.currency === "ash";

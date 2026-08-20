@@ -1,7 +1,7 @@
 // app/api/game/shop-prices/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { SHOP_CATALOG } from "@/core/lib/shopCatalog";
-import { loadPrices, resolveGameId } from "@/core/lib/shopPricing";
+import { loadPrices, payableTnjFor, resolveGameId } from "@/core/lib/shopPricing";
 import { getTnjUsdPrice } from "@/core/lib/tnjPricing";
 
 export async function GET(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({
             tnjUsdPrice: tnjUsd,
             quotedAt: Date.now(),
-            items: SHOP_CATALOG.map((entry) => {
+            items: await Promise.all(SHOP_CATALOG.map(async (entry) => {
                 const price = prices.get(entry.itemId)!;
                 return {
                     itemId: entry.itemId,
@@ -29,14 +29,10 @@ export async function GET(req: NextRequest) {
                     priceAsh: price.priceAsh,
                     priceTnj: price.priceTnj,
                     priceUsdCents: price.priceUsdCents,
-                    payableTnj: price.currency === "tnj"
-                        ? price.priceTnj
-                        : price.currency === "usd" && tnjUsd
-                            ? Math.ceil(price.priceUsdCents / 100 / tnjUsd)
-                            : null,
+                    payableTnj: await payableTnjFor(price),
                     enabled: price.enabled,
                 };
-            }),
+            })),
         }, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
         console.error("[game/shop-prices] Error:", error);

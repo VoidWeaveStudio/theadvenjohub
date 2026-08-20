@@ -9,6 +9,7 @@ export interface PlaceableItem {
     tradeable?: boolean;
     placementScope?: "main-world";
     hint?: string;
+    pet?: boolean;
 }
 
 export const PLACEABLE_ITEMS: PlaceableItem[] = [
@@ -17,4 +18,5 @@ export const PLACEABLE_ITEMS: PlaceableItem[] = [
     { id: "home-teleport", name: "g.placeable.home-teleport.name", icon: "🌀", price: 250, maxOwned: 10, placeable: false, hint: "g.placeable.home-teleport.hint" },
     { id: "storage-crate", name: "g.placeable.storage-crate.name", icon: "📦", price: 200, maxOwned: null, placeable: false, hint: "g.placeable.storage-crate.hint" },
     { id: "run-insurance", name: "g.placeable.run-insurance.name", icon: "🛡️", price: 1000, maxOwned: 1, placeable: false, hint: "g.placeable.run-insurance.hint" },
+    { id: "pet-dog", name: "g.pet.pet-dog.name", icon: "🐕", price: 0, maxOwned: 1, placeable: false, pet: true, hint: "g.pet.pet-dog.hint" },
 ];

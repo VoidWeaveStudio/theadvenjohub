@@ -14,6 +14,7 @@ import { LoginButton } from "@/core/auth/components/LoginButton";
 import { buildSignInMessage } from "@/core/auth/lib/signMessage";
 import { createRpcConnection, confirmSignature, readTokenAccountBalance } from "@/core/lib/solanaClient";
 import { sessionFetch } from "@/core/api/session";
+import { fetchPayableTnj } from "@/features/game/utils/shopQuote";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -21,6 +22,7 @@ interface PurchaseButtonProps {
   gameId?: string;
   lotId?: string;
   factionId?: string;
+  quoteItemId?: string;
   price: number;
   isLot?: boolean;
   onSuccess?: (result: { id: string; type: "game" | "item" | "faction_upgrade"; promoCode?: string }) => void;
@@ -28,7 +30,7 @@ interface PurchaseButtonProps {
 
 type LoadingState = boolean | "connecting" | "signing" | "confirming" | "verifying";
 
-export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
+export function PurchaseButton({ gameId, lotId, factionId, quoteItemId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
   const { t } = useLanguage();
   const { publicKey, connected, wallet } = useWallet();
   const { login, refreshAuth, isAuthorized, walletMismatch } = useAuth();
@@ -40,8 +42,8 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const purchaseConfig = useMemo(() => ({
-    gameId, lotId, factionId, price, isLot, onSuccess
-  }), [gameId, lotId, factionId, price, isLot, onSuccess]);
+    gameId, lotId, factionId, quoteItemId, price, isLot, onSuccess
+  }), [gameId, lotId, factionId, quoteItemId, price, isLot, onSuccess]);
 
   const submitVerification = useCallback(async (signature: string, signal: AbortSignal) => {
     const endpoint = factionId ? "/api/faction/upgrades/promo-code/purchase" : "/api/purchase/verify";
@@ -78,7 +80,7 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
     const walletAdapter = wallet.adapter;
     const walletName = walletAdapter.name;
 
-    const { gameId, lotId, factionId, price, onSuccess } = purchaseConfig;
+    const { gameId, lotId, factionId, quoteItemId, price, onSuccess } = purchaseConfig;
 
     if (!gameId && !lotId && !factionId) {
       setError(t("errors.missingGameOrLotId"));
@@ -183,7 +185,9 @@ export function PurchaseButton({ gameId, lotId, factionId, price, isLot = false,
 
       let amountTnj = price;
 
-      if (!factionId) {
+      if (quoteItemId) {
+        amountTnj = await fetchPayableTnj(quoteItemId);
+      } else if (!factionId) {
         const quoteParams = gameId ? `gameId=${encodeURIComponent(gameId)}` : `lotId=${encodeURIComponent(lotId!)}`;
         const quoteRes = await sessionFetch(`/api/purchase/quote?${quoteParams}`, { signal: abortController.signal });
 

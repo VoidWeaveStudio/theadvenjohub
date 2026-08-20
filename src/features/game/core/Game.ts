@@ -15,6 +15,8 @@ import { NetworkSystem } from "../systems/NetworkSystem";
 import { EnemySystem } from "../systems/EnemySystem";
 import { BossProjectiles } from "../entities/bossProjectiles";
 import { LootSystem } from "../systems/LootSystem";
+import { PetSystem } from "../systems/PetSystem";
+import { PetTuner } from "../systems/PetTuner";
 import { BuildSystem } from "../systems/BuildSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
 import { EmoteSystem } from "../systems/EmoteSystem";
@@ -168,6 +170,8 @@ export class Game {
         return currentLoc?.terrain?.getHeightAt(x, z) ?? 0;
     };
     public readonly lootSystem: LootSystem;
+    public readonly petSystem: PetSystem;
+    public readonly petTuner: PetTuner;
     public readonly buildSystem: BuildSystem;
     public readonly buildSession: BuildSession;
     public readonly voiceChat: VoiceChatSystem;
@@ -324,6 +328,14 @@ export class Game {
         });
     }
 
+
+    public togglePetTuner() {
+        if (!this.petTuner.isReady()) {
+            this.onNotification?.("🐕 No pet out to tune", 2000);
+            return;
+        }
+        this.petTuner.toggle();
+    }
 
     public toggleWeaponTuner() {
         if (this.dust2Mode && this.viewModelTuner.isReady()) {
@@ -510,6 +522,8 @@ export class Game {
         this.networkSystem = new NetworkSystem(this.networkManager);
         this.enemySystem = new EnemySystem();
         this.lootSystem = new LootSystem();
+        this.petSystem = new PetSystem();
+        this.petTuner = new PetTuner();
         this.buildSystem = new BuildSystem();
         this.buildSession = new BuildSession(width / height, this.networkManager, slug);
         this.buildSession.attach(canvas);
@@ -614,6 +628,14 @@ export class Game {
                     this.emitState(true);
                 };
                 this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight, this.interactionSystem);
+                this.petSystem.init(this.networkManager, this.player, getGroundHeight, () => this.lootSystem.getFetchableDrops());
+                this.petTuner.init(this.inputManager, this.petSystem);
+                this.petTuner.onReadout = (text) => {
+                    this.hudState.tunerReadout = text;
+                    this.emitState(true);
+                };
+                this.petSystem.setScene(currentLocation.scene);
+                this.petSystem.setLocation(currentLocation.id);
                 this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId);
                 this.shootingSystem.onShotFired = () => this.notifyLocalShot();
                 this.buildSystem.onNotification = (msg, duration) => {
@@ -877,6 +899,7 @@ export class Game {
 
             this.enemySystem.clear();
             this.lootSystem.clear();
+            this.petSystem.clear();
             this.buildSystem.clear();
 
             this.setLoadingStage("Building the location...", 0.2);
@@ -928,6 +951,8 @@ export class Game {
             this.bossProjectiles.setScene(newLocation.scene);
             this.grenadeSystem.setScene(newLocation.scene);
             this.lootSystem.setScene(newLocation.scene);
+            this.petSystem.setScene(newLocation.scene);
+            this.petSystem.setLocation(newLocation.id);
             this.buildSystem.setScene(newLocation.scene, newLocation.id);
 
             this.player.footstepSurface = newLocation.id === "cave" ? "stone" : "soft";
@@ -1198,6 +1223,8 @@ export class Game {
             this.grenadeSystem.update(delta);
             if (this.defusalWeaponId) this.updateScopeInput();
             this.lootSystem.update(delta);
+            this.petSystem.update(delta);
+            this.petTuner.update();
             this.buildSystem.update(delta);
             perf.end("combat");
 
@@ -2088,6 +2115,7 @@ export class Game {
         this.enemySystem.dispose();
         this.bossProjectiles.dispose();
         this.lootSystem.dispose();
+        this.petSystem.dispose();
         this.voiceChat.dispose();
 
         const currentLocation = this.locationManager.getCurrentLocation();

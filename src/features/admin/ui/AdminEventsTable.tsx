@@ -6,6 +6,7 @@ import { CalendarClock, ChevronDown, ChevronRight, Eraser, Save } from "lucide-r
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
 import { EVENT_DOORS_BY_ID, eventWindow, type ResolvedEvent } from "@/features/game/data/eventDoors";
+import { getTranslation } from "@/core/i18n";
 
 interface AdminEvent extends ResolvedEvent {
     runs: number;
@@ -62,13 +63,32 @@ function fromLocalInput(value: string): string | null {
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function defaultTextsFor(eventId: string) {
+    const door = EVENT_DOORS_BY_ID.get(eventId);
+    return {
+        title: door?.name ?? "",
+        tagline: door?.tagline ?? "",
+        description: door?.teaser ?? "",
+        rewardText: door?.rewardText ?? "",
+    };
+}
+
+export function eventLabel(key: string): string {
+    return key.startsWith("g.") ? getTranslation(key, "en") : key;
+}
+
+function overrideOnly(value: string, defaultKey: string): string {
+    return value === defaultKey ? "" : value;
+}
+
 function toDraft(event: AdminEvent): Draft {
+    const defaults = defaultTextsFor(event.id);
     return {
         enabled: event.enabled,
-        title: event.title,
-        tagline: event.tagline,
-        description: event.description,
-        rewardText: event.rewardText,
+        title: overrideOnly(event.title, defaults.title),
+        tagline: overrideOnly(event.tagline, defaults.tagline),
+        description: overrideOnly(event.description, defaults.description),
+        rewardText: overrideOnly(event.rewardText, defaults.rewardText),
         scheduleNote: event.scheduleNote,
         startsAt: toLocalInput(event.startsAt),
         endsAt: toLocalInput(event.endsAt),
@@ -187,7 +207,7 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
     };
 
     const clearBoard = async (event: AdminEvent) => {
-        if (!window.confirm(`Wipe the leaderboard for ${event.title}? Every recorded run is deleted.`)) return;
+        if (!window.confirm(`Wipe the leaderboard for ${eventLabel(event.title)}? Every recorded run is deleted.`)) return;
 
         setError(null);
         setBusyId(event.id);
@@ -252,7 +272,7 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
                                 <span className="text-lg leading-none">{glyph}</span>
 
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-[#E5E7EB] text-sm font-bold truncate">{event.title}</div>
+                                    <div className="text-[#E5E7EB] text-sm font-bold truncate">{eventLabel(event.title)}</div>
                                     <div className="text-[#6B7280] text-[11px] font-mono truncate">
                                         {event.id} · {event.locationId}
                                     </div>
@@ -302,6 +322,7 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
                                             <input
                                                 className={inputClass}
                                                 value={draft.title}
+                                                placeholder={eventLabel(defaultTextsFor(event.id).title)}
                                                 onChange={(e) => patch(event.id, { title: e.target.value })}
                                             />
                                         </div>
@@ -310,6 +331,7 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
                                             <input
                                                 className={inputClass}
                                                 value={draft.tagline}
+                                                placeholder={eventLabel(defaultTextsFor(event.id).tagline)}
                                                 onChange={(e) => patch(event.id, { tagline: e.target.value })}
                                             />
                                         </div>
@@ -321,6 +343,7 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
                                             rows={3}
                                             className={`${inputClass} resize-y`}
                                             value={draft.description}
+                                            placeholder={eventLabel(defaultTextsFor(event.id).description)}
                                             onChange={(e) => patch(event.id, { description: e.target.value })}
                                         />
                                     </div>
@@ -331,6 +354,7 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
                                             rows={2}
                                             className={`${inputClass} resize-y`}
                                             value={draft.rewardText}
+                                            placeholder={eventLabel(defaultTextsFor(event.id).rewardText)}
                                             onChange={(e) => patch(event.id, { rewardText: e.target.value })}
                                         />
                                     </div>

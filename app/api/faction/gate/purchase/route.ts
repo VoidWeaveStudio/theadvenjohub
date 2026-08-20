@@ -8,8 +8,7 @@ import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
 import { canManageFaction } from "@/core/lib/factionAuth";
-
-export const FACTION_GATE_PRICE_TNJ = 1_000_000;
+import { requiredTnjForItem } from "@/core/lib/shopPricing";
 
 const purchaseSchema = z.object({
   signature: z.string().min(80).max(100, "Invalid signature length"),
@@ -89,9 +88,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "signature_already_used" }, { status: 409, headers: formatRateLimitHeaders(rl) });
     }
 
+    const pricing = await requiredTnjForItem(faction.gameId, "faction_gate");
+    if (!pricing.ok) {
+      return NextResponse.json(
+        { error: pricing.error },
+        { status: pricing.status, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
     const verifyResult = await verifyTnjTransferToTreasury({
       signature,
-      expectedAmountTnj: FACTION_GATE_PRICE_TNJ,
+      expectedAmountTnj: pricing.expectedAmountTnj,
       expectedSigner: user.wallet,
     });
     if (!verifyResult.ok) {

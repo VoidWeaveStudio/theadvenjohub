@@ -1045,6 +1045,7 @@ export function registerNetworkHandlers(game: Game) {
         game.placeables = placeables;
         game.buildSystem.setPlaceables(placeables);
         game.buildSession.ownedCrates = placeables[STORAGE_CRATE_PIECE] || 0;
+        game.petSystem.setOwnedFromPlaceables(placeables);
         game.onInventoryChange?.(inventory, ash, placeables);
     };
 

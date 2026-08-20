@@ -11,9 +11,10 @@ import { useAuth } from "@/core/auth/AuthProvider";
 import { gameFetch } from "../utils/gameFetch";
 import { SoundManager } from "../core/SoundManager";
 import { createRpcConnection, confirmSignature } from "@/core/lib/solanaClient";
+import { fetchPayableTnj } from "../utils/shopQuote";
+import { useShopQuote } from "./hooks/useShopQuote";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-const GATE_PRICE_TNJ = 1_000_000;
 
 export interface GateFactionResult {
     id: string;
@@ -82,6 +83,7 @@ export function GateStewardPanel({
     const { isAuthorized } = useAuth();
 
     const [activeTab, setActiveTab] = useState<StewardTab>("rooms");
+    const gateQuote = useShopQuote("faction_gate", isOpen);
 
     const [ca, setCa] = useState("");
     const [searching, setSearching] = useState(false);
@@ -189,7 +191,8 @@ export function GateStewardPanel({
 
             const userATA = await getAssociatedTokenAddress(mintPubkey, publicKey, false, TOKEN_2022_PROGRAM_ID);
             const treasuryATA = await getAssociatedTokenAddress(mintPubkey, treasuryPubkey, true, TOKEN_2022_PROGRAM_ID);
-            const amountToSend = BigInt(GATE_PRICE_TNJ) * (10n ** BigInt(decimals));
+            const priceTnj = await fetchPayableTnj("faction_gate");
+            const amountToSend = BigInt(priceTnj) * (10n ** BigInt(decimals));
 
             setPayState("signing");
 
@@ -247,7 +250,7 @@ export function GateStewardPanel({
         payState === "connecting" ? t("g.pay.preparing") :
             payState === "signing" ? t("g.pay.confirmInWallet") :
                 payState === "confirming" ? t("g.pay.confirming") :
-                    t("g.gate.buyPrice", { amount: GATE_PRICE_TNJ.toLocaleString("en-US") });
+                    t("g.gate.buyPrice", { amount: (gateQuote?.payableTnj ?? 0).toLocaleString("en-US") });
 
     return (
         <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">

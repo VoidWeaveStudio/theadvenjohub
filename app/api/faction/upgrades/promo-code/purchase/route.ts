@@ -7,7 +7,8 @@ import { eq, and, isNull } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
-import { generatePromoCode, FACTION_UPGRADE_PROMO_CODE_PRICE_TNJ } from "@/core/lib/promoCode";
+import { generatePromoCode } from "@/core/lib/promoCode";
+import { requiredTnjForItem } from "@/core/lib/shopPricing";
 import { canManageFaction } from "@/core/lib/factionAuth";
 
 const purchaseSchema = z.object({
@@ -91,9 +92,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "signature_already_used" }, { status: 409, headers: formatRateLimitHeaders(rl) });
     }
 
+    const pricing = await requiredTnjForItem(faction.gameId, "faction_promo_code");
+    if (!pricing.ok) {
+      return NextResponse.json(
+        { error: pricing.error },
+        { status: pricing.status, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
     const verifyResult = await verifyTnjTransferToTreasury({
       signature,
-      expectedAmountTnj: FACTION_UPGRADE_PROMO_CODE_PRICE_TNJ,
+      expectedAmountTnj: pricing.expectedAmountTnj,
       expectedSigner: user.wallet,
     });
     if (!verifyResult.ok) {

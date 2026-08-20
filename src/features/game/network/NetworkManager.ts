@@ -269,6 +269,7 @@ export type LootDropData = {
   id: string;
   position: number[];
   tokens: LootTokenData[];
+  owned?: boolean;
 };
 
 export type DeathCrateData = {
@@ -1414,7 +1415,7 @@ export class NetworkManager {
         }
         break;
       case "lootSpawn":
-        this.onLootSpawn?.({ id: data.id, position: data.position, tokens: data.tokens });
+        this.onLootSpawn?.({ id: data.id, position: data.position, tokens: data.tokens, owned: data.owned === true });
         break;
       case "lootDespawn":
         this.onLootDespawn?.(data.id);
@@ -2013,9 +2014,9 @@ export class NetworkManager {
     this.send({ type: "enemyHit", ...data });
   }
 
-  sendLootPickup(id: string) {
+  sendLootPickup(id: string, byPet = false) {
     if (!this.authenticated) return;
-    this.send({ type: "lootPickup", id });
+    this.send({ type: "lootPickup", id, ...(byPet ? { byPet: true } : {}) });
   }
 
   sendCrateLoot(id: string) {

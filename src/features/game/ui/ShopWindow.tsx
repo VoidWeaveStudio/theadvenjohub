@@ -1,16 +1,19 @@
 // src/features/game/ui/ShopWindow.tsx
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { Coins, Store } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { SHOP_CATALOG } from "@/core/lib/shopCatalog";
 import { useShopPrices } from "./hooks/useShopPrices";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { ShopBuyButton } from "./ShopBuyButton";
 
 interface ShopWindowProps {
     isOpen: boolean;
     gameSlug: string;
+    placeables: Record<string, number>;
     onClose: () => void;
 }
 
@@ -20,9 +23,10 @@ function formatTnj(amount: number): string {
     return `${amount}`;
 }
 
-export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
+export function ShopWindow({ isOpen, gameSlug, placeables, onClose }: ShopWindowProps) {
     const { t } = useLanguage();
     const livePrices = useShopPrices(gameSlug, isOpen);
+    const [justBought, setJustBought] = useState<Set<string>>(new Set());
 
     const items = SHOP_CATALOG.filter((entry) => {
         if (entry.kind === "faction") return false;
@@ -66,6 +70,9 @@ export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
                         const tnj = live?.payableTnj ?? (live?.priceTnj || entry.defaultPriceTnj);
                         const usdCents = live?.priceUsdCents ?? entry.defaultPriceUsdCents;
                         const currency = live?.currency ?? entry.defaultCurrency;
+                        const ownedCount = placeables[entry.itemId] || 0;
+                        const owned = justBought.has(entry.itemId)
+                            || (entry.maxOwned !== null && ownedCount >= entry.maxOwned);
 
                         return (
                             <div
@@ -77,15 +84,26 @@ export function ShopWindow({ isOpen, gameSlug, onClose }: ShopWindowProps) {
                                     <div className="text-[#8B8F98] text-xs">{t(entry.descriptionKey)}</div>
                                 </div>
 
-                                <div className="text-right flex-shrink-0">
-                                    <div className="flex items-center justify-end gap-1.5 text-[#4FD1FF] font-bold text-sm">
-                                        <Coins className="w-3.5 h-3.5" />
-                                        {tnj > 0 ? `${formatTnj(tnj)} TNJ` : "—"}
-                                    </div>
-                                    {currency === "usd" && usdCents > 0 && (
-                                        <div className="text-[#6B7280] text-[11px]">
-                                            ≈ ${(usdCents / 100).toFixed(2)}
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                    <div className="text-right">
+                                        <div className="flex items-center justify-end gap-1.5 text-[#4FD1FF] font-bold text-sm">
+                                            <Coins className="w-3.5 h-3.5" />
+                                            {tnj > 0 ? `${formatTnj(tnj)} TNJ` : "—"}
                                         </div>
+                                        {currency === "usd" && usdCents > 0 && (
+                                            <div className="text-[#6B7280] text-[11px]">
+                                                ≈ ${(usdCents / 100).toFixed(2)}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {tnj > 0 && (
+                                        <ShopBuyButton
+                                            itemId={entry.itemId}
+                                            gameSlug={gameSlug}
+                                            owned={owned}
+                                            onPurchased={(id) => setJustBought((prev) => new Set(prev).add(id))}
+                                        />
                                     )}
                                 </div>
                             </div>

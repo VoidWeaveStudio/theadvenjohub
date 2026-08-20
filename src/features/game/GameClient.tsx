@@ -1160,6 +1160,11 @@ export function GameClient({ slug }: GameClientProps) {
           return;
         }
 
+        if (e.code === "NumpadDecimal" && !e.repeat) {
+          gameRef.current?.togglePetTuner();
+          return;
+        }
+
         const abilitySlot = ABILITY_KEY_MAP[e.code];
         if (abilitySlot && !e.repeat) {
           const abilityId = progressionState.progression?.loadout?.[abilitySlot];
@@ -1666,6 +1671,7 @@ export function GameClient({ slug }: GameClientProps) {
       <ShopWindow
         isOpen={activeTopWindow === "shop"}
         gameSlug={slug}
+        placeables={inventory.placeables}
         onClose={() => setActiveTopWindow(null)}
       />
 

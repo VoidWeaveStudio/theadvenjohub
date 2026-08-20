@@ -21,6 +21,7 @@ export class LootSystem extends System {
     private crates: Map<string, DeathCrate> = new Map();
     private interactions: InteractionSystem | null = null;
     private pickupAttempts: Map<string, number> = new Map();
+    private ownedDrops: Set<string> = new Set();
 
     private readonly PICKUP_RADIUS = 3;
     private readonly PICKUP_RETRY_MS = 500;
@@ -83,6 +84,7 @@ export class LootSystem extends System {
         drop.mesh.position.set(data.position[0], data.position[1], data.position[2]);
         this.scene.add(drop.mesh);
         this.drops.set(data.id, drop);
+        if (data.owned) this.ownedDrops.add(data.id);
     }
 
     private despawnLocal(id: string) {
@@ -96,6 +98,16 @@ export class LootSystem extends System {
         drop.dispose(this.scene);
         this.drops.delete(id);
         this.pickupAttempts.delete(id);
+        this.ownedDrops.delete(id);
+    }
+
+    public getFetchableDrops(): { id: string; position: THREE.Vector3 }[] {
+        const result: { id: string; position: THREE.Vector3 }[] = [];
+        for (const id of this.ownedDrops) {
+            const drop = this.drops.get(id);
+            if (drop) result.push({ id, position: drop.mesh.position });
+        }
+        return result;
     }
 
     public handleLootState(list: LootDropData[]) {

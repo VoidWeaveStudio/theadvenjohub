@@ -4,7 +4,7 @@ import { shopItemPrices, games } from "@/core/database/schema";
 import { asc, eq } from "drizzle-orm";
 import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
 import { SHOP_CATALOG, SHOP_CATALOG_BY_ID, ResolvedPrice, ShopCurrency, defaultPrice } from "@/core/lib/shopCatalog";
-import { quoteUsdCentsInTnj } from "@/core/lib/tnjPricing";
+import { quoteUsdCentsInTnj, TNJ_QUOTE_TOLERANCE } from "@/core/lib/tnjPricing";
 
 export async function resolveGameId(slug?: string | null): Promise<string | null> {
     const target = slug && slug.length > 0 ? slug : DEFAULT_GAME_SLUG;
@@ -55,4 +55,26 @@ export async function payableTnjFor(price: ResolvedPrice): Promise<number | null
     if (price.currency !== "usd") return null;
     const quote = await quoteUsdCentsInTnj(price.priceUsdCents);
     return quote?.tnjAmount ?? null;
+}
+
+export type RequiredTnj =
+    | { ok: true; requiredTnj: number; expectedAmountTnj: number; price: ResolvedPrice }
+    | { ok: false; error: string; status: number };
+
+export async function requiredTnjForItem(gameId: string, itemId: string): Promise<RequiredTnj> {
+    const price = await loadPrice(gameId, itemId);
+    if (!price) return { ok: false, error: "unknown_item", status: 404 };
+    if (price.enabled === false) return { ok: false, error: "not_for_sale", status: 403 };
+
+    const requiredTnj = await payableTnjFor(price);
+    if (requiredTnj === null || requiredTnj <= 0) {
+        return { ok: false, error: "price_unavailable", status: 503 };
+    }
+
+    return {
+        ok: true,
+        requiredTnj,
+        expectedAmountTnj: Math.max(1, Math.floor(requiredTnj * (1 - TNJ_QUOTE_TOLERANCE))),
+        price,
+    };
 }

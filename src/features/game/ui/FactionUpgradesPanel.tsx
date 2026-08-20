@@ -7,6 +7,7 @@ import { FactionDetail } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { CopyableText } from "./shell/CopyableText";
 import { PurchaseButton } from "@/features/shared/PurchaseButton";
+import { useShopQuote } from "./hooks/useShopQuote";
 
 interface FactionUpgradesPanelProps {
     faction: FactionDetail;
@@ -14,11 +15,10 @@ interface FactionUpgradesPanelProps {
     onPurchased: () => void;
 }
 
-const PROMO_CODE_PRICE_TNJ = 1_000_000;
-
 export function FactionUpgradesPanel({ faction, myWallet, onPurchased }: FactionUpgradesPanelProps) {
     const { t } = useLanguage();
     const canManage = faction.founderWallet === myWallet || faction.verifiedCreatorWallet === myWallet;
+    const quote = useShopQuote("faction_promo_code", canManage && !faction.promoCode);
 
     return (
         <div className="space-y-4">
@@ -44,7 +44,11 @@ export function FactionUpgradesPanel({ faction, myWallet, onPurchased }: Faction
                         <p className="text-[#8B8F98] text-xs">
                             {t("g.factionUp.promoUnlock")}
                         </p>
-                        <PurchaseButton factionId={faction.id} price={PROMO_CODE_PRICE_TNJ} onSuccess={onPurchased} />
+                        {quote?.payableTnj ? (
+                            <PurchaseButton factionId={faction.id} quoteItemId="faction_promo_code" price={quote.payableTnj} onSuccess={onPurchased} />
+                        ) : (
+                            <p className="text-[#6B7280] text-xs text-center py-2">{t("g.pay.preparing")}</p>
+                        )}
                     </div>
                 ) : (
                     <p className="text-[#8B8F98] text-sm text-center py-4">
