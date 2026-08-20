@@ -35,12 +35,7 @@ function transpile(source) {
         .replace(/\n\s*\n+/g, "\n");
 }
 
-const header = [
-    "// game-server/defusalArsenal.js",
-    "// Generated from src/features/game/data/defusalArsenal.ts by",
-    "// scripts/sync-arsenal.js — do not edit by hand.",
-    "",
-].join("\n");
+const header = "// game-server/defusalArsenal.js\n";
 
 const generated = `${header}${transpile(readFileSync(SOURCE, "utf8"))}\nmodule.exports = { ${EXPORTS.join(", ")} };\n`;
 

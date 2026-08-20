@@ -90,11 +90,9 @@ function toBoxes(source) {
 const boxes = toBoxes(readFileSync(SOURCE, "utf8"));
 
 const generated = `// game-server/dust2Geometry.js
-// Generated from src/features/game/world/locations/events/dust2Layout.ts by
-// scripts/sync-dust2.js — do not edit by hand.
+
 const BLOCKERS = ${JSON.stringify(boxes)};
 
-// Slab test: does the segment from a to b clip this axis-aligned box?
 function segmentHitsBox(ax, ay, az, bx, by, bz, box) {
   const dx = bx - ax;
   const dy = by - ay;
@@ -137,8 +135,6 @@ function contains(box, x, y, z) {
     && z >= box.minZ && z <= box.maxZ;
 }
 
-// A box holding either endpoint is skipped: standing on a crate or a grenade
-// wedged against a wall must not make you immune to what happens next to you.
 function hasLineOfSight(ax, ay, az, bx, by, bz) {
   for (const box of BLOCKERS) {
     if (contains(box, ax, ay, az) || contains(box, bx, by, bz)) continue;
