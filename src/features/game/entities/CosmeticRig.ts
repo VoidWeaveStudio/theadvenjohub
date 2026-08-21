@@ -1,17 +1,29 @@
 // src/features/game/entities/CosmeticRig.ts
 import * as THREE from "three";
 import { CosmeticId, cosmeticSlotOf } from "../data/cosmetics";
-import { buildCosmetic, disposeCosmetic } from "./cosmeticModels";
+import { buildCosmetic, disposeCosmetic, CosmeticTick } from "./cosmeticModels";
 import { buildRegionIndex } from "./characterRegions";
 import { getRegionSkinTexture } from "./characterSkinTexture";
 import { findBoneLast } from "./characterModel";
 
+const CHEST_BONE_NAMES = ["spine002", "spine.002", "spine_002", "chest", "spine001", "spine.001", "spine"];
+
+export interface CosmeticPiece {
+    label: string;
+    object: THREE.Object3D;
+}
+
 export class CosmeticRig {
     private headPiece: THREE.Group | null = null;
+    private torsoPiece: THREE.Group | null = null;
+    private tick: CosmeticTick | null = null;
+    private elapsed = 0;
+
     private skinId: CosmeticId | null = null;
     private accessoryId: CosmeticId | null = null;
 
     private readonly headBone: THREE.Object3D | null;
+    private readonly chestBone: THREE.Object3D | null;
     private readonly skinnedMesh: THREE.SkinnedMesh | null;
     private readonly baseColor: THREE.Color | null;
 
@@ -25,6 +37,7 @@ export class CosmeticRig {
         private readonly material: THREE.Material | null
     ) {
         this.headBone = findBoneLast(modelRoot, (name) => name === "head");
+        this.chestBone = CosmeticRig.findChestBone(modelRoot);
 
         let mesh: THREE.SkinnedMesh | null = null;
         modelRoot.traverse((child) => {
@@ -35,6 +48,14 @@ export class CosmeticRig {
 
         const standard = material as THREE.MeshStandardMaterial | null;
         this.baseColor = standard?.color ? standard.color.clone() : null;
+    }
+
+    private static findChestBone(modelRoot: THREE.Object3D): THREE.Object3D | null {
+        for (const name of CHEST_BONE_NAMES) {
+            const bone = findBoneLast(modelRoot, (candidate) => candidate === name);
+            if (bone) return bone;
+        }
+        return null;
     }
 
     apply(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
@@ -48,8 +69,7 @@ export class CosmeticRig {
         this.skinId = nextSkin;
         this.accessoryId = nextAccessory;
 
-        disposeCosmetic(this.headPiece);
-        this.headPiece = null;
+        this.clearPieces();
 
         const active = nextSkin ?? nextAccessory;
         if (!active) {
@@ -71,6 +91,29 @@ export class CosmeticRig {
         } else if (built.head) {
             disposeCosmetic(built.head);
         }
+
+        if (built.torso && this.chestBone) {
+            this.chestBone.add(built.torso);
+            this.torsoPiece = built.torso;
+        } else if (built.torso) {
+            disposeCosmetic(built.torso);
+        }
+
+        this.tick = built.tick;
+        this.elapsed = 0;
+    }
+
+    update(delta: number) {
+        if (!this.tick) return;
+        this.elapsed += delta;
+        this.tick(this.elapsed);
+    }
+
+    getPieces(): CosmeticPiece[] {
+        const pieces: CosmeticPiece[] = [];
+        if (this.headPiece) pieces.push({ label: "head", object: this.headPiece });
+        if (this.torsoPiece) pieces.push({ label: "torso", object: this.torsoPiece });
+        return pieces;
     }
 
     private applySkinTexture(id: CosmeticId, palette: Parameters<typeof getRegionSkinTexture>[3]) {
@@ -111,8 +154,15 @@ export class CosmeticRig {
         standard.needsUpdate = true;
     }
 
-    dispose() {
+    private clearPieces() {
         disposeCosmetic(this.headPiece);
+        disposeCosmetic(this.torsoPiece);
         this.headPiece = null;
+        this.torsoPiece = null;
+        this.tick = null;
+    }
+
+    dispose() {
+        this.clearPieces();
     }
 }

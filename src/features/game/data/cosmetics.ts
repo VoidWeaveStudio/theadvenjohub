@@ -6,7 +6,16 @@ export type CosmeticId =
     | "scream_robe"
     | "trump_hair"
     | "trump_suit"
-    | "pepe_frog";
+    | "pepe_frog"
+    | "doge_shiba"
+    | "wojak_hoodie"
+    | "gigachad_marble"
+    | "moon_astronaut"
+    | "bull_market"
+    | "bear_market"
+    | "wif_hat"
+    | "laser_eyes"
+    | "deal_shades";
 
 export interface CosmeticDefinition {
     id: CosmeticId;
@@ -59,6 +68,78 @@ export const COSMETICS: CosmeticDefinition[] = [
         description: "g.cosmetic.pepe_frog.description",
         priceAsh: COSMETIC_PRICE_ASH,
         accent: "#5BA83A",
+    },
+    {
+        id: "doge_shiba",
+        slot: "skin",
+        name: "g.cosmetic.doge_shiba.name",
+        description: "g.cosmetic.doge_shiba.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#D8A441",
+    },
+    {
+        id: "wojak_hoodie",
+        slot: "skin",
+        name: "g.cosmetic.wojak_hoodie.name",
+        description: "g.cosmetic.wojak_hoodie.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#8B9099",
+    },
+    {
+        id: "gigachad_marble",
+        slot: "skin",
+        name: "g.cosmetic.gigachad_marble.name",
+        description: "g.cosmetic.gigachad_marble.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#DEDAD2",
+    },
+    {
+        id: "moon_astronaut",
+        slot: "skin",
+        name: "g.cosmetic.moon_astronaut.name",
+        description: "g.cosmetic.moon_astronaut.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#F0A24A",
+    },
+    {
+        id: "bull_market",
+        slot: "skin",
+        name: "g.cosmetic.bull_market.name",
+        description: "g.cosmetic.bull_market.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#35D07F",
+    },
+    {
+        id: "bear_market",
+        slot: "skin",
+        name: "g.cosmetic.bear_market.name",
+        description: "g.cosmetic.bear_market.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#E2554B",
+    },
+    {
+        id: "wif_hat",
+        slot: "accessory",
+        name: "g.cosmetic.wif_hat.name",
+        description: "g.cosmetic.wif_hat.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#EFA3C6",
+    },
+    {
+        id: "laser_eyes",
+        slot: "accessory",
+        name: "g.cosmetic.laser_eyes.name",
+        description: "g.cosmetic.laser_eyes.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#FF4A24",
+    },
+    {
+        id: "deal_shades",
+        slot: "accessory",
+        name: "g.cosmetic.deal_shades.name",
+        description: "g.cosmetic.deal_shades.description",
+        priceAsh: COSMETIC_PRICE_ASH,
+        accent: "#9AA3B2",
     },
 ];
 

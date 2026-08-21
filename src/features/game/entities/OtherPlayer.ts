@@ -488,6 +488,7 @@ export class OtherPlayer extends Entity {
 
     update(delta: number) {
         if (this.hidden) return;
+        this.cosmeticRig?.update(delta);
         if (this.dead) {
             this.animator.update(delta);
             return;

@@ -60,6 +60,7 @@ import { applyLocationMovementConfig, configureLocationSpecifics, syncMainWorldE
 import { registerNetworkHandlers } from "./GameNetworkHandlers";
 import type { GameCallbacks } from "./GameCallbacks";
 import { ViewModelTuner } from "../systems/ViewModelTuner";
+import { CosmeticTuner } from "../systems/CosmeticTuner";
 import { createGameRenderer } from "./GameRenderer";
 import { perf } from "./PerfProfiler";
 import { updateDamageIndicator } from "./GameDamageIndicator";
@@ -141,6 +142,7 @@ export class Game {
     public readonly abilitySystem: AbilitySystem = new AbilitySystem();
     public readonly weaponTuner: WeaponTuner = new WeaponTuner();
     public readonly viewModelTuner: ViewModelTuner = new ViewModelTuner();
+    public readonly cosmeticTuner: CosmeticTuner = new CosmeticTuner();
     public readonly memeSystem: MemeSystem = new MemeSystem();
     private memeMovementUntil: number = 0;
     public readonly interactionSystem: InteractionSystem;
@@ -338,6 +340,14 @@ export class Game {
             return;
         }
         this.petTuner.toggle();
+    }
+
+    public toggleCosmeticTuner() {
+        if (!this.cosmeticTuner.isReady()) {
+            this.onNotification?.("👕 No cosmetic equipped to tune", 2000);
+            return;
+        }
+        this.cosmeticTuner.toggle();
     }
 
     public toggleWeaponTuner() {
@@ -635,6 +645,11 @@ export class Game {
                 this.petSystem.init(this.networkManager, this.player, getGroundHeight, () => this.lootSystem.getFetchableDrops());
                 this.petTuner.init(this.inputManager, this.petSystem);
                 this.petTuner.onReadout = (text) => {
+                    this.hudState.tunerReadout = text;
+                    this.emitState(true);
+                };
+                this.cosmeticTuner.init(this.inputManager, this.player);
+                this.cosmeticTuner.onReadout = (text) => {
                     this.hudState.tunerReadout = text;
                     this.emitState(true);
                 };
@@ -1241,6 +1256,7 @@ export class Game {
             this.lootSystem.update(delta);
             this.petSystem.update(delta);
             this.petTuner.update();
+            this.cosmeticTuner.update();
             this.buildSystem.update(delta);
             perf.end("combat");
 

@@ -1191,6 +1191,11 @@ export function GameClient({ slug }: GameClientProps) {
           return;
         }
 
+        if (e.code === "NumpadEnter" && !e.repeat) {
+          gameRef.current?.toggleCosmeticTuner();
+          return;
+        }
+
         const abilitySlot = ABILITY_KEY_MAP[e.code];
         if (abilitySlot && !e.repeat) {
           const abilityId = progressionState.progression?.loadout?.[abilitySlot];

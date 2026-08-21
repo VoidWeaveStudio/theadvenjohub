@@ -180,6 +180,7 @@ export class PreviewScene {
         this.pivot.rotation.x = this.pitch * 0.35;
 
         this.companion?.update(this.elapsed, 0, false);
+        this.cosmeticRig?.update(delta);
 
         this.renderer.render(this.scene, this.camera);
     };

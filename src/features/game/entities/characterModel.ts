@@ -77,7 +77,8 @@ let cachedPoseGroundOffset: number | null = null;
 
 export function alignModelToGround(root: THREE.Object3D) {
     if (cachedPoseGroundOffset === null) {
-        root.updateWorldMatrix(true, true);
+        root.updateWorldMatrix(true, false);
+        root.updateMatrixWorld(true);
 
         const box = new THREE.Box3().setFromObject(root, true);
         if (!Number.isFinite(box.min.y)) return;

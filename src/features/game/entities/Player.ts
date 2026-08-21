@@ -341,6 +341,10 @@ export class Player extends Entity {
         this.cosmeticRig?.apply(skinId, accessoryId);
     }
 
+    getCosmeticRig(): CosmeticRig | null {
+        return this.cosmeticRig;
+    }
+
     applySkinTexture(url: string | null) {
         applySkinTextureUrl(this.paintableMaterial, url);
     }
@@ -495,6 +499,7 @@ export class Player extends Entity {
 
     update(delta: number, isInteracting: boolean = false) {
         this.shield?.update(delta, this.mesh.rotation.y);
+        this.cosmeticRig?.update(delta);
 
         if (!this.inputManager || !this.camera) return;
 
