@@ -21,6 +21,8 @@ import { eq, desc } from "drizzle-orm";
 import { ACHIEVEMENTS_BY_KEY } from "@/core/lib/achievements";
 import { COSMETICS_BY_ID, normalizeLoadout } from "@/features/game/data/cosmetics";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
+import { resolveGameId } from "@/core/lib/shopPricing";
+import { EMPTY_COMPANION_STATE, readCompanionState } from "@/core/lib/companionInventory";
 
 export async function GET(
     req: NextRequest,
@@ -131,6 +133,11 @@ export async function GET(
             })),
         };
 
+        const companionGameId = progress?.gameId ?? (await resolveGameId(null));
+        const companions = companionGameId
+            ? await readCompanionState(userId, companionGameId)
+            : EMPTY_COMPANION_STATE;
+
         return NextResponse.json({
             player: {
                 id: user.id,
@@ -160,6 +167,7 @@ export async function GET(
                 },
                 skinTextureUrl,
                 cosmetics,
+                companions,
                 placeables,
                 locationId: progress?.locationId ?? null,
                 inventory: inventory.map((i) => ({ slot: i.slot, itemId: i.itemId, quantity: i.quantity })),

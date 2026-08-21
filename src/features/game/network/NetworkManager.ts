@@ -2,6 +2,7 @@
 import { t } from "@/core/i18n";
 import { EmoteKey, isEmoteKey } from "../data/emotes";
 import { CosmeticId, normalizeLoadout } from "../data/cosmetics";
+import { COMPANIONS_BY_ID, isCompanionId, type CompanionId, type CompanionRarity } from "../data/companions";
 import { BranchId, isBranchId } from "../data/progression";
 
 export type PlayerNetData = {
@@ -180,6 +181,23 @@ export type CosmeticStateData = {
   owned: CosmeticId[];
   skinId: CosmeticId | null;
   accessoryId: CosmeticId | null;
+};
+
+export type CompanionStackData = {
+  itemId: string;
+  quantity: number;
+};
+
+export type CompanionStateData = {
+  owned: CompanionStackData[];
+  equipped: CompanionId | null;
+  fragments: number;
+  crates: number;
+};
+
+export type CrateOpenedData = {
+  itemId: CompanionId;
+  rarity: CompanionRarity;
 };
 
 export type DayNightSyncData = {
@@ -813,6 +831,9 @@ export class NetworkManager {
   public onPlayerUpdate?: (data: PlayerNetData) => void;
   public onRemoteEmote?: (data: { playerId: string; key: EmoteKey }) => void;
   public onCosmeticState?: (data: CosmeticStateData) => void;
+  public onCompanionState?: (data: CompanionStateData) => void;
+  public onCrateOpened?: (data: CrateOpenedData) => void;
+  public onCompanionDusted?: (data: { itemId: CompanionId; gained: number }) => void;
   public onSpawnProtection?: (data: { untilMs: number; durationMs: number }) => void;
   public onCosmeticUpdate?: (data: { playerId: string; skinId: CosmeticId | null; accessoryId: CosmeticId | null }) => void;
   public onShoot?: (data: {
@@ -1243,6 +1264,31 @@ export class NetworkManager {
       case "cosmeticUpdate": {
         const loadout = normalizeLoadout(data.skinId, data.accessoryId);
         this.onCosmeticUpdate?.({ playerId: data.playerId, ...loadout });
+        break;
+      }
+      case "companionState": {
+        const owned = Array.isArray(data.owned)
+          ? data.owned
+              .filter((entry: any) => isCompanionId(entry?.itemId) && Number(entry?.quantity) > 0)
+              .map((entry: any) => ({ itemId: entry.itemId as CompanionId, quantity: Math.floor(Number(entry.quantity)) }))
+          : [];
+        this.onCompanionState?.({
+          owned,
+          equipped: isCompanionId(data.equipped) ? data.equipped : null,
+          fragments: Math.max(0, Math.floor(Number(data.fragments) || 0)),
+          crates: Math.max(0, Math.floor(Number(data.crates) || 0)),
+        });
+        break;
+      }
+      case "crateOpened": {
+        if (!isCompanionId(data.itemId)) break;
+        const rarity = COMPANIONS_BY_ID.get(data.itemId)?.rarity ?? "common";
+        this.onCrateOpened?.({ itemId: data.itemId, rarity });
+        break;
+      }
+      case "companionDusted": {
+        if (!isCompanionId(data.itemId)) break;
+        this.onCompanionDusted?.({ itemId: data.itemId, gained: Math.max(0, Math.floor(Number(data.gained) || 0)) });
         break;
       }
       case "playerLeave":
@@ -2446,6 +2492,31 @@ export class NetworkManager {
   sendCosmeticEquip(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
     if (!this.authenticated) return;
     this.send({ type: "cosmeticEquip", skinId, accessoryId });
+  }
+
+  sendCompanionListRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "companionListRequest" });
+  }
+
+  sendCompanionEquip(companionId: CompanionId | null) {
+    if (!this.authenticated) return;
+    this.send({ type: "companionEquip", companionId });
+  }
+
+  sendCompanionDust(itemId: CompanionId) {
+    if (!this.authenticated) return;
+    this.send({ type: "companionDust", itemId });
+  }
+
+  sendCompanionCombine() {
+    if (!this.authenticated) return;
+    this.send({ type: "companionCombine" });
+  }
+
+  sendCrateOpen() {
+    if (!this.authenticated) return;
+    this.send({ type: "crateOpen" });
   }
 
   requestTokenInfo(ca: string) {

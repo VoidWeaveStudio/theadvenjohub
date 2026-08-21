@@ -35,6 +35,8 @@ import {
     BlockedEntry,
     TradeSessionData,
     CosmeticStateData,
+    CompanionStateData,
+    CrateOpenedData,
     FactionGateData,
     ShardStateData,
     ProgressionStateData,
@@ -179,6 +181,9 @@ export interface GameCallbacks {
     onFactionInviteSent?: (toWallet: string) => void;
     onMySkinChange?: (url: string | null) => void;
     onCosmeticState?: (data: CosmeticStateData) => void;
+    onCompanionState?: (data: CompanionStateData) => void;
+    onCrateOpened?: (data: CrateOpenedData) => void;
+    onCompanionDusted?: (data: { itemId: string; gained: number }) => void;
     onSpawnProtectionChange?: (secondsLeft: number) => void;
     onTradeSession?: (data: TradeSessionData) => void;
     onTradeInviteReceived?: (data: { tradeId: string; fromWallet: string; fromNickname: string }) => void;

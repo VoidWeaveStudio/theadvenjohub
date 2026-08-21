@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
 import { buildStaff, disposeStaff, STAFF_FOREGRIP_OFFSET, STAFF_GRIP_POINT_OFFSET, STAFF_MUZZLE_OFFSET } from "./Staff";
+import { buildRifle, disposeRifle, RIFLE_BARREL_SIGN } from "./proceduralRifle";
 import {
     accentForTier,
     buildWeaponTierAttachments,
@@ -21,39 +22,21 @@ export const RIFLE_GRIP_OFFSET = new THREE.Vector3(-0.09299880266052234, 0.83576
 
 export const STAFF_GRIP_OFFSET = RIFLE_GRIP_OFFSET.clone();
 
-const RIFLE_MUZZLE_OFFSET = new THREE.Vector3(0, -0.4, 0.03);
-const RIFLE_FOREGRIP_OFFSET = new THREE.Vector3(0, -0.15, 0);
-const RIFLE_GRIP_POINT_OFFSET = new THREE.Vector3(0, 0.1, 0);
-
-export function mountRifleModel(rifle: THREE.Group): THREE.Group {
-    const box = new THREE.Box3().setFromObject(rifle);
-    const size = box.getSize(new THREE.Vector3());
-
-    const targetLength = 0.9;
-    const maxDim = Math.max(size.x, size.y, size.z);
-    rifle.scale.setScalar(targetLength / maxDim);
-
-    const scaledBox = new THREE.Box3().setFromObject(rifle);
-    const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
-    rifle.position.copy(scaledCenter).multiplyScalar(-1);
-    rifle.quaternion.copy(RIFLE_GRIP_QUATERNION);
-
-    return rifle;
-}
+const RIFLE_MUZZLE_OFFSET = new THREE.Vector3(0, 0.4 * RIFLE_BARREL_SIGN, 0.03);
+const RIFLE_FOREGRIP_OFFSET = new THREE.Vector3(0, 0.15 * RIFLE_BARREL_SIGN, 0);
+const RIFLE_GRIP_POINT_OFFSET = new THREE.Vector3(0, -0.1 * RIFLE_BARREL_SIGN, 0);
 
 export function buildWeaponVisual(
     kind: WeaponKind,
     tier: number,
-    resourceManager: ResourceManager
+    _resourceManager: ResourceManager
 ): THREE.Group | null {
     const group = new THREE.Group();
 
     if (kind === "staff") {
         group.add(buildStaff(accentForTier(tier)));
     } else {
-        const data = resourceManager.getModel("rifle");
-        if (!data) return null;
-        group.add(mountRifleModel(data.scene));
+        group.add(buildRifle(accentForTier(tier)));
     }
 
     group.add(buildWeaponTierAttachments(kind, tier));
@@ -113,10 +96,7 @@ export class Weapon {
         }
 
         const visual = buildWeaponVisual(this.kind, this.tier, this.resourceManager);
-        if (!visual) {
-            if (this.kind === "rifle") throw new Error("Rifle model not found. Cannot initialize weapon.");
-            return;
-        }
+        if (!visual) return;
 
         this.visual = visual;
         this.mesh.add(visual);
@@ -134,6 +114,7 @@ export class Weapon {
         for (const child of [...this.visual.children]) {
             if (child.name === "weapon-tier") disposeWeaponTierAttachments(child as THREE.Group);
             else if (child.name === "staff") disposeStaff(child as THREE.Group);
+            else if (child.name === "rifle") disposeRifle(child as THREE.Group);
             else child.removeFromParent();
         }
 

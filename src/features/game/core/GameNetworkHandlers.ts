@@ -352,6 +352,19 @@ export function registerNetworkHandlers(game: Game) {
         game.onCosmeticState?.(data);
     };
 
+    game.networkManager.onCompanionState = (data) => {
+        game.petSystem.setEquipped(data.equipped);
+        game.onCompanionState?.(data);
+    };
+
+    game.networkManager.onCrateOpened = (data) => {
+        game.onCrateOpened?.(data);
+    };
+
+    game.networkManager.onCompanionDusted = (data) => {
+        game.onCompanionDusted?.(data);
+    };
+
     game.networkManager.onCosmeticUpdate = ({ playerId, skinId, accessoryId }) => {
         game.otherPlayers.get(playerId)?.applyCosmetics(skinId, accessoryId);
     };

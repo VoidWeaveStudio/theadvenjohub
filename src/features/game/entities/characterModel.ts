@@ -1,20 +1,76 @@
 // src/features/game/entities/characterModel.ts
 import * as THREE from "three";
 
-export function scaleAndCenterModel(root: THREE.Object3D, targetHeight: number, yRotation: number) {
-    const box = new THREE.Box3().setFromObject(root);
-    const size = box.getSize(new THREE.Vector3());
-    const scale = targetHeight / size.y;
-    root.scale.setScalar(scale);
+export function scaleAndCenterModel(
+    root: THREE.Object3D,
+    targetHeight: number,
+    yRotation: number,
+    precise = false
+) {
+    root.rotation.y = yRotation;
+    root.updateMatrixWorld(true);
 
-    const scaledBox = new THREE.Box3().setFromObject(root);
+    const box = new THREE.Box3().setFromObject(root, precise);
+    const size = box.getSize(new THREE.Vector3());
+    if (size.y > 1e-6) root.scale.setScalar(targetHeight / size.y);
+    root.updateMatrixWorld(true);
+
+    const scaledBox = new THREE.Box3().setFromObject(root, precise);
     root.position.set(
         -(scaledBox.min.x + scaledBox.max.x) / 2,
         -scaledBox.min.y,
         -(scaledBox.min.z + scaledBox.max.z) / 2
     );
+}
 
-    root.rotation.y = yRotation;
+export function applyRestPoseCorrection(root: THREE.Object3D, animations: THREE.AnimationClip[]): boolean {
+    if (!animations || animations.length === 0) return false;
+
+    const nodes = new Map<string, THREE.Object3D>();
+    root.traverse((child) => {
+        if (child.name && !nodes.has(child.name)) nodes.set(child.name, child);
+    });
+
+    const depthOf = (node: THREE.Object3D): number => {
+        let depth = 0;
+        let current: THREE.Object3D | null = node.parent;
+        while (current && current !== root) {
+            depth++;
+            current = current.parent;
+        }
+        return current === root ? depth : Number.MAX_SAFE_INTEGER;
+    };
+
+    let shallowest: { node: THREE.Object3D; values: Float32Array | number[]; depth: number } | null = null;
+
+    for (const clip of animations) {
+        for (const track of clip.tracks) {
+            if (!track.name.endsWith(".quaternion")) continue;
+            if (track.values.length < 4) continue;
+
+            const node = nodes.get(track.name.slice(0, -".quaternion".length));
+            if (!node) continue;
+
+            const depth = depthOf(node);
+            if (depth === Number.MAX_SAFE_INTEGER) continue;
+            if (shallowest && depth >= shallowest.depth) continue;
+
+            shallowest = { node, values: track.values, depth };
+        }
+
+        if (shallowest) break;
+    }
+
+    if (!shallowest) return false;
+
+    shallowest.node.quaternion.set(
+        shallowest.values[0],
+        shallowest.values[1],
+        shallowest.values[2],
+        shallowest.values[3]
+    );
+    root.updateMatrixWorld(true);
+    return true;
 }
 
 let cachedPoseGroundOffset: number | null = null;

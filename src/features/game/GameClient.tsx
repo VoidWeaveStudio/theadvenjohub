@@ -64,6 +64,9 @@ import { FactionsWindow } from "./ui/FactionsWindow";
 import { QuestsWindow } from "./ui/QuestsWindow";
 import { SocialWindow, SocialTab } from "./ui/SocialWindow";
 import { ShopWindow } from "./ui/ShopWindow";
+import { CrateOpening } from "./ui/CrateOpening";
+import { PerfPanel } from "./ui/PerfPanel";
+import { useCompanionState } from "./ui/hooks/useCompanionState";
 import { LeaderboardsWindow } from "./ui/LeaderboardsWindow";
 import { SettingsWindow } from "./ui/SettingsWindow";
 import { SupportModal } from "./ui/SupportModal";
@@ -227,11 +230,21 @@ export function GameClient({ slug }: GameClientProps) {
   const factionState = useFactionState();
   const factionQuestState = useFactionQuestState();
   const cosmeticState = useCosmeticState();
+  const companionState = useCompanionState();
   const profileState = useProfileState();
   const leaderboardState = useLeaderboardState();
   const socialState = useSocialState();
 
   const [factionInviteTarget, setFactionInviteTarget] = useState<{ wallet: string; nickname: string } | null>(null);
+  const [isCrateOpeningVisible, setIsCrateOpeningVisible] = useState(false);
+  const [isPerfPanelOpen, setIsPerfPanelOpen] = useState(false);
+
+  const clearCrateDrop = companionState.clearDrop;
+  const handleOpenCrate = useCallback(() => {
+    clearCrateDrop();
+    setIsCrateOpeningVisible(true);
+    gameRef.current?.openCrate();
+  }, [clearCrateDrop]);
 
   const [tradeSession, setTradeSession] = useState<TradeSessionData | null>(null);
   const [pendingTradeInvite, setPendingTradeInvite] = useState<{ tradeId: string; fromWallet: string; fromNickname: string } | null>(null);
@@ -728,6 +741,13 @@ export function GameClient({ slug }: GameClientProps) {
         game.onFactionQuestCreated = (data) => { if (!cancelled) factionQuestState.handleFactionQuestCreated(data); };
         game.onFactionQuestClaimed = (data) => { if (!cancelled) factionQuestState.handleFactionQuestClaimed(data); };
         game.onCosmeticState = (data) => { if (!cancelled) cosmeticState.handleCosmeticState(data); };
+        game.onCompanionState = (data) => { if (!cancelled) companionState.handleCompanionState(data); };
+        game.onCrateOpened = (data) => { if (!cancelled) companionState.handleCrateOpened(data); };
+        game.onCompanionDusted = (data) => {
+          if (cancelled) return;
+          companionState.handleCompanionDusted(data);
+          notifications.addNotification(`+${data.gained} ${t("g.fragments.title")}`, 2500);
+        };
         game.onSpawnProtectionChange = (seconds) => { if (!cancelled) setSpawnProtectionSeconds(seconds); };
         game.onSelfProfile = (p) => { if (!cancelled) profileState.handleSelfProfile(p); };
         game.onViewedProfile = (p) => { if (!cancelled) profileState.handleViewedProfile(p); };
@@ -1068,6 +1088,12 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
+      if (e.code === "F9") {
+        e.preventDefault();
+        setIsPerfPanelOpen((prev) => !prev);
+        return;
+      }
+
       if (e.code === "KeyL" && !showFloorSelector) {
         const activeTag = document.activeElement?.tagName;
         if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
@@ -1392,11 +1418,13 @@ export function GameClient({ slug }: GameClientProps) {
           setIsSpecializationOpen(true);
         }}
       />
+      <PerfPanel isOpen={isPerfPanelOpen} onClose={() => setIsPerfPanelOpen(false)} />
+
       {!defusalMatch && !grinderMatch && (
         <TopMenu
           active={activeTopWindow}
           onSelect={handleTopMenuSelect}
-          badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests }}
+          badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests || companionState.companions.crates > 0, shop: companionState.companions.crates > 0 }}
         />
       )}
       {dust2Me ? (
@@ -1658,6 +1686,12 @@ export function GameClient({ slug }: GameClientProps) {
         cosmetics={cosmeticState.cosmetics}
         onRequestCosmetics={() => gameRef.current?.requestCosmetics()}
         onEquipCosmetics={(skinId, accessoryId) => gameRef.current?.equipCosmetics(skinId, accessoryId)}
+        companions={companionState.companions}
+        onRequestCompanions={() => gameRef.current?.requestCompanions()}
+        onEquipCompanion={(companionId) => gameRef.current?.equipCompanion(companionId)}
+        onDustCompanion={(itemId) => gameRef.current?.dustCompanion(itemId)}
+        onCombineFragments={() => gameRef.current?.combineFragments()}
+        onOpenCrate={handleOpenCrate}
         blocked={socialState.blocked}
         onRequestBlockedList={() => gameRef.current?.requestBlockedList()}
         onUnblockUser={(blockedUserId) => gameRef.current?.unblockPlayer(blockedUserId)}
@@ -1672,7 +1706,21 @@ export function GameClient({ slug }: GameClientProps) {
         isOpen={activeTopWindow === "shop"}
         gameSlug={slug}
         placeables={inventory.placeables}
+        companions={companionState.companions}
+        onRequestCompanions={() => gameRef.current?.requestCompanions()}
+        onOpenCrate={handleOpenCrate}
         onClose={() => setActiveTopWindow(null)}
+      />
+
+      <CrateOpening
+        isOpen={isCrateOpeningVisible}
+        result={companionState.lastDrop}
+        cratesLeft={companionState.companions.crates}
+        onOpenAnother={handleOpenCrate}
+        onClose={() => {
+          setIsCrateOpeningVisible(false);
+          companionState.clearDrop();
+        }}
       />
 
       <SignEditorModal

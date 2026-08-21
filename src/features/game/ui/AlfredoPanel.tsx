@@ -7,6 +7,8 @@ import { SoundManager } from "../core/SoundManager";
 import { COSMETICS, CosmeticId } from "../data/cosmetics";
 import { CosmeticStateData } from "../network/NetworkManager";
 import { CosmeticCard } from "./CosmeticCard";
+import { PreviewModal } from "./preview/PreviewModal";
+import type { PreviewSubject } from "./preview/PreviewScene";
 import { useShopPrices } from "./hooks/useShopPrices";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
@@ -32,6 +34,9 @@ export function AlfredoPanel({
     onBuyCosmetic,
 }: AlfredoPanelProps) {
     const { t } = useLanguage();
+    const [preview, setPreview] = useState<
+        { subject: PreviewSubject; title: string; accent: string } | null
+    >(null);
     const [view, setView] = useState<"menu" | "wardrobe">("menu");
     const livePrices = useShopPrices(gameSlug, isOpen);
     const wasOpenRef = useRef(false);
@@ -133,6 +138,17 @@ export function AlfredoPanel({
                                         blocked={!isOwned && ash < cosmetic.priceAsh}
                                         blockedReason={!isOwned && ash < cosmetic.priceAsh ? t("g.alfredo.notEnoughAsh") : undefined}
                                         actionLabel={isOwned ? t("g.alfredo.owned") : t("g.alfredo.buy")}
+                                        onPreview={() =>
+                                            setPreview({
+                                                subject: {
+                                                    kind: "character",
+                                                    skinId: cosmetic.slot === "skin" ? cosmetic.id : null,
+                                                    accessoryId: cosmetic.slot === "accessory" ? cosmetic.id : null,
+                                                },
+                                                title: t(cosmetic.name),
+                                                accent: cosmetic.accent,
+                                            })
+                                        }
                                         onAction={() => {
                                             if (!isOwned) onBuyCosmetic(cosmetic.id);
                                         }}
@@ -143,6 +159,14 @@ export function AlfredoPanel({
                     </>
                 )}
             </div>
+
+            <PreviewModal
+                isOpen={!!preview}
+                title={preview?.title ?? ""}
+                accent={preview?.accent}
+                subject={preview?.subject ?? null}
+                onClose={() => setPreview(null)}
+            />
         </div>
     );
 }

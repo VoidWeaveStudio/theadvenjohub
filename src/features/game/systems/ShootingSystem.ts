@@ -28,7 +28,14 @@ interface BoxHit {
     distance: number;
 }
 
+const MIN_CONVERGENCE_DISTANCE = 2;
 const HITSCAN_RANGE = 300;
+
+function isChargedMode(modeId: string | undefined): boolean {
+    if (!modeId || modeId === "single") return false;
+    const mode = modeById(modeId);
+    return !!mode && modeNumber(mode as unknown as SkillMode, "chargeMs", 0) > 0;
+}
 
 function modeNumber(mode: SkillMode, key: string, fallback: number): number {
     const value = mode[key];
@@ -363,6 +370,34 @@ export class ShootingSystem extends System {
         return !!op && !op.isDead() && !op.isHidden();
     };
 
+    private aimPointAlongView(cameraPos: THREE.Vector3, cameraDir: THREE.Vector3, range: number): THREE.Vector3 {
+        this.raycaster.set(cameraPos, cameraDir);
+        this.raycaster.far = range;
+
+        let bestDistance = Infinity;
+        let bestPoint: THREE.Vector3 | null = null;
+
+        const playerHit = this.raycastHitboxes(this.otherPlayerHitboxes, cameraPos, this.isLivingOtherPlayer);
+        if (playerHit && playerHit.distance < bestDistance) {
+            bestDistance = playerHit.distance;
+            bestPoint = playerHit.point;
+        }
+
+        const enemyHit = this.raycastHitboxes(this.enemyHitboxes, cameraPos, () => true);
+        if (enemyHit && enemyHit.distance < bestDistance) {
+            bestDistance = enemyHit.distance;
+            bestPoint = enemyHit.point;
+        }
+
+        const staticHit = this.raycastBoxes(this.staticBoxesAlong(cameraPos, cameraDir, range), cameraPos);
+        if (staticHit && staticHit.distance < bestDistance) {
+            bestDistance = staticHit.distance;
+            bestPoint = staticHit.point;
+        }
+
+        return bestPoint ?? cameraPos.clone().addScaledVector(cameraDir, range);
+    }
+
     private spreadDirections(base: THREE.Vector3, count: number, spreadDegrees: number): THREE.Vector3[] {
         if (count <= 1) return [base.clone()];
 
@@ -390,8 +425,10 @@ export class ShootingSystem extends System {
         const charged = modeNumber(this.fireMode, "chargeMs", 0) > 0;
         const accent = accentForTier(this.weaponTier);
 
-        const aimPoint = cameraPos.addScaledVector(cameraDir, this.boltRange);
-        const aimDir = aimPoint.sub(muzzlePos).normalize();
+        const aimPoint = this.aimPointAlongView(cameraPos, cameraDir, this.boltRange);
+        const aimDir = aimPoint.distanceTo(muzzlePos) < MIN_CONVERGENCE_DISTANCE
+            ? cameraDir.clone()
+            : aimPoint.clone().sub(muzzlePos).normalize();
         const directions = this.spreadDirections(aimDir, count, spread);
 
         this.onShotFired?.();
@@ -564,6 +601,7 @@ export class ShootingSystem extends System {
         directions?: number[][];
         weapon?: string;
         speed?: number;
+        mode?: string;
     }) {
         const origin = new THREE.Vector3().fromArray(data.origin);
 
@@ -579,7 +617,7 @@ export class ShootingSystem extends System {
                     maxRange: this.boltRange,
                     pierce: 0,
                     accent: accentForTier(shooterTier),
-                    charged: false,
+                    charged: isChargedMode(data.mode),
                     local: false,
                 });
             }

@@ -29,6 +29,7 @@ import { MEME_ABILITIES_BY_ID } from "../data/progression";
 import { disposeEmoteAssets } from "../entities/emoteSprites";
 import { disposeSkinTextures } from "../entities/characterSkinTexture";
 import { EmoteKey, isBodyEmote } from "../data/emotes";
+import { type CompanionId } from "../data/companions";
 import { CosmeticId } from "../data/cosmetics";
 import { LocationManager } from "../world/LocationManager";
 import type { Location } from "../world/Location";
@@ -208,6 +209,8 @@ export class Game {
     private isLoaded: boolean = false;
     private animationFrameId: number | null = null;
     private frameCount: number = 0;
+    private frameCapMs = 0;
+    private lastFrameAt = 0;
     private disposed: boolean = false;
     public isChangingLocation: boolean = false;
     public correctionGraceUntil: number = 0;
@@ -503,6 +506,7 @@ export class Game {
 
         this.renderer = createGameRenderer(canvas, width, height);
         perf.attach(this.renderer);
+        perf.registerToggle("fpsCap", (value) => this.setFrameCap(Number(value)));
 
         canvas.style.width = '100%';
         canvas.style.height = '100%';
@@ -1152,6 +1156,11 @@ export class Game {
         this.onStateChange?.({ ...this.hudState });
     }
 
+    public setFrameCap(fps: number) {
+        this.frameCapMs = fps > 0 ? 1000 / fps : 0;
+        this.lastFrameAt = 0;
+    }
+
     private animate = async () => {
         if (this.disposed) return;
         this.animationFrameId = requestAnimationFrame(this.animate);
@@ -1159,6 +1168,13 @@ export class Game {
         if (!this.isLoaded) {
             this.locationManager.render();
             return;
+        }
+
+        if (this.frameCapMs > 0) {
+            const now = performance.now();
+            const since = now - this.lastFrameAt;
+            if (since < this.frameCapMs - 1) return;
+            this.lastFrameAt = since > this.frameCapMs * 2 ? now : this.lastFrameAt + this.frameCapMs;
         }
 
         this.frameCount++;
@@ -1625,6 +1641,26 @@ export class Game {
 
     equipCosmetics(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
         this.networkManager.sendCosmeticEquip(skinId, accessoryId);
+    }
+
+    requestCompanions() {
+        this.networkManager.sendCompanionListRequest();
+    }
+
+    equipCompanion(companionId: CompanionId | null) {
+        this.networkManager.sendCompanionEquip(companionId);
+    }
+
+    dustCompanion(itemId: CompanionId) {
+        this.networkManager.sendCompanionDust(itemId);
+    }
+
+    combineFragments() {
+        this.networkManager.sendCompanionCombine();
+    }
+
+    openCrate() {
+        this.networkManager.sendCrateOpen();
     }
 
     setSpawnProtection(untilMs: number) {

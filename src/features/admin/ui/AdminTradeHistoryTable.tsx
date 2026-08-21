@@ -3,7 +3,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { getTranslation } from "@/core/i18n";
+import { useAdminLabel } from "../lib/useAdminLabel";
 import { AdminTableRef } from "./AdminTableRef";
 
 interface TradeRow {
@@ -30,6 +30,7 @@ function truncateWallet(wallet: string): string {
 
 export const AdminTradeHistoryTable = forwardRef<AdminTableRef>(function AdminTradeHistoryTable(_props, ref) {
     const [trades, setTrades] = useState<TradeRow[]>([]);
+    const translateItem = useAdminLabel();
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
 
@@ -108,7 +109,7 @@ export const AdminTradeHistoryTable = forwardRef<AdminTableRef>(function AdminTr
 
                             <div className="flex items-center justify-between">
                                 <span className="text-[#E5E7EB] text-sm">
-                                    {getTranslation(t.itemName, "en")}{t.quantity > 1 ? ` x${t.quantity}` : ""}
+                                    {translateItem(t.itemName)}{t.quantity > 1 ? ` x${t.quantity}` : ""}
                                 </span>
                                 <span className="text-[#FFD166] text-sm font-bold">{t.priceTnj.toLocaleString("en-US")} TNJ</span>
                             </div>

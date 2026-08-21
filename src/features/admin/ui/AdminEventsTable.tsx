@@ -6,7 +6,7 @@ import { CalendarClock, ChevronDown, ChevronRight, Eraser, Save } from "lucide-r
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
 import { EVENT_DOORS_BY_ID, eventWindow, type ResolvedEvent } from "@/features/game/data/eventDoors";
-import { getTranslation } from "@/core/i18n";
+import { useAdminLabel } from "../lib/useAdminLabel";
 
 interface AdminEvent extends ResolvedEvent {
     runs: number;
@@ -73,9 +73,7 @@ function defaultTextsFor(eventId: string) {
     };
 }
 
-export function eventLabel(key: string): string {
-    return key.startsWith("g.") ? getTranslation(key, "en") : key;
-}
+
 
 function overrideOnly(value: string, defaultKey: string): string {
     return value === defaultKey ? "" : value;
@@ -136,6 +134,7 @@ const labelClass = "block text-[#6B7280] text-[10px] font-bold tracking-wider up
 
 export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTable(_props, ref) {
     const [events, setEvents] = useState<AdminEvent[]>([]);
+    const eventLabel = useAdminLabel();
     const [gameSlug, setGameSlug] = useState<string | null>(null);
     const [gameName, setGameName] = useState<string | null>(null);
     const [drafts, setDrafts] = useState<Record<string, Draft>>({});

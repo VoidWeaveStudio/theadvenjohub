@@ -109,6 +109,8 @@ class PerfProfiler {
     private sweepResults: { name: string; ms: number }[] = [];
 
     private toggles = new Map<string, (value: boolean | number) => void>();
+    private savedFog: THREE.Fog | THREE.FogExp2 | null = null;
+    private shadowCasterCache = new WeakSet<THREE.Mesh>();
 
     constructor() {
         if (typeof window === "undefined") return;
@@ -697,6 +699,75 @@ class PerfProfiler {
         );
     }
 
+    public getGpuTimeMs(): number | null {
+        return this.timerExt ? this.gpuTimeMs : null;
+    }
+
+    public getMemoryInfo(): { geometries: number; textures: number; heapMb: number | null } | null {
+        const info = this.renderer?.info;
+        if (!info) return null;
+        const memory = (performance as any).memory;
+        return {
+            geometries: info.memory.geometries,
+            textures: info.memory.textures,
+            heapMb: memory ? Math.round(memory.usedJSHeapSize / 1048576) : null,
+        };
+    }
+
+    public getContextInfo(): {
+        renderer: string;
+        vendor: string;
+        webgl2: boolean;
+        bufferWidth: number;
+        bufferHeight: number;
+        cssWidth: number;
+        cssHeight: number;
+        pixelRatio: number;
+        software: boolean;
+    } | null {
+        if (!this.renderer) return null;
+
+        const gl = this.renderer.getContext();
+        const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+        const rendererName = debugInfo
+            ? String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) ?? "")
+            : "";
+        const vendorName = debugInfo
+            ? String(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) ?? "")
+            : "";
+
+        const canvas = this.renderer.domElement;
+        const lowered = rendererName.toLowerCase();
+
+        return {
+            renderer: rendererName || "unknown",
+            vendor: vendorName || "unknown",
+            webgl2: this.renderer.capabilities.isWebGL2,
+            bufferWidth: canvas.width,
+            bufferHeight: canvas.height,
+            cssWidth: canvas.clientWidth,
+            cssHeight: canvas.clientHeight,
+            pixelRatio: this.renderer.getPixelRatio(),
+            software: lowered.includes("swiftshader") || lowered.includes("llvmpipe") || lowered.includes("software"),
+        };
+    }
+    public toggleNames(): string[] {
+        return Array.from(this.toggles.keys());
+    }
+
+    public getRenderInfo(): { calls: number; triangles: number; programs: number } | null {
+        const info = this.renderer?.info;
+        if (!info) return null;
+        return {
+            calls: info.render.calls,
+            triangles: info.render.triangles,
+            programs: info.programs?.length ?? 0,
+        };
+    }
+
+    public logCurrentScene() {
+        this.logSceneReport(this.label, this.scene);
+    }
     public registerToggle(name: string, apply: (value: boolean | number) => void) {
         this.toggles.set(name, apply);
     }
@@ -738,6 +809,93 @@ class PerfProfiler {
         this.registerToggle("pointLights", (value) => {
             this.scene?.traverse((object) => {
                 if ((object as THREE.PointLight).isPointLight) object.visible = Boolean(value);
+            });
+        });
+
+        this.registerToggle("points", (value) => {
+            this.scene?.traverse((object) => {
+                if ((object as THREE.Points).isPoints) object.visible = Boolean(value);
+            });
+        });
+
+        this.registerToggle("sprites", (value) => {
+            this.scene?.traverse((object) => {
+                if ((object as THREE.Sprite).isSprite) object.visible = Boolean(value);
+            });
+        });
+
+        this.registerToggle("skinned", (value) => {
+            this.scene?.traverse((object) => {
+                if ((object as THREE.SkinnedMesh).isSkinnedMesh) object.visible = Boolean(value);
+            });
+        });
+
+        this.registerToggle("instanced", (value) => {
+            this.scene?.traverse((object) => {
+                if ((object as THREE.InstancedMesh).isInstancedMesh) object.visible = Boolean(value);
+            });
+        });
+
+        this.registerToggle("fog", (value) => {
+            if (!this.scene) return;
+            if (value) {
+                if (this.savedFog) this.scene.fog = this.savedFog;
+                return;
+            }
+            if (this.scene.fog) this.savedFog = this.scene.fog;
+            this.scene.fog = null;
+        });
+
+        this.registerToggle("toneMapping", (value) => {
+            if (!this.renderer) return;
+            this.renderer.toneMapping = value ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+            this.forEachMaterial((material) => {
+                material.needsUpdate = true;
+            });
+        });
+
+        this.registerToggle("castShadows", (value) => {
+            this.scene?.traverse((object) => {
+                const mesh = object as THREE.Mesh;
+                if (!mesh.isMesh) return;
+                if (!value) {
+                    if (mesh.castShadow) this.shadowCasterCache.add(mesh);
+                    mesh.castShadow = false;
+                } else if (this.shadowCasterCache.has(mesh)) {
+                    mesh.castShadow = true;
+                }
+            });
+            if (this.renderer) this.renderer.shadowMap.needsUpdate = true;
+        });
+
+        this.registerToggle("shadowRes", (value) => {
+            const size = Math.max(128, Math.round(Number(value) || 1024));
+            this.scene?.traverse((object) => {
+                const light = object as THREE.DirectionalLight;
+                if (!light.isLight || !light.shadow) return;
+                light.shadow.mapSize.set(size, size);
+                light.shadow.map?.dispose();
+                (light.shadow as any).map = null;
+            });
+            if (this.renderer) this.renderer.shadowMap.needsUpdate = true;
+        });
+
+        this.registerToggle("grassDensity", (value) => {
+            const scale = typeof value === "number" ? value : Number(Boolean(value));
+            this.forEachMaterial((material) => {
+                const uniforms = (material as THREE.ShaderMaterial).uniforms;
+                if (uniforms?.uDensityScale) uniforms.uDensityScale.value = scale;
+            });
+        });
+
+        this.registerToggle("lightsExceptFirst", (value) => {
+            let seen = 0;
+            this.scene?.traverse((object) => {
+                const light = object as THREE.Light;
+                if (!light.isLight) return;
+                if ((light as THREE.AmbientLight).isAmbientLight) return;
+                seen++;
+                if (seen > 1) object.visible = Boolean(value);
             });
         });
 

@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight, Shirt, Swords } from "lucide-react";
+import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight, PawPrint, Shirt, Swords } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FriendsTab } from "./FriendsTab";
 import { MailTab } from "./MailTab";
@@ -11,13 +11,15 @@ import { AccountTab } from "./AccountTab";
 import { BlockedTab } from "./BlockedTab";
 import { TradeHistoryTab } from "./TradeHistoryTab";
 import { AppearanceTab } from "./AppearanceTab";
+import { CompanionsTab } from "./CompanionsTab";
 import { CosmeticId } from "../data/cosmetics";
+import { CompanionId, FRAGMENTS_PER_CRATE } from "../data/companions";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
 import { PartyPanel } from "./PartyPanel";
-import { FriendEntry, FriendRequestEntry, MailEntry, PartyStateData, PlayerProfileData, QuestInfoData, BlockedEntry, CosmeticStateData } from "../network/NetworkManager";
+import { FriendEntry, FriendRequestEntry, MailEntry, PartyStateData, PlayerProfileData, QuestInfoData, BlockedEntry, CosmeticStateData, CompanionStateData } from "../network/NetworkManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
-export type SocialTab = "friends" | "party" | "mail" | "account" | "appearance" | "blocked" | "trades";
+export type SocialTab = "friends" | "party" | "mail" | "account" | "appearance" | "companions" | "blocked" | "trades";
 
 interface SocialWindowProps {
     isOpen: boolean;
@@ -52,6 +54,13 @@ interface SocialWindowProps {
     cosmetics: CosmeticStateData;
     onRequestCosmetics: () => void;
     onEquipCosmetics: (skinId: CosmeticId | null, accessoryId: CosmeticId | null) => void;
+
+    companions: CompanionStateData;
+    onRequestCompanions: () => void;
+    onEquipCompanion: (companionId: CompanionId | null) => void;
+    onDustCompanion: (itemId: CompanionId) => void;
+    onCombineFragments: () => void;
+    onOpenCrate: () => void;
 
     blocked: BlockedEntry[];
     onRequestBlockedList: () => void;
@@ -93,6 +102,12 @@ export function SocialWindow({
     cosmetics,
     onRequestCosmetics,
     onEquipCosmetics,
+    companions,
+    onRequestCompanions,
+    onEquipCompanion,
+    onDustCompanion,
+    onCombineFragments,
+    onOpenCrate,
     blocked,
     onRequestBlockedList,
     onUnblockUser,
@@ -136,6 +151,7 @@ export function SocialWindow({
                 { id: "blocked", label: t("g.social.tab.blockList"), icon: <UserX className="w-3.5 h-3.5" /> },
                 { id: "trades", label: t("g.social.tab.trades"), icon: <ArrowLeftRight className="w-3.5 h-3.5" /> },
                 { id: "appearance", label: t("g.social.tab.appearance"), icon: <Shirt className="w-3.5 h-3.5" /> },
+                { id: "companions", label: t("g.social.tab.companions"), icon: <PawPrint className="w-3.5 h-3.5" />, badge: companions.crates > 0 || companions.fragments >= FRAGMENTS_PER_CRATE },
                 { id: "account", label: t("g.social.tab.account"), icon: <User className="w-3.5 h-3.5" /> },
             ]}
             activeTab={activeTab}
@@ -192,6 +208,17 @@ export function SocialWindow({
                     cosmetics={cosmetics}
                     onRequestCosmetics={onRequestCosmetics}
                     onEquip={onEquipCosmetics}
+                />
+            )}
+
+            {activeTab === "companions" && (
+                <CompanionsTab
+                    companions={companions}
+                    onRequestCompanions={onRequestCompanions}
+                    onEquip={onEquipCompanion}
+                    onDust={onDustCompanion}
+                    onCombine={onCombineFragments}
+                    onOpenCrate={onOpenCrate}
                 />
             )}
 

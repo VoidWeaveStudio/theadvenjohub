@@ -1,7 +1,7 @@
 // src/core/lib/shopCatalog.ts
 export type ShopCurrency = "ash" | "tnj" | "usd";
 
-export type ShopItemKind = "placeable" | "cosmetic" | "faction" | "consumable" | "pet";
+export type ShopItemKind = "placeable" | "cosmetic" | "faction" | "consumable" | "companion" | "lootbox" | "weapon" | "emote";
 
 export interface ShopCatalogEntry {
     itemId: string;
@@ -29,7 +29,16 @@ export const SHOP_CATALOG: ShopCatalogEntry[] = [
     { itemId: "home-teleport", name: "Homeward Charge", nameKey: "g.placeable.home-teleport.name", kind: "consumable", description: "Five second cast, teleports you to your spawn beacon", descriptionKey: "g.shopItem.home-teleport.description", defaultCurrency: "ash", defaultPriceAsh: 250, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 10 },
     { itemId: "run-insurance", name: "Run Insurance", nameKey: "g.placeable.run-insurance.name", kind: "consumable", description: "Keeps your tokens through one death", descriptionKey: "g.placeable.run-insurance.hint", defaultCurrency: "ash", defaultPriceAsh: 1000, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 1 },
 
-    { itemId: "pet-dog", name: "Scrap Hound", nameKey: "g.pet.pet-dog.name", kind: "pet", description: "Fetches loot from mobs you killed", descriptionKey: "g.shopItem.pet-dog.description", defaultCurrency: "usd", defaultPriceAsh: 0, defaultPriceTnj: 100000, defaultPriceUsdCents: 500, maxOwned: 1 },
+    { itemId: "companion-crate", name: "Meme Crate", nameKey: "g.crate.name", kind: "lootbox", description: "Rolls one companion", descriptionKey: "g.crate.description", defaultCurrency: "usd", defaultPriceAsh: 0, defaultPriceTnj: 60000, defaultPriceUsdCents: 300, maxOwned: null },
+
+    { itemId: "pet-dog", name: "Scrap Hound", nameKey: "g.pet.pet-dog.name", kind: "companion", description: "Fetches loot from mobs you killed", descriptionKey: "g.shopItem.pet-dog.description", defaultCurrency: "usd", defaultPriceAsh: 0, defaultPriceTnj: 100000, defaultPriceUsdCents: 500, maxOwned: null },
+    { itemId: "pet-shiba", name: "Doge", nameKey: "g.pet.pet-shiba.name", kind: "companion", description: "Crate drop", descriptionKey: "g.pet.pet-shiba.hint", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },
+    { itemId: "pet-pepe", name: "Pepe Familiar", nameKey: "g.pet.pet-pepe.name", kind: "companion", description: "Crate drop", descriptionKey: "g.pet.pet-pepe.hint", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },
+    { itemId: "pet-bonk", name: "Bonk Pup", nameKey: "g.pet.pet-bonk.name", kind: "companion", description: "Crate drop", descriptionKey: "g.pet.pet-bonk.hint", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },
+    { itemId: "pet-chad", name: "Gigachad Bull", nameKey: "g.pet.pet-chad.name", kind: "companion", description: "Crate drop", descriptionKey: "g.pet.pet-chad.hint", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },
+    { itemId: "pet-rocket", name: "Moon Rocket", nameKey: "g.pet.pet-rocket.name", kind: "companion", description: "Crate drop", descriptionKey: "g.pet.pet-rocket.hint", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },
+    { itemId: "pet-diamond", name: "Diamond Hands", nameKey: "g.pet.pet-diamond.name", kind: "companion", description: "Crate drop", descriptionKey: "g.pet.pet-diamond.hint", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },
+    { itemId: "pet-kraken", name: "Kraken", nameKey: "g.pet.pet-kraken.name", kind: "companion", description: "Crate drop", descriptionKey: "g.pet.pet-kraken.hint", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },
 
     { itemId: "scream_mask", name: "Scream Mask", nameKey: "g.cosmetic.scream_mask.name", kind: "cosmetic", description: "Accessory", descriptionKey: "g.shopItem.accessory", defaultCurrency: "ash", defaultPriceAsh: 1, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 1 },
     { itemId: "trump_hair", name: "Trump Hair", nameKey: "g.cosmetic.trump_hair.name", kind: "cosmetic", description: "Accessory", descriptionKey: "g.shopItem.accessory", defaultCurrency: "ash", defaultPriceAsh: 1, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 1 },

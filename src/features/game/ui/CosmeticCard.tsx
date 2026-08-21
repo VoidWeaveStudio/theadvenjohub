@@ -13,6 +13,7 @@ interface CosmeticCardProps {
     blockedReason?: string;
     actionLabel: string;
     onAction: () => void;
+    onPreview?: () => void;
 }
 
 export function CosmeticCard({
@@ -23,6 +24,7 @@ export function CosmeticCard({
     blockedReason,
     actionLabel,
     onAction,
+    onPreview,
 }: CosmeticCardProps) {
     const { t } = useLanguage();
     const Icon = cosmetic.slot === "skin" ? Shirt : Sparkles;
@@ -34,12 +36,16 @@ export function CosmeticCard({
                 : "bg-[rgba(255,255,255,0.04)] border-white/10"
                 }`}
         >
-            <div
-                className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0"
+            <button
+                type="button"
+                onClick={onPreview}
+                disabled={!onPreview}
+                title={onPreview ? t("g.cosmetic.tryOn") : undefined}
+                className={`w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 border-0 p-0 transition-transform ${onPreview ? "cursor-pointer hover:scale-110" : "cursor-default"}`}
                 style={{ background: `${cosmetic.accent}22`, color: cosmetic.accent }}
             >
                 <Icon className="w-5 h-5" />
-            </div>
+            </button>
 
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -55,6 +61,11 @@ export function CosmeticCard({
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
+                {onPreview && (
+                    <button onClick={onPreview} className="btn-secondary px-2.5 py-1.5 text-[11px]">
+                        {t("g.cosmetic.tryOn")}
+                    </button>
+                )}
                 {!owned && (
                     <span className="flex items-center gap-1 text-[#FFD166] text-xs font-bold">
                         <Gem className="w-3.5 h-3.5" />

@@ -4,7 +4,8 @@
 import { useEffect, useState } from "react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { PLACEABLE_ITEMS } from "../../game/data/placeableItems";
-import { getTranslation } from "@/core/i18n";
+import { COMPANIONS, COMPANIONS_BY_ID, FRAGMENTS_PER_CRATE } from "../../game/data/companions";
+import { useAdminLabel } from "../lib/useAdminLabel";
 import { MAX_LEVEL, skillPointsForLevel } from "../../game/data/progression";
 
 interface PlayerDetail {
@@ -38,6 +39,12 @@ interface PlayerDetail {
         equippedSkin: { id: string; name: string } | null;
         equippedAccessory: { id: string; name: string } | null;
         owned: { id: string; name: string; slot: string; purchasedAt: string }[];
+    } | null;
+    companions: {
+        owned: { itemId: string; quantity: number }[];
+        equipped: string | null;
+        fragments: number;
+        crates: number;
     } | null;
     placeables: Record<string, number>;
     locationId: string | null;
@@ -94,10 +101,6 @@ function formatPlaytime(seconds: number): string {
     return `${minutes}m`;
 }
 
-function adminLabel(key: string): string {
-    return key.startsWith("g.") ? getTranslation(key, "en") : key;
-}
-
 export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminPlayerDetailModalProps) {
     const [player, setPlayer] = useState<PlayerDetail | null>(null);
     const [loading, setLoading] = useState(false);
@@ -106,8 +109,13 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
     const [ashAmountInput, setAshAmountInput] = useState("100");
     const [levelInput, setLevelInput] = useState("1");
     const [itemToGrant, setItemToGrant] = useState(PLACEABLE_ITEMS[0]?.id || "");
+    const [companionToGrant, setCompanionToGrant] = useState<string>(COMPANIONS[0]?.id ?? "");
+    const [companionQuantityInput, setCompanionQuantityInput] = useState("1");
+    const [fragmentAmountInput, setFragmentAmountInput] = useState("100");
+    const [crateAmountInput, setCrateAmountInput] = useState("1");
     const [itemQuantityInput, setItemQuantityInput] = useState("1");
     const { signedFetch } = useAdminSignature();
+    const adminLabel = useAdminLabel();
 
     useEffect(() => {
         if (!userId) {
@@ -239,6 +247,61 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                 setPlayer((prev) => (prev ? { ...prev, placeables: data.placeables } : prev));
             } else {
                 setActionError("Failed to update inventory");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        }
+    };
+
+    const adjustCompanionScope = async (
+        scope: "companion" | "fragments" | "crates",
+        itemId: string,
+        amount: number,
+        sign: 1 | -1
+    ) => {
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        const delta = Math.floor(amount) * sign;
+        const action =
+            scope === "companion"
+                ? (sign > 0 ? "grantCompanion" : "takeCompanion")
+                : scope === "fragments"
+                    ? (sign > 0 ? "grantFragments" : "takeFragments")
+                    : (sign > 0 ? "grantCrates" : "takeCrates");
+
+        setActionError(null);
+        try {
+            const res = await signedFetch(
+                `/api/admin/players/${userId}/companions`,
+                action,
+                `${userId}:${scope}:${itemId}`,
+                { scope, itemId, delta }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                setPlayer((prev) => (prev ? { ...prev, companions: data.companions } : prev));
+            } else {
+                const data = await res.json().catch(() => ({}));
+                setActionError(data?.error === "not_enough" ? "Player does not have that much" : "Failed to update companions");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        }
+    };
+
+    const setEquippedCompanion = async (itemId: string) => {
+        setActionError(null);
+        try {
+            const res = await signedFetch(
+                `/api/admin/players/${userId}/companions`,
+                "setCompanion",
+                `${userId}:equip:${itemId}`,
+                { scope: "equip", itemId }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                setPlayer((prev) => (prev ? { ...prev, companions: data.companions } : prev));
+            } else {
+                setActionError("Failed to change the equipped companion");
             }
         } catch (err: any) {
             setActionError(err.message || "Signature failed");
@@ -415,6 +478,47 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                         </div>
 
                         <div>
+                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">COMPANIONS</div>
+                            <div className="grid grid-cols-3 gap-1.5 mb-2">
+                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
+                                    <div className="text-[#6B7280]">Equipped</div>
+                                    <div className="text-white font-bold truncate">
+                                        {player.companions?.equipped
+                                            ? adminLabel(COMPANIONS_BY_ID.get(player.companions.equipped as any)?.nameKey || player.companions.equipped)
+                                            : "—"}
+                                    </div>
+                                </div>
+                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
+                                    <div className="text-[#6B7280]">Fragments</div>
+                                    <div className="text-[#C084FC] font-bold">
+                                        {player.companions?.fragments ?? 0} / {FRAGMENTS_PER_CRATE}
+                                    </div>
+                                </div>
+                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
+                                    <div className="text-[#6B7280]">Crates</div>
+                                    <div className="text-[#FFD166] font-bold">{player.companions?.crates ?? 0}</div>
+                                </div>
+                            </div>
+                            {!player.companions || player.companions.owned.length === 0 ? (
+                                <p className="text-[#6B7280] text-xs">None owned.</p>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {player.companions.owned.map((entry) => {
+                                        const definition = COMPANIONS_BY_ID.get(entry.itemId as any);
+                                        return (
+                                            <div key={entry.itemId} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white flex items-center justify-between gap-2">
+                                                <span className="truncate">
+                                                    {definition?.icon || ""} {adminLabel(definition?.nameKey || entry.itemId)} × {entry.quantity}
+                                                </span>
+                                                <span className="text-[#6B7280] text-[10px] uppercase flex-shrink-0">{definition?.rarity || "?"}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
                             <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">PLACEABLES</div>
                             {Object.keys(player.placeables).length === 0 ? (
                                 <p className="text-[#6B7280] text-xs">None owned.</p>
@@ -555,6 +659,105 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                         Grant
                                     </button>
                                     <button onClick={() => adjustPlaceable(itemToGrant, -1)} className="btn-secondary px-3 py-1.5 text-xs text-red-400 flex-shrink-0">
+                                        Take
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">GRANT / TAKE COMPANION</div>
+                                <div className="flex items-center gap-1.5">
+                                    <select
+                                        value={companionToGrant}
+                                        onChange={(e) => setCompanionToGrant(e.target.value)}
+                                        className="flex-1 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
+                                    >
+                                        {COMPANIONS.map((companion) => (
+                                            <option key={companion.id} value={companion.id}>
+                                                {adminLabel(companion.nameKey)} — {companion.rarity}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={companionQuantityInput}
+                                        onChange={(e) => setCompanionQuantityInput(e.target.value)}
+                                        className="w-16 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none flex-shrink-0"
+                                    />
+                                    <button
+                                        onClick={() => adjustCompanionScope("companion", companionToGrant, Number(companionQuantityInput), 1)}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] flex-shrink-0"
+                                    >
+                                        Grant
+                                    </button>
+                                    <button
+                                        onClick={() => adjustCompanionScope("companion", companionToGrant, Number(companionQuantityInput), -1)}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-red-400 flex-shrink-0"
+                                    >
+                                        Take
+                                    </button>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-1.5">
+                                    <button
+                                        onClick={() => setEquippedCompanion(companionToGrant)}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4FD1FF]"
+                                    >
+                                        Equip selected
+                                    </button>
+                                    <button
+                                        onClick={() => setEquippedCompanion("")}
+                                        className="btn-secondary px-3 py-1.5 text-xs"
+                                    >
+                                        Unequip
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">MEME FRAGMENTS</div>
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={fragmentAmountInput}
+                                        onChange={(e) => setFragmentAmountInput(e.target.value)}
+                                        className="w-24 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
+                                    />
+                                    <button
+                                        onClick={() => adjustCompanionScope("fragments", "", Number(fragmentAmountInput), 1)}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80]"
+                                    >
+                                        Grant
+                                    </button>
+                                    <button
+                                        onClick={() => adjustCompanionScope("fragments", "", Number(fragmentAmountInput), -1)}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-red-400"
+                                    >
+                                        Take
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">MEME CRATES</div>
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={crateAmountInput}
+                                        onChange={(e) => setCrateAmountInput(e.target.value)}
+                                        className="w-24 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
+                                    />
+                                    <button
+                                        onClick={() => adjustCompanionScope("crates", "", Number(crateAmountInput), 1)}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80]"
+                                    >
+                                        Grant
+                                    </button>
+                                    <button
+                                        onClick={() => adjustCompanionScope("crates", "", Number(crateAmountInput), -1)}
+                                        className="btn-secondary px-3 py-1.5 text-xs text-red-400"
+                                    >
                                         Take
                                     </button>
                                 </div>

@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ResourceManager } from "../../core/ResourceManager";
-import { scaleAndCenterModel } from "../../entities/characterModel";
+import { applyRestPoseCorrection, scaleAndCenterModel } from "../../entities/characterModel";
 import { findPaintableMesh, clonePaintableMaterial } from "../../entities/characterPaint";
 import { canvasToPngBlob } from "../../utils/exportPng";
 
@@ -90,7 +90,8 @@ export class PaintEditorScene {
 
         const data = resourceManager.getModel("player");
         if (data) {
-            scaleAndCenterModel(data.scene, 1.8, 0);
+            applyRestPoseCorrection(data.scene, data.animations);
+            scaleAndCenterModel(data.scene, 1.8, 0, true);
             this.scene.add(data.scene);
             data.scene.updateMatrixWorld(true);
 

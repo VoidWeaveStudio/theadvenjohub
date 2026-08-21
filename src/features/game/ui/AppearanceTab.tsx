@@ -1,11 +1,13 @@
 // src/features/game/ui/AppearanceTab.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Shirt, Sparkles } from "lucide-react";
 import { COSMETICS, CosmeticId } from "../data/cosmetics";
 import { CosmeticStateData } from "../network/NetworkManager";
 import { CosmeticCard } from "./CosmeticCard";
+import { PreviewModal } from "./preview/PreviewModal";
+import type { PreviewSubject } from "./preview/PreviewScene";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface AppearanceTabProps {
@@ -16,6 +18,21 @@ interface AppearanceTabProps {
 
 export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: AppearanceTabProps) {
     const { t } = useLanguage();
+    const [preview, setPreview] = useState<
+        { subject: PreviewSubject; title: string; accent: string } | null
+    >(null);
+
+    const openPreview = (cosmetic: { id: CosmeticId; slot: string; name: string; accent: string }) =>
+        setPreview({
+            subject: {
+                kind: "character",
+                skinId: cosmetic.slot === "skin" ? cosmetic.id : null,
+                accessoryId: cosmetic.slot === "accessory" ? cosmetic.id : null,
+            },
+            title: t(cosmetic.name),
+            accent: cosmetic.accent,
+        });
+
     useEffect(() => {
         onRequestCosmetics();
     }, []);
@@ -59,6 +76,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                                 cosmetic={cosmetic}
                                 owned
                                 equipped={cosmetics.skinId === cosmetic.id}
+                                onPreview={() => openPreview(cosmetic)}
                                 actionLabel="Equip"
                                 onAction={() => onEquip(cosmetic.id, null)}
                             />
@@ -95,6 +113,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                                 equipped={cosmetics.accessoryId === cosmetic.id}
                                 blocked={hasSkinEquipped}
                                 blockedReason={hasSkinEquipped ? t("g.appearance.takeOffFirst") : undefined}
+                                onPreview={() => openPreview(cosmetic)}
                                 actionLabel="Equip"
                                 onAction={() => onEquip(null, cosmetic.id)}
                             />
@@ -102,6 +121,14 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                     </div>
                 )}
             </div>
+
+            <PreviewModal
+                isOpen={!!preview}
+                title={preview?.title ?? ""}
+                accent={preview?.accent}
+                subject={preview?.subject ?? null}
+                onClose={() => setPreview(null)}
+            />
         </div>
     );
 }

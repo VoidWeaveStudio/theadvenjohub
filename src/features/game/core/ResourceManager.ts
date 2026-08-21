@@ -64,7 +64,6 @@ export class ResourceManager {
 
     const tasks: [string, Promise<boolean>][] = [
       ["player", this.loadModel("player", "/models/player/character.glb", "Loading Player")],
-      ["rifle", this.loadModel("rifle", "/models/rifle.glb", "Loading Weapon")],
     ];
 
     const results = await Promise.all(tasks.map(([, p]) => p));

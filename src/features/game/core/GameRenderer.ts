@@ -27,6 +27,8 @@ function installShaderNoiseFilter() {
     });
 }
 
+const MAX_PIXEL_RATIO = 1.5;
+
 export function createGameRenderer(canvas: HTMLCanvasElement, width: number, height: number): THREE.WebGLRenderer {
     installShaderNoiseFilter();
 
@@ -37,7 +39,7 @@ export function createGameRenderer(canvas: HTMLCanvasElement, width: number, hei
     });
 
     renderer.setSize(width, height, false);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
 
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;

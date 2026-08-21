@@ -468,6 +468,52 @@ export const gameCosmeticLoadouts = pgTable("game_cosmetic_loadouts", {
   uniqueIndex("idx_game_cosmetic_loadouts_user_game").on(table.userId, table.gameId),
 ]);
 
+export const gameCompanions = pgTable("game_companions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  itemId: varchar("item_id", { length: 40 }).notNull(),
+  quantity: integer("quantity").default(1).notNull(),
+  acquiredAt: timestamp("acquired_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_companions_user_game_item").on(table.userId, table.gameId, table.itemId),
+  index("idx_game_companions_user_game").on(table.userId, table.gameId),
+]);
+
+export const gameCompanionLoadouts = pgTable("game_companion_loadouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  companionId: varchar("companion_id", { length: 40 }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_companion_loadouts_user_game").on(table.userId, table.gameId),
+]);
+
+export const gameMemeWallet = pgTable("game_meme_wallet", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  fragments: integer("fragments").default(0).notNull(),
+  crates: integer("crates").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_meme_wallet_user_game").on(table.userId, table.gameId),
+]);
+
+export const gameCrateOpenings = pgTable("game_crate_openings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  itemId: varchar("item_id", { length: 40 }).notNull(),
+  rarity: varchar("rarity", { length: 20 }).notNull(),
+  source: varchar("source", { length: 20 }).default("crate").notNull(),
+  openedAt: timestamp("opened_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_game_crate_openings_user_game").on(table.userId, table.gameId),
+]);
+
 export const shopItemPrices = pgTable("shop_item_prices", {
   id: uuid("id").primaryKey().defaultRandom(),
   gameId: uuid("game_id").notNull().references(() => games.id),
@@ -951,6 +997,26 @@ export const gameCosmeticsRelations = relations(gameCosmetics, ({ one }) => ({
 export const gameCosmeticLoadoutsRelations = relations(gameCosmeticLoadouts, ({ one }) => ({
   user: one(users, { fields: [gameCosmeticLoadouts.userId], references: [users.id] }),
   game: one(games, { fields: [gameCosmeticLoadouts.gameId], references: [games.id] }),
+}));
+
+export const gameCompanionsRelations = relations(gameCompanions, ({ one }) => ({
+  user: one(users, { fields: [gameCompanions.userId], references: [users.id] }),
+  game: one(games, { fields: [gameCompanions.gameId], references: [games.id] }),
+}));
+
+export const gameCompanionLoadoutsRelations = relations(gameCompanionLoadouts, ({ one }) => ({
+  user: one(users, { fields: [gameCompanionLoadouts.userId], references: [users.id] }),
+  game: one(games, { fields: [gameCompanionLoadouts.gameId], references: [games.id] }),
+}));
+
+export const gameMemeWalletRelations = relations(gameMemeWallet, ({ one }) => ({
+  user: one(users, { fields: [gameMemeWallet.userId], references: [users.id] }),
+  game: one(games, { fields: [gameMemeWallet.gameId], references: [games.id] }),
+}));
+
+export const gameCrateOpeningsRelations = relations(gameCrateOpenings, ({ one }) => ({
+  user: one(users, { fields: [gameCrateOpenings.userId], references: [users.id] }),
+  game: one(games, { fields: [gameCrateOpenings.gameId], references: [games.id] }),
 }));
 
 export const shopItemPricesRelations = relations(shopItemPrices, ({ one }) => ({

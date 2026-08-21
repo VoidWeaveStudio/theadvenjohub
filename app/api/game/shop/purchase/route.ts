@@ -2,8 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
-import { gameProgress, shopPurchases } from "@/core/database/schema";
-import { eq } from "drizzle-orm";
+import { gameProgress, shopPurchases, gameCompanions, gameCosmetics, gameMemeWallet } from "@/core/database/schema";
+import { and, eq } from "drizzle-orm";
+import { adjustCompanion, adjustWallet, seedLegacyDog } from "@/core/lib/companionInventory";
+import { DEFAULT_COMPANION_ID } from "@/features/game/data/companions";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
@@ -101,7 +103,34 @@ export async function POST(req: NextRequest) {
         }
         const placeables: Record<string, number> =
             data.placeables && typeof data.placeables === "object" ? data.placeables : {};
-        const owned = Math.max(0, Math.floor(Number(placeables[itemId]) || 0));
+
+        let owned = 0;
+        if (entry.kind === "companion") {
+            const stack = await db.query.gameCompanions.findFirst({
+                where: and(
+                    eq(gameCompanions.userId, user.userId),
+                    eq(gameCompanions.gameId, gameId),
+                    eq(gameCompanions.itemId, itemId)
+                ),
+            });
+            owned = Math.max(0, stack?.quantity ?? 0);
+        } else if (entry.kind === "lootbox") {
+            const wallet = await db.query.gameMemeWallet.findFirst({
+                where: and(eq(gameMemeWallet.userId, user.userId), eq(gameMemeWallet.gameId, gameId)),
+            });
+            owned = Math.max(0, wallet?.crates ?? 0);
+        } else if (entry.kind === "cosmetic") {
+            const cosmetic = await db.query.gameCosmetics.findFirst({
+                where: and(
+                    eq(gameCosmetics.userId, user.userId),
+                    eq(gameCosmetics.gameId, gameId),
+                    eq(gameCosmetics.itemId, itemId)
+                ),
+            });
+            owned = cosmetic ? 1 : 0;
+        } else {
+            owned = Math.max(0, Math.floor(Number(placeables[itemId]) || 0));
+        }
 
         if (entry.maxOwned !== null && owned >= entry.maxOwned) {
             return NextResponse.json(
@@ -179,14 +208,25 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        placeables[itemId] = owned + 1;
-        data.placeables = placeables;
-
         try {
-            await db
-                .update(gameProgress)
-                .set({ data: JSON.stringify(data), updatedAt: new Date() })
-                .where(eq(gameProgress.id, progress.id));
+            if (entry.kind === "companion") {
+                await seedLegacyDog(user.userId, gameId, Math.floor(Number(placeables[DEFAULT_COMPANION_ID]) || 0));
+                await adjustCompanion(user.userId, gameId, itemId, 1);
+            } else if (entry.kind === "lootbox") {
+                await adjustWallet(user.userId, gameId, 0, 1);
+            } else if (entry.kind === "cosmetic") {
+                await db
+                    .insert(gameCosmetics)
+                    .values({ userId: user.userId, gameId, itemId, pricePaidAsh: 0 })
+                    .onConflictDoNothing();
+            } else {
+                placeables[itemId] = owned + 1;
+                data.placeables = placeables;
+                await db
+                    .update(gameProgress)
+                    .set({ data: JSON.stringify(data), updatedAt: new Date() })
+                    .where(eq(gameProgress.id, progress.id));
+            }
         } catch (grantError: any) {
             console.error("[game/shop/purchase] CRITICAL: purchase recorded but item not granted:", {
                 itemId, signature, userId: user.userId, purchaseId: recorded?.id, error: grantError?.message,
@@ -198,7 +238,7 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json(
-            { success: true, itemId, owned: placeables[itemId], priceTnj: pricing.requiredTnj },
+            { success: true, itemId, owned: owned + 1, priceTnj: pricing.requiredTnj },
             { headers: formatRateLimitHeaders(rl) }
         );
     } catch (error) {

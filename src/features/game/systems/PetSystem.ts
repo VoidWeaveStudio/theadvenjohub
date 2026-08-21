@@ -3,9 +3,10 @@ import * as THREE from "three";
 import { System } from "./System";
 import { Player } from "../entities/Player";
 import { NetworkManager } from "../network/NetworkManager";
-import { createProceduralDog, animateDog, disposeDog, type DogParts } from "../entities/proceduralDog";
+import { createCompanion, type CompanionInstance } from "../entities/companionModels";
+import { DEFAULT_COMPANION_ID, isCompanionId, type CompanionId } from "../data/companions";
 
-export const PET_ITEM_ID = "pet-dog";
+export const PET_ITEM_ID = DEFAULT_COMPANION_ID;
 
 const FETCH_RADIUS = 28;
 const RUN_SPEED = 9;
@@ -40,8 +41,11 @@ export class PetSystem extends System {
     private getGroundHeight: (x: number, z: number) => number = () => 0;
     private getFetchableDrops: () => FetchableDrop[] = () => [];
 
-    private parts: DogParts | null = null;
-    private owned = false;
+    private instance: CompanionInstance | null = null;
+    private activeId: CompanionId | null = null;
+    private equippedId: CompanionId | null = null;
+    private companionStateKnown = false;
+    private legacyDogOwned = false;
     private locationId = "";
     private elapsed = 0;
 
@@ -73,7 +77,7 @@ export class PetSystem extends System {
             runSpeed: Math.max(1, Math.min(RUN_SPEED, next.runSpeed)),
             walkSpeed: Math.max(0.5, Math.min(RUN_SPEED, next.walkSpeed)),
         };
-        if (this.parts) this.parts.root.scale.setScalar(this.tuning.scale);
+        if (this.instance) this.instance.root.scale.setScalar(this.tuning.scale);
     }
 
     init(
@@ -91,10 +95,12 @@ export class PetSystem extends System {
     public setScene(scene: THREE.Scene) {
         if (this.scene === scene) return;
         this.scene = scene;
-        if (this.parts && this.isActive()) {
-            scene.add(this.parts.root);
+        if (this.instance && this.isActive()) {
+            scene.add(this.instance.root);
             this.snapToPlayer();
+            return;
         }
+        this.syncPresence();
     }
 
     public setLocation(locationId: string) {
@@ -104,40 +110,52 @@ export class PetSystem extends System {
         this.syncPresence();
     }
 
-    public setOwned(owned: boolean) {
-        if (this.owned === owned) return;
-        this.owned = owned;
+    public setEquipped(companionId: string | null) {
+        const next = isCompanionId(companionId) ? companionId : null;
+        const wasKnown = this.companionStateKnown;
+        this.companionStateKnown = true;
+        if (wasKnown && this.equippedId === next) return;
+        this.equippedId = next;
         this.syncPresence();
     }
 
     public setOwnedFromPlaceables(placeables: Record<string, number>) {
-        this.setOwned((placeables[PET_ITEM_ID] || 0) > 0);
+        const owned = (placeables[DEFAULT_COMPANION_ID] || 0) > 0;
+        if (this.legacyDogOwned === owned) return;
+        this.legacyDogOwned = owned;
+        this.syncPresence();
+    }
+
+    private wantedCompanion(): CompanionId | null {
+        if (this.companionStateKnown) return this.equippedId;
+        return this.legacyDogOwned ? DEFAULT_COMPANION_ID : null;
     }
 
     public isActive(): boolean {
-        return this.owned && !this.locationId.startsWith(BLOCKED_LOCATION_PREFIX);
+        return this.wantedCompanion() !== null && !this.locationId.startsWith(BLOCKED_LOCATION_PREFIX);
     }
 
     private syncPresence() {
-        if (this.isActive()) {
-            this.spawn();
-        } else {
-            this.despawn();
-        }
+        const wanted = this.isActive() ? this.wantedCompanion() : null;
+        if (wanted === this.activeId) return;
+        this.despawn();
+        if (wanted) this.spawn(wanted);
     }
 
-    private spawn() {
-        if (this.parts || !this.scene) return;
-        this.parts = createProceduralDog();
-        this.parts.root.scale.setScalar(this.tuning.scale);
-        this.scene.add(this.parts.root);
+    private spawn(companionId: CompanionId) {
+        if (this.instance || !this.scene) return;
+        this.instance = createCompanion(companionId);
+        this.activeId = companionId;
+        this.instance.root.scale.setScalar(this.tuning.scale);
+        this.scene.add(this.instance.root);
         this.snapToPlayer();
     }
 
     private despawn() {
-        if (!this.parts) return;
-        disposeDog(this.parts);
-        this.parts = null;
+        this.activeId = null;
+        if (!this.instance) return;
+        this.instance.dispose();
+        this.instance = null;
         this.resetFetch();
     }
 
@@ -148,12 +166,12 @@ export class PetSystem extends System {
     }
 
     private snapToPlayer() {
-        if (!this.parts) return;
+        if (!this.instance) return;
         const p = this.player.mesh.position;
         const yaw = this.player.mesh.rotation.y;
         const x = p.x - Math.sin(yaw) * this.tuning.followDistance + Math.cos(yaw) * this.tuning.followSide;
         const z = p.z - Math.cos(yaw) * this.tuning.followDistance - Math.sin(yaw) * this.tuning.followSide;
-        this.parts.root.position.set(x, this.getGroundHeight(x, z), z);
+        this.instance.root.position.set(x, this.getGroundHeight(x, z), z);
     }
 
     private pickTarget(): void {
@@ -187,10 +205,10 @@ export class PetSystem extends System {
     }
 
     public update(delta: number) {
-        if (!this.parts || !this.isActive()) return;
+        if (!this.instance || !this.isActive()) return;
 
         this.elapsed += delta;
-        const root = this.parts.root;
+        const root = this.instance.root;
         const playerPos = this.player.mesh.position;
 
         if (root.position.distanceTo(playerPos) > FOLLOW_TELEPORT_DISTANCE) {
@@ -249,7 +267,7 @@ export class PetSystem extends System {
         }
 
         const speed01 = speed <= 0 ? 0 : Math.min(1, speed / this.tuning.runSpeed);
-        animateDog(this.parts, this.elapsed, speed01, this.mode === "return");
+        this.instance.update(this.elapsed, speed01, this.mode === "return");
     }
 
     public clear() {
