@@ -33,7 +33,7 @@ export function SignViewerModal({ isOpen, onClose, sign }: SignViewerModalProps)
     if (!isOpen || !sign) return null;
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-2 sm:p-4">
             <div className="w-full max-w-md bg-[rgba(12,14,16,0.95)] border-2 border-[#4FD1FF]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(79,209,255,0.15)]">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2 text-[#8B8F98] text-sm">

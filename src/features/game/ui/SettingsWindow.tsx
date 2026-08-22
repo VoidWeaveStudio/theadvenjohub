@@ -6,6 +6,8 @@ import Image from "next/image";
 import { Info, Keyboard, TriangleAlert, LifeBuoy, MonitorCog } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { GraphicsTab } from "./GraphicsTab";
+import { TouchSensitivitySetting } from "./TouchSensitivitySetting";
+import { useDevice } from "@/core/lib/useDevice";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 type SettingsTab = "controls" | "graphics" | "about";
@@ -75,6 +77,7 @@ const KEYBIND_GROUPS: { titleKey: string; binds: [string, string][] }[] = [
 export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, isInCombat = false, stuckCooldownUntil = 0, onOpenSupport }: SettingsWindowProps) {
     const { t } = useLanguage();
     const [activeTab, setActiveTab] = useState<SettingsTab>("controls");
+    const device = useDevice();
     const [cooldownLeft, setCooldownLeft] = useState(0);
 
     useEffect(() => {
@@ -151,6 +154,7 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, isInComb
         >
             {activeTab === "controls" && (
                 <div className="space-y-4">
+                    {device.isTouch && <TouchSensitivitySetting />}
                     {KEYBIND_GROUPS.map((group) => (
                         <div key={group.titleKey}>
                             <div className="text-[#6B7280] text-[10px] font-black tracking-wider mb-1.5">

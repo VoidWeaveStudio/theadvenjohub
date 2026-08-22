@@ -65,8 +65,6 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: "/apple-touch-icon.png",
     },
     manifest: "/site.webmanifest",
-    appleWebApp: { capable: true },
-    other: { "mobile-web-app-capable": "yes" },
   };
 }
 
@@ -75,7 +73,6 @@ export const viewport: Viewport = {
   colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
 };

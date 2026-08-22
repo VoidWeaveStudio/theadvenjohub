@@ -39,7 +39,7 @@ export function TokenHoverModal({ token, marketCap, pinned, onUnpin, onMouseEnte
     return (
         <div className="fixed inset-0 flex items-center justify-center z-[200] pointer-events-none font-oxanium">
             <div
-                className={`bg-[rgba(12,12,14,0.97)] border rounded-[16px] p-6 shadow-2xl flex flex-col items-center gap-3 w-[320px] pointer-events-auto ${pinned ? "border-[#4FD1FF]/60" : "border-[rgba(255,255,255,0.15)]"}`}
+                className={`bg-[rgba(12,12,14,0.97)] border rounded-[16px] p-6 shadow-2xl flex flex-col items-center gap-3 w-full max-w-[320px] pointer-events-auto ${pinned ? "border-[#4FD1FF]/60" : "border-[rgba(255,255,255,0.15)]"}`}
                 onMouseEnter={onMouseEnter}
                 onMouseLeave={onMouseLeave}
             >

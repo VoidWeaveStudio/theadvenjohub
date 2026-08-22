@@ -30,7 +30,7 @@ export function PreviewModal({
 
     return (
         <div
-            className="pointer-events-auto absolute inset-0 z-[70] flex items-center justify-center bg-black/75 p-4 font-oxanium"
+            className="pointer-events-auto absolute inset-0 z-[70] flex items-center justify-center bg-black/75 p-2 sm:p-4 font-oxanium"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}

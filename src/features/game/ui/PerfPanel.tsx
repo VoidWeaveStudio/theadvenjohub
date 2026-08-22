@@ -124,7 +124,7 @@ export function PerfPanel({ isOpen, onClose }: PerfPanelProps) {
     const fpsColor = fps >= 55 ? "#4ADE80" : fps >= 30 ? "#FFD166" : "#FF5757";
 
     return (
-        <div className="pointer-events-auto absolute top-4 left-4 z-[80] w-[292px] rounded-xl border border-white/12 bg-[rgba(10,14,20,0.94)] font-oxanium shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-sm">
+        <div className="pointer-events-auto absolute top-4 left-4 z-[80] w-full max-w-[292px] rounded-xl border border-white/12 bg-[rgba(10,14,20,0.94)] font-oxanium shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-sm">
             <div className="flex items-center justify-between px-3 py-2.5">
                 <span className="flex items-center gap-1.5 text-xs font-black tracking-wider text-[#E5E7EB]">
                     <Activity className="h-3.5 w-3.5 text-[#4FD1FF]" />
@@ -187,7 +187,7 @@ export function PerfPanel({ isOpen, onClose }: PerfPanelProps) {
                 </div>
             )}
 
-            <div className="max-h-[30vh] space-y-1 overflow-y-auto px-3">
+            <div className="max-h-[30dvh] space-y-1 overflow-y-auto px-3">
                 {SWITCHES.map((row) => {
                     const on = switches[row.name] ?? true;
                     return (

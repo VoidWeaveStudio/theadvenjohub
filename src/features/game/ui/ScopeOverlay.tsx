@@ -52,7 +52,7 @@ export function ScopeOverlay({ active, zoomStep }: ScopeOverlayProps) {
                 </div>
             </div>
 
-            <div className="absolute bottom-[22vh] left-1/2 -translate-x-1/2 text-[#8B8F98] text-[11px] font-oxanium tracking-widest">
+            <div className="absolute bottom-[22dvh] left-1/2 -translate-x-1/2 text-[#8B8F98] text-[11px] font-oxanium tracking-widest">
                 {zoomStep === 2 ? "4×" : "2×"} · [RMB] cycle
             </div>
         </div>

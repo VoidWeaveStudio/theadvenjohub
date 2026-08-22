@@ -12,6 +12,7 @@ import { and, eq } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
+import { claimSignature } from "@/core/lib/paymentLock";
 import { expectedAmountFor, resolveGamePrice } from "@/core/lib/gamePricing";
 
 const verifySchema = z.object({
@@ -172,6 +173,14 @@ export async function POST(req: NextRequest) {
     // same payment could be replayed once per table. (This still isn't fully
     // atomic against two truly concurrent requests racing each other; closing
     // that needs a single shared-signature table with one unique constraint.)
+    const claimOwner = `${user.userId}:${gameId ? `game:${gameId}` : `lot:${lotId}`}`;
+    if (!(await claimSignature(signature, claimOwner))) {
+      return NextResponse.json(
+        { error: "signature_already_used", hint: "This transaction is being redeemed by another purchase." },
+        { status: 409, headers: formatRateLimitHeaders(rl) }
+      );
+    }
+
     const existingUse = await findExistingSignatureUse(signature);
 
     if (existingUse?.kind === "license" && gameId) {

@@ -19,7 +19,7 @@ import {
 } from "../core/graphicsSettings";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
-const PRESETS: GraphicsPreset[] = ["low", "medium", "high"];
+const PRESETS: GraphicsPreset[] = ["mobile", "low", "medium", "high"];
 
 interface ToggleRow {
     key: "particles" | "pointLights" | "transmission" | "portalDetail" | "fog";

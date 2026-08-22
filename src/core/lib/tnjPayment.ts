@@ -176,7 +176,7 @@ export async function verifyTnjTransfer(
 
   const signer = tx.transaction.message.accountKeys[0]?.pubkey?.toString();
   if (!signer || signer !== expectedSigner) {
-    console.warn("[tnjPayment] Wallet mismatch:", { expected: expectedSigner, got: signer });
+    console.warn("[tnjPayment] Wallet mismatch on payment verification");
     return {
       ok: false, error: "wrong_signer", status: 400,
       details: { expected: expectedSigner, got: signer },

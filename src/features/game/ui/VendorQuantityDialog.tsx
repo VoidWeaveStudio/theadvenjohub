@@ -22,7 +22,7 @@ export function VendorQuantityDialog({ item, origin, quantity, onQuantityChange,
             onClick={onCancel}
         >
             <div
-                className="bg-[rgba(18,18,20,0.98)] border border-[rgba(255,255,255,0.12)] rounded-[12px] p-5 w-[280px]"
+                className="bg-[rgba(18,18,20,0.98)] border border-[rgba(255,255,255,0.12)] rounded-[12px] p-5 w-full max-w-[280px]"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex justify-end mb-1">

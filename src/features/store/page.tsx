@@ -94,7 +94,7 @@ export default function StorePage() {
             © {new Date().getFullYear()} VoidWeave Studio. {t("store.footer")}
           </span>
           <span className="hidden sm:inline text-text-muted/30">•</span>
-          <Link href="/privacy" className="hover:text-foreground transition-colors">
+          <Link href="/privacy" className="hover:text-foreground transition-colors inline-flex items-center min-h-[44px]">
             {t("footer.privacy")}
           </Link>
         </div>

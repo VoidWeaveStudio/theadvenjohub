@@ -46,8 +46,11 @@ export function InventoryGrid({
 
     return (
         <div
-            className="grid gap-1.5 overflow-y-auto pr-1"
-            style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, maxHeight: 480 }}
+            className="grid gap-1.5 overflow-auto overscroll-contain pr-1"
+            style={{
+                gridTemplateColumns: `repeat(${columns}, minmax(40px, 1fr))`,
+                maxHeight: "min(480px, 52dvh)",
+            }}
             onMouseLeave={() => onHoverChange?.(null)}
         >
             {slots.map((item, i) => {

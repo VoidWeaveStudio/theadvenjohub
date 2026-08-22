@@ -117,17 +117,39 @@ export default function DesktopAuthPage() {
       }
 
       const result = await verifyRes.json();
-      const token = result.accessToken;
-      
-      if (!token) {
-        throw new Error("Server did not return access token");
-      }
 
       localStorage.setItem("selectedWallet", selectedWalletName);
 
-      setStatus("success");
+      const codeChallenge = new URLSearchParams(window.location.search).get("code_challenge");
+      let deepLink: string;
 
-      const deepLink = `tanjo://auth/callback?token=${encodeURIComponent(token)}&wallet=${encodeURIComponent(walletAddress)}`;
+      if (codeChallenge) {
+        const codeRes = await fetch("/api/auth/desktop-code", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "x-csrf-token": result.csrfToken || csrf,
+          },
+          body: JSON.stringify({ codeChallenge }),
+        });
+
+        if (!codeRes.ok) {
+          const err = await codeRes.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to issue desktop code");
+        }
+
+        const { code } = await codeRes.json();
+        deepLink = `tanjo://auth/callback?code=${encodeURIComponent(code)}`;
+      } else {
+        const token = result.accessToken;
+        if (!token) {
+          throw new Error("Server did not return access token");
+        }
+        deepLink = `tanjo://auth/callback?token=${encodeURIComponent(token)}&wallet=${encodeURIComponent(walletAddress)}`;
+      }
+
+      setStatus("success");
       
       setTimeout(() => {
         window.location.href = deepLink;

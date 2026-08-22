@@ -13,10 +13,10 @@ export interface GraphicsSettings {
     fog: boolean;
 }
 
-export type GraphicsPreset = "low" | "medium" | "high";
+export type GraphicsPreset = "mobile" | "low" | "medium" | "high";
 
 export const FPS_CAP_OPTIONS = [30, 60, 90, 120, 144, 0];
-export const RENDER_SCALE_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5];
+export const RENDER_SCALE_OPTIONS = [0.5, 0.6, 0.75, 1, 1.25, 1.5];
 export const SHADOW_OPTIONS = [0, 512, 1024, 2048];
 export const GRASS_OPTIONS = [0, 0.25, 0.5, 1];
 
@@ -33,6 +33,17 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
 };
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
+    mobile: {
+        fpsCap: 60,
+        renderScale: 0.6,
+        shadowRes: 0,
+        grassDensity: 0,
+        particles: false,
+        pointLights: false,
+        transmission: false,
+        portalDetail: false,
+        fog: true,
+    },
     low: {
         fpsCap: 60,
         renderScale: 0.75,
@@ -91,15 +102,31 @@ function sanitize(raw: unknown): GraphicsSettings {
     };
 }
 
+export function prefersMobileProfile(): boolean {
+    if (typeof window === "undefined") return false;
+
+    const ua = window.navigator.userAgent || "";
+    const touch = "ontouchstart" in window || window.navigator.maxTouchPoints > 0;
+    const smallViewport = Math.min(window.innerWidth, window.innerHeight) < 820;
+
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (touch && smallViewport);
+}
+
 export function getGraphicsSettings(): GraphicsSettings {
     if (loaded) return current;
     loaded = true;
 
     try {
         const stored = window.localStorage.getItem(STORAGE_KEY);
+
+        if (!stored && prefersMobileProfile()) {
+            current = { ...GRAPHICS_PRESETS.mobile };
+            return current;
+        }
+
         current = sanitize(stored ? JSON.parse(stored) : null);
     } catch {
-        current = { ...DEFAULT_GRAPHICS };
+        current = prefersMobileProfile() ? { ...GRAPHICS_PRESETS.mobile } : { ...DEFAULT_GRAPHICS };
     }
 
     return current;

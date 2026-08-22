@@ -117,7 +117,7 @@ export function CrateOpening({ isOpen, result, cratesLeft, onOpenAnother, onClos
     const wonRarity = won ? RARITY_META[won.rarity] : null;
 
     return (
-        <div className="pointer-events-auto absolute inset-0 z-[70] flex items-center justify-center bg-black/80 p-4 font-oxanium">
+        <div className="pointer-events-auto absolute inset-0 z-[70] flex items-center justify-center bg-black/80 p-2 sm:p-4 font-oxanium">
             <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[rgba(13,17,23,0.98)] shadow-[0_12px_48px_rgba(0,0,0,0.65)]">
                 <div className="flex items-center gap-2.5 px-6 py-4">
                     <Sparkles className="h-4 w-4 text-[#FFD166]" />

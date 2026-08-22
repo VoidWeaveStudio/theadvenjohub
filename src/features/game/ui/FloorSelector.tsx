@@ -55,7 +55,7 @@ export function FloorSelector({ isOpen, onClose, onSelectFloor, currentLocationI
     if (!isOpen) return null;
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-md flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
             <div className="bg-[rgba(12,12,14,0.92)] border border-[rgba(79,209,255,0.2)] rounded-[16px] p-6 max-w-[1100px] w-full mx-4 shadow-2xl shadow-[#4FD1FF]/10 relative">
                 <button onClick={onClose} className="absolute top-4 right-4 z-10 bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                     <X className="w-6 h-6" />

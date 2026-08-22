@@ -88,6 +88,11 @@ import { useAbilityState, rejectionMessage } from "./ui/hooks/useAbilityState";
 import { t } from "@/core/i18n";
 import { modeById } from "./data/skills";
 import { useQuestState, SOLA_NPC_ID } from "./ui/hooks/useQuestState";
+import { TouchControls } from "./ui/TouchControls";
+import { TouchOnboarding } from "./ui/TouchOnboarding";
+import { useMobileImmersion } from "./ui/hooks/useMobileImmersion";
+import { useDevice } from "@/core/lib/useDevice";
+import type { InputManager } from "./core/InputManager";
 import { useInventoryState } from "./ui/hooks/useInventoryState";
 import { useChatState } from "./ui/hooks/useChatState";
 import { usePrivateMessagesState } from "./ui/hooks/usePrivateMessagesState";
@@ -150,6 +155,12 @@ export function GameClient({ slug }: GameClientProps) {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [inputManager, setInputManager] = useState<InputManager | null>(null);
+  const device = useDevice();
+  const touchMode = device.ready && device.isTouch && (device.isMobile || device.isTablet);
+  const gameContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useMobileImmersion(touchMode, gameContainerRef);
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
   const [currentLocationId, setCurrentLocationId] = useState("tower-main-hall");
@@ -510,6 +521,7 @@ export function GameClient({ slug }: GameClientProps) {
         });
         localGame = game;
         gameRef.current = game;
+        setInputManager(game.getInputManager());
 
         game.onStateChange = (state) => { if (!cancelled) hud.handleStateChange(state); };
         game.onLoadStateChange = (loading, message, progress) => {
@@ -930,6 +942,7 @@ export function GameClient({ slug }: GameClientProps) {
 
     return () => {
       cancelled = true;
+      setInputManager(null);
       localGame?.dispose();
       if (gameRef.current === localGame) {
         gameRef.current = null;
@@ -945,6 +958,15 @@ export function GameClient({ slug }: GameClientProps) {
     document.addEventListener("pointerlockchange", handleLockChange);
     return () => document.removeEventListener("pointerlockchange", handleLockChange);
   }, []);
+
+  useEffect(() => {
+    if (!inputManager) return;
+
+    inputManager.setTouchControlActive(touchMode);
+    if (touchMode) setIsPointerLocked(true);
+
+    return () => inputManager.setTouchControlActive(false);
+  }, [inputManager, touchMode]);
 
   useEffect(() => {
     const handleUiClick = (event: MouseEvent) => {
@@ -1411,14 +1433,15 @@ export function GameClient({ slug }: GameClientProps) {
 
   if (authError) {
     const isAssetError = authError.includes("Failed to load game assets");
+    const authErrorText = /^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9_]+)+$/.test(authError) ? t(authError) : authError;
     return (
-      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
-        <div className="bg-zinc-900 border border-red-500/50 rounded-xl p-8 max-w-md text-center">
-          <div className="text-6xl mb-4">{isAssetError ? "🌐" : "🔒"}</div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {isAssetError ? "Connection Error" : "Access Denied"}
+      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4">
+        <div className="bg-zinc-900 border border-red-500/50 rounded-xl p-6 sm:p-8 max-w-md w-full text-center">
+          <div className="text-5xl sm:text-6xl mb-4">{isAssetError ? "🌐" : "🔒"}</div>
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+            {isAssetError ? t("g.access.connectionTitle") : t("g.access.deniedTitle")}
           </h2>
-          <p className="text-zinc-400 mb-6">{authError}</p>
+          <p className="text-zinc-400 mb-6 break-words">{authErrorText}</p>
           <div className="flex gap-4 justify-center">
             {isAssetError && (
               <button
@@ -1442,11 +1465,13 @@ export function GameClient({ slug }: GameClientProps) {
 
   return (
     <div
+      ref={gameContainerRef}
       className="fixed left-0 right-0 bottom-0 z-50 bg-black overflow-hidden"
-      style={{
-        top: '64px',
-        height: 'calc(100vh - 64px)'
-      }}
+      style={
+        touchMode
+          ? { top: 0, height: '100dvh' }
+          : { top: 'var(--header-height, 64px)', height: 'calc(100dvh - var(--header-height, 64px))' }
+      }
     >
       <canvas
         ref={canvasRef}
@@ -1540,6 +1565,15 @@ export function GameClient({ slug }: GameClientProps) {
         dialogue={npcDialogue.dialogue}
         onFinish={npcDialogue.finish}
         onSkip={npcDialogue.finish}
+      />
+      <TouchOnboarding active={touchMode && !loading && !authError} />
+      <TouchControls
+        input={inputManager}
+        mode={defusalMatch || grinderMatch ? "combat" : "world"}
+        canBuy={grinderMatch ? grinderMatch.phase === "live" : defusalMatch?.phase === "freeze" || defusalMatch?.phase === "warmup"}
+        visible={touchMode && !loading && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null}
+        onOpenWheel={() => openWheel("tools")}
+        onOpenMenu={() => setActiveTopWindow("settings")}
       />
       <RadialWheel
         isOpen={wheelMode !== null}

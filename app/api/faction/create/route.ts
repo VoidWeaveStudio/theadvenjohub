@@ -7,6 +7,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
+import { claimSignature } from "@/core/lib/paymentLock";
 import { getTokenByCa } from "@/core/lib/dexscreener";
 import { getTokenBalance } from "@/core/blockchain";
 import { getFactionRank } from "@/core/lib/factionRank";
@@ -102,6 +103,10 @@ export async function POST(req: NextRequest) {
     });
     if (!license) {
       return NextResponse.json({ error: "no_license" }, { status: 403, headers: formatRateLimitHeaders(rl) });
+    }
+
+    if (!(await claimSignature(signature, `${user.userId}:faction-create`))) {
+      return NextResponse.json({ error: "signature_already_used" }, { status: 409 });
     }
 
     const existingUse = await findExistingSignatureUse(signature);

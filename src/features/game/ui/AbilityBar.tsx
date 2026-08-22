@@ -39,14 +39,14 @@ export function AbilityBar({ progression, cooldowns = {}, energy, shield = 0, on
     const energyPercent = Math.max(0, Math.min(100, (currentEnergy / maxEnergy) * 100));
 
     return (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 pointer-events-auto font-oxanium">
+        <div className="absolute bottom-48 sm:bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 pointer-events-auto font-oxanium">
             {shield > 0 && (
                 <div className="text-[10px] font-bold tracking-wide" style={{ color: "#8ECAE6" }}>
                     SHIELD {Math.round(shield)}
                 </div>
             )}
 
-            <div className="w-[300px] h-1 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
+            <div className="w-full max-w-[300px] h-1 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
                 <div
                     className="h-full transition-all duration-200"
                     style={{ width: `${energyPercent}%`, background: `linear-gradient(90deg, ${accent}88, ${accent})` }}

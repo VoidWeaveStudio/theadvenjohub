@@ -33,7 +33,7 @@ export class ResourceManager {
   constructor() {
     this.gltfLoader = new GLTFLoader();
     this.dracoLoader = new DRACOLoader();
-    this.dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");
+    this.dracoLoader.setDecoderPath("/draco/");
     this.gltfLoader.setDRACOLoader(this.dracoLoader);
   }
 

@@ -38,7 +38,7 @@ export function SpecializationModal({ isOpen, onClose, onSelect }: Specializatio
     if (!isOpen) return null;
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.88)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.88)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
             <div className="w-full max-w-3xl bg-[rgba(12,14,18,0.96)] border-2 border-white/10 rounded-[16px] p-6">
                 <div className="flex items-center justify-between mb-1">
                     <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.spec.choose")}</h2>

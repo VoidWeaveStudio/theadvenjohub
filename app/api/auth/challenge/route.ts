@@ -5,11 +5,14 @@ import { Redis } from "@upstash/redis";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { getExpectedDomain } from "@/core/auth/lib/signMessage";
+import { baseCookieOptions, clearLegacyDomainCookies } from "@/core/auth/lib/cookieOptions";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
+
+const NONCE_TTL_SECONDS = 300;
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,11 +47,10 @@ export async function GET(req: NextRequest) {
     await redis.set(
       `auth:nonce:${wallet}`,
       { nonce, domain },
-      { ex: 120 }
+      { ex: NONCE_TTL_SECONDS }
     );
 
     const csrfToken = generateCSRFToken();
-    const isProd = process.env.NODE_ENV === "production";
 
     const response = NextResponse.json(
       { nonce, domain, csrfToken },
@@ -56,13 +58,12 @@ export async function GET(req: NextRequest) {
     );
 
     response.cookies.set("csrf_token", csrfToken, {
+      ...baseCookieOptions(),
       httpOnly: false,
-      secure: isProd,
-      sameSite: "lax" as const,
-      path: "/",
-      domain: isProd ? ".theadvenjo.online" : undefined,
       maxAge: 60 * 60 * 24,
     });
+
+    clearLegacyDomainCookies(response, ["csrf_token"]);
 
     return response;
 

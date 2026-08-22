@@ -43,7 +43,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6"
+      className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-6"
       onClick={onClose}
     >
       <div 
@@ -52,7 +52,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
       />
 
       <div
-        className={`relative w-full ${sizeClasses[size]} bg-surface border border-border rounded-xl shadow-2xl max-h-[85vh] overflow-hidden flex flex-col`}
+        className={`relative w-full ${sizeClasses[size]} bg-surface border border-border rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[92dvh] sm:max-h-[85dvh] overflow-hidden flex flex-col pb-safe sm:pb-0`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-border flex-shrink-0">
@@ -65,12 +65,12 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
             aria-label={t("modal.close")}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12-12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="p-4 sm:p-5 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+        <div className="p-4 sm:p-5 overflow-y-auto overscroll-contain flex-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
           {children}
         </div>
       </div>

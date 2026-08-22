@@ -25,8 +25,12 @@ export function verifyCSRFToken(headerToken: string, cookieToken: string): boole
 
 export function verifyCSRF(req: Request): boolean {
   const headerToken = req.headers.get("x-csrf-token");
-  const cookieMatch = req.headers.get("cookie")?.match(/(?:^|;\s*)csrf_token=([^;]*)/);
-  const cookieToken = cookieMatch ? decodeURIComponent(cookieMatch[1]) : undefined;
+  const cookieHeader = req.headers.get("cookie");
+  if (!headerToken || !cookieHeader) return false;
 
-  return !!(headerToken && cookieToken && verifyCSRFToken(headerToken, cookieToken));
+  for (const match of cookieHeader.matchAll(/(?:^|;\s*)csrf_token=([^;]*)/g)) {
+    if (verifyCSRFToken(headerToken, decodeURIComponent(match[1]))) return true;
+  }
+
+  return false;
 }

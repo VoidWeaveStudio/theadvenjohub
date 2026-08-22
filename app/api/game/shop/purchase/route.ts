@@ -9,6 +9,7 @@ import { DEFAULT_COMPANION_ID } from "@/features/game/data/companions";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
+import { claimSignature } from "@/core/lib/paymentLock";
 import { SHOP_CATALOG_BY_ID } from "@/core/lib/shopCatalog";
 import { requiredTnjForItem, resolveGameId } from "@/core/lib/shopPricing";
 
@@ -135,6 +136,13 @@ export async function POST(req: NextRequest) {
         if (entry.maxOwned !== null && owned >= entry.maxOwned) {
             return NextResponse.json(
                 { error: "already_owned", maxOwned: entry.maxOwned },
+                { status: 409, headers: formatRateLimitHeaders(rl) }
+            );
+        }
+
+        if (!(await claimSignature(signature, `${user.userId}:shop:${itemId}`))) {
+            return NextResponse.json(
+                { error: "signature_already_used" },
                 { status: 409, headers: formatRateLimitHeaders(rl) }
             );
         }

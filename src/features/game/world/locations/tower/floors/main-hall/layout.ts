@@ -1,5 +1,6 @@
 // src/features/game/world/locations/tower/floors/main-hall/layout.ts
 import * as THREE from "three";
+import { prefersMobileProfile } from "@/features/game/core/graphicsSettings";
 
 export const HALL_RADIUS = 92;
 export const WALL_HEIGHT = 34;
@@ -168,6 +169,8 @@ export function factionColor(seed: number): number {
 }
 
 export function isLowEndDevice(): boolean {
+    if (prefersMobileProfile()) return true;
+
     return typeof navigator !== "undefined" && navigator.hardwareConcurrency != null
         ? navigator.hardwareConcurrency <= 4
         : false;

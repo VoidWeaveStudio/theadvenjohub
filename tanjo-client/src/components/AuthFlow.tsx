@@ -1,6 +1,6 @@
 // src/components/AuthFlow.tsx
 import { useState, useCallback } from 'react';
-import { logout } from '../lib/auth';
+import { buildAuthUrl, logout } from '../lib/auth';
 import { useI18n } from '../i18n';
 import '../styles/components/auth.css';
 
@@ -15,12 +15,9 @@ export function AuthFlow() {
 
     try {
       const { open } = await import('@tauri-apps/plugin-shell');
-      
-      const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
-      const authUrl = isDev
-        ? 'http://localhost:3000/auth/desktop?auto=1'
-        : 'https://theadvenjo.online/auth/desktop?auto=1';
-      
+
+      const authUrl = await buildAuthUrl();
+
       await open(authUrl);
       setStatus('idle');
     } catch {

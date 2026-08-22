@@ -28,21 +28,34 @@ function installShaderNoiseFilter() {
 }
 
 const MAX_PIXEL_RATIO = 1.5;
+const MOBILE_MAX_PIXEL_RATIO = 1.25;
 const TRANSMISSION_RESOLUTION_SCALE = 0.5;
+
+function isMobileProfile(): boolean {
+    if (typeof window === "undefined") return false;
+
+    const ua = window.navigator.userAgent || "";
+    const touch = "ontouchstart" in window || window.navigator.maxTouchPoints > 0;
+    const smallViewport = Math.min(window.innerWidth, window.innerHeight) < 820;
+
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (touch && smallViewport);
+}
 
 export function createGameRenderer(canvas: HTMLCanvasElement, width: number, height: number): THREE.WebGLRenderer {
     installShaderNoiseFilter();
 
+    const mobile = isMobileProfile();
+
     const renderer = new THREE.WebGLRenderer({
         canvas,
-        antialias: true,
+        antialias: !mobile,
         powerPreference: "high-performance"
     });
 
     renderer.setSize(width, height, false);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? MOBILE_MAX_PIXEL_RATIO : MAX_PIXEL_RATIO));
 
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = !mobile;
     renderer.shadowMap.type = THREE.PCFShadowMap;
 
     // Anything still using MeshPhysicalMaterial.transmission (events lobby

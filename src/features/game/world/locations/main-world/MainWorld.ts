@@ -23,6 +23,7 @@ import { HoloTerminalSystem } from "./systems/HoloTerminalSystem";
 import { FogCurtainSystem } from "./systems/FogCurtainSystem";
 import type { WorldStatusData } from "../../../network/NetworkManager";
 import { applyRadialFogAll } from "./utils/radialFog";
+import { prefersMobileProfile } from "@/features/game/core/graphicsSettings";
 import {
   COVE_CENTER_RADIUS,
   PLAY_RADIUS,
@@ -77,9 +78,10 @@ export class MainWorld extends Location {
   private wasInWater = false;
   private strokeTimer = 0;
 
-  private readonly isLowEnd = (typeof navigator !== "undefined" && navigator.hardwareConcurrency != null)
-    ? navigator.hardwareConcurrency <= 4
-    : false;
+  private readonly isLowEnd = prefersMobileProfile()
+    || ((typeof navigator !== "undefined" && navigator.hardwareConcurrency != null)
+      ? navigator.hardwareConcurrency <= 4
+      : false);
 
   constructor() {
     super("main-world", "TANJO World");

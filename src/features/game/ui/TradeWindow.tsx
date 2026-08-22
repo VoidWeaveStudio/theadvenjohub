@@ -3,8 +3,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { X, ArrowLeftRight, Package, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { TradeSessionData } from "../network/NetworkManager";
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
@@ -12,9 +10,8 @@ import { TradeItemPicker } from "./TradeItemPicker";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { CopyableText } from "./shell/CopyableText";
 import { SoundManager } from "../core/SoundManager";
-import { createRpcConnection, confirmSignature, readTokenAccountBalance } from "@/core/lib/solanaClient";
-
-const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+import { PayTnjError, payTnj, type PayStage } from "@/core/blockchain/payTnj";
+import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/core/blockchain/pendingPayment";
 
 const TERMINAL_PHASES = new Set(["completed", "failed", "declined", "cancelled", "expired"]);
 
@@ -45,77 +42,53 @@ function PayButton({
 
     const handlePay = useCallback(async () => {
         if (!publicKey || !connected || !wallet?.adapter) {
-            setError("Connect your wallet first");
+            setError(tr("g.trade.connectWallet"));
             return;
         }
         if (isProcessingRef.current) return;
+
+        const paymentKey = `trade:${tradeId}`;
+
         isProcessingRef.current = true;
         setError(null);
         setState("connecting");
 
         try {
-            const configRes = await fetch("/api/marketplace/config");
-            if (!configRes.ok) throw new Error("Failed to load config");
-            const config = await configRes.json();
+            let signature = readPendingPayment(paymentKey)?.signature ?? null;
 
-            const connection = createRpcConnection();
-            const mintPubkey = new PublicKey(config.tokenMint);
-            const sellerPubkey = new PublicKey(sellerWallet);
-            const decimals = parseInt(config.decimals || "6");
-            const userPubkey = publicKey;
-            const tokenProgramId = TOKEN_2022_PROGRAM_ID;
+            if (!signature) {
+                signature = await payTnj({
+                    adapter: wallet.adapter,
+                    payer: publicKey,
+                    amountTnj: priceTnj,
+                    recipient: sellerWallet,
+                    onStage: (stage: PayStage) => setState(stage === "preparing" ? "connecting" : stage),
+                });
 
-            const userATA = await getAssociatedTokenAddress(mintPubkey, userPubkey, false, tokenProgramId);
-            const sellerATA = await getAssociatedTokenAddress(mintPubkey, sellerPubkey, true, tokenProgramId);
-
-            const balance = await readTokenAccountBalance(connection, userATA);
-            const amountToSend = BigInt(priceTnj) * BigInt(10 ** decimals);
-            if (balance < amountToSend) {
-                throw new Error(`Insufficient balance. You have ${Number(balance) / 10 ** decimals} TNJ, need ${priceTnj} TNJ`);
+                savePendingPayment({ key: paymentKey, signature, amountTnj: priceTnj });
             }
 
-            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-            const transferInstruction = createTransferInstruction(userATA, sellerATA, userPubkey, amountToSend, [], tokenProgramId);
-            const tx = new Transaction({ feePayer: userPubkey, recentBlockhash: blockhash }).add(transferInstruction);
-
-            const walletAdapter = wallet.adapter as any;
-            if (typeof walletAdapter.signTransaction !== "function") {
-                throw new Error("This wallet doesn't support transaction signing");
-            }
-
-            setState("signing");
-            let signedTx;
-            try {
-                signedTx = await walletAdapter.signTransaction(tx);
-            } catch (signError: any) {
-                if (signError.code === 4001 || signError.message?.includes("rejected")) {
-                    throw new Error("Transaction rejected");
-                }
-                throw signError;
-            }
-
-            setState("confirming");
-            const signature = await connection.sendRawTransaction(signedTx.serialize(), {
-                skipPreflight: false,
-                preflightCommitment: "confirmed",
-            });
             onPaid(signature);
-
-            try {
-                await confirmSignature(connection, signature, lastValidBlockHeight);
-            } catch (confirmErr: any) {
-                console.warn("[Trade] Confirmation failed, relying on backend verification:", confirmErr.message);
-            }
-
             onSubmitPayment(tradeId, signature);
+            clearPendingPayment(paymentKey);
         } catch (err: any) {
             console.error("[Trade] Payment error:", err);
-            setError(err.message?.includes("rejected") ? tr("g.gate.err.rejected") : err.message || tr("g.trade.paymentFailed"));
+
+            if (err instanceof PayTnjError) {
+                setError(
+                    err.code === "user_rejected" ? tr("g.gate.err.rejected") :
+                    err.code === "no_token_account" ? tr("g.shopBuy.err.no_token_account") :
+                    err.code === "insufficient_balance" ? tr("g.shopBuy.err.insufficient") :
+                    tr("g.trade.paymentFailed")
+                );
+            } else {
+                setError(err?.message?.includes("rejected") ? tr("g.gate.err.rejected") : err?.message || tr("g.trade.paymentFailed"));
+            }
         } finally {
             isProcessingRef.current = false;
             setState(false);
         }
-    }, [publicKey, connected, wallet, tradeId, sellerWallet, priceTnj, onSubmitPayment, onPaid]);
+    }, [publicKey, connected, wallet, tradeId, sellerWallet, priceTnj, onSubmitPayment, onPaid, tr]);
 
     if (!publicKey || !connected) {
         return <p className="text-[#8B8F98] text-xs text-center">{tr("g.trade.connectWallet")}</p>;
@@ -222,7 +195,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
     };
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-4">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-2 sm:p-4">
             <div className="flex items-center justify-between w-full max-w-2xl">
                 <div className="flex items-center gap-2">
                     <ArrowLeftRight className="w-5 h-5 text-[#4FD1FF]" />

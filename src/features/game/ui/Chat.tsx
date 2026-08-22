@@ -65,6 +65,26 @@ export function Chat({
     const [activeFactionId, setActiveFactionId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+    useEffect(() => {
+        const viewport = typeof window !== "undefined" ? window.visualViewport : null;
+        if (!viewport) return;
+
+        const sync = () => {
+            const hidden = window.innerHeight - viewport.height - viewport.offsetTop;
+            setKeyboardOffset(hidden > 80 ? Math.round(hidden) : 0);
+        };
+
+        sync();
+        viewport.addEventListener("resize", sync);
+        viewport.addEventListener("scroll", sync);
+
+        return () => {
+            viewport.removeEventListener("resize", sync);
+            viewport.removeEventListener("scroll", sync);
+        };
+    }, []);
 
     useEffect(() => {
         if (myFactions.length > 0 && !activeFactionId) {
@@ -138,7 +158,7 @@ export function Chat({
 
     if (isMinimized) {
         return (
-            <div className="absolute bottom-24 left-4 pointer-events-auto">
+            <div className="absolute bottom-24 left-4 pointer-events-auto" style={{ transform: `translateY(-${keyboardOffset}px)` }}>
                 <button
                     onClick={() => setIsMinimized(false)}
                     className="bg-black/70 backdrop-blur border border-white/10 rounded-lg px-4 py-2 text-white font-bold text-sm hover:bg-black/90"
@@ -158,7 +178,7 @@ export function Chat({
     const isActiveTab = (tab: MainTab) => tabKey(tab) === activeKey;
 
     return (
-        <div className="absolute bottom-24 left-4 w-[30rem] max-w-[calc(100vw-2rem)] pointer-events-auto">
+        <div className="absolute bottom-24 left-4 w-[30rem] max-w-[calc(100vw-2rem)] pointer-events-auto" style={{ transform: `translateY(-${keyboardOffset}px)` }}>
             <div className="bg-black/70 backdrop-blur border border-white/10 rounded-lg overflow-hidden">
                 <div className="bg-zinc-900/80 px-2 pt-2 border-b border-white/10 flex items-center gap-1">
                     <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto">

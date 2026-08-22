@@ -4,9 +4,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletReadyState } from "@solana/wallet-adapter-base";
-import { Wallet as WalletIcon, ExternalLink } from "lucide-react";
+import { Wallet as WalletIcon, ExternalLink, Smartphone } from "lucide-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { Modal } from "@/core/ui/Modal";
+import { useDevice } from "@/core/lib/useDevice";
+import { MOBILE_WALLET_LINKS, getSafeBrowseTarget, getStoreUrl } from "@/core/wallets/mobileDeeplinks";
 
 interface WalletSelectorModalProps {
   isOpen: boolean;
@@ -47,8 +49,14 @@ const RECOMMENDED_WALLETS: RecommendedWallet[] = [
 export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelectorModalProps) {
   const { wallets } = useWallet();
   const { t } = useLanguage();
+  const device = useDevice();
   const [isSelecting, setIsSelecting] = useState(false);
   const [isProbing, setIsProbing] = useState(true);
+  const [browseTarget, setBrowseTarget] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBrowseTarget(getSafeBrowseTarget());
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -79,6 +87,10 @@ export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelecto
     return Array.from(unique.values()).sort((a, b) => a.adapter.name.localeCompare(b.adapter.name));
   }, [wallets]);
 
+  const showMobileHandoff = Boolean(
+    device.ready && device.isMobile && !device.walletBrowser && browseTarget
+  );
+
   const handleSelect = (walletName: string) => {
     if (isSelecting) return;
     setIsSelecting(true);
@@ -91,6 +103,61 @@ export function WalletSelectorModal({ isOpen, onClose, onSelect }: WalletSelecto
         <div className="text-center py-10 text-text-secondary">
           <p className="animate-spin text-4xl mb-3 inline-block">⟳</p>
           <p className="text-sm">{t("auth.loadingWallets")}</p>
+        </div>
+      );
+    }
+
+    if (availableWallets.length === 0 && showMobileHandoff) {
+      return (
+        <div className="space-y-4">
+          <div className="text-center pt-2 pb-1">
+            <Smartphone className="w-10 h-10 mx-auto mb-3 text-text-muted" />
+            <p className="font-medium text-foreground">{t("auth.mobileContinueTitle")}</p>
+            <p className="text-sm text-text-secondary mt-1">{t("auth.mobileContinueHint")}</p>
+          </div>
+
+          <div className="space-y-2">
+            {MOBILE_WALLET_LINKS.map((link) => (
+              <a
+                key={link.id}
+                href={link.buildBrowseUrl(browseTarget!)}
+                className="w-full flex items-center gap-4 p-3 min-h-[56px] rounded-lg border border-border hover:border-primary/50 active:bg-surface/70 transition-all group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center flex-shrink-0 border border-border/50 text-lg font-semibold text-text-secondary group-hover:text-primary transition-colors">
+                  {link.label.charAt(0)}
+                </div>
+
+                <div className="flex-1 text-left min-w-0">
+                  <div className="font-medium text-foreground group-hover:text-primary transition-colors truncate">
+                    {link.label}
+                  </div>
+                  <div className="text-xs text-text-secondary truncate">
+                    {t(link.hintKey)}
+                  </div>
+                </div>
+
+                <span className="text-xs text-primary flex-shrink-0">{t("auth.openInApp")}</span>
+              </a>
+            ))}
+          </div>
+
+          <div className="pt-2 border-t border-border/60 space-y-2">
+            <p className="text-xs text-text-muted text-center">{t("auth.mobileInstallHint")}</p>
+            <div className="flex gap-2">
+              {MOBILE_WALLET_LINKS.map((link) => (
+                <a
+                  key={link.id}
+                  href={getStoreUrl(link, device.isIOS)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] px-3 rounded-lg border border-border text-xs text-text-secondary hover:text-primary hover:border-primary/50 transition-colors"
+                >
+                  <span className="truncate">{link.label}</span>
+                  <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
       );
     }

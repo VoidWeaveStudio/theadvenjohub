@@ -154,7 +154,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
     };
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-4">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-2 sm:p-4">
             <div className="flex items-center justify-between w-full max-w-6xl">
                 <div className="flex items-center gap-2">
                     <Store className="w-5 h-5 text-[#FFD166]" />
@@ -182,7 +182,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
             </div>
 
             {tab === "buy" && (
-                <div className="w-full max-w-3xl h-[60vh] bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
+                <div className="w-full max-w-3xl h-[60dvh] bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
                     <AshStore ash={ash} placeables={placeables} prices={shopPrices} onBuyItem={onBuyItem} />
                 </div>
             )}
@@ -205,7 +205,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                     />
                 </div>
 
-                <div className="w-[260px] flex-shrink-0 bg-[rgba(20,16,8,0.92)] border-2 border-[#FFD166]/50 rounded-[16px] p-5 shadow-[0_0_35px_rgba(255,209,102,0.15)] flex flex-col">
+                <div className="w-full max-w-[260px] flex-shrink-0 bg-[rgba(20,16,8,0.92)] border-2 border-[#FFD166]/50 rounded-[16px] p-5 shadow-[0_0_35px_rgba(255,209,102,0.15)] flex flex-col">
                     <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                             <ArrowLeftRight className="w-4 h-4 text-[#FFD166]" />

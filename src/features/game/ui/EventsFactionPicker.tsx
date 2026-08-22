@@ -18,7 +18,7 @@ export function EventsFactionPicker({ isOpen, onClose, myFactions, onConfirm }: 
 
     return (
         <div
-            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4"
+            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
             onClick={onClose}
         >
             <div

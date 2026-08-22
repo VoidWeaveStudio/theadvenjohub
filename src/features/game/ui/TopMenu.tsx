@@ -25,8 +25,8 @@ export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
     const { t } = useLanguage();
 
     return (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-auto font-oxanium select-none">
-            <div className="flex items-start gap-5">
+        <div className="absolute top-3 sm:top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-auto font-oxanium select-none max-w-full px-2" style={{ marginTop: "var(--safe-top)" }}>
+            <div className="flex items-start gap-2 sm:gap-5">
                 {ITEMS.map(({ id, icon, labelKey }) => {
                     const label = t(labelKey);
                     return (
@@ -35,7 +35,7 @@ export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
                         onClick={() => onSelect(id)}
                         title={label}
                         style={{ background: "transparent", border: "none", padding: 0, borderRadius: 0, boxShadow: "none" }}
-                        className={`relative origin-top !bg-transparent !border-0 !p-0 !rounded-none !shadow-none transition-transform duration-200 ease-out hover:z-10 hover:!scale-[2] ${active === id ? "z-10 !scale-[2]" : "!scale-100"
+                        className={`relative origin-top !bg-transparent !border-0 !p-0 !rounded-none !shadow-none transition-transform duration-200 ease-out hover:z-10 sm:hover:!scale-[2] active:!scale-110 ${active === id ? "z-10 sm:!scale-[2]" : "!scale-100"
                             }`}
                     >
                         <Image
@@ -43,7 +43,7 @@ export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
                             alt={label}
                             width={100}
                             height={200}
-                            className={`h-14 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] transition-[filter] duration-200 ${active === id
+                            className={`h-9 sm:h-14 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] transition-[filter] duration-200 ${active === id
                                 ? "brightness-125 drop-shadow-[0_0_14px_rgba(79,209,255,0.8)]"
                                 : "hover:brightness-125 hover:drop-shadow-[0_0_14px_rgba(79,209,255,0.7)]"
                                 }`}

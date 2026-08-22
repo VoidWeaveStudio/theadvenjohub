@@ -3,12 +3,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { LanguageSwitcher } from "@/core/i18n/LanguageSwitcher";
 import { ThemeSwitcher } from "@/core/ui/ThemeSwitcher";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { LoginButton } from "@/core/auth/components/LoginButton";
+import { useDevice } from "@/core/lib/useDevice";
 
 export function Header() {
   const pathname = usePathname();
@@ -16,17 +18,50 @@ export function Header() {
   const router = useRouter();
   const { t } = useLanguage();
   const { userWallet, isAuthorized, walletMismatch, logout } = useAuth();
+  const device = useDevice();
 
   const showAccount = isAuthorized && !!userWallet && !walletMismatch;
+  const showDesktopDownload = !device.isMobile;
 
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const headerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useLayoutEffect(() => {
+    const element = headerRef.current;
+    if (!element) return;
+
+    const applyHeight = () => {
+      const height = Math.round(element.getBoundingClientRect().height);
+      if (height > 0) {
+        document.documentElement.style.setProperty("--header-height", `${height}px`);
+      }
+    };
+
+    applyHeight();
+
+    const observer = new ResizeObserver(applyHeight);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [mounted]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [mobileMenuOpen]);
 
   const handleLogout = async () => {
     await logout();
@@ -47,10 +82,17 @@ export function Header() {
   if (!mounted) return null;
 
   return (
-    <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-xl border-b border-border min-h-16">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-50 bg-surface/95 backdrop-blur-xl border-b border-border min-h-16 pt-safe px-safe"
+    >
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 min-h-16 h-auto flex items-center justify-between gap-x-3">
 
-        <Link href="/" className="flex items-center gap-2 flex-shrink-0 z-50" onClick={() => setMobileMenuOpen(false)}>
+        <Link
+          href="/"
+          className="flex items-center gap-2 flex-shrink-0 z-50 min-h-[44px]"
+          onClick={() => setMobileMenuOpen(false)}
+        >
           <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-surface">
             <img src="/logo.png" alt={t("header.appName")} className="w-full h-full object-contain opacity-85 brightness-90" />
           </div>
@@ -77,13 +119,15 @@ export function Header() {
             <ThemeSwitcher />
             <LanguageSwitcher />
 
-            <a
-              href="/api/client/download"
-              download="TANJO-Client-latest.exe"
-              className="btn-secondary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
-            >
-              {t("header.downloadApp")}
-            </a>
+            {showDesktopDownload && (
+              <a
+                href="/api/client/download"
+                download="TANJO-Client-latest.exe"
+                className="btn-secondary px-3 sm:px-4 py-1.5 text-sm font-medium whitespace-nowrap"
+              >
+                {t("header.downloadApp")}
+              </a>
+            )}
 
             {showAccount ? (
               <div className="flex items-center gap-2">
@@ -95,7 +139,7 @@ export function Header() {
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="text-xs text-text-secondary hover:text-red-400 transition-colors px-2"
+                  className="text-xs text-text-secondary hover:text-red-400 transition-colors px-2 min-h-[44px]"
                   title={t("header.logout")}
                 >
                   ✕
@@ -107,7 +151,7 @@ export function Header() {
           </div>
 
           <button
-            className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0 z-50 relative"
+            className="md:hidden p-2 text-foreground hover:bg-surface rounded-lg flex-shrink-0 z-50 relative tap-target"
             aria-label={t("header.openMenu")}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
@@ -122,10 +166,13 @@ export function Header() {
           </button>
         </div>
 
-        {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 top-16 left-0 right-0 z-[60] bg-zinc-900">
+        {mobileMenuOpen && createPortal(
+          <div
+            className="md:hidden fixed left-0 right-0 bottom-0 z-[60]"
+            style={{ top: "var(--header-height, 64px)" }}
+          >
             <div className="absolute inset-0 bg-black/70" onClick={() => setMobileMenuOpen(false)} />
-            <div className="relative bg-zinc-900 border-b border-zinc-700 min-h-screen">
+            <div className="relative h-full overflow-y-auto overscroll-contain bg-zinc-900 border-b border-zinc-700 pb-safe">
               <div className="px-4 py-6 space-y-3">
                 {links.map((link) => (
                   <Link
@@ -141,14 +188,21 @@ export function Header() {
                   </Link>
                 ))}
 
-                <a
-                  href="/api/client/download"
-                  download
-                  className="block w-full text-center px-4 py-4 rounded-xl border border-zinc-700 text-foreground font-semibold hover:bg-zinc-800 transition-colors bg-zinc-900"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t("header.downloadApp")}
-                </a>
+                <div className="flex items-center justify-between gap-3 px-1 pt-2">
+                  <ThemeSwitcher />
+                  <LanguageSwitcher />
+                </div>
+
+                {showDesktopDownload && (
+                  <a
+                    href="/api/client/download"
+                    download
+                    className="block w-full text-center px-4 py-4 rounded-xl border border-zinc-700 text-foreground font-semibold hover:bg-zinc-800 transition-colors bg-zinc-900"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t("header.downloadApp")}
+                  </a>
+                )}
 
                 {showAccount ? (
                   <div className="space-y-3 pt-2">
@@ -176,7 +230,8 @@ export function Header() {
                 )}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </header>

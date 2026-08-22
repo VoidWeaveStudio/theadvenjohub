@@ -15,11 +15,17 @@ function isPrivateIp(ip: string): boolean {
 
     if (version === 4) {
         const parts = ip.split(".").map(Number);
-        const [a, b] = parts;
+        const [a, b, c] = parts;
         if (a === 127 || a === 10 || a === 0) return true;
         if (a === 169 && b === 254) return true;
         if (a === 172 && b >= 16 && b <= 31) return true;
         if (a === 192 && b === 168) return true;
+        if (a === 100 && b >= 64 && b <= 127) return true;
+        if (a === 198 && (b === 18 || b === 19)) return true;
+        if (a === 192 && b === 0 && (c === 0 || c === 2)) return true;
+        if (a === 198 && b === 51 && c === 100) return true;
+        if (a === 203 && b === 0 && c === 113) return true;
+        if (a >= 224) return true;
         return false;
     }
 
@@ -143,6 +149,13 @@ export async function GET(request: Request) {
             { error: "too_many_attempts" },
             { status: 429, headers: formatRateLimitHeaders(rl) }
         );
+    }
+
+    if (request.headers.get("sec-fetch-site") === "cross-site") {
+        return new NextResponse("Cross-site requests are not allowed", {
+            status: 403,
+            headers: formatRateLimitHeaders(rl),
+        });
     }
 
     const { searchParams } = new URL(request.url);

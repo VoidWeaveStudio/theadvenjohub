@@ -164,8 +164,8 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
     const options = isFactionRoom ? FACTION_ACCESS : PERSONAL_ACCESS;
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">
-            <div className="w-full max-w-md bg-[rgba(10,12,20,0.95)] border-2 border-[#66CCFF]/35 rounded-[16px] p-6 shadow-[0_0_35px_rgba(102,204,255,0.15)] max-h-[85vh] overflow-y-auto">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
+            <div className="w-full max-w-md bg-[rgba(10,12,20,0.95)] border-2 border-[#66CCFF]/35 rounded-[16px] p-6 shadow-[0_0_35px_rgba(102,204,255,0.15)] max-h-[85dvh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <SlidersHorizontal className="w-5 h-5 text-[#66CCFF]" />

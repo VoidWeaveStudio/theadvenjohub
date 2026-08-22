@@ -5,27 +5,47 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 let refreshInFlight: Promise<boolean> | null = null;
 let lastRefreshAt = 0;
+let lastFailureAt = 0;
+
+const FAILURE_COOLDOWN_MS = 30_000;
 
 export async function refreshSession(): Promise<boolean> {
+    if (Date.now() - lastFailureAt < FAILURE_COOLDOWN_MS) return false;
+
     if (!refreshInFlight) {
         refreshInFlight = fetch("/api/auth/refresh", {
             method: "POST",
             credentials: "include",
         })
             .then(async (res) => {
-                if (!res.ok) return false;
+                if (!res.ok) {
+                    lastFailureAt = Date.now();
+                    return false;
+                }
                 const payload = await res.json().catch(() => null);
                 const ok = payload?.success === true;
-                if (ok) lastRefreshAt = Date.now();
+                if (ok) {
+                    lastRefreshAt = Date.now();
+                    lastFailureAt = 0;
+                } else {
+                    lastFailureAt = Date.now();
+                }
                 return ok;
             })
-            .catch(() => false)
+            .catch(() => {
+                lastFailureAt = Date.now();
+                return false;
+            })
             .finally(() => {
                 refreshInFlight = null;
             });
     }
 
     return refreshInFlight;
+}
+
+export function noteAuthenticated(): void {
+    lastFailureAt = 0;
 }
 
 function buildInit(init: RequestInit): RequestInit {

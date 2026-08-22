@@ -3,12 +3,18 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { Redis } from "@upstash/redis";
 import { generateCSRFToken, verifyCSRF } from "@/core/auth/lib/csrf";
-import { clearRevocation } from "@/core/auth/lib/revocation";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { db } from "@/core/database";
 import { users } from "@/core/database/schema";
 import { eq } from "drizzle-orm";
 import { buildExpectedSignInMessages, verifySolanaSignature } from "@/core/auth/lib/signMessage";
+import { baseCookieOptions, clearLegacyDomainCookies, isDesktopClientRequest } from "@/core/auth/lib/cookieOptions";
+import { describeDevice, newSessionId, newTokenId, registerSession } from "@/core/auth/lib/sessionRegistry";
+import { clearRevocation } from "@/core/auth/lib/revocation";
+
+function allowsLegacyDesktopToken(platform: unknown): boolean {
+  return platform === "desktop" && process.env.ALLOW_LEGACY_DESKTOP_TOKEN !== "0";
+}
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -163,8 +169,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await clearRevocation(finalUser.id);
-
     const accessToken = jwt.sign(
       {
         userId: finalUser.id,
@@ -181,11 +185,15 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    const sessionId = newSessionId();
+    const refreshTokenId = newTokenId();
+
     const refreshToken = jwt.sign(
       {
         userId: finalUser.id,
         wallet: finalUser.wallet,
         type: "refresh",
+        sid: sessionId,
         iat: Math.floor(Date.now() / 1000),
       },
       jwtSecret,
@@ -193,12 +201,20 @@ export async function POST(req: NextRequest) {
         expiresIn: "7d",
         issuer: "tanjo-store",
         audience: "tanjo-users",
-        jwtid: `${finalUser.id}-refresh-${Date.now()}`,
+        jwtid: refreshTokenId,
       }
     );
 
+    await clearRevocation(finalUser.id);
+
+    await registerSession(finalUser.id, {
+      sid: sessionId,
+      jti: refreshTokenId,
+      createdAt: Date.now(),
+      device: describeDevice(req.headers.get("user-agent")),
+    });
+
     const newCsrfToken = generateCSRFToken();
-    const isProd = process.env.NODE_ENV === "production";
 
     const response = NextResponse.json(
       {
@@ -206,34 +222,30 @@ export async function POST(req: NextRequest) {
         user: { wallet: finalUser.wallet },
         csrfToken: newCsrfToken,
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-        ...(platform === "desktop" ? { accessToken } : {}),
+        ...(isDesktopClientRequest(req) || allowsLegacyDesktopToken(platform) ? { accessToken } : {}),
       },
       { headers: formatRateLimitHeaders(rl) }
     );
 
-    const baseCookieOptions = {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "lax" as const,
-      path: "/",
-      domain: isProd ? ".theadvenjo.online" : undefined,
-    };
+    const cookieOptions = baseCookieOptions();
 
     response.cookies.set("token", accessToken, {
-      ...baseCookieOptions,
+      ...cookieOptions,
       maxAge: 15 * 60,
     });
 
     response.cookies.set("refresh_token", refreshToken, {
-      ...baseCookieOptions,
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60,
     });
 
     response.cookies.set("csrf_token", newCsrfToken, {
-      ...baseCookieOptions,
+      ...cookieOptions,
       httpOnly: false,
       maxAge: 60 * 60 * 24,
     });
+
+    clearLegacyDomainCookies(response);
 
     return response;
 

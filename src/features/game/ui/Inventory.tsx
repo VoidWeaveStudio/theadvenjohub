@@ -88,7 +88,7 @@ export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTe
 
     return (
         <div className="absolute right-8 top-24 bottom-24 pointer-events-auto font-oxanium flex items-center">
-            <div className="bg-[rgba(12,12,14,0.9)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-4 w-[420px] max-h-full flex flex-col shadow-2xl">
+            <div className="bg-[rgba(12,12,14,0.9)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-4 w-full max-w-[420px] max-h-full flex flex-col shadow-2xl">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <Backpack className="w-4 h-4 text-[#4FD1FF]" />

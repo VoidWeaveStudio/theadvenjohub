@@ -68,7 +68,7 @@ export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose,
     const heldItem = ARSENAL_BY_ID.get(me.held === "primary" ? me.primary ?? "" : me.pistol ?? "");
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.78)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4 font-oxanium">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.78)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-2 sm:p-4 font-oxanium">
             <div className="w-full max-w-3xl bg-[rgba(12,14,16,0.97)] border-2 border-[#D9A441]/40 rounded-[16px] overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
                     <div className="flex items-center gap-3">
@@ -92,7 +92,7 @@ export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose,
                     </div>
                 </div>
 
-                <div className="p-4 max-h-[65vh] overflow-y-auto space-y-4">
+                <div className="p-4 max-h-[65dvh] overflow-y-auto space-y-4">
                     {SLOT_ORDER.map(({ slot, labelKey }) => {
                         const group = items.filter((item) => item.slot === slot);
                         if (group.length === 0) return null;

@@ -139,7 +139,7 @@ export default function ForumContent() {
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-4 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${selectedCategory === cat.id
+              className={`px-4 min-h-[44px] text-sm font-medium rounded-md whitespace-nowrap transition-all ${selectedCategory === cat.id
                   ? "bg-primary/10 text-primary border border-primary/30"
                   : "text-text-secondary hover:text-foreground hover:bg-surface/50 border border-transparent"
                 }`}
@@ -152,7 +152,7 @@ export default function ForumContent() {
         {isAuthorized ? (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn-primary px-4 py-2 text-sm font-medium whitespace-nowrap"
+            className="btn-primary px-4 min-h-[44px] text-sm font-medium whitespace-nowrap"
           >
             {t("forum.newPost")}
           </button>

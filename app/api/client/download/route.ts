@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    console.log(`[Download] Redirecting to GitHub from ${ip}`);
+    console.log("[Download] Redirecting to GitHub release");
     
     return NextResponse.redirect(LATEST_RELEASE_URL, 302);
 

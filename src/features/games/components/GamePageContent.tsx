@@ -138,9 +138,9 @@ export default function GamePageContent() {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-transparent" />
 
-                <div className="relative z-10 h-full flex items-end pb-12">
+                <div className="relative z-10 h-full flex items-end pb-8 sm:pb-12">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 w-full">
-                        <div className="flex items-end gap-8">
+                        <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-8">
                             <div className="flex-shrink-0">
                                 {game.coverImage ? (
                                     <div className="relative rounded-xl overflow-hidden shadow-2xl border-2 border-border bg-surface">
@@ -149,36 +149,36 @@ export default function GamePageContent() {
                                             alt={game.title}
                                             width={400}
                                             height={600}
-                                            className="w-auto h-auto max-w-full max-h-[400px] object-contain"
+                                            className="w-auto h-auto max-w-[9rem] sm:max-w-full max-h-[220px] sm:max-h-[400px] object-contain"
                                             priority
                                             sizes="(max-width: 768px) 100vw, 400px"
                                         />
                                     </div>
                                 ) : (
-                                    <div className="w-48 h-64 bg-surface rounded-xl border-2 border-border flex items-center justify-center text-6xl">
+                                    <div className="w-32 h-44 sm:w-48 sm:h-64 bg-surface rounded-xl border-2 border-border flex items-center justify-center text-4xl sm:text-6xl">
                                         🎮
                                     </div>
                                 )}
                             </div>
 
                             <div className="flex-1">
-                                <h1 className="text-5xl font-bold text-foreground mb-4">{game.title}</h1>
+                                <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-3 sm:mb-4">{game.title}</h1>
 
-                                <div className="flex items-center gap-4 mb-6">
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 sm:mb-6">
                                     {game.developer && (
-                                        <p className="text-lg text-text-secondary">
+                                        <p className="text-sm sm:text-lg text-text-secondary">
                                             {t("game.developer") || "Developer"}: <span className="text-foreground">{game.developer}</span>
                                         </p>
                                     )}
                                     {game.publisher && (
-                                        <p className="text-lg text-text-secondary">
+                                        <p className="text-sm sm:text-lg text-text-secondary">
                                             {t("game.publisher") || "Publisher"}: <span className="text-foreground">{game.publisher}</span>
                                         </p>
                                     )}
                                 </div>
 
-                                <div className="flex items-center gap-4">
-                                    <span className={`px-4 py-2 rounded-lg border ${statusBadge.color}`}>
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm sm:text-base">
+                                    <span className={`px-3 sm:px-4 py-2 rounded-lg border ${statusBadge.color}`}>
                                         {statusBadge.label}
                                     </span>
                                     {game.releaseDate && (

@@ -5,14 +5,51 @@ import { resolveLanguage } from '@/core/i18n/detect';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
+const MOBILE_WALLET_ADAPTER_SOCKETS = ['ws://localhost:*', 'ws://127.0.0.1:*'];
+
+const DEV_CONNECT_SOURCES = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'wss://localhost:3001',
+];
+
+function buildConnectSrc(): string {
+  const sources = [
+    "'self'",
+    'blob:',
+    'data:',
+    'https://theadvenjo.online',
+    'https://*.theadvenjo.online',
+    'https://*.solana.com',
+    'https://api.mainnet-beta.solana.com',
+    'wss://*.solana.com',
+    'https://mainnet.helius-rpc.com',
+    'https://*.helius-rpc.com',
+    'https://*.helius.dev',
+    'wss://*.helius-rpc.com',
+    'https://*.jup.ag',
+    'https://*.onrender.com',
+    'wss://*.onrender.com',
+    ...MOBILE_WALLET_ADAPTER_SOCKETS,
+  ];
+
+  if (isDev) {
+    sources.push(...DEV_CONNECT_SOURCES);
+  }
+
+  return `connect-src ${sources.join(' ')}`;
+}
+
 function buildCsp(nonce: string): string {
   const directives = [
     "default-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' https: blob: data:",
-    "connect-src 'self' blob: data: https://theadvenjo.online https://*.theadvenjo.online https://*.solana.com https://api.mainnet-beta.solana.com wss://*.solana.com https://mainnet.helius-rpc.com https://*.helius-rpc.com https://*.helius.dev wss://*.helius-rpc.com https://*.jup.ag http://localhost:3000 http://localhost:3001 ws://localhost:3001 wss://localhost:3001 https://*.onrender.com wss://*.onrender.com",
-    "frame-src 'self' https://*.solana.com https://pump.fun https://*.solflare.com",
+    "media-src 'self' blob: data:",
+    "worker-src 'self' blob:",
+    buildConnectSrc(),
+    "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

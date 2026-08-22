@@ -415,6 +415,10 @@ export class Game {
         return true;
     }
 
+    public getInputManager(): InputManager {
+        return this.inputManager;
+    }
+
     public closeBuildEditor() {
         if (!this.buildSession.editor.active) return;
         this.buildSession.exit();
@@ -1229,6 +1233,8 @@ export class Game {
     private animate = async () => {
         if (this.disposed) return;
         this.animationFrameId = requestAnimationFrame(this.animate);
+
+        if (typeof document !== "undefined" && document.hidden) return;
 
         if (!this.isLoaded) {
             this.locationManager.render();

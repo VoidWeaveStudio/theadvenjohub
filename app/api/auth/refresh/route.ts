@@ -3,6 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { generateCSRFToken } from "@/core/auth/lib/csrf";
 import { isSessionRevoked } from "@/core/auth/lib/revocation";
+import { baseCookieOptions, clearLegacyDomainCookies, clearSessionCookies } from "@/core/auth/lib/cookieOptions";
+import {
+  describeDevice,
+  isBeyondAbsoluteLifetime,
+  newSessionId,
+  newTokenId,
+  readSession,
+  registerSession,
+  rotateSession,
+} from "@/core/auth/lib/sessionRegistry";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { db } from "@/core/database";
 import { users } from "@/core/database/schema";
@@ -38,7 +48,7 @@ export async function POST(req: NextRequest) {
     const decoded = jwt.verify(refreshToken, jwtSecret, {
       issuer: "tanjo-store",
       audience: "tanjo-users",
-    }) as { userId: string; wallet: string; iat: number; type?: string };
+    }) as { userId: string; wallet: string; iat: number; type?: string; sid?: string; jti?: string };
 
     if (decoded.type !== "refresh") {
       return NextResponse.json(
@@ -52,10 +62,27 @@ export async function POST(req: NextRequest) {
         { error: "session_revoked" },
         { status: 401, headers: formatRateLimitHeaders(rl) }
       );
-      revoked.cookies.delete("token");
-      revoked.cookies.delete("refresh_token");
-      revoked.cookies.delete("csrf_token");
+      clearSessionCookies(revoked);
       return revoked;
+    }
+
+    let sessionId = decoded.sid;
+    let sessionCreatedAt = Date.now();
+
+    if (sessionId) {
+      const session = await readSession(decoded.userId, sessionId);
+
+      if (session) {
+        if (session.jti !== decoded.jti || isBeyondAbsoluteLifetime(session.createdAt)) {
+          const stale = NextResponse.json(
+            { error: "session_expired" },
+            { status: 401, headers: formatRateLimitHeaders(rl) }
+          );
+          clearSessionCookies(stale);
+          return stale;
+        }
+        sessionCreatedAt = session.createdAt;
+      }
     }
 
     const user = await db.query.users.findFirst({ where: eq(users.id, decoded.userId) });
@@ -65,9 +92,7 @@ export async function POST(req: NextRequest) {
         { error: "unauthorized" },
         { status: 401, headers: formatRateLimitHeaders(rl) }
       );
-      gone.cookies.delete("token");
-      gone.cookies.delete("refresh_token");
-      gone.cookies.delete("csrf_token");
+      clearSessionCookies(gone);
       return gone;
     }
 
@@ -76,9 +101,7 @@ export async function POST(req: NextRequest) {
         { error: "banned", reason: user.banReason || undefined },
         { status: 403, headers: formatRateLimitHeaders(rl) }
       );
-      banned.cookies.delete("token");
-      banned.cookies.delete("refresh_token");
-      banned.cookies.delete("csrf_token");
+      clearSessionCookies(banned);
       return banned;
     }
 
@@ -92,47 +115,57 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    const nextTokenId = newTokenId();
+    const isNewSession = !sessionId;
+    if (!sessionId) sessionId = newSessionId();
+
     const newRefreshToken = jwt.sign(
-      { userId: decoded.userId, wallet: decoded.wallet, type: "refresh" },
+      { userId: decoded.userId, wallet: decoded.wallet, type: "refresh", sid: sessionId },
       jwtSecret,
       {
         expiresIn: "7d",
         issuer: "tanjo-store",
         audience: "tanjo-users",
+        jwtid: nextTokenId,
       }
     );
 
+    if (isNewSession) {
+      await registerSession(decoded.userId, {
+        sid: sessionId,
+        jti: nextTokenId,
+        createdAt: sessionCreatedAt,
+        device: describeDevice(req.headers.get("user-agent")),
+      });
+    } else {
+      await rotateSession(decoded.userId, sessionId, nextTokenId);
+    }
+
     const newCsrfToken = generateCSRFToken();
-    const isProd = process.env.NODE_ENV === "production";
+    const cookieOptions = baseCookieOptions();
 
     const response = NextResponse.json(
       { success: true, csrfToken: newCsrfToken },
       { headers: formatRateLimitHeaders(rl) }
     );
 
-    const baseCookieOptions = {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: "lax" as const,
-      path: "/",
-      domain: isProd ? ".theadvenjo.online" : undefined,
-    };
-
     response.cookies.set("token", newAccessToken, {
-      ...baseCookieOptions,
+      ...cookieOptions,
       maxAge: 15 * 60,
     });
 
     response.cookies.set("refresh_token", newRefreshToken, {
-      ...baseCookieOptions,
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60,
     });
 
     response.cookies.set("csrf_token", newCsrfToken, {
-      ...baseCookieOptions,
+      ...cookieOptions,
       httpOnly: false,
       maxAge: 60 * 60 * 24,
     });
+
+    clearLegacyDomainCookies(response);
 
     return response;
 
@@ -141,9 +174,7 @@ export async function POST(req: NextRequest) {
       { error: "session_expired" },
       { status: 401 }
     );
-    response.cookies.delete("token");
-    response.cookies.delete("refresh_token");
-    response.cookies.delete("csrf_token");
+    clearSessionCookies(response);
     return response;
   }
 }

@@ -54,7 +54,7 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
     };
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
             <div className="w-full max-w-md bg-[rgba(12,16,14,0.95)] border-2 border-[#4ADE80]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(74,222,128,0.15)]">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">

@@ -42,7 +42,7 @@ const iconMap: Record<string, React.ReactNode> = {
 export function Hotbar({ slots, onSlotClick, onOpenTools, onOpenEmotes, onOpenDegen }: HotbarProps) {
     const { t } = useLanguage();
     return (
-        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-auto font-oxanium">
+        <div className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 pointer-events-auto font-oxanium scale-90 sm:scale-100 origin-right">
             {slots.map((slot, i) => {
                 const IconComponent = iconMap[slot.icon.toLowerCase()] || null;
 

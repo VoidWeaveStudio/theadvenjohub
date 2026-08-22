@@ -3,18 +3,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { DoorOpen, Loader2 } from "lucide-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { gameFetch } from "../utils/gameFetch";
 import { SoundManager } from "../core/SoundManager";
-import { createRpcConnection, confirmSignature } from "@/core/lib/solanaClient";
+import { payTnj, PayTnjError, type PayStage } from "@/core/blockchain/payTnj";
+import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/core/blockchain/pendingPayment";
 import { fetchPayableTnj } from "../utils/shopQuote";
 import { useShopQuote } from "./hooks/useShopQuote";
-
-const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
 export interface GateFactionResult {
     id: string;
@@ -170,56 +167,26 @@ export function GateStewardPanel({
             setError("g.gate.err.sessionExpired");
             return;
         }
-        if (typeof (wallet.adapter as any).signTransaction !== "function") {
-            setError("g.gate.err.noSigning");
-            return;
-        }
-
         isProcessingRef.current = true;
         setError(null);
         setPayState("connecting");
 
+        const paymentKey = `faction-gate:${result.faction.id}`;
+
         try {
-            const configRes = await fetch("/api/marketplace/config");
-            if (!configRes.ok) throw new Error("g.gate.err.configFailed");
-            const config = await configRes.json();
+            let signature = readPendingPayment(paymentKey)?.signature ?? null;
 
-            const connection = createRpcConnection();
-            const mintPubkey = new PublicKey(config.tokenMint);
-            const treasuryPubkey = new PublicKey(config.treasuryWallet);
-            const decimals = parseInt(config.decimals || "6");
+            if (!signature) {
+                const priceTnj = await fetchPayableTnj("faction_gate");
 
-            const userATA = await getAssociatedTokenAddress(mintPubkey, publicKey, false, TOKEN_2022_PROGRAM_ID);
-            const treasuryATA = await getAssociatedTokenAddress(mintPubkey, treasuryPubkey, true, TOKEN_2022_PROGRAM_ID);
-            const priceTnj = await fetchPayableTnj("faction_gate");
-            const amountToSend = BigInt(priceTnj) * (10n ** BigInt(decimals));
+                signature = await payTnj({
+                    adapter: wallet.adapter,
+                    payer: publicKey,
+                    amountTnj: priceTnj,
+                    onStage: (stage: PayStage) => setPayState(stage === "preparing" ? "connecting" : stage),
+                });
 
-            setPayState("signing");
-
-            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-            const transferInstruction = createTransferInstruction(userATA, treasuryATA, publicKey, amountToSend, [], TOKEN_2022_PROGRAM_ID);
-            const tx = new Transaction({ feePayer: publicKey, recentBlockhash: blockhash }).add(transferInstruction);
-
-            let signedTx;
-            try {
-                signedTx = await (wallet.adapter as any).signTransaction(tx);
-            } catch (signError: any) {
-                if (signError.code === 4001 || signError.message?.includes("rejected")) {
-                    throw new Error("g.gate.err.rejected");
-                }
-                throw signError;
-            }
-
-            const signature = await connection.sendRawTransaction(signedTx.serialize(), {
-                skipPreflight: false,
-                preflightCommitment: "confirmed",
-            });
-
-            setPayState("confirming");
-            try {
-                await confirmSignature(connection, signature, lastValidBlockHeight);
-            } catch (confirmErr: any) {
-                console.warn("[GateSteward] confirmation timeout, relying on backend verification:", confirmErr.message);
+                savePendingPayment({ key: paymentKey, signature, amountTnj: priceTnj });
             }
 
             const res = await gameFetch("/api/faction/gate/purchase", {
@@ -233,11 +200,23 @@ export function GateStewardPanel({
                 throw new Error(err.error || `purchase_failed_${res.status}`);
             }
 
+            clearPendingPayment(paymentKey);
             onPurchased(result.faction);
             setResult((prev) => (prev ? { ...prev, hasGate: true, canPurchase: false } : prev));
         } catch (err: any) {
             console.error("[GateSteward] purchase error:", err);
-            setError(mapPurchaseError(err.message));
+
+            if (err instanceof PayTnjError) {
+                setError(
+                    err.code === "user_rejected" ? "g.gate.err.rejected" :
+                    err.code === "no_token_account" ? "g.shopBuy.err.no_token_account" :
+                    err.code === "insufficient_balance" ? "g.shopBuy.err.insufficient" :
+                    err.code === "config_failed" ? "g.gate.err.configFailed" :
+                    mapPurchaseError(err.code)
+                );
+            } else {
+                setError(mapPurchaseError(err.message));
+            }
         } finally {
             isProcessingRef.current = false;
             setPayState(false);
@@ -253,7 +232,7 @@ export function GateStewardPanel({
                     t("g.gate.buyPrice", { amount: (gateQuote?.payableTnj ?? 0).toLocaleString("en-US") });
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-4">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
             <div className="w-full max-w-md bg-[rgba(20,16,8,0.95)] border-2 border-[#E8A33D]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(232,163,61,0.15)]">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">

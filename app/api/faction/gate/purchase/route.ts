@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
+import { claimSignature } from "@/core/lib/paymentLock";
 import { canManageFaction } from "@/core/lib/factionAuth";
 import { requiredTnjForItem } from "@/core/lib/shopPricing";
 
@@ -75,6 +76,10 @@ export async function POST(req: NextRequest) {
     const existingGate = await db.query.factionGates.findFirst({ where: eq(factionGates.factionId, factionId) });
     if (existingGate) {
       return NextResponse.json({ error: "already_purchased" }, { status: 409, headers: formatRateLimitHeaders(rl) });
+    }
+
+    if (!(await claimSignature(signature, `${user.userId}:faction-gate`))) {
+      return NextResponse.json({ error: "signature_already_used" }, { status: 409 });
     }
 
     const existingUse = await findExistingSignatureUse(signature);

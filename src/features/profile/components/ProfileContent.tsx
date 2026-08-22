@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { ActiveSessions } from "./ActiveSessions";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/core/i18n/LanguageContext";
@@ -377,6 +378,8 @@ export default function ProfileContent() {
                   </div>
                 </div>
               </div>
+
+              <ActiveSessions />
 
               <div className="border-t border-border pt-6">
                 <h3 className="text-sm font-medium text-foreground mb-4">

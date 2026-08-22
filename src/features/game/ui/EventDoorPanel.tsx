@@ -151,7 +151,7 @@ export function EventDoorPanel({
             : t("g.door.finished");
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-4">
+        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-2 sm:p-4">
             <div
                 className="w-full max-w-lg bg-[rgba(12,14,16,0.96)] border-2 rounded-[16px] overflow-hidden"
                 style={{ borderColor: `${accent}55`, boxShadow: `0 0 40px ${accent}22` }}

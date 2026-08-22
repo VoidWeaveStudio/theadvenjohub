@@ -7,6 +7,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
+import { claimSignature } from "@/core/lib/paymentLock";
 import { generatePromoCode } from "@/core/lib/promoCode";
 import { requiredTnjForItem } from "@/core/lib/shopPricing";
 import { canManageFaction } from "@/core/lib/factionAuth";
@@ -79,6 +80,10 @@ export async function POST(req: NextRequest) {
         { error: "already_purchased", promoCode: faction.promoCode },
         { status: 409, headers: formatRateLimitHeaders(rl) }
       );
+    }
+
+    if (!(await claimSignature(signature, `${user.userId}:faction-upgrade`))) {
+      return NextResponse.json({ error: "signature_already_used" }, { status: 409 });
     }
 
     const existingUse = await findExistingSignatureUse(signature);

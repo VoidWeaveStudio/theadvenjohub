@@ -3,15 +3,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
+
 import { Users, Loader2 } from "lucide-react";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { gameFetch } from "../utils/gameFetch";
-import { createRpcConnection, confirmSignature } from "@/core/lib/solanaClient";
+import { payTnj, PayTnjError, type PayStage } from "@/core/blockchain/payTnj";
+import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/core/blockchain/pendingPayment";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
-const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
 type PayState = false | "connecting" | "signing" | "confirming";
 
@@ -143,61 +142,31 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
             setCreateError("g.factionCreate.sessionExpired");
             return;
         }
-        if (typeof (wallet.adapter as any).signTransaction !== "function") {
-            setCreateError("g.gate.err.noSigning");
-            return;
-        }
-
         isProcessingRef.current = true;
         setCreateError(null);
         setPayState("connecting");
 
+        const paymentKey = `faction-create:${createCa.trim()}`;
+
         try {
-            const configRes = await fetch("/api/marketplace/config");
-            if (!configRes.ok) throw new Error("g.gate.err.configFailed");
-            const config = await configRes.json();
+            let signature = readPendingPayment(paymentKey)?.signature ?? null;
 
-            const connection = createRpcConnection();
-            const mintPubkey = new PublicKey(config.tokenMint);
-            const treasuryPubkey = new PublicKey(config.treasuryWallet);
-            const decimals = parseInt(config.decimals || "6");
-
-            const userATA = await getAssociatedTokenAddress(mintPubkey, publicKey, false, TOKEN_2022_PROGRAM_ID);
-            const treasuryATA = await getAssociatedTokenAddress(mintPubkey, treasuryPubkey, true, TOKEN_2022_PROGRAM_ID);
-            const quoted = await fetchPrice();
-            const payable = quoted?.payableTnj ?? livePrice?.payableTnj;
-            if (!payable) {
-                throw new Error("price_unavailable");
-            }
-            setLivePrice(quoted ?? livePrice);
-            const amountToSend = BigInt(payable) * (10n ** BigInt(decimals));
-
-            setPayState("signing");
-
-            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-            const transferInstruction = createTransferInstruction(userATA, treasuryATA, publicKey, amountToSend, [], TOKEN_2022_PROGRAM_ID);
-            const tx = new Transaction({ feePayer: publicKey, recentBlockhash: blockhash }).add(transferInstruction);
-
-            let signedTx;
-            try {
-                signedTx = await (wallet.adapter as any).signTransaction(tx);
-            } catch (signError: any) {
-                if (signError.code === 4001 || signError.message?.includes("rejected")) {
-                    throw new Error("g.gate.err.rejected");
+            if (!signature) {
+                const quoted = await fetchPrice();
+                const payable = quoted?.payableTnj ?? livePrice?.payableTnj;
+                if (!payable) {
+                    throw new Error("price_unavailable");
                 }
-                throw signError;
-            }
+                setLivePrice(quoted ?? livePrice);
 
-            const signature = await connection.sendRawTransaction(signedTx.serialize(), {
-                skipPreflight: false,
-                preflightCommitment: "confirmed",
-            });
+                signature = await payTnj({
+                    adapter: wallet.adapter,
+                    payer: publicKey,
+                    amountTnj: payable,
+                    onStage: (stage: PayStage) => setPayState(stage === "preparing" ? "connecting" : stage),
+                });
 
-            setPayState("confirming");
-            try {
-                await confirmSignature(connection, signature, lastValidBlockHeight);
-            } catch (confirmErr: any) {
-                console.warn("[FactionCreate] confirmation failed, relying on backend verification:", confirmErr.message);
+                savePendingPayment({ key: paymentKey, signature, amountTnj: payable });
             }
 
             const res = await gameFetch("/api/faction/create", {
@@ -212,12 +181,24 @@ export function FactionCreateForm({ gameSlug, onCreated }: FactionCreateFormProp
             }
 
             const data = await res.json();
+            clearPendingPayment(paymentKey);
             setCreateCa("");
             setTokenPreview(null);
             onCreated(data.faction?.name ?? tokenPreview.name);
         } catch (err: any) {
             console.error("[FactionCreate] faction creation error:", err);
-            setCreateError(mapCreateError(err.message));
+
+            if (err instanceof PayTnjError) {
+                setCreateError(
+                    err.code === "user_rejected" ? "g.gate.err.rejected" :
+                    err.code === "no_token_account" ? "g.shopBuy.err.no_token_account" :
+                    err.code === "insufficient_balance" ? "g.shopBuy.err.insufficient" :
+                    err.code === "config_failed" ? "g.gate.err.configFailed" :
+                    mapCreateError(err.code)
+                );
+            } else {
+                setCreateError(mapCreateError(err.message));
+            }
         } finally {
             isProcessingRef.current = false;
             setPayState(false);

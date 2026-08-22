@@ -34,7 +34,7 @@ export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFilte
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-all ${isOpen
+        className={`flex items-center gap-2 px-4 min-h-[44px] rounded-lg border transition-all ${isOpen
             ? "bg-primary/10 border-primary text-primary"
             : "bg-surface border-border text-text-secondary hover:text-foreground hover:bg-surface/80"
           }`}
@@ -106,7 +106,7 @@ export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFilte
                   rarity: [],
                 });
               }}
-              className="w-full py-2 text-sm text-text-secondary hover:text-foreground border border-border rounded-lg hover:bg-surface/50 transition-colors"
+              className="w-full min-h-[44px] text-sm text-text-secondary hover:text-foreground border border-border rounded-lg hover:bg-surface/50 transition-colors"
             >
               {t("marketplace.resetFilters")}
             </button>

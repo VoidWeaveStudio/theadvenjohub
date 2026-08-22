@@ -8,6 +8,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
 }
 
+const VIRTUAL_TAP_HOLD_MS = 120;
+
 export class InputManager {
   private keys: Set<string> = new Set();
   private mouseButtons: Set<number> = new Set();
@@ -17,6 +19,8 @@ export class InputManager {
   private isPointerLocked: boolean = false;
   private isEnabled: boolean = true;
   private canvas: HTMLCanvasElement;
+  private touchControlActive: boolean = false;
+  private virtualKeyTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   private onKeyDown: (e: KeyboardEvent) => void;
   private onKeyUp: (e: KeyboardEvent) => void;
@@ -26,6 +30,7 @@ export class InputManager {
   private onPointerLockChange: () => void;
   private onCanvasClick: () => void;
   private onContextMenu: (e: MouseEvent) => void;
+  private onTouchStart: () => void;
 
   public onPointerLockStateChange?: (locked: boolean) => void;
 
@@ -70,6 +75,7 @@ export class InputManager {
 
     this.onCanvasClick = () => {
       SoundManager.getInstance().resume();
+      if (this.touchControlActive) return;
       if (!this.isPointerLocked && this.isEnabled) {
         canvas.requestPointerLock().catch(() => { });
       }
@@ -77,6 +83,10 @@ export class InputManager {
 
     this.onContextMenu = (e) => {
       if (this.isPointerLocked) e.preventDefault();
+    };
+
+    this.onTouchStart = () => {
+      SoundManager.getInstance().resume();
     };
 
     document.addEventListener("keydown", this.onKeyDown);
@@ -87,6 +97,84 @@ export class InputManager {
     document.addEventListener("pointerlockchange", this.onPointerLockChange);
     canvas.addEventListener("click", this.onCanvasClick);
     canvas.addEventListener("contextmenu", this.onContextMenu);
+    document.addEventListener("touchend", this.onTouchStart, { passive: true });
+    document.addEventListener("pointerdown", this.onTouchStart, { passive: true });
+  }
+
+  setTouchControlActive(active: boolean) {
+    if (this.touchControlActive === active) return;
+
+    this.touchControlActive = active;
+
+    if (active && document.pointerLockElement === this.canvas) {
+      document.exitPointerLock();
+    }
+
+    this.onPointerLockStateChange?.(this.isPointerLockedState());
+  }
+
+  isTouchControlActive(): boolean {
+    return this.touchControlActive;
+  }
+
+  private dispatchKey(type: "keydown" | "keyup", code: string) {
+    document.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true }));
+  }
+
+  setVirtualKey(code: string, pressed: boolean) {
+    if (pressed) {
+      if (this.keys.has(code)) return;
+      this.keys.add(code);
+      this.dispatchKey("keydown", code);
+      return;
+    }
+
+    if (!this.keys.delete(code)) return;
+    this.dispatchKey("keyup", code);
+  }
+
+  pressVirtualKey(code: string, holdMs: number = VIRTUAL_TAP_HOLD_MS) {
+    this.keys.add(code);
+    this.dispatchKey("keydown", code);
+
+    const existing = this.virtualKeyTimers.get(code);
+    if (existing) clearTimeout(existing);
+
+    this.virtualKeyTimers.set(
+      code,
+      setTimeout(() => {
+        this.keys.delete(code);
+        this.dispatchKey("keyup", code);
+        this.virtualKeyTimers.delete(code);
+      }, holdMs)
+    );
+  }
+
+  setVirtualMouseButton(button: number, pressed: boolean) {
+    if (pressed) {
+      if (this.mouseButtons.has(button)) return;
+      this.mouseButtons.add(button);
+      this.mouseJustPressed.add(button);
+      return;
+    }
+
+    if (this.mouseButtons.delete(button)) {
+      this.mouseJustReleased.add(button);
+    }
+  }
+
+  addVirtualLook(dx: number, dy: number) {
+    if (!this.isEnabled) return;
+    this.mouseMovement.x += dx;
+    this.mouseMovement.y += dy;
+  }
+
+  clearVirtualState() {
+    for (const timer of this.virtualKeyTimers.values()) clearTimeout(timer);
+    this.virtualKeyTimers.clear();
+    this.keys.clear();
+    this.mouseButtons.clear();
+    this.mouseMovement.set(0, 0);
   }
 
   consumeMouseMovement(): THREE.Vector2 {
@@ -124,14 +212,13 @@ export class InputManager {
   }
 
   isPointerLockedState(): boolean {
-    return this.isPointerLocked;
+    return this.touchControlActive || this.isPointerLocked;
   }
 
   setEnabled(enabled: boolean) {
     this.isEnabled = enabled;
     if (!enabled) {
-      this.keys.clear();
-      this.mouseButtons.clear();
+      this.clearVirtualState();
       this.mouseJustPressed.clear();
       this.mouseJustReleased.clear();
       if (this.isPointerLocked) {
@@ -141,6 +228,9 @@ export class InputManager {
   }
 
   dispose() {
+    for (const timer of this.virtualKeyTimers.values()) clearTimeout(timer);
+    this.virtualKeyTimers.clear();
+
     document.removeEventListener("keydown", this.onKeyDown);
     document.removeEventListener("keyup", this.onKeyUp);
     document.removeEventListener("mousedown", this.onMouseDown);
@@ -149,5 +239,7 @@ export class InputManager {
     document.removeEventListener("pointerlockchange", this.onPointerLockChange);
     this.canvas.removeEventListener("click", this.onCanvasClick);
     this.canvas.removeEventListener("contextmenu", this.onContextMenu);
+    document.removeEventListener("touchend", this.onTouchStart);
+    document.removeEventListener("pointerdown", this.onTouchStart);
   }
 }

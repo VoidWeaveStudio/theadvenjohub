@@ -1,18 +1,25 @@
 // src/core/auth/components/LoginButton.tsx
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useId, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { WalletReadyState } from "@solana/wallet-adapter-base";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { WalletSelectorModal } from "./WalletSelectorModal";
 import { useAuth } from "../AuthProvider";
 import { buildSignInMessage } from "@/core/auth/lib/signMessage";
+import { clearPendingSignIn, readPendingSignIn, savePendingSignIn } from "@/core/auth/lib/pendingSignIn";
 
 type LoadingState = boolean | "connecting" | "signing";
 
+const RESUME_TIMEOUT_MS = 30_000;
+
+let resumeOwner: string | null = null;
+
 export function LoginButton({ className = "" }: { className?: string }) {
+  const instanceId = useId();
   const { t } = useLanguage();
-  const { connect, publicKey, wallet, connected, select, connecting, disconnect } = useWallet();
+  const { connect, publicKey, wallet, wallets, connected, select, connecting, disconnect } = useWallet();
   const { login, isAuthorized, walletMismatch } = useAuth();
 
   const [loading, setLoading] = useState<LoadingState>(false);
@@ -27,6 +34,33 @@ export function LoginButton({ className = "" }: { className?: string }) {
   const pendingConnectRef = useRef(false);
 
   useEffect(() => {
+    const resumed = readPendingSignIn();
+    if (!resumed || !needsAuth) {
+      if (resumed && !needsAuth) clearPendingSignIn();
+      return;
+    }
+
+    if (resumeOwner !== null && resumeOwner !== instanceId) return;
+    resumeOwner = instanceId;
+
+    pendingWalletName.current = resumed.walletName;
+    setLoading("connecting");
+    setSignTrigger(prev => prev + 1);
+
+    const giveUp = setTimeout(() => {
+      if (isProcessingRef.current) return;
+      clearPendingSignIn();
+      pendingWalletName.current = null;
+      setLoading(false);
+    }, RESUME_TIMEOUT_MS);
+
+    return () => {
+      clearTimeout(giveUp);
+      if (resumeOwner === instanceId) resumeOwner = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (pendingConnectRef.current && wallet && !connected && !connecting) {
       pendingConnectRef.current = false;
       
@@ -36,6 +70,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
         })
         .catch((err: any) => {
           console.error("[TANJO Wallet Connection Error]", err);
+          clearPendingSignIn();
           setLoading(false);
           pendingWalletName.current = null;
         });
@@ -121,6 +156,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
         login(walletAddress, walletName);
         localStorage.setItem("selectedWallet", walletName);
 
+        clearPendingSignIn();
         setLoading(false);
         pendingWalletName.current = null;
 
@@ -139,6 +175,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
           setError(err.message || t("auth.connectionError"));
         }
 
+        clearPendingSignIn();
         setLoading(false);
         pendingWalletName.current = null;
       } finally {
@@ -157,6 +194,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
 
     if (connected && wallet?.adapter.name === walletName && publicKey) {
       pendingWalletName.current = walletName;
+      savePendingSignIn(walletName);
       setLoading("signing");
       setSignTrigger(prev => prev + 1);
       return;
@@ -169,6 +207,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
     }
 
     pendingWalletName.current = walletName;
+    savePendingSignIn(walletName);
     setLoading("connecting");
     pendingConnectRef.current = true;
 
@@ -184,6 +223,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
         setError(err.message || t("auth.connectionError"));
       }
 
+      clearPendingSignIn();
       setLoading(false);
       pendingWalletName.current = null;
     }
@@ -195,12 +235,21 @@ export function LoginButton({ className = "" }: { className?: string }) {
     const currentWalletName = connected && wallet?.adapter.name ? wallet.adapter.name : null;
     const savedWallet = currentWalletName || localStorage.getItem("selectedWallet");
 
-    if (savedWallet) {
+    const savedIsUsable = Boolean(
+      savedWallet &&
+      (wallets ?? []).some(
+        (entry) =>
+          entry.adapter.name === savedWallet &&
+          (entry.readyState === WalletReadyState.Installed || entry.readyState === WalletReadyState.Loadable)
+      )
+    );
+
+    if (savedWallet && savedIsUsable) {
       handleWalletSelect(savedWallet);
     } else {
       setShowWalletSelector(true);
     }
-  }, [loading, needsAuth, connected, wallet, handleWalletSelect]);
+  }, [loading, needsAuth, connected, wallet, wallets, handleWalletSelect]);
 
   const getButtonText = () => {
     if (loading === "connecting") {
@@ -230,7 +279,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
       <button
         onClick={handleConnect}
         disabled={!!loading || !needsAuth}
-        className={`btn-primary px-4 py-2 text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-full justify-center ${className}`}
+        className={`btn-primary px-4 min-h-[44px] text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-full justify-center ${className}`}
         type="button"
       >
         {getButtonText()}

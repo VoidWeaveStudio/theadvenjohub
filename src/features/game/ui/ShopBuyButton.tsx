@@ -3,17 +3,14 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { getAssociatedTokenAddress, createTransferInstruction } from "@solana/spl-token";
 import { Loader2 } from "lucide-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
-import { createRpcConnection, confirmSignature } from "@/core/lib/solanaClient";
+import { PayTnjError, payTnj, type PayStage } from "@/core/blockchain/payTnj";
+import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/core/blockchain/pendingPayment";
 import { gameFetch } from "../utils/gameFetch";
 import { fetchPayableTnj } from "../utils/shopQuote";
 import { SoundManager } from "../core/SoundManager";
-
-const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
 type PayState = false | "quoting" | "signing" | "confirming" | "verifying";
 
@@ -36,10 +33,23 @@ function errorKey(raw: string): string {
         "session_expired",
         "no_signing",
         "config_failed",
+        "no_token_account",
+        "insufficient",
     ]);
     if (known.has(raw)) return `g.shopBuy.err.${raw}`;
     if (raw === "transaction_not_found" || raw === "payment_timestamp_unavailable") return "g.shopBuy.err.pending";
     return "g.shopBuy.err.failed";
+}
+
+function payErrorKey(error: PayTnjError): string {
+    switch (error.code) {
+        case "user_rejected": return errorKey("rejected");
+        case "no_token_account": return errorKey("no_token_account");
+        case "insufficient_balance": return errorKey("insufficient");
+        case "wallet_not_connected": return errorKey("connect_wallet");
+        case "config_failed": return errorKey("config_failed");
+        default: return errorKey("failed");
+    }
 }
 
 export function ShopBuyButton({ itemId, gameSlug, owned, onPurchased }: ShopBuyButtonProps) {
@@ -60,59 +70,27 @@ export function ShopBuyButton({ itemId, gameSlug, owned, onPurchased }: ShopBuyB
             setError(errorKey("session_expired"));
             return;
         }
-        if (typeof (wallet.adapter as any).signTransaction !== "function") {
-            setError(errorKey("no_signing"));
-            return;
-        }
+
+        const paymentKey = `shop:${itemId}`;
 
         isProcessingRef.current = true;
         setError(null);
         setPayState("quoting");
 
         try {
-            const configRes = await fetch("/api/marketplace/config");
-            if (!configRes.ok) throw new Error("config_failed");
-            const config = await configRes.json();
+            let signature = readPendingPayment(paymentKey)?.signature ?? null;
 
-            const connection = createRpcConnection();
-            const mintPubkey = new PublicKey(config.tokenMint);
-            const treasuryPubkey = new PublicKey(config.treasuryWallet);
-            const decimals = parseInt(config.decimals || "6");
+            if (!signature) {
+                const priceTnj = await fetchPayableTnj(itemId, gameSlug);
 
-            const priceTnj = await fetchPayableTnj(itemId, gameSlug);
+                signature = await payTnj({
+                    adapter: wallet.adapter,
+                    payer: publicKey,
+                    amountTnj: priceTnj,
+                    onStage: (stage: PayStage) => setPayState(stage === "preparing" ? "quoting" : stage),
+                });
 
-            const userATA = await getAssociatedTokenAddress(mintPubkey, publicKey, false, TOKEN_2022_PROGRAM_ID);
-            const treasuryATA = await getAssociatedTokenAddress(mintPubkey, treasuryPubkey, true, TOKEN_2022_PROGRAM_ID);
-            const amountToSend = BigInt(priceTnj) * (10n ** BigInt(decimals));
-
-            setPayState("signing");
-
-            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-            const transferInstruction = createTransferInstruction(
-                userATA, treasuryATA, publicKey, amountToSend, [], TOKEN_2022_PROGRAM_ID
-            );
-            const tx = new Transaction({ feePayer: publicKey, recentBlockhash: blockhash }).add(transferInstruction);
-
-            let signedTx;
-            try {
-                signedTx = await (wallet.adapter as any).signTransaction(tx);
-            } catch (signError: any) {
-                if (signError?.code === 4001 || signError?.message?.includes("rejected")) {
-                    throw new Error("rejected");
-                }
-                throw signError;
-            }
-
-            const signature = await connection.sendRawTransaction(signedTx.serialize(), {
-                skipPreflight: false,
-                preflightCommitment: "confirmed",
-            });
-
-            setPayState("confirming");
-            try {
-                await confirmSignature(connection, signature, lastValidBlockHeight);
-            } catch (confirmErr: any) {
-                console.warn("[ShopBuy] confirmation timeout, relying on backend verification:", confirmErr?.message);
+                savePendingPayment({ key: paymentKey, signature, amountTnj: priceTnj });
             }
 
             setPayState("verifying");
@@ -127,12 +105,13 @@ export function ShopBuyButton({ itemId, gameSlug, owned, onPurchased }: ShopBuyB
                 throw new Error(err.error || `purchase_failed_${res.status}`);
             }
 
+            clearPendingPayment(paymentKey);
             SoundManager.getInstance().play("shop-buy", { volume: 0.6 });
             onPurchased(itemId);
         } catch (err: any) {
             console.error("[ShopBuy] purchase error:", err);
             SoundManager.getInstance().play("shop-fail", { volume: 0.5 });
-            setError(errorKey(err?.message || "failed"));
+            setError(err instanceof PayTnjError ? payErrorKey(err) : errorKey(err?.message || "failed"));
         } finally {
             isProcessingRef.current = false;
             setPayState(false);

@@ -8,10 +8,10 @@ import { SoundManager } from "../../core/SoundManager";
 export type WindowFrameSize = "sm" | "md" | "lg" | "xl";
 
 const SIZE_CLASSES: Record<WindowFrameSize, string> = {
-    sm: "max-w-sm",
-    md: "max-w-lg",
-    lg: "max-w-4xl h-[82vh]",
-    xl: "max-w-6xl h-[88vh]",
+    sm: "sm:max-w-sm",
+    md: "sm:max-w-lg",
+    lg: "sm:max-w-4xl sm:h-[82dvh]",
+    xl: "sm:max-w-6xl sm:h-[88dvh]",
 };
 
 export interface WindowFrameTab {
@@ -60,15 +60,15 @@ export function WindowFrame({
 
     return (
         <div
-            className="absolute inset-0 z-50 flex items-center justify-center p-4 pointer-events-auto font-oxanium"
+            className="absolute inset-0 z-50 flex items-stretch sm:items-center justify-center p-0 sm:p-4 pointer-events-auto font-oxanium"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}
         >
             <div
-                className={`w-full ${SIZE_CLASSES[size]} flex flex-col bg-[rgba(13,17,23,0.98)] border border-white/10 rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65),0_0_0_1px_rgba(79,209,255,0.08)] overflow-hidden`}
+                className={`w-full h-full ${SIZE_CLASSES[size]} flex flex-col bg-[rgba(13,17,23,0.98)] border border-white/10 rounded-none sm:rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65),0_0_0_1px_rgba(79,209,255,0.08)] overflow-hidden pt-safe pb-safe sm:pt-0 sm:pb-0`}
             >
-                <div className="relative flex items-center justify-between px-6 py-4 flex-shrink-0">
+                <div className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0">
                     <div className="flex items-center gap-3">
                         {icon && (
                             <div className="relative flex items-center justify-center flex-shrink-0">
@@ -80,7 +80,7 @@ export function WindowFrame({
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 p-0 border-0 rounded-full flex items-center justify-center bg-[rgba(255,255,255,0.06)] text-[#C5C9D1] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.12)] transition-colors flex-shrink-0"
+                        className="w-11 h-11 sm:w-8 sm:h-8 p-0 border-0 rounded-full flex items-center justify-center bg-[rgba(255,255,255,0.06)] text-[#C5C9D1] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.12)] transition-colors flex-shrink-0"
                     >
                         <X className="w-4 h-4" strokeWidth={2.5} />
                     </button>
@@ -96,7 +96,7 @@ export function WindowFrame({
                                 if (tab.id !== activeTab) SoundManager.getInstance().play('ui-tab', { volume: 0.3 });
                                 onTabChange?.(tab.id);
                             }}
-                                className={`relative flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold tracking-wide whitespace-nowrap transition-colors ${activeTab === tab.id
+                                className={`relative flex items-center gap-1.5 px-4 min-h-[40px] rounded-full text-xs font-bold tracking-wide whitespace-nowrap transition-colors ${activeTab === tab.id
                                     ? "text-[#0A0E14] bg-[#4FD1FF] shadow-[0_2px_10px_rgba(79,209,255,0.35)]"
                                     : "text-[#6B7280] hover:text-[#9CA3AF] hover:bg-white/5"
                                     }`}
@@ -111,10 +111,10 @@ export function WindowFrame({
                     </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto p-6 min-h-0">{children}</div>
+                <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 min-h-0">{children}</div>
 
                 {footer && (
-                    <div className="px-6 py-4 border-t border-white/10 bg-[rgba(255,255,255,0.02)] flex-shrink-0">
+                    <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-white/10 bg-[rgba(255,255,255,0.02)] flex-shrink-0">
                         {footer}
                     </div>
                 )}

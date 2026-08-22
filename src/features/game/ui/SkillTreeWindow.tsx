@@ -303,7 +303,7 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                             })}
                         </div>
 
-                        <div className="w-[290px] flex-shrink-0 flex flex-col rounded-[12px] border border-white/8 bg-black/30 overflow-hidden">
+                        <div className="w-full max-w-[290px] flex-shrink-0 flex flex-col rounded-[12px] border border-white/8 bg-black/30 overflow-hidden">
                             {selected ? (
                                 <div className="flex flex-col h-full min-h-0">
                                     <div

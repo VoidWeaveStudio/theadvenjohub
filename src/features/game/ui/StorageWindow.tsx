@@ -48,7 +48,7 @@ export function StorageWindow({ isOpen, slots, entries, inventory, onClose, onDe
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto font-oxanium" onClick={onClose}>
             <div
-                className="bg-[rgba(12,12,14,0.95)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[12px] p-5 w-[520px] shadow-2xl"
+                className="bg-[rgba(12,12,14,0.95)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[12px] p-5 w-full max-w-[520px] shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between mb-4">

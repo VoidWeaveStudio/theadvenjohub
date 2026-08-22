@@ -1,5 +1,6 @@
 // src/features/game/world/locations/events/lobbyLayout.ts
 import * as THREE from "three";
+import { prefersMobileProfile } from "@/features/game/core/graphicsSettings";
 
 export const BAY_COUNT = 10;
 
@@ -55,6 +56,8 @@ export function placeOnRing(object: THREE.Object3D, angle: number, radius: numbe
 }
 
 export function isLowEndDevice(): boolean {
+    if (prefersMobileProfile()) return true;
+
     return typeof navigator !== "undefined" && navigator.hardwareConcurrency != null
         ? navigator.hardwareConcurrency <= 4
         : false;

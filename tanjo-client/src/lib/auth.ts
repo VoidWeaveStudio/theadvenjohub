@@ -2,6 +2,9 @@
 import { api } from './api';
 import { store } from './store';
 import { logger } from './logger';
+import { createCodeVerifier, deriveCodeChallenge } from './pkce';
+
+const VERIFIER_STORE_KEY = 'auth_code_verifier';
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -26,11 +29,53 @@ export async function getDeviceId(): Promise<string> {
   return deviceId;
 }
 
+async function persistSession(token: string, wallet: string): Promise<AuthState> {
+  await store.set('auth_token', token);
+  await store.set('auth_wallet', wallet);
+  await store.set('auth_timestamp', Date.now().toString());
+  await store.save();
+
+  return {
+    isAuthenticated: true,
+    wallet,
+    deviceId: await getDeviceId(),
+    accessToken: token
+  };
+}
+
+async function exchangeCode(code: string): Promise<AuthState | null> {
+  const codeVerifier = await store.get<string>(VERIFIER_STORE_KEY);
+  if (!codeVerifier) {
+    logger.error('No PKCE verifier stored for the incoming code');
+    return null;
+  }
+
+  await store.set(VERIFIER_STORE_KEY, '');
+  await store.save();
+
+  const result = await api.post<{ accessToken?: string; wallet?: string }>('/api/auth/exchange', {
+    code,
+    codeVerifier
+  }).catch((err) => {
+    logger.error('Code exchange failed:', err);
+    return null;
+  });
+
+  if (!result?.accessToken || !result?.wallet) return null;
+
+  return persistSession(result.accessToken, result.wallet);
+}
+
 export async function handleDeepLink(url: string): Promise<AuthState | null> {
   try {
     const parsed = new URL(url);
     const search = parsed.search || parsed.hash.replace('#', '?');
     const params = new URLSearchParams(search);
+
+    const code = params.get('code');
+    if (code) {
+      return await exchangeCode(code);
+    }
 
     const token = params.get('token');
     const wallet = params.get('wallet');
@@ -39,17 +84,7 @@ export async function handleDeepLink(url: string): Promise<AuthState | null> {
       return null;
     }
 
-    await store.set('auth_token', token);
-    await store.set('auth_wallet', wallet);
-    await store.set('auth_timestamp', Date.now().toString());
-    await store.save();
-
-    return {
-      isAuthenticated: true,
-      wallet,
-      deviceId: await getDeviceId(),
-      accessToken: token
-    };
+    return persistSession(token, wallet);
   } catch {
     return null;
   }
@@ -104,11 +139,21 @@ export async function logout(): Promise<void> {
   await store.clearAuth();
 }
 
-export async function openBrowserAuth(): Promise<void> {
+export async function buildAuthUrl(): Promise<string> {
   const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
-  const authUrl = isDev
-    ? 'http://localhost:3000/auth/desktop?auto=1'
-    : 'https://theadvenjo.online/auth/desktop?auto=1';
+  const origin = isDev ? 'http://localhost:3000' : 'https://theadvenjo.online';
+
+  const verifier = createCodeVerifier();
+  const challenge = await deriveCodeChallenge(verifier);
+
+  await store.set(VERIFIER_STORE_KEY, verifier);
+  await store.save();
+
+  return `${origin}/auth/desktop?auto=1&code_challenge=${encodeURIComponent(challenge)}`;
+}
+
+export async function openBrowserAuth(): Promise<void> {
+  const authUrl = await buildAuthUrl();
 
   try {
     try {
