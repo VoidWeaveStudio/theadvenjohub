@@ -17,7 +17,7 @@ export const id: PartialTranslations = {
   "g.touch.onboardMenu": "Tombol atas: menu dan roda",
   "g.touch.onboardGot": "Mengerti",
   "g.touch.rotateTitle": "Putar ponsel Anda",
-  "g.touch.rotateHint": "Gim ini dirancang untuk mode lanskap. Putar perangkat atau tekan tombol untuk menguncinya.",
+  "g.touch.rotateHint": "Gim berjalan dalam mode lanskap. Putar ponsel ke samping.",
   "g.touch.rotateAction": "Layar penuh",
   "g.settings.touchSensitivityHint": "Seberapa cepat kamera mengikuti jari Anda",
   "g.settings.uiScale": "Skala antarmuka",

@@ -3,40 +3,45 @@
 
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { canForceLandscape } from "./hooks/useMobileImmersion";
+
+const STORAGE_KEY = "tanjo_touch_rotate_hint";
 
 interface TouchLandscapeGateProps {
   active: boolean;
-  onEnterImmersion: () => void | Promise<void>;
+  onEnterImmersion: () => Promise<boolean>;
 }
 
 export function TouchLandscapeGate({ active, onEnterImmersion }: TouchLandscapeGateProps) {
   const { t } = useLanguage();
-  const [portrait, setPortrait] = useState(false);
+  const [dismissed, setDismissed] = useState(true);
+  const [canRotate, setCanRotate] = useState(false);
 
   useEffect(() => {
-    if (!active) {
-      setPortrait(false);
-      return;
+    let seen = false;
+    try {
+      seen = window.localStorage.getItem(STORAGE_KEY) === "1";
+    } catch {
     }
 
-    const sync = () => setPortrait(window.innerHeight > window.innerWidth);
+    setDismissed(seen);
+    setCanRotate(canForceLandscape());
+  }, []);
 
-    sync();
-    window.addEventListener("resize", sync);
-    window.addEventListener("orientationchange", sync);
+  const dismiss = () => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, "1");
+    } catch {
+    }
+    setDismissed(true);
+  };
 
-    return () => {
-      window.removeEventListener("resize", sync);
-      window.removeEventListener("orientationchange", sync);
-    };
-  }, [active]);
-
-  if (!active || !portrait) return null;
+  if (!active || dismissed) return null;
 
   return (
-    <div className="absolute inset-0 z-[400] bg-[#05070B] flex items-center justify-center p-6 pointer-events-auto font-oxanium">
+    <div className="absolute inset-0 z-[400] bg-[#05070B]/95 flex items-center justify-center p-6 pointer-events-auto font-oxanium">
       <div className="w-full max-w-xs text-center">
-        <div className="text-6xl mb-6 animate-pulse">📱</div>
+        <div className="text-6xl mb-6">📱</div>
 
         <h2 className="text-xl font-black text-[#E5E7EB] mb-2">
           {t("g.touch.rotateTitle")}
@@ -46,12 +51,22 @@ export function TouchLandscapeGate({ active, onEnterImmersion }: TouchLandscapeG
           {t("g.touch.rotateHint")}
         </p>
 
+        {canRotate && (
+          <button
+            type="button"
+            onClick={() => void onEnterImmersion()}
+            className="w-full min-h-[48px] mb-3 rounded-xl border border-white/25 bg-transparent text-[#C5C9D1] font-black transition-colors"
+          >
+            {t("g.touch.rotateAction")}
+          </button>
+        )}
+
         <button
           type="button"
-          onClick={() => void onEnterImmersion()}
+          onClick={dismiss}
           className="w-full min-h-[48px] rounded-xl bg-[#4FD1FF] text-[#0A0E14] font-black transition-colors"
         >
-          {t("g.touch.rotateAction")}
+          {t("g.touch.onboardGot")}
         </button>
       </div>
     </div>

@@ -99,7 +99,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                 </div>
             </div>
 
-            <div className="absolute top-16 sm:top-6 right-3 sm:right-6 flex flex-col items-end gap-1.5 max-w-[220px] sm:max-w-[300px]" style={{ marginRight: "var(--safe-right)" }}>
+            <div className="game-ui-rightrail absolute top-16 sm:top-6 right-3 sm:right-6 flex flex-col items-end gap-1.5 max-w-[220px] sm:max-w-[300px]" style={{ marginRight: "var(--safe-right)" }}>
                 <OnlineCounter count={state.online} maxCount={100} />
                 <ShardSwitcher state={shardState ?? null} onSwitch={onSwitchShard ?? (() => { })} />
 

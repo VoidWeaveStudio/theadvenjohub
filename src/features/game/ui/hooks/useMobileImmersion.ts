@@ -9,6 +9,14 @@ interface WakeLockSentinelLike {
   addEventListener?: (type: string, listener: () => void) => void;
 }
 
+export function canForceLandscape(): boolean {
+  if (typeof document === "undefined" || typeof screen === "undefined") return false;
+  if (!document.fullscreenEnabled) return false;
+
+  const orientation = screen.orientation as (ScreenOrientation & { lock?: unknown }) | undefined;
+  return typeof orientation?.lock === "function";
+}
+
 export function useMobileImmersion(enabled: boolean, target: React.RefObject<HTMLElement | null>) {
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
   const enabledRef = useRef(enabled);
@@ -25,10 +33,11 @@ export function useMobileImmersion(enabled: boolean, target: React.RefObject<HTM
     }
   }, []);
 
-  const enterImmersion = useCallback(async () => {
-    if (!enabledRef.current) return;
+  const enterImmersion = useCallback(async (): Promise<boolean> => {
+    if (!enabledRef.current) return false;
 
     const element = target.current;
+    let locked = false;
 
     if (element && !document.fullscreenElement) {
       try {
@@ -41,11 +50,14 @@ export function useMobileImmersion(enabled: boolean, target: React.RefObject<HTM
     if (orientation?.lock) {
       try {
         await orientation.lock("landscape");
+        locked = true;
       } catch {
       }
     }
 
     await acquireWakeLock();
+
+    return locked;
   }, [target, acquireWakeLock]);
 
   useEffect(() => {

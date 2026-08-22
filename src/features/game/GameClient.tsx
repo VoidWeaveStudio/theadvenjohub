@@ -91,6 +91,8 @@ import { useQuestState, SOLA_NPC_ID } from "./ui/hooks/useQuestState";
 import { TouchControls } from "./ui/TouchControls";
 import { TouchOnboarding } from "./ui/TouchOnboarding";
 import { TouchLandscapeGate } from "./ui/TouchLandscapeGate";
+import { useForcedLandscape } from "./ui/hooks/useForcedLandscape";
+import { GAME_ROOT_ID, setGameRotated } from "./utils/rotatedViewport";
 import { applyUiScale, getUiScale } from "./utils/uiScale";
 import { useMobileImmersion } from "./ui/hooks/useMobileImmersion";
 import { useDevice } from "@/core/lib/useDevice";
@@ -165,9 +167,23 @@ export function GameClient({ slug }: GameClientProps) {
   const [chatExpanded, setChatExpanded] = useState(false);
   const enterImmersion = useMobileImmersion(touchMode, gameContainerRef);
 
+  const rotated = useForcedLandscape(touchMode);
+
   useEffect(() => {
     applyUiScale(touchMode ? getUiScale() : 1);
   }, [touchMode]);
+
+  useEffect(() => {
+    setGameRotated(rotated);
+    return () => setGameRotated(false);
+  }, [rotated]);
+
+  useEffect(() => {
+    if (!touchMode) return;
+
+    const frame = requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+    return () => cancelAnimationFrame(frame);
+  }, [touchMode, rotated]);
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
   const [currentLocationId, setCurrentLocationId] = useState("tower-main-hall");
@@ -1473,12 +1489,24 @@ export function GameClient({ slug }: GameClientProps) {
   return (
     <div
       ref={gameContainerRef}
+      id={GAME_ROOT_ID}
       data-touch={touchMode ? "true" : undefined}
       className="fixed left-0 right-0 bottom-0 z-50 bg-black overflow-hidden"
       style={
-        touchMode
-          ? { top: 0, height: '100dvh' }
-          : { top: 'var(--header-height, 64px)', height: 'calc(100dvh - var(--header-height, 64px))' }
+        !touchMode
+          ? { top: 'var(--header-height, 64px)', height: 'calc(100dvh - var(--header-height, 64px))' }
+          : rotated
+            ? {
+              top: 0,
+              left: 0,
+              right: 'auto',
+              bottom: 'auto',
+              width: '100dvh',
+              height: '100dvw',
+              transform: 'rotate(90deg) translateY(-100%)',
+              transformOrigin: 'top left',
+            }
+            : { top: 0, height: '100dvh' }
       }
     >
       <canvas
@@ -1574,11 +1602,12 @@ export function GameClient({ slug }: GameClientProps) {
         onFinish={npcDialogue.finish}
         onSkip={npcDialogue.finish}
       />
-      <TouchLandscapeGate active={touchMode && !authError} onEnterImmersion={enterImmersion} />
+      <TouchLandscapeGate active={touchMode && rotated && !authError} onEnterImmersion={enterImmersion} />
       <TouchOnboarding active={touchMode && !loading && !authError} />
       <TouchControls
         input={inputManager}
         mode={defusalMatch || grinderMatch ? "combat" : "world"}
+        rotated={rotated}
         canBuy={grinderMatch ? grinderMatch.phase === "live" : defusalMatch?.phase === "freeze" || defusalMatch?.phase === "warmup"}
         visible={touchMode && !loading && !chatExpanded && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null}
         onOpenWheel={() => openWheel("tools")}

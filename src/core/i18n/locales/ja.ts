@@ -856,7 +856,7 @@ export const ja: Translations = {
   "g.touch.onboardMenu": "上のボタン：メニューとホイール",
   "g.touch.onboardGot": "わかりました",
   "g.touch.rotateTitle": "スマホを横向きに",
-  "g.touch.rotateHint": "このゲームは横向き用です。端末を回すか、下のボタンで固定してください。",
+  "g.touch.rotateHint": "ゲームは横向きで動作します。スマホを横に倒してください。",
   "g.touch.rotateAction": "全画面にする",
   "g.settings.touchSensitivityHint": "カメラが指に追従する速さ",
   "g.settings.uiScale": "UI の大きさ",

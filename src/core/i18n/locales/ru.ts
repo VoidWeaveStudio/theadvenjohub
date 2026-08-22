@@ -861,7 +861,7 @@ export const ru: Translations = {
   "g.touch.onboardMenu": "Кнопки сверху: меню и колесо",
   "g.touch.onboardGot": "Понятно",
   "g.touch.rotateTitle": "Поверните телефон",
-  "g.touch.rotateHint": "Игра рассчитана на горизонтальный экран. Поверните телефон или нажмите кнопку, чтобы зафиксировать.",
+  "g.touch.rotateHint": "Игра идёт в горизонтальном режиме. Поверните телефон боком.",
   "g.touch.rotateAction": "На весь экран",
   "g.settings.touchSensitivityHint": "Насколько быстро камера следует за пальцем",
   "g.settings.uiScale": "Масштаб интерфейса",

@@ -145,21 +145,21 @@ body {
 }
 
 [data-touch="true"] .game-ui-scale-bc {
-  bottom: calc(16px + var(--safe-bottom));
+  bottom: calc(120px + var(--safe-bottom));
   transform: scale(var(--game-ui-scale, 1));
   transform-origin: center bottom;
 }
 
 [data-touch="true"] .game-ui-hotbar {
   top: auto;
-  bottom: calc(96px + var(--safe-bottom));
+  bottom: calc(8px + var(--safe-bottom));
   right: auto;
-  left: 50%;
-  translate: -50% 0;
+  left: calc(164px + var(--safe-left));
+  translate: 0 0;
   flex-direction: row;
   align-items: center;
   transform: scale(max(0.7, var(--game-ui-scale, 1)));
-  transform-origin: center bottom;
+  transform-origin: left bottom;
 }
 
 [data-touch="true"] .game-ui-hotbar-divider {
@@ -191,6 +191,16 @@ body {
   bottom: 300px;
   right: 24px;
   left: auto;
+}
+
+@media (max-width: 380px) {
+  [data-touch="true"] .game-touch-stick {
+    left: 8px;
+  }
+
+  [data-touch="true"] .game-touch-actions {
+    right: 8px;
+  }
 }
 
 

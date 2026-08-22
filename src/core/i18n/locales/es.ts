@@ -17,7 +17,7 @@ export const es: PartialTranslations = {
   "g.touch.onboardMenu": "Botones arriba: menú y rueda",
   "g.touch.onboardGot": "Entendido",
   "g.touch.rotateTitle": "Gira el teléfono",
-  "g.touch.rotateHint": "El juego está pensado para horizontal. Gira el dispositivo o pulsa el botón para fijarlo.",
+  "g.touch.rotateHint": "El juego se ejecuta en horizontal. Gira el teléfono de lado.",
   "g.touch.rotateAction": "Pantalla completa",
   "g.settings.touchSensitivityHint": "Qué tan rápido sigue la cámara a tu dedo",
   "g.settings.uiScale": "Escala de la interfaz",

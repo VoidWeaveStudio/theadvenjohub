@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Info, MessageCircle, Flag, Ban, UserPlus, ArrowLeftRight, Users } from "lucide-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { gameViewportSize, getGameRoot, screenRectToGameSpace } from "../../utils/rotatedViewport";
 
 export interface NicknameMenuActions {
     isBlocked?: boolean;
@@ -59,8 +60,10 @@ export function NicknameMenu({
         const rect = triggerRef.current?.getBoundingClientRect();
         if (rect) {
             const menuWidth = 208;
-            const left = Math.min(rect.left, window.innerWidth - menuWidth - 8);
-            setMenuPos({ top: rect.bottom + 4, left: Math.max(8, left) });
+            const anchor = screenRectToGameSpace(rect);
+            const viewport = gameViewportSize();
+            const left = Math.min(anchor.left, viewport.width - menuWidth - 8);
+            setMenuPos({ top: anchor.bottom + 4, left: Math.max(8, left) });
         }
         setIsOpen(true);
     };
@@ -143,7 +146,7 @@ export function NicknameMenu({
                         </button>
                     )}
                 </div>,
-                document.body
+                getGameRoot() ?? document.body
             )}
         </>
     );

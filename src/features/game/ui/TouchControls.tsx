@@ -18,6 +18,7 @@ interface TouchControlsProps {
   onOpenWheel: () => void;
   onOpenMenu: () => void;
   visible: boolean;
+  rotated?: boolean;
   canBuy?: boolean;
 }
 
@@ -60,6 +61,7 @@ export function TouchControls({
   onOpenWheel,
   onOpenMenu,
   visible,
+  rotated = false,
   canBuy = false,
 }: TouchControlsProps) {
   const stickRef = useRef<StickState | null>(null);
@@ -72,6 +74,11 @@ export function TouchControls({
   const [firing, setFiring] = useState(false);
 
   const combat = mode === "combat";
+
+  const toLocal = useCallback(
+    (dx: number, dy: number) => (rotated ? { dx: dy, dy: -dx } : { dx, dy }),
+    [rotated]
+  );
 
   useEffect(() => {
     sensitivityRef.current = getTouchSensitivity();
@@ -148,8 +155,7 @@ export function TouchControls({
     const stick = stickRef.current;
     if (!stick || stick.pointerId !== event.pointerId) return;
 
-    const dx = event.clientX - stick.originX;
-    const dy = event.clientY - stick.originY;
+    const { dx, dy } = toLocal(event.clientX - stick.originX, event.clientY - stick.originY);
     const length = Math.hypot(dx, dy);
     const clamped = length > STICK_RADIUS ? STICK_RADIUS / length : 1;
 
@@ -158,7 +164,7 @@ export function TouchControls({
 
     setKnob({ x: stick.dx, y: stick.dy });
     applyStick(stick.dx, stick.dy);
-  }, [applyStick]);
+  }, [applyStick, toLocal]);
 
   const onStickUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const stick = stickRef.current;
@@ -188,8 +194,7 @@ export function TouchControls({
     const look = lookRef.current;
     if (!look || look.pointerId !== event.pointerId || !input) return;
 
-    const dx = event.clientX - look.lastX;
-    const dy = event.clientY - look.lastY;
+    const { dx, dy } = toLocal(event.clientX - look.lastX, event.clientY - look.lastY);
 
     look.lastX = event.clientX;
     look.lastY = event.clientY;
@@ -197,7 +202,7 @@ export function TouchControls({
 
     const sensitivity = sensitivityRef.current * (aiming ? 0.6 : 1);
     input.addVirtualLook(dx * sensitivity, dy * sensitivity);
-  }, [input, aiming]);
+  }, [input, aiming, toLocal]);
 
   const onLookUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const look = lookRef.current;
@@ -274,7 +279,7 @@ export function TouchControls({
       />
 
       <div
-        className="absolute bottom-6 left-6 w-[132px] h-[132px] rounded-full border border-white/20 bg-black/25 backdrop-blur-sm pointer-events-auto"
+        className="game-touch-stick absolute bottom-6 left-6 w-[132px] h-[132px] rounded-full border border-white/20 bg-black/25 backdrop-blur-sm pointer-events-auto"
         style={{ marginBottom: "var(--safe-bottom)", marginLeft: "var(--safe-left)" }}
         onPointerDown={onStickDown}
         onPointerMove={onStickMove}
@@ -288,7 +293,7 @@ export function TouchControls({
       </div>
 
       <div
-        className="absolute bottom-6 right-6 flex flex-col items-end gap-3 pointer-events-auto"
+        className="game-touch-actions absolute bottom-6 right-6 flex flex-col items-end gap-3 pointer-events-auto"
         style={{ marginBottom: "var(--safe-bottom)", marginRight: "var(--safe-right)" }}
       >
         {combat ? (

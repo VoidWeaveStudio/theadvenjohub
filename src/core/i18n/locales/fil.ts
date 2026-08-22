@@ -17,7 +17,7 @@ export const fil: PartialTranslations = {
   "g.touch.onboardMenu": "Mga button sa itaas: menu at wheel",
   "g.touch.onboardGot": "Ayos",
   "g.touch.rotateTitle": "I-rotate ang telepono",
-  "g.touch.rotateHint": "Ang laro ay para sa landscape. I-rotate ang device o pindutin ang button para i-lock.",
+  "g.touch.rotateHint": "Naka-landscape ang laro. Ipihit nang patagilid ang telepono.",
   "g.touch.rotateAction": "Full screen",
   "g.settings.touchSensitivityHint": "Gaano kabilis sumunod ang camera sa daliri mo",
   "g.settings.uiScale": "Sukat ng interface",

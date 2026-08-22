@@ -17,7 +17,7 @@ export const vi: PartialTranslations = {
   "g.touch.onboardMenu": "Nút phía trên: menu và bánh xe",
   "g.touch.onboardGot": "Đã hiểu",
   "g.touch.rotateTitle": "Xoay ngang điện thoại",
-  "g.touch.rotateHint": "Trò chơi được thiết kế cho màn hình ngang. Hãy xoay thiết bị hoặc nhấn nút để khoá hướng.",
+  "g.touch.rotateHint": "Trò chơi chạy ở chế độ ngang. Hãy xoay điện thoại nằm ngang.",
   "g.touch.rotateAction": "Toàn màn hình",
   "g.settings.touchSensitivityHint": "Camera bám theo ngón tay nhanh đến đâu",
   "g.settings.uiScale": "Tỉ lệ giao diện",

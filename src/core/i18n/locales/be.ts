@@ -17,7 +17,7 @@ export const be: PartialTranslations = {
   "g.touch.onboardMenu": "Кнопкі зверху: меню і кола",
   "g.touch.onboardGot": "Зразумела",
   "g.touch.rotateTitle": "Павярніце тэлефон",
-  "g.touch.rotateHint": "Гульня разлічана на гарызантальны экран. Павярніце тэлефон або націсніце кнопку, каб замацаваць.",
+  "g.touch.rotateHint": "Гульня ідзе ў гарызантальным рэжыме. Павярніце тэлефон бокам.",
   "g.touch.rotateAction": "На ўвесь экран",
   "g.settings.touchSensitivityHint": "Наколькі хутка камера ідзе за пальцам",
   "g.settings.uiScale": "Маштаб інтэрфейсу",

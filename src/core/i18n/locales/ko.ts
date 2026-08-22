@@ -854,7 +854,7 @@ export const ko: Translations = {
   "g.touch.onboardMenu": "위쪽 버튼: 메뉴와 휠",
   "g.touch.onboardGot": "알겠어요",
   "g.touch.rotateTitle": "휴대폰을 가로로",
-  "g.touch.rotateHint": "이 게임은 가로 화면용입니다. 기기를 돌리거나 아래 버튼으로 고정하세요.",
+  "g.touch.rotateHint": "게임은 가로 화면으로 실행됩니다. 휴대폰을 옆으로 돌려 주세요.",
   "g.touch.rotateAction": "전체 화면",
   "g.settings.touchSensitivityHint": "카메라가 손가락을 따라오는 속도",
   "g.settings.uiScale": "인터페이스 크기",

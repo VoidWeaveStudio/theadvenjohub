@@ -858,7 +858,7 @@ export const zh: Translations = {
   "g.touch.onboardMenu": "顶部按钮：菜单与轮盘",
   "g.touch.onboardGot": "知道了",
   "g.touch.rotateTitle": "请横屏",
-  "g.touch.rotateHint": "本游戏为横屏设计。请旋转设备，或点击下方按钮锁定横屏。",
+  "g.touch.rotateHint": "游戏以横屏运行，请把手机横过来。",
   "g.touch.rotateAction": "全屏",
   "g.settings.touchSensitivityHint": "镜头跟随手指的快慢",
   "g.settings.uiScale": "界面缩放",

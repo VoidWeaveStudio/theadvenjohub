@@ -857,7 +857,7 @@ export const en: Translations = {
   "g.touch.onboardMenu": "Buttons on top: menu and wheel",
   "g.touch.onboardGot": "Got it",
   "g.touch.rotateTitle": "Turn your phone",
-  "g.touch.rotateHint": "The game is built for landscape. Rotate the device, or tap below to lock it.",
+  "g.touch.rotateHint": "The game runs in landscape. Turn your phone sideways.",
   "g.touch.rotateAction": "Go full screen",
   "g.settings.touchSensitivityHint": "How fast the camera follows your finger",
   "g.settings.uiScale": "Interface scale",
