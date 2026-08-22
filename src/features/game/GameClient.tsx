@@ -90,6 +90,8 @@ import { modeById } from "./data/skills";
 import { useQuestState, SOLA_NPC_ID } from "./ui/hooks/useQuestState";
 import { TouchControls } from "./ui/TouchControls";
 import { TouchOnboarding } from "./ui/TouchOnboarding";
+import { TouchLandscapeGate } from "./ui/TouchLandscapeGate";
+import { applyUiScale, getUiScale } from "./utils/uiScale";
 import { useMobileImmersion } from "./ui/hooks/useMobileImmersion";
 import { useDevice } from "@/core/lib/useDevice";
 import type { InputManager } from "./core/InputManager";
@@ -160,7 +162,12 @@ export function GameClient({ slug }: GameClientProps) {
   const touchMode = device.ready && device.isTouch && (device.isMobile || device.isTablet);
   const gameContainerRef = useRef<HTMLDivElement | null>(null);
 
-  useMobileImmersion(touchMode, gameContainerRef);
+  const [chatExpanded, setChatExpanded] = useState(false);
+  const enterImmersion = useMobileImmersion(touchMode, gameContainerRef);
+
+  useEffect(() => {
+    applyUiScale(touchMode ? getUiScale() : 1);
+  }, [touchMode]);
 
   const [showFloorSelector, setShowFloorSelector] = useState(false);
   const [currentLocationId, setCurrentLocationId] = useState("tower-main-hall");
@@ -1466,6 +1473,7 @@ export function GameClient({ slug }: GameClientProps) {
   return (
     <div
       ref={gameContainerRef}
+      data-touch={touchMode ? "true" : undefined}
       className="fixed left-0 right-0 bottom-0 z-50 bg-black overflow-hidden"
       style={
         touchMode
@@ -1566,12 +1574,13 @@ export function GameClient({ slug }: GameClientProps) {
         onFinish={npcDialogue.finish}
         onSkip={npcDialogue.finish}
       />
+      <TouchLandscapeGate active={touchMode && !authError} onEnterImmersion={enterImmersion} />
       <TouchOnboarding active={touchMode && !loading && !authError} />
       <TouchControls
         input={inputManager}
         mode={defusalMatch || grinderMatch ? "combat" : "world"}
         canBuy={grinderMatch ? grinderMatch.phase === "live" : defusalMatch?.phase === "freeze" || defusalMatch?.phase === "warmup"}
-        visible={touchMode && !loading && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null}
+        visible={touchMode && !loading && !chatExpanded && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null}
         onOpenWheel={() => openWheel("tools")}
         onOpenMenu={() => setActiveTopWindow("settings")}
       />
@@ -1636,6 +1645,7 @@ export function GameClient({ slug }: GameClientProps) {
         onSendPrivateMessage={(wallet, message) => gameRef.current?.sendPrivateMessage(wallet, message)}
         onCloseDmThread={(wallet) => pm.closeThread(wallet)}
         isVisible={chat.isChatVisible}
+        onExpandedChange={setChatExpanded}
         getNicknameMenuActions={getNicknameMenuActions}
       />
 

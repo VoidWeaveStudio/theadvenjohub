@@ -33,7 +33,7 @@ export function KillFeed({ entries }: KillFeedProps) {
     if (live.length === 0) return null;
 
     return (
-        <div className="absolute top-40 sm:top-[292px] right-4 pointer-events-none select-none font-oxanium z-30 flex flex-col items-end gap-1">
+        <div className="game-ui-killfeed absolute top-40 sm:top-[292px] right-4 pointer-events-none select-none font-oxanium z-30 flex flex-col items-end gap-1">
             {live.map((entry) => (
                 <div
                     key={entry.id}

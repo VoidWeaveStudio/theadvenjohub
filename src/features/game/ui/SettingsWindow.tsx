@@ -7,6 +7,7 @@ import { Info, Keyboard, TriangleAlert, LifeBuoy, MonitorCog } from "lucide-reac
 import { WindowFrame } from "./shell/WindowFrame";
 import { GraphicsTab } from "./GraphicsTab";
 import { TouchSensitivitySetting } from "./TouchSensitivitySetting";
+import { UiScaleSetting } from "./UiScaleSetting";
 import { useDevice } from "@/core/lib/useDevice";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
@@ -155,6 +156,7 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, isInComb
             {activeTab === "controls" && (
                 <div className="space-y-4">
                     {device.isTouch && <TouchSensitivitySetting />}
+                    {device.isTouch && <UiScaleSetting />}
                     {KEYBIND_GROUPS.map((group) => (
                         <div key={group.titleKey}>
                             <div className="text-[#6B7280] text-[10px] font-black tracking-wider mb-1.5">

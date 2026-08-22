@@ -36,7 +36,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
     const healthPercentage = (state.health / state.maxHealth) * 100;
 
     return (
-        <div className="absolute inset-0 pointer-events-none select-none font-oxanium">
+        <div className="game-ui-scale-fill absolute inset-0 pointer-events-none select-none font-oxanium">
             <div className="absolute top-3 left-3 sm:top-6 sm:left-6" style={{ marginTop: "var(--safe-top)", marginLeft: "var(--safe-left)" }}>
                 <div className="flex items-end gap-3">
                     <div>
@@ -146,7 +146,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
             </div>
 
             {state.isWeaponEquipped && (
-                <div className="absolute bottom-44 right-4 sm:bottom-8 sm:right-8">
+                <div className="game-ui-weapon absolute bottom-44 right-4 sm:bottom-8 sm:right-8">
                     <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-5 min-w-[180px]">
                         <div className="flex items-baseline justify-between gap-3 mb-2">
                             <span className="text-[#8B8F98] text-xs font-bold tracking-wider uppercase">{t(state.weaponName)}</span>

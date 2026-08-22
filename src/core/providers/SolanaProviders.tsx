@@ -19,9 +19,8 @@ import { useMemo, useCallback } from "react";
 import { AuthProvider } from "@/core/auth/AuthProvider";
 import { getRpcEndpoint } from "@/core/lib/solanaClient";
 import { readPendingSignIn } from "@/core/auth/lib/pendingSignIn";
+import { MOBILE_WALLET_ADAPTER_NAME } from "@/core/wallets/mobileDeeplinks";
 import "@solana/wallet-adapter-react-ui/styles.css";
-
-const MOBILE_WALLET_ADAPTER_NAME = "Mobile Wallet Adapter";
 
 export function SolanaProviders({ children }: { children: React.ReactNode }) {
   const endpoint = useMemo(() => getRpcEndpoint(), []);

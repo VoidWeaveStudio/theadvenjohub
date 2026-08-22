@@ -1,7 +1,7 @@
 // src/features/game/ui/hooks/useMobileImmersion.ts
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 interface WakeLockSentinelLike {
   released: boolean;
@@ -11,44 +11,45 @@ interface WakeLockSentinelLike {
 
 export function useMobileImmersion(enabled: boolean, target: React.RefObject<HTMLElement | null>) {
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
-  const requestedRef = useRef(false);
+  const enabledRef = useRef(enabled);
+
+  enabledRef.current = enabled;
+
+  const acquireWakeLock = useCallback(async () => {
+    const wakeLock = (navigator as unknown as { wakeLock?: { request: (type: string) => Promise<WakeLockSentinelLike> } }).wakeLock;
+    if (!wakeLock) return;
+
+    try {
+      wakeLockRef.current = await wakeLock.request("screen");
+    } catch {
+    }
+  }, []);
+
+  const enterImmersion = useCallback(async () => {
+    if (!enabledRef.current) return;
+
+    const element = target.current;
+
+    if (element && !document.fullscreenElement) {
+      try {
+        await element.requestFullscreen({ navigationUI: "hide" });
+      } catch {
+      }
+    }
+
+    const orientation = screen.orientation as (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined;
+    if (orientation?.lock) {
+      try {
+        await orientation.lock("landscape");
+      } catch {
+      }
+    }
+
+    await acquireWakeLock();
+  }, [target, acquireWakeLock]);
 
   useEffect(() => {
     if (!enabled) return;
-
-    const acquireWakeLock = async () => {
-      const wakeLock = (navigator as unknown as { wakeLock?: { request: (type: string) => Promise<WakeLockSentinelLike> } }).wakeLock;
-      if (!wakeLock) return;
-
-      try {
-        wakeLockRef.current = await wakeLock.request("screen");
-      } catch {
-      }
-    };
-
-    const enterImmersion = async () => {
-      if (requestedRef.current) return;
-      requestedRef.current = true;
-
-      const element = target.current;
-
-      if (element && !document.fullscreenElement) {
-        try {
-          await element.requestFullscreen({ navigationUI: "hide" });
-        } catch {
-        }
-      }
-
-      const orientation = screen.orientation as (ScreenOrientation & { lock?: (o: string) => Promise<void> }) | undefined;
-      if (orientation?.lock) {
-        try {
-          await orientation.lock("landscape");
-        } catch {
-        }
-      }
-
-      await acquireWakeLock();
-    };
 
     const onVisibility = () => {
       if (document.visibilityState === "visible" && !wakeLockRef.current?.released) {
@@ -56,14 +57,11 @@ export function useMobileImmersion(enabled: boolean, target: React.RefObject<HTM
       }
     };
 
-    document.addEventListener("pointerdown", enterImmersion, { once: true, passive: true });
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      document.removeEventListener("pointerdown", enterImmersion);
       document.removeEventListener("visibilitychange", onVisibility);
 
-      requestedRef.current = false;
       wakeLockRef.current?.release().catch(() => { });
       wakeLockRef.current = null;
 
@@ -74,5 +72,7 @@ export function useMobileImmersion(enabled: boolean, target: React.RefObject<HTM
         document.exitFullscreen().catch(() => { });
       }
     };
-  }, [enabled, target]);
+  }, [enabled, acquireWakeLock]);
+
+  return enterImmersion;
 }

@@ -1,6 +1,8 @@
 // src/core/wallets/mobileDeeplinks.ts
 import type { WalletBrowser } from "@/core/lib/device";
 
+export const MOBILE_WALLET_ADAPTER_NAME = "Mobile Wallet Adapter";
+
 export interface MobileWalletLink {
   id: WalletBrowser;
   label: string;
@@ -28,6 +30,17 @@ export const MOBILE_WALLET_LINKS: MobileWalletLink[] = [
     androidStoreUrl: "https://play.google.com/store/apps/details?id=com.solflare.mobile",
     buildBrowseUrl: (target) =>
       `https://solflare.com/ul/v1/browse/${encodeURIComponent(target)}?ref=${encodeURIComponent(originOf(target))}`,
+  },
+  {
+    id: "okx",
+    label: "OKX Wallet",
+    hintKey: "auth.walletHint.okx",
+    iosStoreUrl: "https://apps.apple.com/app/id1327268470",
+    androidStoreUrl: "https://play.google.com/store/apps/details?id=com.okinc.okex.gp",
+    buildBrowseUrl: (target) =>
+      `https://web3.okx.com/download?deeplink=${encodeURIComponent(
+        `okx://wallet/dapp/url?dappUrl=${encodeURIComponent(target)}`
+      )}`,
   },
 ];
 

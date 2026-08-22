@@ -264,9 +264,9 @@ export function TouchControls({
   if (!visible || !input) return null;
 
   return (
-    <div className="absolute inset-0 z-30 select-none" style={{ touchAction: "none" }}>
+    <div className="absolute inset-0 z-30 select-none pointer-events-none" style={{ touchAction: "none" }}>
       <div
-        className="absolute inset-y-0 right-0 left-1/3"
+        className="absolute inset-y-0 right-0 left-1/3 pointer-events-auto"
         onPointerDown={onLookDown}
         onPointerMove={onLookMove}
         onPointerUp={onLookUp}

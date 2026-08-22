@@ -9,10 +9,12 @@ import { WalletSelectorModal } from "./WalletSelectorModal";
 import { useAuth } from "../AuthProvider";
 import { buildSignInMessage } from "@/core/auth/lib/signMessage";
 import { clearPendingSignIn, readPendingSignIn, savePendingSignIn } from "@/core/auth/lib/pendingSignIn";
+import { MOBILE_WALLET_ADAPTER_NAME } from "@/core/wallets/mobileDeeplinks";
 
 type LoadingState = boolean | "connecting" | "signing";
 
 const RESUME_TIMEOUT_MS = 30_000;
+const CONNECT_TIMEOUT_MS = 25_000;
 
 let resumeOwner: string | null = null;
 
@@ -59,6 +61,22 @@ export function LoginButton({ className = "" }: { className?: string }) {
       if (resumeOwner === instanceId) resumeOwner = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (loading !== "connecting") return;
+
+    const timer = setTimeout(() => {
+      if (isProcessingRef.current || connected) return;
+
+      pendingConnectRef.current = false;
+      pendingWalletName.current = null;
+      clearPendingSignIn();
+      setLoading(false);
+      setError(t("auth.connectTimeout"));
+    }, CONNECT_TIMEOUT_MS);
+
+    return () => clearTimeout(timer);
+  }, [loading, connected, t]);
 
   useEffect(() => {
     if (pendingConnectRef.current && wallet && !connected && !connecting) {
@@ -237,6 +255,7 @@ export function LoginButton({ className = "" }: { className?: string }) {
 
     const savedIsUsable = Boolean(
       savedWallet &&
+      savedWallet !== MOBILE_WALLET_ADAPTER_NAME &&
       (wallets ?? []).some(
         (entry) =>
           entry.adapter.name === savedWallet &&

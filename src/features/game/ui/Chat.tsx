@@ -8,6 +8,7 @@ import { NicknameMenu, NicknameMenuActions } from "./shell/NicknameMenu";
 import { FactionSummary } from "../network/NetworkManager";
 import { DmThread } from "./hooks/usePrivateMessagesState";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { useDevice } from "@/core/lib/useDevice";
 
 interface ChatMessage {
     id: string;
@@ -40,6 +41,7 @@ interface ChatProps {
     onSendPrivateMessage: (wallet: string, message: string) => void;
     onCloseDmThread: (wallet: string) => void;
     isVisible: boolean;
+    onExpandedChange?: (expanded: boolean) => void;
     getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
 }
 
@@ -55,9 +57,12 @@ export function Chat({
     onSendPrivateMessage,
     onCloseDmThread,
     isVisible,
+    onExpandedChange,
     getNicknameMenuActions,
 }: ChatProps) {
     const { t } = useLanguage();
+    const device = useDevice();
+    const touch = device.ready && device.isTouch && (device.isMobile || device.isTablet);
     const [input, setInput] = useState("");
     const [isInputFocused, setIsInputFocused] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
@@ -66,6 +71,16 @@ export function Chat({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+    useEffect(() => {
+        if (touch) setIsMinimized(true);
+    }, [touch]);
+
+    useEffect(() => {
+        onExpandedChange?.(isVisible && !isMinimized);
+    }, [isVisible, isMinimized, onExpandedChange]);
+
+    useEffect(() => () => onExpandedChange?.(false), [onExpandedChange]);
 
     useEffect(() => {
         const viewport = typeof window !== "undefined" ? window.visualViewport : null;
@@ -158,7 +173,7 @@ export function Chat({
 
     if (isMinimized) {
         return (
-            <div className="absolute bottom-24 left-4 pointer-events-auto" style={{ transform: `translateY(-${keyboardOffset}px)` }}>
+            <div className={`absolute pointer-events-auto ${touch ? "bottom-3 left-3" : "bottom-24 left-4"}`} style={{ transform: `translateY(-${keyboardOffset}px)` }}>
                 <button
                     onClick={() => setIsMinimized(false)}
                     className="bg-black/70 backdrop-blur border border-white/10 rounded-lg px-4 py-2 text-white font-bold text-sm hover:bg-black/90"
@@ -178,7 +193,7 @@ export function Chat({
     const isActiveTab = (tab: MainTab) => tabKey(tab) === activeKey;
 
     return (
-        <div className="absolute bottom-24 left-4 w-[30rem] max-w-[calc(100vw-2rem)] pointer-events-auto" style={{ transform: `translateY(-${keyboardOffset}px)` }}>
+        <div className={`absolute pointer-events-auto ${touch ? "bottom-3 left-3 w-[22rem] max-w-[calc(100vw-1.5rem)]" : "bottom-24 left-4 w-[30rem] max-w-[calc(100vw-2rem)]"}`} style={{ transform: `translateY(-${keyboardOffset}px)` }}>
             <div className="bg-black/70 backdrop-blur border border-white/10 rounded-lg overflow-hidden">
                 <div className="bg-zinc-900/80 px-2 pt-2 border-b border-white/10 flex items-center gap-1">
                     <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto">
@@ -259,7 +274,7 @@ export function Chat({
                     </div>
                 )}
 
-                <div className="h-64 overflow-y-auto p-3 space-y-2">
+                <div className={`overflow-y-auto p-3 space-y-2 ${touch ? "h-[26dvh] min-h-[88px]" : "h-64"}`}>
                     {activeMessages.length === 0 ? (
                         <div className="text-zinc-500 text-sm text-center py-8">
                             {t("g.chat.noMessages")}

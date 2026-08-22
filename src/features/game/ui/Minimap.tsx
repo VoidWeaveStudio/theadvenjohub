@@ -192,7 +192,7 @@ export function Minimap({ gameRef, active, objective }: MinimapProps) {
     if (!active) return null;
 
     return (
-        <div className="absolute top-20 left-3 scale-75 origin-top-left sm:scale-100 sm:top-auto sm:bottom-6 sm:left-6 pointer-events-none select-none z-30">
+        <div className="game-ui-minimap absolute top-20 left-3 scale-75 origin-top-left sm:scale-100 sm:top-auto sm:bottom-6 sm:left-6 pointer-events-none select-none z-30">
             <canvas
                 ref={canvasRef}
                 width={SIZE}

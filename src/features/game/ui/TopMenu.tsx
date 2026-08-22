@@ -25,7 +25,7 @@ export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
     const { t } = useLanguage();
 
     return (
-        <div className="absolute top-3 sm:top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-auto font-oxanium select-none max-w-full px-2" style={{ marginTop: "var(--safe-top)" }}>
+        <div className="game-ui-scale-tc absolute top-3 sm:top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-auto font-oxanium select-none max-w-full px-2" style={{ marginTop: "var(--safe-top)" }}>
             <div className="flex items-start gap-2 sm:gap-5">
                 {ITEMS.map(({ id, icon, labelKey }) => {
                     const label = t(labelKey);
