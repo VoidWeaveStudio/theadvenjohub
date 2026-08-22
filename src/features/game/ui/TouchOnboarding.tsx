@@ -35,8 +35,8 @@ export function TouchOnboarding({ active }: { active: boolean }) {
   const hints: [string, string][] = [
     ["◕", t("g.touch.onboardMove")],
     ["↔", t("g.touch.onboardLook")],
-    ["⤒", t("g.touch.onboardAction")],
-    ["☰", t("g.touch.onboardMenu")],
+    ["🔥", t("g.touch.onboardAction")],
+    ["✦", t("g.touch.onboardMenu")],
   ];
 
   return (

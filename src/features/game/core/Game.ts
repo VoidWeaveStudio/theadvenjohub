@@ -124,6 +124,7 @@ const TOURNAMENT_SHOT_MAX_WIDTH = 960;
 export class Game {
     private hitMarkTrigger: number = 0;
     private canvas: HTMLCanvasElement;
+    private viewportObserver: ResizeObserver | null = null;
     public readonly slug: string;
     private renderer: THREE.WebGLRenderer;
     private timer: THREE.Timer;
@@ -576,6 +577,14 @@ export class Game {
         this.buildSession = new BuildSession(width / height, this.networkManager, slug);
         this.buildSession.attach(canvas);
         this.voiceChat = new VoiceChatSystem();
+
+        window.addEventListener("resize", this.handleResize);
+        window.addEventListener("orientationchange", this.handleResize);
+
+        if (container && typeof ResizeObserver !== "undefined") {
+            this.viewportObserver = new ResizeObserver(this.handleResize);
+            this.viewportObserver.observe(container);
+        }
     }
 
 
@@ -928,9 +937,6 @@ export class Game {
         });
 
         this.animate();
-
-        window.addEventListener("resize", this.handleResize);
-        window.addEventListener("orientationchange", this.handleResize);
     }
 
     public async changeLocation(
@@ -1421,8 +1427,6 @@ export class Game {
         this.cameraController.resize(width, height);
         this.buildSession.editor.camera.setAspect(width / Math.max(1, height));
         this.renderer.setSize(width, height, false);
-        this.canvas.style.width = `${width}px`;
-        this.canvas.style.height = `${height}px`;
 
         const location = this.locationManager.getCurrentLocation();
         if (location instanceof Basement) {
@@ -2273,6 +2277,8 @@ export class Game {
         }
         window.removeEventListener("resize", this.handleResize);
         window.removeEventListener("orientationchange", this.handleResize);
+        this.viewportObserver?.disconnect();
+        this.viewportObserver = null;
         this.networkManager.disconnect();
         this.buildSession.dispose();
         this.inputManager.dispose();

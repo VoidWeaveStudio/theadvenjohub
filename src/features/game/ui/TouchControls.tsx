@@ -7,6 +7,7 @@ import { getTouchSensitivity } from "../utils/touchSettings";
 
 const STICK_RADIUS = 56;
 const STICK_DEAD_ZONE = 0.18;
+const STICK_RUN_ZONE = 0.82;
 const TAP_MAX_MS = 220;
 const TAP_MAX_DISTANCE = 12;
 
@@ -40,7 +41,7 @@ interface LookState {
   moved: number;
 }
 
-const MOVE_KEYS = ["KeyW", "KeyS", "KeyA", "KeyD"] as const;
+const MOVE_KEYS = ["KeyW", "KeyS", "KeyA", "KeyD", "ShiftLeft"] as const;
 
 const COMBAT_SLOTS: { code: string; label: string }[] = [
   { code: "Digit1", label: "1" },
@@ -68,7 +69,7 @@ export function TouchControls({
   const lookRef = useRef<LookState | null>(null);
   const sensitivityRef = useRef(getTouchSensitivity());
   const [knob, setKnob] = useState<{ x: number; y: number } | null>(null);
-  const [sprinting, setSprinting] = useState(false);
+  const [running, setRunning] = useState(false);
   const [crouching, setCrouching] = useState(false);
   const [aiming, setAiming] = useState(false);
   const [firing, setFiring] = useState(false);
@@ -85,6 +86,7 @@ export function TouchControls({
   }, [visible]);
 
   const releaseMovement = useCallback(() => {
+    setRunning(false);
     if (!input) return;
     for (const code of MOVE_KEYS) input.setVirtualKey(code, false);
   }, [input]);
@@ -135,6 +137,10 @@ export function TouchControls({
     input.setVirtualKey("KeyS", ny > 0.4);
     input.setVirtualKey("KeyA", nx < -0.4);
     input.setVirtualKey("KeyD", nx > 0.4);
+
+    const run = normalized >= STICK_RUN_ZONE;
+    input.setVirtualKey("ShiftLeft", run);
+    setRunning(run);
   }, [input, releaseMovement]);
 
   const onStickDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -226,15 +232,6 @@ export function TouchControls({
     buzz();
   }, [input]);
 
-  const toggleSprint = useCallback(() => {
-    if (!input) return;
-    buzz();
-    setSprinting((prev) => {
-      input.setVirtualKey("ShiftLeft", !prev);
-      return !prev;
-    });
-  }, [input]);
-
   const toggleCrouch = useCallback(() => {
     if (!input) return;
     buzz();
@@ -279,7 +276,8 @@ export function TouchControls({
       />
 
       <div
-        className="game-touch-stick absolute bottom-6 left-6 w-[132px] h-[132px] rounded-full border border-white/20 bg-black/25 backdrop-blur-sm pointer-events-auto"
+        className={`game-touch-stick absolute bottom-6 left-6 w-[132px] h-[132px] rounded-full border backdrop-blur-sm pointer-events-auto transition-colors ${running ? "border-[#4FD1FF]/70 bg-[#4FD1FF]/10" : "border-white/20 bg-black/25"
+          }`}
         style={{ marginBottom: "var(--safe-bottom)", marginLeft: "var(--safe-left)" }}
         onPointerDown={onStickDown}
         onPointerMove={onStickMove}
@@ -287,7 +285,8 @@ export function TouchControls({
         onPointerCancel={onStickUp}
       >
         <div
-          className="absolute left-1/2 top-1/2 w-14 h-14 -ml-7 -mt-7 rounded-full bg-white/25 border border-white/40 transition-transform duration-75"
+          className={`absolute left-1/2 top-1/2 w-14 h-14 -ml-7 -mt-7 rounded-full border transition-transform duration-75 ${running ? "bg-[#4FD1FF]/40 border-[#4FD1FF]" : "bg-white/25 border-white/40"
+            }`}
           style={{ transform: `translate(${knob?.x ?? 0}px, ${knob?.y ?? 0}px)` }}
         />
       </div>
@@ -312,15 +311,15 @@ export function TouchControls({
           </>
         ) : (
           <>
-            <div className="flex gap-3">
-              <TouchButton label="E" onPress={() => tapKey("KeyE")} />
-              <TouchButton label="R" onPress={() => tapKey("KeyR")} />
-            </div>
+            <TouchButton label="✦" size="sm" onPress={onOpenWheel} />
 
-            <div className="flex gap-3">
-              <TouchButton label="⌄" active={crouching} onPress={toggleCrouch} />
-              <TouchButton label="»" active={sprinting} onPress={toggleSprint} />
-              <TouchButton label="⤒" size="lg" onPress={() => tapKey("Space")} />
+            <div className="flex items-end gap-3">
+              <div className="flex flex-col gap-3">
+                <TouchButton label="⤒" onPress={() => tapKey("Space")} />
+                <TouchButton label="E" onPress={() => tapKey("KeyE")} />
+              </div>
+
+              <HoldButton label="🔥" active={firing} onStart={startFire} onStop={stopFire} />
             </div>
           </>
         )}
@@ -344,7 +343,6 @@ export function TouchControls({
           style={{ marginTop: "var(--safe-top)" }}
         >
           <TouchButton label="☰" size="sm" onPress={onOpenMenu} />
-          <TouchButton label="◎" size="sm" onPress={onOpenWheel} />
         </div>
       )}
     </div>

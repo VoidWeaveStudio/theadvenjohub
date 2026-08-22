@@ -84,6 +84,7 @@ export function Header() {
   return (
     <header
       ref={headerRef}
+      data-site-header="true"
       className="sticky top-0 z-50 bg-surface/95 backdrop-blur-xl border-b border-border min-h-16 pt-safe px-safe"
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-2 min-h-16 h-auto flex items-center justify-between gap-x-3">

@@ -63,6 +63,8 @@ export function useMobileImmersion(enabled: boolean, target: React.RefObject<HTM
   useEffect(() => {
     if (!enabled) return;
 
+    document.documentElement.dataset.gameImmersive = "true";
+
     const onVisibility = () => {
       if (document.visibilityState === "visible" && !wakeLockRef.current?.released) {
         acquireWakeLock();
@@ -72,6 +74,7 @@ export function useMobileImmersion(enabled: boolean, target: React.RefObject<HTM
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
+      delete document.documentElement.dataset.gameImmersive;
       document.removeEventListener("visibilitychange", onVisibility);
 
       wakeLockRef.current?.release().catch(() => { });

@@ -124,7 +124,7 @@ const ABILITY_KEY_MAP: Record<string, string> = {
 
 const HOTBAR_KEYS = ["KeyQ", "KeyF"];
 
-type WheelMode = "tools" | "emotes" | "degen" | null;
+type WheelMode = "tools" | "emotes" | "degen" | "touch" | null;
 
 const SOLA_INTERACTION_ID = "quest-giver-sola";
 
@@ -165,7 +165,7 @@ export function GameClient({ slug }: GameClientProps) {
   const gameContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [chatExpanded, setChatExpanded] = useState(false);
-  const enterImmersion = useMobileImmersion(touchMode, gameContainerRef);
+  const enterImmersion = useMobileImmersion(touchMode && !authError, gameContainerRef);
 
   const rotated = useForcedLandscape(touchMode);
 
@@ -432,6 +432,8 @@ export function GameClient({ slug }: GameClientProps) {
       }),
     },
   ];
+
+  const touchWheelPages: WheelPage[] = [...toolWheelPages, ...emoteWheelPages, ...degenWheelPages];
 
   const closeWheel = (relock: boolean = true) => {
     setWheelMode(null);
@@ -1587,7 +1589,7 @@ export function GameClient({ slug }: GameClientProps) {
           me={dust2Me}
           onSelect={(slot) => gameRef.current?.switchDefusalSlot(slot)}
         />
-      ) : (
+      ) : touchMode ? null : (
         <Hotbar
           slots={displayHotbarSlots}
           onSlotClick={handleSlotClick}
@@ -1610,12 +1612,20 @@ export function GameClient({ slug }: GameClientProps) {
         rotated={rotated}
         canBuy={grinderMatch ? grinderMatch.phase === "live" : defusalMatch?.phase === "freeze" || defusalMatch?.phase === "warmup"}
         visible={touchMode && !loading && !chatExpanded && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null}
-        onOpenWheel={() => openWheel("tools")}
+        onOpenWheel={() => openWheel("touch")}
         onOpenMenu={() => setActiveTopWindow("settings")}
       />
       <RadialWheel
         isOpen={wheelMode !== null}
-        pages={wheelMode === "tools" ? toolWheelPages : wheelMode === "degen" ? degenWheelPages : emoteWheelPages}
+        pages={
+          wheelMode === "touch"
+            ? touchWheelPages
+            : wheelMode === "tools"
+              ? toolWheelPages
+              : wheelMode === "degen"
+                ? degenWheelPages
+                : emoteWheelPages
+        }
         onClose={() => closeWheel()}
         onSelect={handleWheelSelect}
       />

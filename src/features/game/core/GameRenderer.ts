@@ -28,7 +28,6 @@ function installShaderNoiseFilter() {
 }
 
 const MAX_PIXEL_RATIO = 1.5;
-const MOBILE_MAX_PIXEL_RATIO = 1.25;
 const TRANSMISSION_RESOLUTION_SCALE = 0.5;
 
 function isMobileProfile(): boolean {
@@ -39,6 +38,12 @@ function isMobileProfile(): boolean {
     const smallViewport = Math.min(window.innerWidth, window.innerHeight) < 820;
 
     return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (touch && smallViewport);
+}
+
+export function basePixelRatio(): number {
+    if (typeof window === "undefined") return 1;
+
+    return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
 }
 
 export function createGameRenderer(canvas: HTMLCanvasElement, width: number, height: number): THREE.WebGLRenderer {
@@ -53,7 +58,7 @@ export function createGameRenderer(canvas: HTMLCanvasElement, width: number, hei
     });
 
     renderer.setSize(width, height, false);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? MOBILE_MAX_PIXEL_RATIO : MAX_PIXEL_RATIO));
+    renderer.setPixelRatio(basePixelRatio());
 
     renderer.shadowMap.enabled = !mobile;
     renderer.shadowMap.type = THREE.PCFShadowMap;

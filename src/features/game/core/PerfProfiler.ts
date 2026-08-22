@@ -1,6 +1,7 @@
 // src/features/game/core/PerfProfiler.ts
 import * as THREE from "three";
 import { PORTAL_EXTRA_LAYER } from "../world/portalNoise";
+import { basePixelRatio } from "./GameRenderer";
 
 interface SectionAccumulator {
     total: number;
@@ -542,7 +543,7 @@ class PerfProfiler {
 
         const scene = this.scene;
         const renderer = this.renderer;
-        const basePixelRatio = renderer.getPixelRatio();
+        const sweepPixelRatio = renderer.getPixelRatio();
         const baseEnvIntensity = scene.environmentIntensity;
 
         const hidden: THREE.Object3D[] = [];
@@ -650,12 +651,12 @@ class PerfProfiler {
                 name: "half resolution",
                 apply: () => {
                     const size = renderer.getSize(new THREE.Vector2());
-                    renderer.setPixelRatio(basePixelRatio * 0.5);
+                    renderer.setPixelRatio(sweepPixelRatio * 0.5);
                     renderer.setSize(size.x, size.y, false);
                 },
                 restore: () => {
                     const size = renderer.getSize(new THREE.Vector2());
-                    renderer.setPixelRatio(basePixelRatio);
+                    renderer.setPixelRatio(sweepPixelRatio);
                     renderer.setSize(size.x, size.y, false);
                 },
             },
@@ -1025,7 +1026,7 @@ class PerfProfiler {
         this.registerToggle("pixelRatio", (value) => {
             if (!this.renderer) return;
             const size = this.renderer.getSize(new THREE.Vector2());
-            this.renderer.setPixelRatio(Number(value));
+            this.renderer.setPixelRatio(basePixelRatio() * Number(value));
             this.renderer.setSize(size.x, size.y, false);
         });
     }

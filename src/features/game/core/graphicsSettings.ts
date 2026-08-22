@@ -35,7 +35,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
     mobile: {
         fpsCap: 60,
-        renderScale: 0.6,
+        renderScale: 0.75,
         shadowRes: 0,
         grassDensity: 0,
         particles: false,
@@ -46,7 +46,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
     },
     low: {
         fpsCap: 60,
-        renderScale: 0.75,
+        renderScale: 1,
         shadowRes: 0,
         grassDensity: 0,
         particles: false,

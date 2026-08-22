@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SoundManager } from "../core/SoundManager";
+import { gameViewportSize } from "../utils/rotatedViewport";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 export interface WheelItem {
@@ -43,6 +44,7 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
     const { t } = useLanguage();
     const [pageIndex, setPageIndex] = useState(0);
     const [hovered, setHovered] = useState<string | null>(null);
+    const [viewport, setViewport] = useState({ width: 0, height: 0 });
     const wasOpenRef = useRef(false);
 
     useEffect(() => {
@@ -53,8 +55,26 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
         wasOpenRef.current = isOpen;
     }, [isOpen]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const sync = () => setViewport(gameViewportSize());
+
+        sync();
+        window.addEventListener("resize", sync);
+        window.addEventListener("orientationchange", sync);
+
+        return () => {
+            window.removeEventListener("resize", sync);
+            window.removeEventListener("orientationchange", sync);
+        };
+    }, [isOpen]);
+
     const page = pages[Math.min(pageIndex, pages.length - 1)];
     const { tile, radius } = layoutFor(page ? page.items.length : 1);
+    const diameter = radius * 2 + tile + 24;
+    const shortSide = Math.min(viewport.width, viewport.height);
+    const fit = shortSide > 0 ? Math.min(1, (shortSide - 16) / diameter) : 1;
 
     useEffect(() => {
         if (!isOpen || !page) return;
@@ -96,7 +116,10 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
                 if (e.target === e.currentTarget) onClose();
             }}
         >
-            <div className="relative" style={{ width: radius * 2 + tile + 24, height: radius * 2 + tile + 24 }}>
+            <div
+                className="relative"
+                style={{ width: diameter, height: diameter, transform: `scale(${fit})` }}
+            >
                 <div className="absolute inset-0 rounded-full border border-white/10 bg-[rgba(13,17,23,0.55)]" />
                 <div className="absolute inset-8 rounded-full border border-[#4FD1FF]/20" />
 
@@ -104,14 +127,19 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
                     <div className="text-[#E5E7EB] text-sm font-black tracking-wider">{page.label.toUpperCase()}</div>
                     <div className="text-[#6B7280] text-[11px] mt-0.5">1–{page.items.length} or click</div>
                     {pages.length > 1 && (
-                        <div className="flex items-center justify-center gap-1.5 mt-2">
+                        <div className="flex items-center justify-center gap-1 mt-1">
                             {pages.map((p, i) => (
                                 <button
                                     key={p.id}
                                     onClick={() => setPageIndex(i)}
-                                    className="w-1.5 h-1.5 rounded-full border-0 p-0"
-                                    style={{ background: i === pageIndex ? "#4FD1FF" : "rgba(255,255,255,0.25)" }}
-                                />
+                                    title={p.label}
+                                    className="w-7 h-7 p-0 rounded-full border-0 bg-transparent flex items-center justify-center"
+                                >
+                                    <span
+                                        className="block w-2 h-2 rounded-full"
+                                        style={{ background: i === pageIndex ? "#4FD1FF" : "rgba(255,255,255,0.25)" }}
+                                    />
+                                </button>
                             ))}
                         </div>
                     )}

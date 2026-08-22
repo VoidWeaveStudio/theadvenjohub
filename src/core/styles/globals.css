@@ -128,6 +128,23 @@ body {
   min-width: var(--tap-target);
 }
 
+html[data-game-immersive="true"],
+html[data-game-immersive="true"] body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html[data-game-immersive="true"] [data-site-header] {
+  display: none;
+}
+
+html[data-game-immersive="true"] main,
+html[data-game-immersive="true"] main > div {
+  min-height: 0;
+  max-width: none;
+  padding: 0;
+}
+
 [data-touch="true"] .game-ui-scale-fill {
   top: 0;
   left: 0;
@@ -148,24 +165,6 @@ body {
   bottom: calc(120px + var(--safe-bottom));
   transform: scale(var(--game-ui-scale, 1));
   transform-origin: center bottom;
-}
-
-[data-touch="true"] .game-ui-hotbar {
-  top: auto;
-  bottom: calc(8px + var(--safe-bottom));
-  right: auto;
-  left: calc(164px + var(--safe-left));
-  translate: 0 0;
-  flex-direction: row;
-  align-items: center;
-  transform: scale(max(0.7, var(--game-ui-scale, 1)));
-  transform-origin: left bottom;
-}
-
-[data-touch="true"] .game-ui-hotbar-divider {
-  width: 1px;
-  height: 3.5rem;
-  margin: 0 0.25rem;
 }
 
 [data-touch="true"] .game-ui-minimap {
