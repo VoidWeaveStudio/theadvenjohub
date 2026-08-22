@@ -28,6 +28,7 @@ function installShaderNoiseFilter() {
 }
 
 const MAX_PIXEL_RATIO = 1.5;
+const TRANSMISSION_RESOLUTION_SCALE = 0.5;
 
 export function createGameRenderer(canvas: HTMLCanvasElement, width: number, height: number): THREE.WebGLRenderer {
     installShaderNoiseFilter();
@@ -43,6 +44,13 @@ export function createGameRenderer(canvas: HTMLCanvasElement, width: number, hei
 
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
+
+    // Anything still using MeshPhysicalMaterial.transmission (events lobby
+    // glass, canyon segment shells) makes three.js re-render the opaque scene
+    // into a full-viewport, >=4x MSAA target every frame it is on screen. Half
+    // resolution cuts that to a quarter, and since the result is only used as a
+    // blurred refraction lookup the difference does not show in motion.
+    renderer.transmissionResolutionScale = TRANSMISSION_RESOLUTION_SCALE;
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;

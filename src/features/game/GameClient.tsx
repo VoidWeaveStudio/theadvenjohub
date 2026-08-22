@@ -95,6 +95,9 @@ import { useNotifications } from "./ui/hooks/useNotifications";
 import { useCanyonMapState } from "./ui/hooks/useCanyonMapState";
 import { useFactionState } from "./ui/hooks/useFactionState";
 import { useFactionQuestState } from "./ui/hooks/useFactionQuestState";
+import { useTournamentState } from "./ui/hooks/useTournamentState";
+import { TournamentPanel } from "./ui/TournamentPanel";
+import { BuildShotPrompt } from "./ui/BuildShotPrompt";
 import { useLeaderboardState } from "./ui/hooks/useLeaderboardState";
 import { useProfileState } from "./ui/hooks/useProfileState";
 import { useSocialState } from "./ui/hooks/useSocialState";
@@ -232,6 +235,9 @@ export function GameClient({ slug }: GameClientProps) {
   const canyonMap = useCanyonMapState();
   const factionState = useFactionState();
   const factionQuestState = useFactionQuestState();
+  const tournamentState = useTournamentState();
+  const pendingBuildTournament =
+    tournamentState.tournaments.find((entry) => entry.id === tournamentState.pendingBuildShot) ?? null;
   const cosmeticState = useCosmeticState();
   const companionState = useCompanionState();
   const profileState = useProfileState();
@@ -577,6 +583,11 @@ export function GameClient({ slug }: GameClientProps) {
             document.exitPointerLock();
           });
         };
+        game.onOpenTournamentBoardUI = () => {
+          if (cancelled) return;
+          tournamentState.setIsTournamentBoardOpen(true);
+          document.exitPointerLock();
+        };
         game.onOpenPlayerBubbleUI = (index) => {
           if (cancelled) return;
           setBubbleIndex(index);
@@ -743,6 +754,9 @@ export function GameClient({ slug }: GameClientProps) {
         game.onFactionQuestManageListResult = (data) => { if (!cancelled) factionQuestState.handleFactionQuestManageListResult(data); };
         game.onFactionQuestCreated = (data) => { if (!cancelled) factionQuestState.handleFactionQuestCreated(data); };
         game.onFactionQuestClaimed = (data) => { if (!cancelled) factionQuestState.handleFactionQuestClaimed(data); };
+        game.onTournamentListResult = (list) => { if (!cancelled) tournamentState.handleTournamentListResult(list); };
+        game.onTournamentEntriesResult = (data) => { if (!cancelled) tournamentState.handleTournamentEntriesResult(data); };
+        game.onTournamentActionResult = (data) => { if (!cancelled) gameRef.current?.requestTournamentEntries(data.tournamentId); };
         game.onCosmeticState = (data) => { if (!cancelled) cosmeticState.handleCosmeticState(data); };
         game.onCompanionState = (data) => { if (!cancelled) companionState.handleCompanionState(data); };
         game.onCrateOpened = (data) => { if (!cancelled) companionState.handleCrateOpened(data); };
@@ -1274,6 +1288,47 @@ export function GameClient({ slug }: GameClientProps) {
     const data: { url: string } = await res.json();
     gameRef.current?.applyAndBroadcastSkin(data.url);
     notifications.addNotification(t("g.notify.lookSaved"), 2500);
+  };
+
+  // Build contests submit a screenshot rather than an asset the server already
+  // has, so the client grabs the frame, uploads it, and only then tells the game
+  // server which blob the entry points at. A shot only counts from inside the
+  // player's own bubble, so anywhere else this hands off to the shutter prompt.
+  const handleCaptureBuildShot = async (tournamentId: string) => {
+    if (!gameRef.current?.isInOwnPersonalRoom()) {
+      tournamentState.setPendingBuildShot(tournamentId);
+      tournamentState.setIsTournamentBoardOpen(false);
+      notifications.addNotification(t("g.tournament.goToBubble"), 4000);
+      await gameRef.current?.teleportToPersonalRoom();
+      return;
+    }
+
+    const blob = await gameRef.current?.captureScreenshot();
+    if (!blob) {
+      notifications.addNotification(t("g.tournament.shotFailed"), 3000);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", blob, "build.png");
+
+    const res = await gameFetch("/api/game/tournament-shot/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      notifications.addNotification(
+        res.status === 401 || res.status === 403 ? t("g.paint.sessionExpired") : t("g.tournament.shotFailed"),
+        3500
+      );
+      return;
+    }
+
+    const data: { url: string } = await res.json();
+    gameRef.current?.sendTournamentAction({ action: "submitShot", tournamentId, shotUrl: data.url });
+    tournamentState.setPendingBuildShot(null);
+    notifications.addNotification(t("g.tournament.shotUploaded"), 2500);
   };
 
   const handleSignSaveText = async (signId: string, text: string) => {
@@ -2026,6 +2081,27 @@ export function GameClient({ slug }: GameClientProps) {
           gameRef.current?.warpCanyonSegment(segment);
           canyonMap.setIsCanyonMapOpen(false);
         }}
+      />
+
+      <TournamentPanel
+        isOpen={tournamentState.isTournamentBoardOpen}
+        tournaments={tournamentState.tournaments}
+        entriesById={tournamentState.entriesById}
+        onClose={() => tournamentState.setIsTournamentBoardOpen(false)}
+        onRefresh={() => gameRef.current?.requestTournamentList()}
+        onRequestEntries={(tournamentId) => gameRef.current?.requestTournamentEntries(tournamentId)}
+        onAction={(payload) => gameRef.current?.sendTournamentAction(payload)}
+        onCaptureBuildShot={handleCaptureBuildShot}
+        onVisitRoom={(ownerUserId) => {
+          tournamentState.setIsTournamentBoardOpen(false);
+          gameRef.current?.teleportToPersonalRoom(ownerUserId);
+        }}
+      />
+
+      <BuildShotPrompt
+        tournamentTitle={pendingBuildTournament?.title ?? null}
+        onCapture={() => handleCaptureBuildShot(pendingBuildTournament!.id)}
+        onCancel={() => tournamentState.setPendingBuildShot(null)}
       />
     </div>
   );

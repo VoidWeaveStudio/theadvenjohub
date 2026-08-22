@@ -1,5 +1,6 @@
 // src/features/game/world/locations/tower/floors/basement/utils/proceduralPortal.ts
 import * as THREE from "three";
+import { PORTAL_EXTRA_LAYER, PORTAL_NOISE_GLSL, getPortalNoiseTexture } from "../../../../../portalNoise";
 
 const ARMATURE_SEGMENTS = 12;
 const STRUT_COUNT = 6;
@@ -21,31 +22,7 @@ uniform vec3 uInner;
 uniform vec3 uOuter;
 varying vec2 vLocal;
 
-float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-
-float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(
-        mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
-        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
-        u.y
-    );
-}
-
-float fbm(vec2 p) {
-    float sum = 0.0;
-    float amp = 0.5;
-    for (int i = 0; i < 4; i++) {
-        sum += noise(p) * amp;
-        p *= 2.03;
-        amp *= 0.5;
-    }
-    return sum;
-}
+${PORTAL_NOISE_GLSL}
 
 void main() {
     float r = length(vLocal) / uRadius;
@@ -235,6 +212,7 @@ export function createProceduralPortal(options: {
 
     const vortexUniforms = {
         uTime: { value: 0 },
+        uNoise: { value: getPortalNoiseTexture() },
         uRadius: { value: radius },
         uInner: { value: new THREE.Color(options.inner) },
         uOuter: { value: new THREE.Color(options.outer) },
@@ -271,6 +249,7 @@ export function createProceduralPortal(options: {
         }))
     );
     lens.scale.y = 0.42 * sign;
+    lens.name = PORTAL_EXTRA_LAYER;
     group.add(lens);
 
     const runeUniforms = {
@@ -459,6 +438,7 @@ export function createProceduralPortal(options: {
             }))
         );
         beam.position.y = sign * beamHeight * 0.5;
+        beam.name = PORTAL_EXTRA_LAYER;
         group.add(beam);
     }
 

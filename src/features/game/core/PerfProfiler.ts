@@ -1,5 +1,6 @@
 // src/features/game/core/PerfProfiler.ts
 import * as THREE from "three";
+import { PORTAL_EXTRA_LAYER } from "../world/portalNoise";
 
 interface SectionAccumulator {
     total: number;
@@ -42,8 +43,13 @@ const REPORT_INTERVAL_MS = 3000;
 const GPU_PROBE_INTERVAL_MS = 3000;
 const LONG_FRAME_MS = 25;
 const STORAGE_KEY = "tanjo_perf";
-const SWEEP_WARMUP_FRAMES = 8;
-const SWEEP_SAMPLE_FRAMES = 20;
+const SWEEP_WARMUP_FRAMES = 12;
+const SWEEP_SAMPLE_FRAMES = 24;
+// Flipping a toggle changes material defines, and three.js then relinks every
+// affected program inside the next render call — that showed up as single frames
+// of several seconds. Any frame this long during warm-up restarts the warm-up so
+// the recompile never lands in the sample window.
+const SWEEP_STALL_MS = 60;
 
 function median(values: number[]): number {
     if (values.length === 0) return 0;
@@ -106,7 +112,8 @@ class PerfProfiler {
     private sweepIndex = -1;
     private sweepFrames = 0;
     private sweepSamples: number[] = [];
-    private sweepResults: { name: string; ms: number }[] = [];
+    private sweepGpuSamples: number[] = [];
+    private sweepResults: { name: string; cpu: number; gpu: number }[] = [];
 
     private toggles = new Map<string, (value: boolean | number) => void>();
     private savedFog: THREE.Fog | THREE.FogExp2 | null = null;
@@ -564,6 +571,7 @@ class PerfProfiler {
         let transparentHidden: THREE.Object3D[] = [];
         let pointHidden: THREE.Object3D[] = [];
         let rectHidden: THREE.Object3D[] = [];
+        let portalHidden: THREE.Object3D[] = [];
 
         this.sweepSteps = [
             { name: "baseline", apply: () => { }, restore: () => { } },
@@ -616,6 +624,13 @@ class PerfProfiler {
                 restore: () => restoreList(rectHidden)(),
             },
             {
+                name: "no portal detail (dome + beam)",
+                apply: () => {
+                    portalHidden = hide((object) => object.name === PORTAL_EXTRA_LAYER);
+                },
+                restore: () => restoreList(portalHidden)(),
+            },
+            {
                 name: "no transparent meshes",
                 apply: () => {
                     transparentHidden = hide((object) => hasMaterial(object, (material) => material.transparent));
@@ -646,31 +661,58 @@ class PerfProfiler {
             },
         ];
 
+        // A/B/A: baseline, experiment, baseline, experiment... Program count and
+        // driver state drift over a sweep, and scoring everything against one
+        // early baseline is what produced "turning things off made it slower".
+        this.sweepSteps = this.sweepSteps.flatMap((step, index) =>
+            index === 0 ? [step] : [{ name: "baseline", apply: () => { }, restore: () => { } }, step]
+        );
+
         this.sweepResults = [];
         this.sweepIndex = 0;
         this.sweepFrames = 0;
         this.sweepSamples = [];
+        this.sweepGpuSamples = [];
         this.sweepSteps[0].apply();
 
         console.log(
-            `[perf/sweep] running ${this.sweepSteps.length} experiments x ${SWEEP_WARMUP_FRAMES + SWEEP_SAMPLE_FRAMES} frames — stand still until the result table appears`
+            `[perf/sweep] running ${this.sweepSteps.length} passes (each experiment bracketed by a fresh baseline) x ${SWEEP_WARMUP_FRAMES + SWEEP_SAMPLE_FRAMES} frames — stand still, do not move the mouse, until the result table appears`
         );
     }
 
     private advanceSweep(frameMs: number) {
         if (this.sweepIndex < 0) return;
 
+        // Hiding a light changes NUM_*_LIGHTS, which relinks every affected
+        // program inside the next render call — frames of several seconds. Any
+        // stall, in warm-up or mid-sample, restarts the whole experiment so the
+        // recompile can never end up in the numbers.
+        if (frameMs > SWEEP_STALL_MS) {
+            this.sweepFrames = 0;
+            this.sweepSamples = [];
+            this.sweepGpuSamples = [];
+            return;
+        }
+
         this.sweepFrames++;
-        if (this.sweepFrames > SWEEP_WARMUP_FRAMES) this.sweepSamples.push(frameMs);
+        if (this.sweepFrames > SWEEP_WARMUP_FRAMES) {
+            this.sweepSamples.push(frameMs);
+            if (this.gpuTimeMs > 0) this.sweepGpuSamples.push(this.gpuTimeMs);
+        }
         if (this.sweepSamples.length < SWEEP_SAMPLE_FRAMES) return;
 
         const step = this.sweepSteps[this.sweepIndex];
-        this.sweepResults.push({ name: step.name, ms: median(this.sweepSamples) });
+        this.sweepResults.push({
+            name: step.name,
+            cpu: median(this.sweepSamples),
+            gpu: this.sweepGpuSamples.length > 0 ? median(this.sweepGpuSamples) : 0,
+        });
         step.restore();
 
         this.sweepIndex++;
         this.sweepFrames = 0;
         this.sweepSamples = [];
+        this.sweepGpuSamples = [];
 
         if (this.sweepIndex < this.sweepSteps.length) {
             this.sweepSteps[this.sweepIndex].apply();
@@ -680,22 +722,60 @@ class PerfProfiler {
         this.sweepIndex = -1;
         this.sweepSteps = [];
 
-        const baseline = this.sweepResults[0]?.ms ?? 0;
+        // CPU frame time only measures command submission. A scene that is
+        // fragment-bound submits in 2 ms and then waits 12 ms on the GPU, so
+        // hiding geometry barely moves the CPU number — read the GPU column
+        // whenever the timer query is available.
+        const useGpu = this.sweepResults.every((result) => result.gpu > 0);
+        const valueOf = (result: { cpu: number; gpu: number }) => (useGpu ? result.gpu : result.cpu);
+
+        // Results alternate baseline, experiment, baseline, experiment...
+        // Each experiment is scored against the mean of the two baselines that
+        // bracket it.
+        const baselines = this.sweepResults.filter((result) => result.name === "baseline");
+        const baselineValues = baselines.map(valueOf);
+        const baseline = baselineValues.length > 0
+            ? baselineValues.reduce((sum, value) => sum + value, 0) / baselineValues.length
+            : 0;
+        const drift = baselineValues.length > 1
+            ? Math.max(...baselineValues) - Math.min(...baselineValues)
+            : 0;
+
         const rows = this.sweepResults
-            .slice(1)
-            .map((result) => ({ name: result.name, ms: result.ms, saved: baseline - result.ms }))
+            .map((result, index) => ({ result, index }))
+            .filter(({ result }) => result.name !== "baseline")
+            .map(({ result, index }) => {
+                const before = this.sweepResults[index - 1];
+                const after = this.sweepResults[index + 1];
+                const local = [before, after]
+                    .filter((entry) => entry && entry.name === "baseline")
+                    .map((entry) => valueOf(entry!));
+                const reference = local.length > 0
+                    ? local.reduce((sum, value) => sum + value, 0) / local.length
+                    : baseline;
+
+                return { name: result.name, value: valueOf(result), saved: reference - valueOf(result), reference };
+            })
             .sort((a, b) => b.saved - a.saved)
             .map(
                 (row) =>
-                    `${ms(row.ms)} ms  saved ${ms(row.saved)} ms  (${((row.saved / Math.max(baseline, 0.001)) * 100).toFixed(0)}%)  ${row.name}`
+                    `${ms(row.value)} ms  saved ${ms(row.saved)} ms  (${((row.saved / Math.max(row.reference, 0.001)) * 100).toFixed(0)}%)  ${row.name}`
             );
 
         console.log(
             [
-                `[perf/sweep] median frame time per experiment (bigger saving = bigger culprit)`,
-                `${ms(baseline)} ms  baseline`,
+                `[perf/sweep] median ${useGpu ? "GPU" : "CPU"} time per experiment (bigger saving = bigger culprit)`,
+                useGpu
+                    ? ""
+                    : "  no GPU timer query on this context — these are CPU submission times and will under-report fill cost",
+                `${ms(baseline)} ms  baseline (mean of ${baselineValues.length}, drift ${ms(drift)} ms)`,
+                drift > baseline * 0.25
+                    ? "  baseline drifted more than 25% during the sweep — treat small savings as noise"
+                    : "",
                 ...rows,
-            ].join("\n")
+            ]
+                .filter(Boolean)
+                .join("\n")
         );
     }
 
@@ -896,6 +976,12 @@ class PerfProfiler {
                 if ((light as THREE.AmbientLight).isAmbientLight) return;
                 seen++;
                 if (seen > 1) object.visible = Boolean(value);
+            });
+        });
+
+        this.registerToggle("portalDetail", (value) => {
+            this.scene?.traverse((object) => {
+                if (object.name === PORTAL_EXTRA_LAYER) object.visible = Boolean(value);
             });
         });
 

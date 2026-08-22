@@ -2,6 +2,8 @@
 "use client";
 
 import { CompanionDefinition, RARITY_META, dropChanceOf, dustValueOf } from "../data/companions";
+import { InlinePreview } from "./preview/InlinePreview";
+import { Maximize2 } from "lucide-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface CompanionCardProps {
@@ -38,16 +40,21 @@ export function CompanionCard({
             }}
         >
             <div className="flex items-start gap-2.5">
-                <button
-                    type="button"
-                    onClick={onPreview}
-                    disabled={!onPreview}
-                    title={onPreview ? t("g.companions.preview") : undefined}
-                    className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border-0 p-0 text-2xl transition-transform ${locked ? "grayscale opacity-45" : ""} ${onPreview ? "cursor-pointer hover:scale-110" : "cursor-default"}`}
-                    style={{ background: `${rarity.color}1f`, boxShadow: locked ? "none" : `0 0 14px ${rarity.glow}` }}
-                >
-                    {companion.icon}
-                </button>
+                {/* Live model instead of an emoji chip: the pet is what the card is
+                    selling, so it is on screen without a click. */}
+                <div className={`group relative flex-shrink-0 ${locked ? "opacity-70" : ""}`}>
+                    <InlinePreview subject={{ kind: "companion", companionId: companion.id }} accent={rarity.color} size="sm" />
+                    {onPreview && (
+                        <button
+                            type="button"
+                            onClick={onPreview}
+                            title={t("g.companions.preview")}
+                            className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded border-0 bg-black/60 p-0 text-[#C5C9D1] opacity-0 transition-opacity hover:text-white group-hover:opacity-100"
+                        >
+                            <Maximize2 className="h-2.5 w-2.5" />
+                        </button>
+                    )}
+                </div>
 
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">

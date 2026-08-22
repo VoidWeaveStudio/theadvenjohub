@@ -5,7 +5,7 @@ import { AssetBin } from "../utils/assetBin";
 import { GeometryBatch } from "../utils/geometryBatch";
 import { insertDisc } from "../utils/collision";
 import type { ShellMaterials } from "./HallShell";
-import { RING_STEPS, RING_TOP_RADIUS, RING_TOP_Y, isLowEndDevice } from "../layout";
+import { ACCENT_POINT_LIGHTS, RING_STEPS, RING_TOP_RADIUS, RING_TOP_Y, isLowEndDevice } from "../layout";
 
 const PIT_LAMP_COUNT = 6;
 
@@ -108,7 +108,7 @@ export class TradingRing {
 
             brassBatch.add(finial, x, globeY + globeRadius + 0.17, z, -angle);
 
-            if (!lowEnd && i % 3 === 0) {
+            if (!lowEnd && ACCENT_POINT_LIGHTS && i % 3 === 0) {
                 const light = new THREE.PointLight(0xffd479, 5, 26, 2);
                 light.position.set(x, globeY, z);
                 light.castShadow = false;

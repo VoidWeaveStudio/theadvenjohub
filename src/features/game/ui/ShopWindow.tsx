@@ -12,6 +12,7 @@ import { PreviewModal } from "./preview/PreviewModal";
 import type { PreviewSubject } from "./preview/PreviewScene";
 import { CompanionStateData } from "../network/NetworkManager";
 import { CompanionCard } from "./CompanionCard";
+import { CosmeticCard } from "./CosmeticCard";
 import { useShopPrices, type LiveShopPrice } from "./hooks/useShopPrices";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { ShopBuyButton } from "./ShopBuyButton";
@@ -196,34 +197,44 @@ export function ShopWindow({
                     const cosmetic = COSMETICS_BY_ID.get(entry.itemId as CosmeticId);
                     const forTnj = (price.currency === "tnj" || price.currency === "usd") && price.tnj > 0;
 
+                    // Catalog entries without a matching cosmetic model have
+                    // nothing to preview, so they keep the plain row.
+                    if (!cosmetic) {
+                        return (
+                            <div
+                                key={entry.itemId}
+                                className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-[rgba(255,255,255,0.03)] px-4 py-3"
+                            >
+                                <div className="min-w-0">
+                                    <div className="truncate text-sm font-bold text-[#E5E7EB]">{t(entry.nameKey)}</div>
+                                    <div className="text-xs text-[#8B8F98]">{t(entry.descriptionKey)}</div>
+                                </div>
+                                <div className="flex flex-shrink-0 items-center gap-3">
+                                    {forTnj ? (
+                                        <>
+                                            {priceTag(entry)}
+                                            {buyButton(entry, placeables[entry.itemId] || 0)}
+                                        </>
+                                    ) : (
+                                        <span className="text-[11px] text-[#6B7280]">{t("g.shop.ashOnly")}</span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    }
+
                     return (
-                        <div
+                        <CosmeticCard
                             key={entry.itemId}
-                            className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-[rgba(255,255,255,0.03)] px-4 py-3"
-                        >
-                            <div className="min-w-0">
-                                <div className="truncate text-sm font-bold text-[#E5E7EB]">{t(entry.nameKey)}</div>
-                                <div className="text-xs text-[#8B8F98]">{t(entry.descriptionKey)}</div>
-                            </div>
-                            <div className="flex flex-shrink-0 items-center gap-3">
-                                {cosmetic && (
-                                    <button
-                                        onClick={() => previewCosmetic(entry.itemId)}
-                                        className="btn-secondary px-3 py-1.5 text-[11px]"
-                                    >
-                                        {t("g.cosmetic.tryOn")}
-                                    </button>
-                                )}
-                                {forTnj ? (
-                                    <>
-                                        {priceTag(entry)}
-                                        {buyButton(entry, placeables[entry.itemId] || 0)}
-                                    </>
-                                ) : (
-                                    <span className="text-[11px] text-[#6B7280]">{t("g.shop.ashOnly")}</span>
-                                )}
-                            </div>
-                        </div>
+                            cosmetic={cosmetic}
+                            owned={false}
+                            equipped={false}
+                            actionLabel={t("g.alfredo.buy")}
+                            onAction={() => { }}
+                            onPreview={() => previewCosmetic(entry.itemId)}
+                            priceLabel={forTnj ? priceTag(entry) : <span className="text-[11px] text-[#6B7280]">{t("g.shop.ashOnly")}</span>}
+                            actionSlot={(forTnj ? buyButton(entry, placeables[entry.itemId] || 0) : null) ?? <span />}
+                        />
                     );
                 })}
             </div>

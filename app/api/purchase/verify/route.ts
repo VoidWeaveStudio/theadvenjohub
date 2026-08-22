@@ -12,6 +12,7 @@ import { and, eq } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
+import { expectedAmountFor, resolveGamePrice } from "@/core/lib/gamePricing";
 
 const verifySchema = z.object({
   signature: z.string().min(80).max(100, "Invalid signature length"),
@@ -104,6 +105,9 @@ export async function POST(req: NextRequest) {
     const { signature, gameId, lotId } = validation.data;
 
     let serverPrice: number;
+    // What the on-chain transfer is checked against. Equal to serverPrice for a
+    // fixed price; slightly lower for a rate-derived one.
+    let expectedAmountTnj: number;
     let lotStatus: string | null = null;
 
     if (gameId) {
@@ -136,7 +140,18 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      serverPrice = game.price;
+      const resolved = await resolveGamePrice(game);
+      if (resolved.payableTnj === null || resolved.payableTnj <= 0) {
+        return NextResponse.json(
+          { error: "price_unavailable" },
+          { status: 503, headers: formatRateLimitHeaders(rl) }
+        );
+      }
+
+      serverPrice = resolved.payableTnj;
+      // Fixed TNJ prices stay exact, as before. A USDT price gets the same slack
+      // the shop allows, because the rate moves between quote and signature.
+      expectedAmountTnj = expectedAmountFor(resolved) ?? resolved.payableTnj;
     } else {
       const lot = await db.query.marketplaceLots.findFirst({ where: eq(marketplaceLots.id, lotId!) });
       if (!lot) {
@@ -146,6 +161,7 @@ export async function POST(req: NextRequest) {
         );
       }
       serverPrice = lot.price;
+      expectedAmountTnj = lot.price;
       lotStatus = lot.status;
     }
 
@@ -176,7 +192,7 @@ export async function POST(req: NextRequest) {
 
     const verifyResult = await verifyTnjTransferToTreasury({
       signature,
-      expectedAmountTnj: serverPrice,
+      expectedAmountTnj,
       expectedSigner: user.wallet,
     });
     if (!verifyResult.ok) {

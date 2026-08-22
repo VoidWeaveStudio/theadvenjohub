@@ -284,7 +284,11 @@ export class SegmentBuilderSystem {
 
         const crystal = new THREE.Group();
         const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8, 1), new THREE.MeshStandardMaterial({ color: 0x66ccff, emissive: 0x3399ff, emissiveIntensity: 2 }));
-        const shell = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 1), new THREE.MeshPhysicalMaterial({ color: 0x99ddff, transmission: 1, opacity: 0.6, transparent: true, roughness: 0, thickness: 0.5 }));
+        // No transmission: it would make three.js re-render the whole opaque scene
+        // into a full-viewport MSAA target every frame this beacon is on screen,
+        // and the canyon keeps two segments alive at once. Opacity alone reads the
+        // same on a small decorative shell.
+        const shell = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 1), new THREE.MeshPhysicalMaterial({ color: 0x99ddff, opacity: 0.42, transparent: true, roughness: 0.05, metalness: 0, depthWrite: false }));
         const light = new THREE.PointLight(0x66ccff, 9, 45);
         light.position.set(0, 1.5, 0);
         crystal.add(core, shell, light);

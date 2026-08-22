@@ -4,6 +4,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { createRandom } from "../utils/worldNoise";
 import type { TerrainSystem } from "./TerrainSystem";
 import { CAVE_PORTAL_X, CAVE_PORTAL_Z } from "../worldConfig";
+import { PORTAL_NOISE_GLSL, getPortalNoiseTexture } from "../../../portalNoise";
 
 const INNER_RADIUS = 3.3;
 const OUTER_RADIUS = 4.5;
@@ -30,31 +31,7 @@ const veilFragmentShader = /* glsl */`
 
     varying vec2 vVeilUv;
 
-    float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-    }
-
-    float noise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        vec2 u = f * f * (3.0 - 2.0 * f);
-        return mix(
-            mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
-            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
-            u.y
-        );
-    }
-
-    float fbm(vec2 p) {
-        float sum = 0.0;
-        float amplitude = 0.5;
-        for (int i = 0; i < 4; i++) {
-            sum += noise(p) * amplitude;
-            p *= 2.03;
-            amplitude *= 0.5;
-        }
-        return sum;
-    }
+    ${PORTAL_NOISE_GLSL}
 
     void main() {
         vec2 centered = vVeilUv - 0.5;
@@ -134,6 +111,7 @@ export class CavePortalSystem {
     ) {
         this.uniforms = {
             uTime: { value: 0 },
+            uNoise: { value: getPortalNoiseTexture() },
             uInnerColor: { value: new THREE.Color(0x0a1a3c) },
             uOuterColor: { value: new THREE.Color(0x2f7fd6) },
             uSparkColor: { value: new THREE.Color(0x9fe4ff) },

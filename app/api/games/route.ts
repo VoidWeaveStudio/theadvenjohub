@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/database";
 import { games } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
+import { resolveGamePrice } from "@/core/lib/gamePricing";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -27,6 +28,8 @@ export async function GET(req: NextRequest) {
           coverImage: games.coverImage,
           publisher: games.publisher,
           price: games.price,
+          priceCurrency: games.priceCurrency,
+          priceUsdCents: games.priceUsdCents,
           isActive: games.isActive,
         })
         .from(games)
@@ -37,8 +40,24 @@ export async function GET(req: NextRequest) {
       db.$count(games, where),
     ]);
 
+    // `price` stays the TNJ number the storefront has always rendered; for a
+    // USDT-priced game it is the live conversion. The USDT source is sent along
+    // so the card can label it instead of implying a fixed TNJ tag.
+    const priced = await Promise.all(
+      gamesList.map(async (game) => {
+        const resolved = await resolveGamePrice(game);
+        return {
+          ...game,
+          price: resolved.payableTnj ?? game.price,
+          priceCurrency: resolved.currency,
+          priceUsdCents: resolved.priceUsdCents,
+          priceUnavailable: resolved.payableTnj === null,
+        };
+      })
+    );
+
     return NextResponse.json({
-      games: gamesList,
+      games: priced,
       pagination: {
         page,
         limit,

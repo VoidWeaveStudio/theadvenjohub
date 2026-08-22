@@ -45,6 +45,28 @@ export const BANNER_RADIUS = 48;
 export const BANNER_BOTTOM = 23;
 export const PEDESTAL_RADIUS = 33;
 
+// Freestanding prize-contest billboard. It sits in the arc between the east
+// stair (EAST, half-width ~4.2 at radius 46-70) and the atelier post
+// (0.75 PI, 13 wide at radius 56), which is the only stretch of the hall wall
+// with nothing else claimed. Move it by changing the angle/radius pair alone —
+// everything else in TournamentBoard is derived from these five numbers.
+// Measured with tanjoPerf.sweep() in this hall at 1732x1207: the ten point
+// lights cost 3.6 ms of a 10.9 ms GPU frame (35%), the two RectAreaLights another
+// 1.6 ms (16%) — 0.8 ms each, because three.js evaluates the LTC integration per
+// fragment for every lit surface on screen, whatever the light's distance.
+//
+// The accent lights below sit on geometry that is already emissive, so they only
+// added spill. Flip either constant back to true to get the old look.
+export const BOARD_WASH_LIGHTS = false;
+export const ACCENT_POINT_LIGHTS = false;
+
+export const TOURNAMENT_BOARD_INTERACTION = "tournament-board";
+export const TOURNAMENT_BOARD_ANGLE = Math.PI * 0.625;
+export const TOURNAMENT_BOARD_RADIUS = 50;
+export const TOURNAMENT_BOARD_WIDTH = 20;
+export const TOURNAMENT_BOARD_HEIGHT = 10;
+export const TOURNAMENT_BOARD_BOTTOM = 5.5;
+
 export const SPAWN_POINT = new THREE.Vector3(0, 2, 26);
 
 export const NORTH = 0;

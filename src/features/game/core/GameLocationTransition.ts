@@ -75,11 +75,13 @@ export function configureLocationSpecifics(game: Game, location: Location) {
         if (game.leaderboard.length > 0) location.setLeaderboard(game.leaderboard);
         if (game.factionLeaderboard.length > 0) location.setFactionLeaderboard(game.factionLeaderboard);
         if (game.factionQuests.length > 0) location.setFactionQuests(game.factionQuests);
+        if (game.tournaments.length > 0) location.setTournaments(game.tournaments);
 
         location.onRequestBoardData = () => {
             game.requestLeaderboard();
             game.requestFactionLeaderboard();
             game.requestFactionQuestList();
+            game.requestTournamentList();
         };
         location.onRequestBoardData();
     } else if (location instanceof EventsLobby) {

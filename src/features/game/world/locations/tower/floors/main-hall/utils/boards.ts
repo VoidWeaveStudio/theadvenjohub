@@ -1,5 +1,7 @@
 // src/features/game/world/locations/tower/floors/main-hall/utils/boards.ts
 import type { LeaderboardEntry, FactionSummary, FactionQuestEntry } from "../../../../../../network/NetworkManager";
+import type { TournamentSummary } from "@/core/lib/tournaments";
+import { formatReward } from "@/core/lib/tournaments";
 import { FACTION_QUEST_TYPES } from "../../../../../../../../core/lib/factionQuests";
 import { factionColor } from "../layout";
 import { drawFactionLogo } from "./factionImages";
@@ -403,3 +405,119 @@ export function drawQuestBoard(ctx: CanvasRenderingContext2D, quests: FactionQue
     });
 }
 
+
+export const PRIZE_BOARD_WIDTH = 1024;
+export const PRIZE_BOARD_HEIGHT = 512;
+
+function prizeCountdown(tournament: TournamentSummary, now: number): string {
+    const target = tournament.phase === "upcoming" ? tournament.startsAt : tournament.endsAt;
+    const remaining = target - now;
+    if (tournament.phase === "ended" || remaining <= 0) return t("g.tournament.board.closed");
+
+    const hours = Math.floor(remaining / 3_600_000);
+    if (hours >= 24) return t("g.tournament.board.days", { count: Math.floor(hours / 24) });
+    if (hours >= 1) return t("g.tournament.board.hours", { count: hours });
+    return t("g.tournament.board.minutes", { count: Math.max(1, Math.floor(remaining / 60_000)) });
+}
+
+function prizePhaseLabel(tournament: TournamentSummary): string {
+    if (tournament.phase === "upcoming") return t("g.tournament.phase.upcoming");
+    if (tournament.phase === "ended") return t("g.tournament.phase.ended");
+    return t("g.tournament.phase.active");
+}
+
+// The billboard is the advertisement, not the panel: one line per contest with
+// the prize, the clock and the entry count, and nothing a player has to read twice.
+export function drawTournamentBoard(
+    ctx: CanvasRenderingContext2D,
+    tournaments: TournamentSummary[],
+    now = Date.now()
+) {
+    const width = PRIZE_BOARD_WIDTH;
+    const height = PRIZE_BOARD_HEIGHT;
+
+    const backdrop = ctx.createLinearGradient(0, 0, 0, height);
+    backdrop.addColorStop(0, "#141019");
+    backdrop.addColorStop(1, "#07050a");
+    ctx.fillStyle = backdrop;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = "rgba(255,209,102,0.06)";
+    for (let y = 0; y < height; y += 24) ctx.fillRect(0, y, width, 1);
+
+    ctx.fillStyle = "rgba(24,18,32,0.96)";
+    ctx.fillRect(0, 0, width, 92);
+    ctx.fillStyle = "#ffd166";
+    ctx.fillRect(0, 90, width, 4);
+    ctx.fillRect(0, 0, 12, 92);
+
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ffd166";
+    ctx.font = "bold 50px Arial";
+    ctx.fillText(t("g.tournament.board.title"), 40, 48);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = MUTED_COLOR;
+    ctx.font = "bold 26px Arial";
+    ctx.fillText(t("g.tournament.board.subtitle"), width - 40, 48);
+
+    ctx.strokeStyle = "rgba(255,209,102,0.35)";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, width - 6, height - 6);
+
+    const live = tournaments.filter((entry) => entry.phase !== "ended");
+    const shown = (live.length > 0 ? live : tournaments).slice(0, 4);
+
+    if (shown.length === 0) {
+        ctx.fillStyle = MUTED_COLOR;
+        ctx.font = "bold 34px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(t("g.tournament.board.empty"), width / 2, height / 2 + 30);
+        return;
+    }
+
+    const rowHeight = (height - 116) / 4;
+
+    shown.forEach((tournament, index) => {
+        const y = 104 + index * rowHeight;
+        const accent = /^#[0-9a-fA-F]{6}$/.test(tournament.accent) ? tournament.accent : "#ffd166";
+        const centerY = y + rowHeight / 2;
+
+        if (index % 2 === 1) {
+            ctx.fillStyle = "rgba(255,255,255,0.03)";
+            ctx.fillRect(16, y, width - 32, rowHeight - 4);
+        }
+
+        ctx.fillStyle = accent;
+        ctx.globalAlpha = tournament.phase === "active" ? 0.85 : 0.35;
+        ctx.fillRect(16, y + 4, 7, rowHeight - 12);
+        ctx.globalAlpha = 1;
+
+        ctx.textAlign = "left";
+        ctx.fillStyle = TEXT_COLOR;
+        ctx.font = "bold 36px Arial";
+        ctx.fillText(shortName(tournament.title, 26), 44, centerY - 16);
+
+        ctx.fillStyle = accent;
+        ctx.font = "bold 22px Arial";
+        ctx.fillText(prizePhaseLabel(tournament).toUpperCase(), 44, centerY + 20);
+
+        ctx.fillStyle = MUTED_COLOR;
+        ctx.font = "bold 22px Arial";
+        ctx.fillText(
+            t("g.tournament.board.entries", { count: tournament.entryCount }),
+            220,
+            centerY + 20
+        );
+
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#ffd166";
+        ctx.font = "bold 38px Arial";
+        ctx.fillText(formatReward(tournament.rewardAmount, tournament.rewardCurrency), width - 44, centerY - 14);
+
+        ctx.fillStyle = MUTED_COLOR;
+        ctx.font = "bold 24px Arial";
+        ctx.fillText(prizeCountdown(tournament, now), width - 44, centerY + 22);
+    });
+}

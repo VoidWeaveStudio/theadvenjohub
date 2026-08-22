@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { TowerFloor } from "../../TowerFloor";
 import { ResourceManager } from "../../../../../core/ResourceManager";
 import type { LeaderboardEntry, FactionSummary, FactionQuestEntry } from "../../../../../network/NetworkManager";
+import type { TournamentSummary } from "@/core/lib/tournaments";
 import { AssetBin } from "./utils/assetBin";
 import { HallShell } from "./systems/HallShell";
 import { HallSky } from "./systems/HallSky";
@@ -10,6 +11,7 @@ import { MezzanineSystem } from "./systems/MezzanineSystem";
 import { TradingRing } from "./systems/TradingRing";
 import { TradingPosts } from "./systems/TradingPosts";
 import { BoardSystem } from "./systems/BoardSystem";
+import { TournamentBoard } from "./systems/TournamentBoard";
 import { createMainHallNpcs, MainHallNpc } from "./systems/NpcSystem";
 import { disposeNpcNameTags } from "../../../../../entities/npcNameTag";
 import { configureTextureQuality } from "./utils/textureQuality";
@@ -36,6 +38,7 @@ export class MainHall extends TowerFloor {
     private ring!: TradingRing;
     private posts!: TradingPosts;
     private boards!: BoardSystem;
+    private prizeBoard!: TournamentBoard;
     private npcs: MainHallNpc[] = [];
     private keyLight: THREE.DirectionalLight | null = null;
     private environmentMap: THREE.Texture | null = null;
@@ -65,12 +68,14 @@ export class MainHall extends TowerFloor {
         this.ring = new TradingRing(this.scene, this.collisionGrid, this.bin);
         this.posts = new TradingPosts(this.scene, this.collisionGrid, this.bin);
         this.boards = new BoardSystem(this.scene, this.collisionGrid, this.bin);
+        this.prizeBoard = new TournamentBoard(this.scene, this.collisionGrid, this.bin);
 
         const materials = perf.measure("shell", () => this.shell.create());
         perf.measure("mezzanine", () => this.mezzanine.create(materials));
         perf.measure("tradingRing", () => this.ring.create(materials));
         perf.measure("tradingPosts", () => this.posts.create(materials));
         perf.measure("boards", () => this.boards.create(materials));
+        perf.measure("prizeBoard", () => this.prizeBoard.create(materials));
 
         perf.measure("crystal", () => this.createCentralCrystal(new THREE.Vector3(0, RING_TOP_Y, 0)));
 
@@ -151,6 +156,10 @@ export class MainHall extends TowerFloor {
         this.boards?.setQuests(list);
     }
 
+    public setTournaments(list: TournamentSummary[]) {
+        this.prizeBoard?.setTournaments(list);
+    }
+
     private updateBoardRefresh(delta: number) {
         if (!this.onRequestBoardData) return;
 
@@ -177,6 +186,7 @@ export class MainHall extends TowerFloor {
         this.sky.update(delta);
         perf.begin("hall.boards");
         this.boards.update(delta);
+        this.prizeBoard.update(delta);
         this.updateBoardRefresh(delta);
         perf.end("hall.boards");
         perf.begin("hall.shadowCamera");
@@ -209,7 +219,12 @@ export class MainHall extends TowerFloor {
     }
 
     public override getInteractables(): THREE.Object3D[] {
-        return [...super.getInteractables(), ...this.npcs.map((npc) => npc.handle.group)];
+        const prizeConsole = this.prizeBoard?.getInteractable();
+        return [
+            ...super.getInteractables(),
+            ...this.npcs.map((npc) => npc.handle.group),
+            ...(prizeConsole ? [prizeConsole] : []),
+        ];
     }
 
     getSpawnPoint(): THREE.Vector3 {
@@ -221,6 +236,7 @@ export class MainHall extends TowerFloor {
         this.shell?.dispose();
         this.sky?.dispose();
         this.boards?.dispose();
+        this.prizeBoard?.dispose();
         for (const npc of this.npcs) disposeNpcNameTags(npc.handle.group);
         this.npcs = [];
         this.keyLight = null;

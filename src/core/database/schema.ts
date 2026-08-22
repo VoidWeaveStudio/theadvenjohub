@@ -12,6 +12,7 @@ import {
   bigint,
   uniqueIndex,
   jsonb,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -40,7 +41,14 @@ export const games = pgTable("games", {
   backgroundImage: varchar("background_image", { length: 512 }),
   publisher: varchar("publisher", { length: 255 }),
   developer: varchar("developer", { length: 255 }),
+  // Fixed TNJ price, used when priceCurrency is "tnj". Kept as the storefront's
+  // headline number so nothing that already reads `price` had to change.
   price: bigint("price", { mode: "number" }).default(0).notNull(),
+  // "tnj" — sell for the fixed amount above. "usdt" — the admin sets the price in
+  // USDT and the TNJ the buyer sends is worked out from the live rate at purchase
+  // time, exactly like the in-game shop already does for its items.
+  priceCurrency: varchar("price_currency", { length: 8 }).default("tnj").notNull(),
+  priceUsdCents: integer("price_usd_cents").default(0).notNull(),
   releaseDate: timestamp("release_date"),
   platform: varchar("platform", { length: 50 }),
   status: varchar("status", { length: 20 }).default("development").notNull(),
@@ -810,6 +818,78 @@ export const supportTickets = pgTable("support_tickets", {
   index("idx_support_tickets_user").on(table.userId),
 ]);
 
+// Paid-prize contests advertised on the main hall billboard. `status` is what the
+// admin controls (draft hides it from the game); the phase a player sees is derived
+// from startsAt/endsAt instead, so a published board never needs a second write.
+export const tournaments = pgTable("tournaments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  kind: varchar("kind", { length: 20 }).notNull(),
+  title: varchar("title", { length: 80 }).notNull(),
+  description: text("description").default("").notNull(),
+  rulesText: text("rules_text").default("").notNull(),
+  rewardAmount: numeric("reward_amount", { precision: 20, scale: 6 }).default("0").notNull(),
+  rewardCurrency: varchar("reward_currency", { length: 8 }).default("USDC").notNull(),
+  rewardNote: varchar("reward_note", { length: 240 }).default("").notNull(),
+  accent: varchar("accent", { length: 9 }).default("#f0b95c").notNull(),
+  maxEntries: integer("max_entries").default(0).notNull(),
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at").notNull(),
+  status: varchar("status", { length: 12 }).default("draft").notNull(),
+  // Filled once the window closes: the entry with the most likes (most XP for
+  // xp24h). Kept on the row so finished contests stay stable in the history list.
+  winnerEntryId: uuid("winner_entry_id"),
+  winnerDecidedAt: timestamp("winner_decided_at"),
+  // The prize is paid off-chain by hand; these only record that it happened.
+  paidAt: timestamp("paid_at"),
+  payoutRef: varchar("payout_ref", { length: 200 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_tournaments_game_status").on(table.gameId, table.status),
+  index("idx_tournaments_game_ends").on(table.gameId, table.endsAt),
+]);
+
+// One row per participant. Joining creates the row; the submission (skin snapshot
+// or build screenshot) lands later, which is why the media columns are nullable.
+export const tournamentEntries = pgTable("tournament_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tournamentId: uuid("tournament_id").notNull().references(() => tournaments.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  nickname: varchar("nickname", { length: 30 }),
+  // Costume contests copy the painted texture here so a later repaint (which
+  // prunes the player's own skin folder) cannot break a submitted entry.
+  skinUrl: varchar("skin_url", { length: 512 }),
+  shotUrl: varchar("shot_url", { length: 512 }),
+  xPostUrl: varchar("x_post_url", { length: 512 }),
+  xpAtJoin: integer("xp_at_join").default(0).notNull(),
+  xpGained: integer("xp_gained").default(0).notNull(),
+  likeCount: integer("like_count").default(0).notNull(),
+  status: varchar("status", { length: 12 }).default("joined").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  submittedAt: timestamp("submitted_at"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_tournament_entries_tournament_user").on(table.tournamentId, table.userId),
+  index("idx_tournament_entries_board").on(table.tournamentId, table.likeCount),
+  index("idx_tournament_entries_user").on(table.userId),
+]);
+
+// One vote per account per tournament, enforced by the unique index rather than
+// by application code, so a double-click or a reconnect cannot double-count.
+export const tournamentLikes = pgTable("tournament_likes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tournamentId: uuid("tournament_id").notNull().references(() => tournaments.id, { onDelete: "cascade" }),
+  entryId: uuid("entry_id").notNull().references(() => tournamentEntries.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_tournament_likes_tournament_user").on(table.tournamentId, table.userId),
+  index("idx_tournament_likes_entry").on(table.entryId),
+]);
+
 
 export const usersRelations = relations(users, ({ many }) => ({
   licenses: many(gameLicenses),
@@ -1190,3 +1270,12 @@ export type NewEventRun = typeof eventRuns.$inferInsert;
 
 export type SupportTicket = typeof supportTickets.$inferSelect;
 export type NewSupportTicket = typeof supportTickets.$inferInsert;
+
+export type Tournament = typeof tournaments.$inferSelect;
+export type NewTournament = typeof tournaments.$inferInsert;
+
+export type TournamentEntry = typeof tournamentEntries.$inferSelect;
+export type NewTournamentEntry = typeof tournamentEntries.$inferInsert;
+
+export type TournamentLike = typeof tournamentLikes.$inferSelect;
+export type NewTournamentLike = typeof tournamentLikes.$inferInsert;

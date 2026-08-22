@@ -13,6 +13,9 @@ interface StoreGame {
   title: string;
   coverImage: string | null;
   price: number;
+  priceCurrency?: string;
+  priceUsdCents?: number;
+  priceUnavailable?: boolean;
   publisher: string | null;
 }
 
@@ -76,6 +79,9 @@ export default function StorePage() {
               title={game.title}
               coverImage={game.coverImage ?? null}
               price={game.price}
+              priceCurrency={game.priceCurrency}
+              priceUsdCents={game.priceUsdCents}
+              priceUnavailable={game.priceUnavailable}
               publisher={game.publisher ?? null}
             />
           ))}

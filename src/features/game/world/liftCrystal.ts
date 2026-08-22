@@ -1,7 +1,13 @@
 // src/features/game/world/liftCrystal.ts
 import * as THREE from "three";
+import { PORTAL_NOISE_GLSL, getPortalNoiseTexture } from "./portalNoise";
 
 const ORB_HEIGHT = 1.6;
+// Glass look of the shell, tuned by eye — these three are the knobs if it reads
+// too solid or too faint.
+const SHELL_OPACITY = 0.38;
+const SHELL_ROUGHNESS = 0.06;
+const SHELL_ENV_INTENSITY = 1.6;
 const MOTE_COUNT = 70;
 const MOTE_RADIUS = 1.15;
 const MOTE_RISE = 3.1;
@@ -44,41 +50,7 @@ const coreFragmentShader = /* glsl */`
     varying vec3 vNormalW;
     varying vec3 vViewW;
 
-    float hash(vec3 p) {
-        return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
-    }
-
-    float noise(vec3 p) {
-        vec3 i = floor(p);
-        vec3 f = fract(p);
-        vec3 u = f * f * (3.0 - 2.0 * f);
-
-        float n000 = hash(i);
-        float n100 = hash(i + vec3(1, 0, 0));
-        float n010 = hash(i + vec3(0, 1, 0));
-        float n110 = hash(i + vec3(1, 1, 0));
-        float n001 = hash(i + vec3(0, 0, 1));
-        float n101 = hash(i + vec3(1, 0, 1));
-        float n011 = hash(i + vec3(0, 1, 1));
-        float n111 = hash(i + vec3(1, 1, 1));
-
-        return mix(
-            mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
-            mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
-            u.z
-        );
-    }
-
-    float fbm(vec3 p) {
-        float sum = 0.0;
-        float amp = 0.55;
-        for (int i = 0; i < 3; i++) {
-            sum += noise(p) * amp;
-            p *= 2.13;
-            amp *= 0.5;
-        }
-        return sum;
-    }
+    ${PORTAL_NOISE_GLSL}
 
     void main() {
         float facing = abs(dot(normalize(vNormalW), normalize(vViewW)));
@@ -86,8 +58,8 @@ const coreFragmentShader = /* glsl */`
         float swirl = atan(vLocal.z, vLocal.x) * 1.5 + uTime * 0.6;
         vec3 flow = vec3(cos(swirl), vLocal.y * 2.2 - uTime * 0.45, sin(swirl));
 
-        float plasma = fbm(flow * 2.4);
-        float filament = fbm(flow * 6.1 + vec3(0.0, uTime * 0.7, 0.0));
+        float plasma = fbm3(flow * 2.4);
+        float filament = fbm3(flow * 6.1 + vec3(0.0, uTime * 0.7, 0.0));
 
         float heat = smoothstep(0.28, 0.78, plasma + uPulse * 0.18);
         float veins = pow(smoothstep(0.42, 0.78, filament), 1.8);
@@ -142,18 +114,27 @@ export class LiftCrystal {
     constructor() {
         this.group = new THREE.Group();
 
+        // No `transmission` here, deliberately. A transmissive material makes
+        // three.js run renderTransmissionPass() every frame the mesh is in the
+        // frustum: the whole opaque scene is drawn a second time into a
+        // full-viewport render target forced to at least 4x MSAA, resolved, and
+        // mipmapped. That is why turning to face a portal used to cost more than
+        // the rest of the frame put together, on any quality preset. The crystal
+        // sits in every tower floor, the main world, the canyon and the basement,
+        // so the pass was running almost everywhere.
+        //
+        // Opacity replaces the see-through that transmission used to provide;
+        // it is the one value worth eyeballing if the glass reads too thin.
         this.shellMaterial = new THREE.MeshPhysicalMaterial({
             color: 0x9fd8ff,
-            transmission: 1,
-            thickness: 1.35,
-            ior: 1.75,
-            roughness: 0.06,
+            roughness: SHELL_ROUGHNESS,
             metalness: 0,
             iridescence: 1,
             iridescenceIOR: 1.9,
             iridescenceThicknessRange: [120, 620],
             transparent: true,
-            opacity: 0.92,
+            opacity: SHELL_OPACITY,
+            envMapIntensity: SHELL_ENV_INTENSITY,
             side: THREE.DoubleSide,
             depthWrite: false,
         });
@@ -166,6 +147,7 @@ export class LiftCrystal {
         this.coreUniforms = {
             uTime: { value: 0 },
             uPulse: { value: 0 },
+            uNoise: { value: getPortalNoiseTexture() },
             uHot: { value: new THREE.Color(0xffffff) },
             uMid: { value: new THREE.Color(0x2ff0ff) },
             uCold: { value: new THREE.Color(0x5b1bd6) },

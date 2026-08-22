@@ -18,6 +18,13 @@ import { SpawnShield } from "./spawnShield";
 
 export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
+const HEAD_MAX_YAW = Math.PI * 0.5;
+const HEAD_MAX_PITCH = Math.PI * 0.4;
+// Radians-per-second style damping: the head reaches ~95% of the target in
+// about a quarter second, and the rate no longer depends on the frame rate.
+const HEAD_TRACK_SPEED = 12;
+const NECK_PITCH_SHARE = 0.6;
+
 export class Player extends Entity {
     private speed: number = 7;
     private speedMultiplier: number = 1;
@@ -59,6 +66,8 @@ export class Player extends Entity {
 
     private head: THREE.Object3D | null = null;
     private neck: THREE.Object3D | null = null;
+    private headYaw = 0;
+    private headPitch = 0;
     private rightHand: THREE.Object3D | null = null;
     private hips: THREE.Object3D | null = null;
     private weaponEquipped: boolean = true;
@@ -95,6 +104,7 @@ export class Player extends Entity {
     private static readonly _checkPos = new THREE.Vector3();
     private static readonly _surfacePos = new THREE.Vector3();
     private static readonly _UP = new THREE.Vector3(0, 1, 0);
+    private static readonly _headEuler = new THREE.Euler();
     private static readonly _playerBox = new THREE.Box3();
     private static readonly _playerSize = new THREE.Vector3(0.8, 2, 0.8);
 
@@ -711,8 +721,12 @@ export class Player extends Entity {
         this.mesh.position.y = this.smoothVerticalY(this.baseY + bobOffset, delta);
 
         this.checkTakeoff();
-        this.updateHeadRotation();
 
+        this.animator.update(delta);
+
+        // Same reason as the head below: written before the mixer this was a
+        // no-op. (On the current rig it stays inert anyway — the skeleton root
+        // is named Spine, so findBoneFirst never matches a hips bone.)
         if (this.hips) {
             this.hips.rotation.x = 0;
             this.hips.rotation.z = 0;
@@ -720,7 +734,10 @@ export class Player extends Entity {
             this.hips.position.z = 0;
         }
 
-        this.animator.update(delta);
+        // After the mixer, never before: the clips animate Head/Neck themselves,
+        // so anything written earlier in the frame is overwritten before it ever
+        // renders. That is why the look used to have no effect at all.
+        this.updateHeadRotation(delta);
     }
 
     private checkTakeoff() {
@@ -867,26 +884,31 @@ export class Player extends Entity {
         return this.isShooting;
     }
 
-    private updateHeadRotation() {
+    private updateHeadRotation(delta: number) {
         if (!this.head) return;
 
         let headYaw = this.camera.getYaw() - this.mesh.rotation.y + MODEL_FORWARD_OFFSET;
         while (headYaw > Math.PI) headYaw -= Math.PI * 2;
         while (headYaw < -Math.PI) headYaw += Math.PI * 2;
 
-        const maxHeadYaw = Math.PI * 0.5;
-        const clampedYaw = Math.max(-maxHeadYaw, Math.min(maxHeadYaw, headYaw));
+        const clampedYaw = Math.max(-HEAD_MAX_YAW, Math.min(HEAD_MAX_YAW, headYaw));
+        const clampedPitch = Math.max(-HEAD_MAX_PITCH, Math.min(HEAD_MAX_PITCH, -this.camera.getPitch()));
 
-        this.head.rotation.y += (clampedYaw - this.head.rotation.y) * 0.3;
-
-        const targetPitchX = -this.camera.getPitch();
-        const maxPitchX = Math.PI * 0.4;
-        const clampedPitchX = Math.max(-maxPitchX, Math.min(maxPitchX, targetPitchX));
+        // Smoothing lives in these two fields, not in the bone. Reading the angle
+        // back off the bone would read the pose the mixer just wrote, and an
+        // Euler read-back can flip quadrants near the gimbal limit, which shows
+        // up as a single-frame snap.
+        const follow = 1 - Math.exp(-delta * HEAD_TRACK_SPEED);
+        this.headYaw += (clampedYaw - this.headYaw) * follow;
+        this.headPitch += (clampedPitch - this.headPitch) * follow;
 
         if (this.neck) {
-            this.neck.rotation.x += (clampedPitchX * 0.6 - this.neck.rotation.x) * 0.3;
+            Player._headEuler.set(this.headPitch * NECK_PITCH_SHARE, 0, 0);
+            this.neck.quaternion.setFromEuler(Player._headEuler);
         }
-        this.head.rotation.x += (clampedPitchX - this.head.rotation.x) * 0.3;
+
+        Player._headEuler.set(this.headPitch, this.headYaw, 0);
+        this.head.quaternion.setFromEuler(Player._headEuler);
     }
 
     getWeapon(): Weapon {

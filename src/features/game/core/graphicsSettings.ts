@@ -9,6 +9,7 @@ export interface GraphicsSettings {
     particles: boolean;
     pointLights: boolean;
     transmission: boolean;
+    portalDetail: boolean;
     fog: boolean;
 }
 
@@ -27,6 +28,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
     particles: true,
     pointLights: true,
     transmission: true,
+    portalDetail: true,
     fog: true,
 };
 
@@ -39,6 +41,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
         particles: false,
         pointLights: false,
         transmission: false,
+        portalDetail: false,
         fog: true,
     },
     medium: {
@@ -49,6 +52,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
         particles: true,
         pointLights: false,
         transmission: false,
+        portalDetail: false,
         fog: true,
     },
     high: {
@@ -59,6 +63,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
         particles: true,
         pointLights: true,
         transmission: true,
+        portalDetail: true,
         fog: true,
     },
 };
@@ -81,6 +86,7 @@ function sanitize(raw: unknown): GraphicsSettings {
         particles: typeof source.particles === "boolean" ? source.particles : DEFAULT_GRAPHICS.particles,
         pointLights: typeof source.pointLights === "boolean" ? source.pointLights : DEFAULT_GRAPHICS.pointLights,
         transmission: typeof source.transmission === "boolean" ? source.transmission : DEFAULT_GRAPHICS.transmission,
+        portalDetail: typeof source.portalDetail === "boolean" ? source.portalDetail : DEFAULT_GRAPHICS.portalDetail,
         fog: typeof source.fog === "boolean" ? source.fog : DEFAULT_GRAPHICS.fog,
     };
 }
@@ -117,6 +123,7 @@ export function applyGraphicsSettings(settings: GraphicsSettings = getGraphicsSe
     perf.set("points", settings.particles, true);
     perf.set("pointLights", settings.pointLights, true);
     perf.set("transmission", settings.transmission, true);
+    perf.set("portalDetail", settings.portalDetail, true);
     perf.set("fog", settings.fog, true);
 }
 
@@ -124,6 +131,7 @@ export function reapplySceneGraphics(settings: GraphicsSettings = getGraphicsSet
     if (!settings.particles) perf.set("points", false, true);
     if (!settings.pointLights) perf.set("pointLights", false, true);
     if (!settings.transmission) perf.set("transmission", false, true);
+    if (!settings.portalDetail) perf.set("portalDetail", false, true);
     if (!settings.fog) perf.set("fog", false, true);
     if (settings.shadowRes > 0 && settings.shadowRes !== DEFAULT_GRAPHICS.shadowRes) {
         perf.set("shadowRes", settings.shadowRes, true);

@@ -22,7 +22,7 @@ import { useLanguage } from "@/core/i18n/LanguageContext";
 const PRESETS: GraphicsPreset[] = ["low", "medium", "high"];
 
 interface ToggleRow {
-    key: "particles" | "pointLights" | "transmission" | "fog";
+    key: "particles" | "pointLights" | "transmission" | "portalDetail" | "fog";
     labelKey: string;
     hintKey: string;
 }
@@ -31,6 +31,7 @@ const TOGGLES: ToggleRow[] = [
     { key: "particles", labelKey: "g.graphics.particles", hintKey: "g.graphics.particlesHint" },
     { key: "pointLights", labelKey: "g.graphics.pointLights", hintKey: "g.graphics.pointLightsHint" },
     { key: "transmission", labelKey: "g.graphics.transmission", hintKey: "g.graphics.transmissionHint" },
+    { key: "portalDetail", labelKey: "g.graphics.portalDetail", hintKey: "g.graphics.portalDetailHint" },
     { key: "fog", labelKey: "g.graphics.fog", hintKey: "g.graphics.fogHint" },
 ];
 

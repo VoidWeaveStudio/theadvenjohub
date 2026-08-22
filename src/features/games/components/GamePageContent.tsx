@@ -19,6 +19,9 @@ interface GameData {
     coverImage: string | null;
     backgroundImage: string | null;
     price: number;
+    priceCurrency?: string;
+    priceUsdCents?: number;
+    priceUnavailable?: boolean;
     releaseDate: string | null;
     platform: string | null;
     status: string;
@@ -99,9 +102,13 @@ export default function GamePageContent() {
         );
     }
 
+    // Converted from USDT at read time when the game is priced that way, so the
+    // figure is an approximation the checkout quote re-derives.
+    const inUsdt = game.priceCurrency === "usdt";
+
     const formatPrice = (price: number) => {
         if (price <= 0) return t("game.free") || "Free";
-        return `${price.toLocaleString("en-US")} TNJ`;
+        return `${inUsdt ? "≈ " : ""}${price.toLocaleString("en-US")} TNJ`;
     };
 
     const getStatusBadge = (status: string) => {
@@ -411,7 +418,12 @@ export default function GamePageContent() {
                     <div className="space-y-6">
                         <div className="card p-6 sticky top-24 space-y-4">
                             <div className="text-3xl font-bold text-primary">
-                                {formatPrice(game.price)}
+                                {game.priceUnavailable ? t("game.priceUnavailable") : formatPrice(game.price)}
+                                {inUsdt && (game.priceUsdCents ?? 0) > 0 && (
+                                    <span className="ml-2 text-sm text-text-secondary">
+                                        ${((game.priceUsdCents ?? 0) / 100).toFixed(2)}
+                                    </span>
+                                )}
                             </div>
 
                             {game.isOwned ? (

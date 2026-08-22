@@ -4,6 +4,18 @@ import { EmoteKey, isEmoteKey } from "../data/emotes";
 import { CosmeticId, normalizeLoadout } from "../data/cosmetics";
 import { COMPANIONS_BY_ID, isCompanionId, type CompanionId, type CompanionRarity } from "../data/companions";
 import { BranchId, isBranchId } from "../data/progression";
+import type { TournamentEntryView, TournamentSummary } from "@/core/lib/tournaments";
+
+export type { TournamentEntryView, TournamentSummary } from "@/core/lib/tournaments";
+
+// One shape for every player-driven tournament mutation. The extra fields are
+// per-action, and the server ignores the ones the action does not use.
+export type TournamentActionPayload =
+  | { action: "join"; tournamentId: string }
+  | { action: "submitSkin"; tournamentId: string; kind: string }
+  | { action: "submitShot"; tournamentId: string; shotUrl: string }
+  | { action: "setPost"; tournamentId: string; postUrl: string }
+  | { action: "like"; tournamentId: string; entryId: string };
 
 export type PlayerNetData = {
   id: string;
@@ -1041,6 +1053,10 @@ export class NetworkManager {
   public onFactionQuestManageListResult?: (data: FactionQuestManageData) => void;
   public onFactionQuestCreated?: (data: { quest: FactionQuestManaged & { factionId: string }; chargedAsh: number }) => void;
   public onFactionQuestClaimed?: (data: { questId: string; rewardAsh: number; slotsClaimed: number; slotsTotal: number; status: string }) => void;
+  public onTournamentListResult?: (tournaments: TournamentSummary[]) => void;
+  public onTournamentEntriesResult?: (data: { tournamentId: string; kind: string | null; entries: TournamentEntryView[] }) => void;
+  public onTournamentActionResult?: (data: { action: string; tournamentId: string }) => void;
+  public onFragmentsGranted?: (data: { amount: number; source: string }) => void;
 
   public onMailReceived?: (data: { mailId: string; senderNickname: string; subject: string }) => void;
   public onFriendRequestReceived?: (friend: FriendRequestEntry) => void;
@@ -1894,6 +1910,25 @@ export class NetworkManager {
       case "factionQuestClaimed":
         this.onFactionQuestClaimed?.(data);
         break;
+      case "tournamentListResult":
+        this.onTournamentListResult?.(Array.isArray(data.tournaments) ? data.tournaments : []);
+        break;
+      case "tournamentEntriesResult":
+        this.onTournamentEntriesResult?.({
+          tournamentId: data.tournamentId,
+          kind: typeof data.kind === "string" ? data.kind : null,
+          entries: Array.isArray(data.entries) ? data.entries : [],
+        });
+        break;
+      case "tournamentActionResult":
+        this.onTournamentActionResult?.({ action: data.action, tournamentId: data.tournamentId });
+        break;
+      case "fragmentsGranted":
+        this.onFragmentsGranted?.({
+          amount: Math.max(0, Math.floor(Number(data.amount) || 0)),
+          source: typeof data.source === "string" ? data.source : "unknown",
+        });
+        break;
       case "friendRequestSent":
         this.onFriendRequestSent?.(data.friend, data.status);
         break;
@@ -2397,6 +2432,21 @@ export class NetworkManager {
   sendFactionQuestClaim(questId: string) {
     if (!this.authenticated) return;
     this.send({ type: "factionQuestClaim", questId });
+  }
+
+  sendTournamentListRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "tournamentListRequest" });
+  }
+
+  sendTournamentEntriesRequest(tournamentId: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "tournamentEntriesRequest", tournamentId });
+  }
+
+  sendTournamentAction(payload: TournamentActionPayload) {
+    if (!this.authenticated) return;
+    this.send({ type: "tournamentAction", ...payload });
   }
 
   sendFriendRequest(walletOrNickname: { wallet?: string; nickname?: string }) {

@@ -5,6 +5,7 @@ import { gameLicenses, marketplaceLots, games } from "@/core/database/schema";
 import { and, eq } from "drizzle-orm";
 import { requireAuth } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
+import { resolveGamePrice } from "@/core/lib/gamePricing";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -66,8 +67,23 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "already_owned" }, { status: 409, headers: formatRateLimitHeaders(rl) });
       }
 
+      const resolved = await resolveGamePrice(game);
+      if (resolved.payableTnj === null || resolved.payableTnj <= 0) {
+        return NextResponse.json(
+          { error: "price_unavailable" },
+          { status: 503, headers: formatRateLimitHeaders(rl) }
+        );
+      }
+
       return NextResponse.json(
-        { price: game.price, currency: "TNJ" },
+        {
+          price: resolved.payableTnj,
+          currency: "TNJ",
+          // A USDT-priced game reprices on every quote, so the client must not
+          // compare this against the number it rendered from the cached list.
+          dynamic: resolved.dynamic,
+          priceUsdCents: resolved.priceUsdCents,
+        },
         { headers: { "Cache-Control": "no-store", ...formatRateLimitHeaders(rl) } }
       );
     }

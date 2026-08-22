@@ -201,7 +201,10 @@ export function PurchaseButton({ gameId, lotId, factionId, quoteItemId, price, i
         if (typeof quote.price !== "number") {
           throw new Error("price_unavailable");
         }
-        if (quote.price !== price) {
+        // A game priced in USDT is converted to TNJ on every quote, so it will
+        // almost never match the number rendered from the cached listing. Only a
+        // fixed price is worth guarding against tampering this way.
+        if (quote.dynamic !== true && quote.price !== price) {
           throw new Error(
             `${t("errors.priceChanged") || "The price changed, reload the page"}: ${quote.price.toLocaleString("en-US")} TNJ`
           );

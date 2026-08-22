@@ -1532,6 +1532,27 @@ export function registerNetworkHandlers(game: Game) {
         game.onFactionQuestManageListResult?.(data);
     };
 
+    game.networkManager.onTournamentListResult = (tournaments) => {
+        game.tournaments = tournaments;
+        game.onTournamentListResult?.(tournaments);
+
+        const hall = game.locationManager.getCurrentLocation();
+        if (hall instanceof MainHall) hall.setTournaments(tournaments);
+    };
+
+    game.networkManager.onTournamentEntriesResult = (data) => {
+        game.onTournamentEntriesResult?.(data);
+    };
+
+    game.networkManager.onTournamentActionResult = (data) => {
+        game.onTournamentActionResult?.(data);
+    };
+
+    game.networkManager.onFragmentsGranted = (data) => {
+        if (data.amount <= 0) return;
+        game.onNotification?.(t("g.notify.fragmentsGranted", { amount: data.amount }), 2500);
+    };
+
     game.networkManager.onFactionQuestCreated = (data) => {
         game.onFactionQuestCreated?.(data);
         game.onNotification?.(t("g.notify.questPublished", { amount: data.chargedAsh }), 3500);

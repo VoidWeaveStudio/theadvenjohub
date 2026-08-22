@@ -27,6 +27,8 @@ import {
     FactionQuestEntry,
     FactionQuestManaged,
     FactionQuestManageData,
+    TournamentSummary,
+    TournamentEntryView,
     PlayerProfileData,
     LeaderboardEntry,
     FriendEntry,
@@ -97,6 +99,7 @@ export interface GameCallbacks {
     onOpenSolaUI?: () => void;
     onOpenAlfredoUI?: () => void;
     onOpenGateStewardUI?: () => void;
+    onOpenTournamentBoardUI?: () => void;
     onOpenPlayerBubbleUI?: (bubbleIndex: number) => void;
     onOpenFactionBubbleUI?: (factionId: string) => void;
     onOpenRoomPortalUI?: () => void;
@@ -157,6 +160,9 @@ export interface GameCallbacks {
     onFactionQuestManageListResult?: (data: FactionQuestManageData) => void;
     onFactionQuestCreated?: (data: { quest: FactionQuestManaged & { factionId: string }; chargedAsh: number }) => void;
     onFactionQuestClaimed?: (data: { questId: string; rewardAsh: number; slotsClaimed: number; slotsTotal: number; status: string }) => void;
+    onTournamentListResult?: (tournaments: TournamentSummary[]) => void;
+    onTournamentEntriesResult?: (data: { tournamentId: string; kind: string | null; entries: TournamentEntryView[] }) => void;
+    onTournamentActionResult?: (data: { action: string; tournamentId: string }) => void;
 
     onFriendRequestSent?: (friend: FriendRequestEntry, status: string) => void;
     onFriendRequestAccepted?: (friend: FriendEntry) => void;

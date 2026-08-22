@@ -2,49 +2,54 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ResourceManager } from "../../core/ResourceManager";
-import { PreviewScene, type PreviewSubject } from "./PreviewScene";
+import { PreviewTile, type PreviewSubject } from "./PreviewScene";
 
 interface ModelPreviewProps {
     subject: PreviewSubject;
     className?: string;
+    interactive?: boolean;
 }
 
-export function ModelPreview({ subject, className }: ModelPreviewProps) {
+export function ModelPreview({ subject, className, interactive = true }: ModelPreviewProps) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const sceneRef = useRef<PreviewScene | null>(null);
+    const tileRef = useRef<PreviewTile | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const scene = new PreviewScene(canvas, ResourceManager.getInstance());
-        sceneRef.current = scene;
+        const tile = new PreviewTile(canvas, interactive);
+        tileRef.current = tile;
 
-        const onResize = () => scene.resize();
-        window.addEventListener("resize", onResize);
+        // Tiles that scrolled out of the list stop costing frames. Without this a
+        // long shop list would keep every preview spinning off-screen.
+        const observer = new IntersectionObserver(
+            (entries) => tile.setVisible(entries.some((entry) => entry.isIntersecting)),
+            { threshold: 0.01 }
+        );
+        observer.observe(canvas);
 
         return () => {
-            window.removeEventListener("resize", onResize);
-            scene.dispose();
-            sceneRef.current = null;
+            observer.disconnect();
+            tile.dispose();
+            tileRef.current = null;
         };
-    }, []);
+    }, [interactive]);
 
     useEffect(() => {
-        sceneRef.current?.setSubject(subject);
-        sceneRef.current?.resize();
+        tileRef.current?.setSubject(subject);
     }, [
         subject.kind,
         subject.kind === "companion" ? subject.companionId : null,
         subject.kind === "character" ? subject.skinId : null,
         subject.kind === "character" ? subject.accessoryId : null,
+        subject.kind === "character" ? subject.skinTextureUrl ?? null : null,
     ]);
 
     return (
         <canvas
             ref={canvasRef}
-            className={className ?? "w-full h-full block cursor-grab active:cursor-grabbing"}
+            className={className ?? `block h-full w-full ${interactive ? "cursor-grab active:cursor-grabbing" : ""}`}
         />
     );
 }

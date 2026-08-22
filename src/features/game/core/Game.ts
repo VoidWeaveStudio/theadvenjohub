@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData, RespawnTarget } from "../network/NetworkManager";
+import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData, RespawnTarget, TournamentSummary, TournamentActionPayload } from "../network/NetworkManager";
 import { BranchId } from "../data/progression";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
@@ -119,6 +119,8 @@ export interface DamageEvent {
     timestamp: number;
 }
 
+const TOURNAMENT_SHOT_MAX_WIDTH = 960;
+
 export class Game {
     private hitMarkTrigger: number = 0;
     private canvas: HTMLCanvasElement;
@@ -189,6 +191,7 @@ export class Game {
     public leaderboard: LeaderboardEntry[] = [];
     public factionLeaderboard: FactionSummary[] = [];
     public factionQuests: FactionQuestEntry[] = [];
+    public tournaments: TournamentSummary[] = [];
     private lastFactionViewRefresh = 0;
     private pendingOwnFactionRefresh = false;
     public myNickname: string = "";
@@ -424,6 +427,12 @@ export class Game {
         const width = container?.clientWidth || window.innerWidth;
         const height = container?.clientHeight || window.innerHeight;
         return width / Math.max(1, height);
+    }
+
+    // Build-contest screenshots only count from inside the player's own bubble,
+    // so the UI asks here before letting them press the shutter.
+    public isInOwnPersonalRoom(): boolean {
+        return this.locationManager.getCurrentLocation()?.id === `player-room-${this.session.userId}`;
     }
 
     public async teleportToPersonalRoom(ownerUserId?: string) {
@@ -799,6 +808,11 @@ export class Game {
                     this.onOpenGateStewardUI?.();
                 };
 
+                this.interactionSystem.onOpenTournamentBoard = () => {
+                    this.requestTournamentList();
+                    this.onOpenTournamentBoardUI?.();
+                };
+
                 this.interactionSystem.onOpenPlayerBubble = (bubbleIndex) => {
                     this.onOpenPlayerBubbleUI?.(bubbleIndex);
                 };
@@ -1130,7 +1144,19 @@ export class Game {
                     return;
                 }
 
-                if (programs.every((program) => program.isReady())) {
+                // A program released between two polls (a material recompiling, or
+                // the previous location tearing down) leaves a stale entry whose
+                // GL handle is gone; isReady() then logs GL_INVALID_VALUE. Treat
+                // anything that throws as ready rather than spamming the console.
+                const ready = programs.every((program) => {
+                    try {
+                        return program.isReady();
+                    } catch {
+                        return true;
+                    }
+                });
+
+                if (ready) {
                     resolve();
                     return;
                 }
@@ -1356,6 +1382,30 @@ export class Game {
     public getViewportHeight(): number {
         const container = this.canvas.parentElement;
         return container?.clientHeight || window.innerHeight;
+    }
+
+    // Grabs whatever the player is looking at right now, downscaled so the PNG
+    // stays well under the upload limit. The renderer runs without
+    // preserveDrawingBuffer, so the frame has to be drawn and copied inside the
+    // same synchronous block — a toBlob on a later tick would come back blank.
+    public captureScreenshot(maxWidth = TOURNAMENT_SHOT_MAX_WIDTH): Promise<Blob | null> {
+        this.locationManager.render();
+
+        const source = this.renderer.domElement;
+        const width = source.width;
+        const height = source.height;
+        if (width === 0 || height === 0) return Promise.resolve(null);
+
+        const scale = Math.min(1, maxWidth / width);
+        const target = document.createElement("canvas");
+        target.width = Math.max(1, Math.round(width * scale));
+        target.height = Math.max(1, Math.round(height * scale));
+
+        const ctx = target.getContext("2d");
+        if (!ctx) return Promise.resolve(null);
+        ctx.drawImage(source, 0, 0, target.width, target.height);
+
+        return new Promise((resolve) => target.toBlob((blob) => resolve(blob), "image/png"));
     }
 
     private handleResize = () => {
@@ -1850,6 +1900,18 @@ export class Game {
 
     requestFactionQuestManageList(factionId: string) {
         this.networkManager.sendFactionQuestManageListRequest(factionId);
+    }
+
+    requestTournamentList() {
+        this.networkManager.sendTournamentListRequest();
+    }
+
+    requestTournamentEntries(tournamentId: string) {
+        this.networkManager.sendTournamentEntriesRequest(tournamentId);
+    }
+
+    sendTournamentAction(payload: TournamentActionPayload) {
+        this.networkManager.sendTournamentAction(payload);
     }
 
     createFactionQuest(factionId: string, targetUrl: string, slotsTotal: number, rewardAsh: number) {

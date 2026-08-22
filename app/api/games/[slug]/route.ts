@@ -4,6 +4,7 @@ import { db } from "@/core/database";
 import { games, gameLicenses, gameScreenshots } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "@/core/auth/lib/auth";
+import { resolveGamePrice } from "@/core/lib/gamePricing";
 
 export async function GET(
   req: NextRequest,
@@ -45,13 +46,18 @@ export async function GET(
       }
     }
 
+    const resolvedPrice = await resolveGamePrice(game);
+
     return NextResponse.json({
       id: game.id,
       slug: game.slug,
       title: game.title,
       coverImage: game.coverImage,
       publisher: game.publisher,
-      price: game.price,
+      price: resolvedPrice.payableTnj ?? game.price,
+      priceCurrency: resolvedPrice.currency,
+      priceUsdCents: resolvedPrice.priceUsdCents,
+      priceUnavailable: resolvedPrice.payableTnj === null,
       isOwned,
       screenshots: game.screenshots?.map(s => s.url) || [],
     }, {

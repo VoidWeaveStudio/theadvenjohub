@@ -13,14 +13,31 @@ interface GameCardProps {
   coverImage: string | null;
   publisher: string | null;
   price: number;
+  priceCurrency?: string;
+  priceUsdCents?: number;
+  priceUnavailable?: boolean;
 }
 
-export function GameCard({ id, slug, title, coverImage, publisher, price }: GameCardProps) {
+export function GameCard({
+  id,
+  slug,
+  title,
+  coverImage,
+  publisher,
+  price,
+  priceCurrency,
+  priceUsdCents = 0,
+  priceUnavailable = false,
+}: GameCardProps) {
   const { t } = useLanguage();
+
+  // A USDT-priced game is converted at read time, so the TNJ shown here is an
+  // approximation that the checkout quote re-derives.
+  const inUsdt = priceCurrency === "usdt";
 
   const formatPrice = (price: number) => {
     if (price <= 0) return t("game.free") || "Free";
-    return `${price.toLocaleString("en-US")} TNJ`;
+    return `${inUsdt ? "≈ " : ""}${price.toLocaleString("en-US")} TNJ`;
   };
 
   return (
@@ -55,8 +72,11 @@ export function GameCard({ id, slug, title, coverImage, publisher, price }: Game
 
         <div className="flex items-center justify-between pt-2">
           <span className="text-lg font-bold text-primary">
-            {formatPrice(price)}
+            {priceUnavailable ? t("game.priceUnavailable") : formatPrice(price)}
           </span>
+          {inUsdt && priceUsdCents > 0 && (
+            <span className="text-sm text-text-secondary">${(priceUsdCents / 100).toFixed(2)}</span>
+          )}
         </div>
       </div>
     </Link>

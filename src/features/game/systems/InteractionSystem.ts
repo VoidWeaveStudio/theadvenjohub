@@ -8,6 +8,7 @@ import { PAINT_PREFIX } from "../world/building/BuildRenderer";
 import { SPAWN_BEACON_INTERACTION, STORAGE_INTERACTION } from "../world/building/BuildCatalog";
 import { DEATH_CRATE_PREFIX } from "../entities/DeathCrate";
 import { ARENA_ALTAR_INTERACTION, EVENT_DOORS_BY_ID, EVENT_DOOR_PREFIX, EVENT_EXIT_INTERACTION } from "../data/eventDoors";
+import { TOURNAMENT_BOARD_INTERACTION } from "../world/locations/tower/floors/main-hall/layout";
 import { t } from "@/core/i18n";
 
 const ARENA_REVIVE_PREFIX = "arena-revive:";
@@ -45,6 +46,7 @@ export class InteractionSystem extends System {
     public onOpenFactionBroker?: () => void;
     public onOpenAlfredo?: () => void;
     public onOpenGateSteward?: () => void;
+    public onOpenTournamentBoard?: () => void;
     public onOpenPlayerBubble?: (bubbleIndex: number) => void;
     public onOpenFactionBubble?: (factionId: string) => void;
     public onOpenRoomPortal?: () => void;
@@ -133,6 +135,11 @@ export class InteractionSystem extends System {
                 this.onPrompt?.(t("g.prompt.usePortal"));
                 if (isEJustPressed === true) {
                     this.onOpenRoomPortal?.();
+                }
+            } else if (id === TOURNAMENT_BOARD_INTERACTION) {
+                this.onPrompt?.(t("g.prompt.tournamentBoard"));
+                if (isEJustPressed === true) {
+                    this.onOpenTournamentBoard?.();
                 }
             } else if (id === "gate-steward") {
                 this.onPrompt?.(t("g.prompt.gateSteward"));

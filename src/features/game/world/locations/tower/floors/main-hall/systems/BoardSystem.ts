@@ -25,6 +25,8 @@ import {
     hexColor,
 } from "../utils/boards";
 import {
+    ACCENT_POINT_LIGHTS,
+    BOARD_WASH_LIGHTS,
     BANNER_BOTTOM,
     BANNER_RADIUS,
     BOARD_BOTTOM,
@@ -121,7 +123,7 @@ export class BoardSystem {
     ) { }
 
     create(materials: ShellMaterials) {
-        if (!isLowEndDevice()) RectAreaLightUniformsLib.init();
+        if (!isLowEndDevice() && BOARD_WASH_LIGHTS) RectAreaLightUniformsLib.init();
 
         const frameBatch = new GeometryBatch();
         const brassBatch = new GeometryBatch();
@@ -246,7 +248,7 @@ export class BoardSystem {
         const panelAt = at(0, centerY, 0.05);
         panelBatch.addPanel(plane, panelAt[0], panelAt[1], panelAt[2], BOARD_WIDTH_UNITS, BOARD_HEIGHT_UNITS, rotation, atlasRow(4, atlasIndex));
 
-        if (isLowEndDevice()) return;
+        if (isLowEndDevice() || !BOARD_WASH_LIGHTS) return;
 
         const wash = new THREE.RectAreaLight(
             atlasIndex === 0 ? 0xf5c877 : 0xc9a6e6,
@@ -443,7 +445,7 @@ export class BoardSystem {
                 phase: i * 1.7,
             });
 
-            if (!isLowEndDevice()) {
+            if (!isLowEndDevice() && ACCENT_POINT_LIGHTS) {
                 const light = new THREE.PointLight(accent, 5, 20, 2);
                 light.position.set(coinAt[0], coinAt[1] + 0.5, coinAt[2]);
                 light.castShadow = false;

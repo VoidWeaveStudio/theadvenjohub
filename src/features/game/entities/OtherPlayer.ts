@@ -17,6 +17,9 @@ import { EnergyWisp } from "./EnergyWisp";
 
 const TIERS_BY_ID = new Map(TIERS.map((t) => [t.id, t]));
 
+// Matches the local player's head tracking rate.
+const HEAD_TRACK_SPEED = 12;
+
 export class OtherPlayer extends Entity {
     public nickname: string;
     private isAdmin: boolean;
@@ -30,6 +33,7 @@ export class OtherPlayer extends Entity {
     private targetPosition: THREE.Vector3 = new THREE.Vector3();
     private targetRotation: number = 0;
     private targetPitch: number = 0;
+    private pitch: number = 0;
     private targetState: 'idle' | 'walk' | 'sprint' | 'jump' = 'idle';
     private nameSprite: THREE.Sprite | null = null;
     private headBone: THREE.Object3D | null = null;
@@ -547,12 +551,6 @@ export class OtherPlayer extends Entity {
         this.mesh.quaternion.slerp(OtherPlayer._targetQuat, Math.min(1, delta * 12));
         this.hitbox.quaternion.copy(this.mesh.quaternion);
 
-        if (this.headBone) {
-            OtherPlayer._targetEuler.set(this.targetPitch, 0, 0);
-            OtherPlayer._targetQuat.setFromEuler(OtherPlayer._targetEuler);
-            this.headBone.quaternion.slerp(OtherPlayer._targetQuat, Math.min(1, delta * 12));
-        }
-
         if (this.posedAnimation) {
             this.animator.play(this.posedAnimation, false);
         } else if (this.targetState === 'jump') {
@@ -577,6 +575,18 @@ export class OtherPlayer extends Entity {
             this.hipsBone.rotation.z = 0;
             this.hipsBone.position.x = 0;
             this.hipsBone.position.z = 0;
+        }
+
+        // After the mixer: the clips animate Head themselves, so the pitch used
+        // to be overwritten in the same frame and never reached the screen.
+        // The smoothing is kept in a field rather than slerped off the bone,
+        // because the bone is reset by the mixer on every frame — slerping from
+        // it would stall at a fixed fraction of the way to the target instead of
+        // converging on it.
+        if (this.headBone) {
+            this.pitch += (this.targetPitch - this.pitch) * (1 - Math.exp(-delta * HEAD_TRACK_SPEED));
+            OtherPlayer._targetEuler.set(this.pitch, 0, 0);
+            this.headBone.quaternion.setFromEuler(OtherPlayer._targetEuler);
         }
     }
 
