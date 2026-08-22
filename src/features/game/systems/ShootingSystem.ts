@@ -10,6 +10,8 @@ import { OtherPlayer } from "../entities/OtherPlayer";
 import type { ArsenalItem } from "../data/defusalArsenal";
 import { Location } from "../world/Location";
 import { CollisionGrid } from "../world/CollisionGrid";
+
+export type WorldImpactSound = "impact-stone" | "impact-dirt" | "impact-wood" | "impact-metal" | "impact-glass";
 import { ShootingEffects } from "./ShootingEffects";
 import { BoltProjectiles, BoltStep, BoltStepResult } from "./BoltProjectiles";
 import { SoundManager } from "../core/SoundManager";
@@ -77,6 +79,8 @@ export class ShootingSystem extends System {
     private energyRegen: number = 0;
 
     private nextShotAt = 0;
+    private nextDryFireAt = 0;
+    public worldImpactSound: WorldImpactSound = "impact-stone";
     private charging = false;
     private chargeStart = 0;
 
@@ -260,7 +264,11 @@ export class ShootingSystem extends System {
         if (alive && wantsReload) {
             const wasReloading = weapon.isReloading;
             weapon.reload();
-            if (!wasReloading && weapon.isReloading) this.network.sendReload();
+            if (!wasReloading && weapon.isReloading) {
+                this.network.sendReload();
+                SoundManager.getInstance().play("reload-magout", { volume: 0.45 });
+                SoundManager.getInstance().play("reload-magin", { volume: 0.45, delay: 0.5 });
+            }
         }
 
         this.effects.updateBullets(delta);
@@ -301,7 +309,14 @@ export class ShootingSystem extends System {
         if (cost > 0 && this.energy < cost) return false;
 
         const weapon = this.player.getWeapon();
-        if (!weapon.shoot()) return false;
+        if (!weapon.shoot()) {
+            const empty = weapon.kind !== "staff" && weapon.ammo <= 0 && !weapon.isReloading;
+            if (empty && now >= this.nextDryFireAt) {
+                this.nextDryFireAt = now + 450;
+                SoundManager.getInstance().play("dry-fire", { volume: 0.45 });
+            }
+            return false;
+        }
 
         this.nextShotAt = now + this.intervalMs();
 
@@ -312,7 +327,7 @@ export class ShootingSystem extends System {
             this.localShoot();
         }
 
-        SoundManager.getInstance().play("shoot");
+        SoundManager.getInstance().play(this.weaponKind === "staff" ? "staff-cast" : "shoot");
         return true;
     }
 
@@ -476,6 +491,11 @@ export class ShootingSystem extends System {
         const staticHit = this.raycastBoxes(this.staticBoxesAlong(step.from, direction, length), step.from);
         if (staticHit && (!closest || staticHit.distance < closest.distance)) {
             this.effects.spawnImpactEffect(staticHit.point);
+            SoundManager.getInstance().playAt(this.worldImpactSound, {
+                x: staticHit.point.x,
+                z: staticHit.point.z,
+                volume: 0.4,
+            });
             if (step.bolt.local) this.network.sendHit({ target: null, point: staticHit.point.toArray() });
             return "stop";
         }
@@ -489,8 +509,18 @@ export class ShootingSystem extends System {
             if (closest.kind === "player") {
                 this.onHitPlayer?.();
                 SoundManager.getInstance().play("hitmarker");
+                SoundManager.getInstance().playAt("impact-flesh", {
+                    x: closest.point.x,
+                    z: closest.point.z,
+                    volume: 0.5,
+                });
                 this.network.sendHit({ target: closest.id, point: closest.point.toArray() });
             } else {
+                SoundManager.getInstance().playAt("bolt-impact", {
+                    x: closest.point.x,
+                    z: closest.point.z,
+                    volume: 0.45,
+                });
                 this.network.sendEnemyHit({ target: closest.id!, point: closest.point.toArray() });
             }
         }
@@ -574,6 +604,11 @@ export class ShootingSystem extends System {
                 this.effects.spawnBloodEffect(hitPoint);
                 this.onHitPlayer?.();
                 SoundManager.getInstance().play("hitmarker");
+                SoundManager.getInstance().playAt("impact-flesh", {
+                    x: hitPoint.x,
+                    z: hitPoint.z,
+                    volume: 0.5,
+                });
                 this.network.sendHit({
                     target: targetId,
                     point: hitPoint.toArray(),
@@ -626,9 +661,12 @@ export class ShootingSystem extends System {
         }
 
         const direction = new THREE.Vector3().fromArray(data.direction);
+        const shooter = data.id ? this.otherPlayersRef?.get(data.id) ?? null : null;
+        const visualOrigin = shooter?.getWeaponMuzzle() ?? origin;
         const farPoint = origin.clone().add(direction.clone().multiplyScalar(HITSCAN_RANGE));
-        this.effects.spawnBullet(this.resourceManager, origin, direction, farPoint);
-        this.effects.muzzleFlash(origin);
+
+        this.effects.spawnBullet(this.resourceManager, visualOrigin, direction, farPoint);
+        this.effects.muzzleFlash(visualOrigin);
     }
 
     getAmmoState() {

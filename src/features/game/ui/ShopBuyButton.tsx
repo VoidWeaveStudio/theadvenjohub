@@ -11,6 +11,7 @@ import { useAuth } from "@/core/auth/AuthProvider";
 import { createRpcConnection, confirmSignature } from "@/core/lib/solanaClient";
 import { gameFetch } from "../utils/gameFetch";
 import { fetchPayableTnj } from "../utils/shopQuote";
+import { SoundManager } from "../core/SoundManager";
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
@@ -126,9 +127,11 @@ export function ShopBuyButton({ itemId, gameSlug, owned, onPurchased }: ShopBuyB
                 throw new Error(err.error || `purchase_failed_${res.status}`);
             }
 
+            SoundManager.getInstance().play("shop-buy", { volume: 0.6 });
             onPurchased(itemId);
         } catch (err: any) {
             console.error("[ShopBuy] purchase error:", err);
+            SoundManager.getInstance().play("shop-fail", { volume: 0.5 });
             setError(errorKey(err?.message || "failed"));
         } finally {
             isProcessingRef.current = false;

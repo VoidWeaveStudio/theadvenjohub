@@ -105,8 +105,8 @@ export class LobbyDoors {
             door.plaque.map?.dispose();
             door.plaque.map = createPlaqueTexture(
                 this.bin,
-                resolved?.title ?? t(door.event.name),
-                resolved?.tagline ?? t(door.event.tagline),
+                t(resolved?.title ?? door.event.name),
+                t(resolved?.tagline ?? door.event.tagline),
                 `#${new THREE.Color(resolved?.accent ?? door.event.accent).getHexString()}`,
                 resolved ? isEventLive(resolved) : door.event.live
             );
@@ -513,8 +513,8 @@ export class LobbyDoors {
             door.plaque.map?.dispose();
             door.plaque.map = createPlaqueTexture(
                 this.bin,
-                resolved.title,
-                resolved.tagline,
+                t(resolved.title),
+                t(resolved.tagline),
                 `#${new THREE.Color(resolved.accent).getHexString()}`,
                 isEventLive(resolved)
             );

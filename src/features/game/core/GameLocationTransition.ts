@@ -12,8 +12,10 @@ import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom
 import { EventsLobby } from "../world/locations/events/EventsLobby";
 import { Dust2 } from "../world/locations/events/rooms/Dust2";
 import { GRINDER_LOCATION_ID } from "../data/eventDoors";
+import type { WorldImpactSound } from "../systems/ShootingSystem";
 import { SAFE_ZONE_RADIUS } from "../world/locations/main-world/worldConfig";
 import { syncWorldStatus } from "./GameWorldState";
+import type { FootstepSurface } from "./SoundManager";
 
 export function applyFirstPersonMode(game: Game, location: Location) {
     const firstPerson = location instanceof Dust2;
@@ -34,8 +36,31 @@ export function applyLocationMovementConfig(game: Game, location: Location) {
     game.shootingSystem.setLocation(location, location.collisionGrid ?? null);
 }
 
+function footstepSurfaceFor(id: string): FootstepSurface {
+    if (id === "cave") return "stone";
+    if (id === "dust2") return "sand";
+    if (id.startsWith("tower-") || id === "basement") return "stone";
+    if (id.startsWith("room-") || id.startsWith("faction-")) return "wood";
+    return "soft";
+}
+
+function worldImpactFor(id: string): WorldImpactSound {
+    if (id === "main-world") return "impact-dirt";
+    if (id.startsWith("room-") || id.startsWith("faction-")) return "impact-wood";
+    if (id === "tower-token-gates" || id === "tower-basement") return "impact-glass";
+    return "impact-stone";
+}
+
 export function configureLocationSpecifics(game: Game, location: Location) {
+    game.player.footstepSurface = footstepSurfaceFor(location.id);
+    game.shootingSystem.worldImpactSound = worldImpactFor(location.id);
+
     game.dust2Mode = location instanceof Dust2;
+    if (!game.dust2Mode) {
+        game.dust2MateIds.clear();
+        game.minimapMates.length = 0;
+        game.minimapBomb = null;
+    }
     if (location.id !== GRINDER_LOCATION_ID) game.onGrinderState?.(null);
     if (!game.dust2Mode) game.clearDefusalView();
 

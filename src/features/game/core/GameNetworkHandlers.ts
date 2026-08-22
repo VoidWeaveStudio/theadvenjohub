@@ -10,7 +10,15 @@ import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { Cave } from "../world/locations/cave/Cave";
 import { apiPost } from "@/core/api/client";
+import type { CanyonSegmentData } from "../network/NetworkManager";
 import { SoundManager } from "./SoundManager";
+import { perf } from "./PerfProfiler";
+import {
+    playBombResolved,
+    playDefusalMatchEnd,
+    playDefusalRoundEnd,
+    updateDefusalAudio,
+} from "./defusalAudio";
 import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, applyStuckTeleport, beginTeleportGrace, moveToServerPlacement, placeAtPoint } from "./GameLocationOrchestration";
 import { applyWorldStatus } from "./GameWorldState";
 import { t } from "@/core/i18n";
@@ -26,6 +34,13 @@ function nameOf(game: Game, id: string | null): string | null {
     if (!id) return null;
     if (id === game.localPlayerNetId) return game.myNickname || "You";
     return game.otherPlayers.get(id)?.nickname ?? "Player";
+}
+
+function restoreHealth(game: Game, health: number) {
+    game.player.setHealth(health);
+    game.player.setDead(false);
+    game.hudState.health = health;
+    game.emitState(true);
 }
 
 function pushKillFeed(game: Game, killerId: string | null, victimId: string) {
@@ -145,15 +160,53 @@ function reconcilePendingOtherPlayers(game: Game, locationId: string) {
         const playerLocation = pending.locationId || 'main-world';
         if (playerLocation !== locationId) continue;
 
-        op.create(currentLocation.scene, game.resourceManager);
+        perf.measure("otherPlayer.create", () => op.create(currentLocation.scene, game.resourceManager));
         op.setHidden(false);
         game.shootingSystem.registerOtherPlayer(op.id, op.getHitbox());
         op.updateFromNetwork(pending);
         op.setBadges(pending.isAdmin ?? false, pending.isFactionCreator ?? false);
-        op.setSkinTexture(pending.skinTextureUrl ?? null);
-        op.applyCosmetics((pending.cosmeticSkinId ?? null) as any, (pending.cosmeticAccessoryId ?? null) as any);
+        perf.measure("otherPlayer.skinTexture", () => op.setSkinTexture(pending.skinTextureUrl ?? null));
+        perf.measure("otherPlayer.cosmetics", () =>
+            op.applyCosmetics((pending.cosmeticSkinId ?? null) as any, (pending.cosmeticAccessoryId ?? null) as any)
+        );
     }
-    game.syncNearbyPeers();
+    perf.measure("syncNearbyPeers", () => game.syncNearbyPeers());
+    perf.flushLoad("location reconcile");
+}
+
+let nextXpTickAt = 0;
+let lastAsh: number | null = null;
+let tradeActive = false;
+let nextWhizAt = 0;
+
+function playWhizIfClose(game: Game, origin?: number[], direction?: number[]) {
+    if (!origin || !direction) return;
+
+    const now = Date.now();
+    if (now < nextWhizAt) return;
+
+    const me = game.player.mesh.position;
+    const dx = me.x - origin[0];
+    const dz = me.z - origin[2];
+    const along = dx * direction[0] + dz * direction[2];
+    if (along <= 1 || along > 90) return;
+
+    const missX = dx - direction[0] * along;
+    const missZ = dz - direction[2] * along;
+    const miss = Math.hypot(missX, missZ);
+    if (miss > 3.2) return;
+
+    nextWhizAt = now + 180;
+    SoundManager.getInstance().play("bullet-whiz", { volume: 0.35 + (1 - miss / 3.2) * 0.3 });
+}
+
+const CANYON_BIOME_COUNT = 5;
+
+function canyonSegmentLabel(data: CanyonSegmentData): string {
+    const biome = data.biome ? t(`g.biome.${data.biome}`) : data.name;
+    return data.segment <= CANYON_BIOME_COUNT
+        ? biome
+        : t("g.canyon.segmentOf", { name: biome, segment: data.segment });
 }
 
 export function registerNetworkHandlers(game: Game) {
@@ -189,29 +242,38 @@ export function registerNetworkHandlers(game: Game) {
             let op = game.otherPlayers.get(data.id);
             if (!op) {
                 op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
-                op.create(currentLocation.scene, game.resourceManager);
+                const spawned = op;
+                perf.measure("otherPlayer.create", () => spawned.create(currentLocation.scene, game.resourceManager));
                 game.otherPlayers.set(data.id, op);
             } else if (!op.isCreated()) {
-            
-                op.create(currentLocation.scene, game.resourceManager);
+                const spawned = op;
+                perf.measure("otherPlayer.create", () => spawned.create(currentLocation.scene, game.resourceManager));
                 op.setHidden(false);
             } else {
                 currentLocation.scene.add(op.mesh);
                 currentLocation.scene.add(op.getHitbox());
                 op.setHidden(false);
             }
+            const joined = op;
             game.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
             op.updateFromNetwork(data);
             op.setBadges(data.isAdmin ?? false, data.isFactionCreator ?? false);
-            op.setSkinTexture(data.skinTextureUrl ?? null);
-            op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
-            op.setWeaponLoadout(data.branch === "arcanist" ? "staff" : "rifle", data.weaponTier ?? 1);
-            game.syncNearbyPeers();
-            game.onChatMessage?.({
-                id: systemMessageId(), sender: "System",
-                message: `${data.nickname} entered the area`,
-                timestamp: Date.now(), type: "system",
-            });
+            perf.measure("otherPlayer.skinTexture", () => joined.setSkinTexture(data.skinTextureUrl ?? null));
+            perf.measure("otherPlayer.cosmetics", () =>
+                joined.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any)
+            );
+            perf.measure("otherPlayer.weapon", () =>
+                joined.setWeaponLoadout(data.branch === "arcanist" ? "staff" : "rifle", data.weaponTier ?? 1)
+            );
+            perf.measure("syncNearbyPeers", () => game.syncNearbyPeers());
+            perf.measure("chat.systemMessage", () =>
+                game.onChatMessage?.({
+                    id: systemMessageId(), sender: "System",
+                    message: `${data.nickname} entered the area`,
+                    timestamp: Date.now(), type: "system",
+                })
+            );
+            perf.flushLoad("player entered area");
         }
     };
 
@@ -302,27 +364,35 @@ export function registerNetworkHandlers(game: Game) {
         let op = game.otherPlayers.get(data.id);
         if (!op) {
             op = new OtherPlayer(data.id, data.nickname, data.factionSymbol ?? null, data.factionImage ?? null, data.isAdmin ?? false, data.isFactionCreator ?? false);
-            op.create(currentLocation.scene, game.resourceManager);
+            const spawned = op;
+            perf.measure("otherPlayer.create", () => spawned.create(currentLocation.scene, game.resourceManager));
             game.otherPlayers.set(data.id, op);
         } else if (!op.isCreated()) {
-            op.create(currentLocation.scene, game.resourceManager);
+            const spawned = op;
+            perf.measure("otherPlayer.create", () => spawned.create(currentLocation.scene, game.resourceManager));
             op.setHidden(false);
         } else if (op.isHidden()) {
             currentLocation.scene.add(op.mesh);
             currentLocation.scene.add(op.getHitbox());
             op.setHidden(false);
         }
+        const joined = op;
         game.shootingSystem.registerOtherPlayer(data.id, op.getHitbox());
         op.updateFromNetwork(data);
         op.setBadges(data.isAdmin ?? false, data.isFactionCreator ?? false);
-        op.setSkinTexture(data.skinTextureUrl ?? null);
-        op.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any);
-        game.syncNearbyPeers();
-        game.onChatMessage?.({
-            id: systemMessageId(), sender: "System",
-            message: `${data.nickname} joined the game`,
-            timestamp: Date.now(), type: "system",
-        });
+        perf.measure("otherPlayer.skinTexture", () => joined.setSkinTexture(data.skinTextureUrl ?? null));
+        perf.measure("otherPlayer.cosmetics", () =>
+            joined.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any)
+        );
+        perf.measure("syncNearbyPeers", () => game.syncNearbyPeers());
+        perf.measure("chat.systemMessage", () =>
+            game.onChatMessage?.({
+                id: systemMessageId(), sender: "System",
+                message: `${data.nickname} joined the game`,
+                timestamp: Date.now(), type: "system",
+            })
+        );
+        perf.flushLoad("player joined");
     };
 
     game.networkManager.onPlayerLeave = (playerId: string) => {
@@ -395,7 +465,12 @@ export function registerNetworkHandlers(game: Game) {
             weapon: data.weapon,
             speed: data.speed,
         });
-        SoundManager.getInstance().play('shoot', { volume: 0.5 });
+        SoundManager.getInstance().playAt('shoot', {
+            volume: 0.5,
+            x: data.origin[0],
+            z: data.origin[2],
+        });
+        playWhizIfClose(game, data.origin, data.direction);
     };
 
     game.networkManager.onCount = (count: number) => {
@@ -404,6 +479,10 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onChatMessage = (data: ChatData) => {
+        if (data.sender !== game.myNickname) {
+            const mentioned = !!game.myNickname && data.message.toLowerCase().includes(game.myNickname.toLowerCase());
+            SoundManager.getInstance().play(mentioned ? "chat-mention" : "chat-message", { volume: mentioned ? 0.55 : 0.3 });
+        }
         game.onChatMessage?.({
             id: data.id, sender: data.sender, senderWallet: data.senderWallet,
             senderFactionSymbol: data.senderFactionSymbol, senderFactionImage: data.senderFactionImage,
@@ -447,7 +526,7 @@ export function registerNetworkHandlers(game: Game) {
                 return;
             }
 
-            SoundManager.getInstance().play('damage-taken');
+            SoundManager.getInstance().play(data.damage >= 20 ? 'hurt-heavy' : 'hurt-light');
             game.damageAttackerId = data.attackerId;
             game.lastDamageTime = Date.now();
             const attacker = game.otherPlayers.get(data.attackerId);
@@ -806,6 +885,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onPartyInviteReceived = (invite) => {
+        SoundManager.getInstance().play("party-invite", { volume: 0.5 });
         game.onPartyInvite?.(invite);
     };
 
@@ -830,7 +910,17 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onDefusalState = (state) => {
+        const mySide = state.roster.find((entry) => entry.id === game.localPlayerNetId)?.side ?? null;
+        game.dust2MateIds.clear();
+        for (const entry of state.roster) {
+            if (entry.id !== game.localPlayerNetId && entry.side === mySide) game.dust2MateIds.add(entry.id);
+        }
+        game.minimapBomb = state.bomb && state.bomb.state === "planted"
+            ? { x: state.bomb.x, z: state.bomb.z }
+            : null;
+
         game.onDefusalState?.(state);
+        updateDefusalAudio(state, game.localPlayerNetId);
 
         const me = state.roster.find((entry) => entry.id === game.localPlayerNetId);
         if (!me) return;
@@ -913,6 +1003,7 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onGrinderRespawn = (data) => {
         placeAtPoint(game, data.position);
+        restoreHealth(game, data.health);
         game.isDead = false;
         game.onDeathStateChange?.(false, null);
     };
@@ -933,6 +1024,7 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onDefusalRespawn = (data) => {
         placeAtPoint(game, data.position);
+        restoreHealth(game, data.health);
         game.isDead = false;
         game.onDeathStateChange?.(false, null);
         game.onNotification?.(data.side === 't' ? t("g.notify.defusalAttack") : t("g.notify.defusalDefend"), 2000);
@@ -947,13 +1039,16 @@ export function registerNetworkHandlers(game: Game) {
                     ? t("g.defusal.whyTime")
                     : t("g.defusal.whyEliminated");
         game.onNotification?.(t("g.defusal.roundTaken", { side: data.side === 't' ? t("g.defusal.attackers") : t("g.defusal.defenders"), why }), 4000);
+        playDefusalRoundEnd(data.side);
     };
 
     game.networkManager.onDefusalBombPlanted = (data) => {
+        SoundManager.getInstance().play("bomb-planted", { volume: 0.65 });
         game.onNotification?.(t("g.defusal.bombPlanted", { site: data.site }), 3000);
     };
 
     game.networkManager.onDefusalBombDefused = () => {
+        playBombResolved(true);
         game.onNotification?.(t("g.defusal.audited"), 3000);
     };
 
@@ -967,7 +1062,18 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onDefusalGrenadeBurst = (data) => {
         game.grenadeSystem.burst(data.id, data.itemId, data.x, data.y, data.z);
-        if (data.itemId === 'liquidation') SoundManager.getInstance().play('portal-enter', { volume: 0.6 });
+
+        const burstSound = data.itemId === 'rug-flash'
+            ? 'flash-explode'
+            : data.itemId === 'fud-cloud'
+                ? 'smoke-deploy'
+                : data.itemId === 'liquidation'
+                    ? 'fire-loop'
+                    : null;
+
+        if (burstSound) {
+            SoundManager.getInstance().playAt(burstSound, { x: data.x, z: data.z, volume: 0.6 });
+        }
     };
 
     game.networkManager.onDefusalCloud = (data) => {
@@ -975,10 +1081,12 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onDefusalFlashed = (data) => {
+        SoundManager.getInstance().play("flash-ring", { volume: 0.5 });
         game.onFlashed?.(data.durationMs);
     };
 
     game.networkManager.onDefusalBombExploded = () => {
+        playBombResolved(false);
         game.onNotification?.(t("g.defusal.bombExploded"), 3000);
     };
 
@@ -987,6 +1095,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onDefusalMatchEnd = (data) => {
+        playDefusalMatchEnd(data.winner);
         game.onDefusalState?.(null);
         game.clearDefusalView();
         game.onNotification?.(
@@ -1053,6 +1162,12 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onInventoryUpdate = ({ inventory, ash, placeables }) => {
+        if (typeof ash === "number") {
+            if (lastAsh !== null && ash > lastAsh) {
+                SoundManager.getInstance().play("ash-gain", { volume: 0.45 });
+            }
+            lastAsh = ash;
+        }
         game.inventory = inventory;
         game.ash = ash;
         game.placeables = placeables;
@@ -1123,6 +1238,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onSkillLearned = (data) => {
+        SoundManager.getInstance().play("skill-unlock", { volume: 0.6 });
         game.onSkillLearned?.(data);
     };
 
@@ -1205,6 +1321,11 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onXpGain = (data) => {
+        const now = Date.now();
+        if (now >= nextXpTickAt) {
+            nextXpTickAt = now + 400;
+            SoundManager.getInstance().play("xp-tick", { volume: 0.3 });
+        }
         game.onXpGain?.(data);
     };
 
@@ -1248,10 +1369,12 @@ export function registerNetworkHandlers(game: Game) {
         if (data.visitedName) {
             game.onNotification?.(t("g.notify.metNpc", { name: data.visitedName, done: data.progress, total: data.targetCount }), 2500);
         } else if (data.status === "active" && data.progress === 0) {
+            SoundManager.getInstance().play("quest-accept", { volume: 0.5 });
             game.onNotification?.(t("g.notify.questAcceptedSlimes", { count: data.targetCount }), 3000);
         }
 
         if (data.status === "ready_to_turn_in") {
+            SoundManager.getInstance().play("quest-complete", { volume: 0.6 });
             game.onNotification?.(t("g.notify.questComplete"), 3000);
         } else if (data.status === "completed") {
             const xp = data.rewardXp ? t("g.notify.andXp", { xp: data.rewardXp }) : "";
@@ -1277,7 +1400,7 @@ export function registerNetworkHandlers(game: Game) {
             });
         }
         game.onCanyonSegment?.(data);
-        game.onNotification?.(`🗺️ ${data.name}`, 2500);
+        game.onNotification?.(`🗺️ ${canyonSegmentLabel(data)}`, 2500);
     };
 
     game.networkManager.onCanyonCleared = (data) => {
@@ -1464,12 +1587,12 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onSupportTicketSent = () => {
-        game.onNotification?.('📨 Message sent to support — the reply will arrive in your mail', 3500);
+        game.onNotification?.(t("g.notify.supportSent"), 3500);
     };
 
     game.networkManager.onAchievementsUnlocked = (achievements) => {
         achievements.forEach((a) => {
-            game.onNotification?.(`🏆 Achievement unlocked: ${a.label}`, 3500);
+            game.onNotification?.(t("g.notify.achievementUnlocked", { name: t(`g.ach.${a.key}.label`) }), 3500);
         });
     };
 
@@ -1516,18 +1639,27 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onFactionInviteSent = (toWallet) => {
         game.onFactionInviteSent?.(toWallet);
-        game.onNotification?.('✉️ Faction invite sent', 2500);
+        game.onNotification?.(t("g.notify.factionInviteSent"), 2500);
     };
 
     game.networkManager.onTradeSession = (data) => {
+        if (data && !tradeActive) {
+            tradeActive = true;
+            SoundManager.getInstance().play("trade-accept", { volume: 0.5 });
+        } else if (!data && tradeActive) {
+            tradeActive = false;
+            SoundManager.getInstance().play("trade-complete", { volume: 0.5 });
+        }
         game.onTradeSession?.(data);
     };
 
     game.networkManager.onTradeInviteReceived = (data) => {
+        SoundManager.getInstance().play("trade-invite", { volume: 0.5 });
         game.onTradeInviteReceived?.(data);
     };
 
     game.networkManager.onTradeInviteError = (data) => {
+        SoundManager.getInstance().play("trade-decline", { volume: 0.45 });
         game.onTradeInviteError?.(data);
     };
 }

@@ -34,7 +34,7 @@ export function XpBar({ progression, popups, onOpenSkills }: XpBarProps) {
                 <div className="flex items-center gap-2">
                     <span className="text-base leading-none">{tier?.emoji ?? "🦐"}</span>
                     <span className="text-[10px] font-bold tracking-wider" style={{ color: accent }}>
-                        {(tier?.name ?? "Shrimp").toUpperCase()}
+                        {t(tier?.name ?? "g.tier.shrimp.name").toUpperCase()}
                     </span>
                 </div>
                 <span className="text-[#E5E7EB] text-sm font-bold">LV {progression.level}</span>

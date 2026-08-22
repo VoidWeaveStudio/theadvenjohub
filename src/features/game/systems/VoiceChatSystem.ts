@@ -14,6 +14,8 @@ interface PeerEntry {
 
 export class VoiceChatSystem {
     private peers: Map<string, PeerEntry> = new Map();
+    private nearbyIds: Set<string> = new Set();
+    private pendingCandidates: Map<string, RTCIceCandidateInit[]> = new Map();
     private localStream: MediaStream | null = null;
     private localTrack: MediaStreamTrack | null = null;
     private talking = false;
@@ -80,7 +82,15 @@ export class VoiceChatSystem {
         if (!stream) return;
         this.talking = true;
         if (this.localTrack) this.localTrack.enabled = true;
+        this.connectToNearby();
         this.onCapturingChange?.(true);
+    }
+
+    private connectToNearby() {
+        for (const remoteId of this.nearbyIds) {
+            if (remoteId === this.localId || this.peers.has(remoteId)) continue;
+            this.createPeerConnection(remoteId);
+        }
     }
 
     stopCapture() {
@@ -146,14 +156,13 @@ export class VoiceChatSystem {
         entry.audioEl.pause();
         entry.audioEl.srcObject = null;
         this.peers.delete(remoteId);
+        this.pendingCandidates.delete(remoteId);
     }
 
     syncPeers(activeIds: ReadonlySet<string>) {
-        for (const remoteId of activeIds) {
-            if (remoteId !== this.localId && !this.peers.has(remoteId)) {
-                this.createPeerConnection(remoteId);
-            }
-        }
+        this.nearbyIds = new Set(activeIds);
+        if (this.talking) this.connectToNearby();
+
         for (const remoteId of Array.from(this.peers.keys())) {
             if (!activeIds.has(remoteId)) {
                 this.removePeer(remoteId);
@@ -174,6 +183,7 @@ export class VoiceChatSystem {
                 await entry.pc.setLocalDescription({ type: "rollback" });
             }
             await entry.pc.setRemoteDescription({ type: "offer", sdp });
+            await this.flushCandidates(fromId);
             const answer = await entry.pc.createAnswer();
             await entry.pc.setLocalDescription(answer);
             if (entry.pc.localDescription) {
@@ -189,6 +199,7 @@ export class VoiceChatSystem {
         if (!entry) return;
         try {
             await entry.pc.setRemoteDescription({ type: "answer", sdp });
+            await this.flushCandidates(fromId);
         } catch (err) {
             console.error("[VoiceChat] Failed to handle answer:", err);
         }
@@ -196,11 +207,32 @@ export class VoiceChatSystem {
 
     async handleIceCandidate(fromId: string, candidate: RTCIceCandidateInit) {
         const entry = this.peers.get(fromId);
-        if (!entry) return;
+        if (!entry || !entry.pc.remoteDescription) {
+            const queued = this.pendingCandidates.get(fromId) ?? [];
+            queued.push(candidate);
+            this.pendingCandidates.set(fromId, queued);
+            return;
+        }
         try {
             await entry.pc.addIceCandidate(candidate);
         } catch (err) {
             if (!entry.ignoreOffer) console.error("[VoiceChat] Failed to add ICE candidate:", err);
+        }
+    }
+
+    private async flushCandidates(remoteId: string) {
+        const queued = this.pendingCandidates.get(remoteId);
+        if (!queued) return;
+        this.pendingCandidates.delete(remoteId);
+
+        const entry = this.peers.get(remoteId);
+        if (!entry) return;
+        for (const candidate of queued) {
+            try {
+                await entry.pc.addIceCandidate(candidate);
+            } catch (err) {
+                if (!entry.ignoreOffer) console.error("[VoiceChat] Failed to add queued ICE candidate:", err);
+            }
         }
     }
 
@@ -210,6 +242,8 @@ export class VoiceChatSystem {
         for (const remoteId of Array.from(this.peers.keys())) {
             this.removePeer(remoteId);
         }
+        this.pendingCandidates.clear();
+        this.nearbyIds.clear();
         this.localStream?.getTracks().forEach((t) => t.stop());
         this.localStream = null;
         this.localTrack = null;

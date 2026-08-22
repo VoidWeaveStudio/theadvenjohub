@@ -3,11 +3,11 @@ import * as THREE from "three";
 import { Entity } from "./Entity";
 import { ResourceManager } from "../core/ResourceManager";
 import { CharacterAnimator } from "./CharacterAnimator";
-import { buildDefusalWeapon, disposeWeaponRig, type WeaponRig } from "./defusalWeaponModels";
+import { buildDefusalWeapon, disposeWeaponRig, remoteWeaponTransformFor, type WeaponRig } from "./defusalWeaponModels";
 import { buildWeaponVisual, weaponGripOffset } from "./Weapon";
 import { disposeWeaponTierAttachments, updateWeaponTierAttachments, WeaponKind } from "./weaponTiers";
 import { disposeStaff } from "./Staff";
-import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
+import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, findHandBone, reparentPreservingWorldScale } from "./characterModel";
 import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
 import { TIERS } from "../data/progression";
@@ -37,6 +37,8 @@ export class OtherPlayer extends Entity {
     private rightHand: THREE.Object3D | null = null;
     private defusalWeaponId: string | null = null;
     private defusalRig: WeaponRig | null = null;
+    private remoteWeaponBaseScale = 1;
+    private weaponClip = '';
     private initialized: boolean = false;
     private time: number = 0;
 
@@ -50,6 +52,7 @@ export class OtherPlayer extends Entity {
 
     private weaponMesh: THREE.Group | null = null;
     private nicknameOverride: string | null = null;
+    private firing = false;
     private resourceManager: ResourceManager | null = null;
     private weaponKind: WeaponKind = "rifle";
     private weaponTier: number = 1;
@@ -89,14 +92,14 @@ export class OtherPlayer extends Entity {
         this.isAdmin = isAdmin;
         this.isFactionCreator = isFactionCreator;
 
-        const hitboxGeometry = new THREE.BoxGeometry(0.8, 1.8, 0.8);
+        const hitboxGeometry = new THREE.BoxGeometry(0.55, 1.75, 0.38);
         const hitboxMaterial = new THREE.MeshBasicMaterial({
             transparent: true,
             opacity: 0,
             depthWrite: false,
         });
         this.hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
-        this.hitbox.position.set(0, 0.9, 0);
+        this.hitbox.position.set(0, 0.875, 0);
         this.hitbox.userData.playerId = id;
     }
 
@@ -124,12 +127,7 @@ export class OtherPlayer extends Entity {
         this.hipsBone = findBoneFirst(data.scene, (name) =>
             name === 'hips' || name === 'pelvis' || name.includes('hips')
         );
-        this.rightHand = findBoneFirst(data.scene, (name) =>
-            name === 'handr' || name === 'hand.r' ||
-            (name.includes('right') && name.includes('hand')) ||
-            name === 'r_hand' || name === 'rhand' ||
-            name.includes('righthand') || name.includes('rightarm')
-        );
+        this.rightHand = findHandBone(data.scene, "right");
 
         this.animator.setup(data.scene, data.animations);
         this.animator.play('idle', this.weaponEquipped);
@@ -176,7 +174,7 @@ export class OtherPlayer extends Entity {
 
         const tex = new THREE.CanvasTexture(canvas);
         this.nameTexture = tex;
-        const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+        const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, depthWrite: false });
         const sprite = new THREE.Sprite(mat);
         sprite.position.y = 2.8;
         const baseScaleX = hasFaction ? 2.6 : 2;
@@ -245,11 +243,20 @@ export class OtherPlayer extends Entity {
         if (this.defusalWeaponId) {
             const rig = buildDefusalWeapon(this.defusalWeaponId);
             this.defusalRig = rig;
-            this.weaponMesh = rig.group;
-            this.weaponMesh.visible = wasVisible;
-            this.weaponMesh.scale.setScalar(1.6);
-            this.weaponMesh.position.set(0.14, 0.02, -0.18);
-            this.rightHand?.add(this.weaponMesh);
+
+            const mount = new THREE.Group();
+            mount.add(rig.group);
+            rig.group.position.copy(rig.rearGrip.position).multiplyScalar(-1);
+
+            mount.visible = wasVisible;
+            this.mesh.add(mount);
+            if (this.rightHand) reparentPreservingWorldScale(mount, this.rightHand);
+
+            // Reparenting leaves the factor that cancels the bone's world scale.
+            // The tuner multiplies that, it must not replace it.
+            this.remoteWeaponBaseScale = mount.scale.x || 1;
+            this.weaponMesh = mount;
+            this.applyRemoteWeaponTransform();
             return;
         }
 
@@ -440,6 +447,20 @@ export class OtherPlayer extends Entity {
         return this.health;
     }
 
+    public applyRemoteWeaponTransform() {
+        if (!this.weaponMesh || !this.defusalRig) return;
+        const transform = remoteWeaponTransformFor(this.weaponClip);
+        this.weaponMesh.position.copy(transform.position);
+        this.weaponMesh.rotation.copy(transform.euler);
+        this.weaponMesh.scale.setScalar(this.remoteWeaponBaseScale * transform.scale);
+    }
+
+    public getWeaponMuzzle(target = new THREE.Vector3()): THREE.Vector3 | null {
+        if (!this.weaponMesh || !this.weaponMesh.visible) return null;
+        if (this.defusalRig) return this.defusalRig.muzzle.getWorldPosition(target);
+        return this.weaponMesh.getWorldPosition(target);
+    }
+
     public getHitbox(): THREE.Mesh {
         return this.hitbox;
     }
@@ -519,7 +540,7 @@ export class OtherPlayer extends Entity {
         }
 
         this.hitbox.position.copy(this.mesh.position);
-        this.hitbox.position.y += 0.9;
+        this.hitbox.position.y += 0.875;
 
         OtherPlayer._targetEuler.set(0, this.targetRotation, 0);
         OtherPlayer._targetQuat.setFromEuler(OtherPlayer._targetEuler);
@@ -536,12 +557,17 @@ export class OtherPlayer extends Entity {
             this.animator.play(this.posedAnimation, false);
         } else if (this.targetState === 'jump') {
             this.animator.play('jump', this.weaponEquipped);
-        } else if (this.targetState === 'sprint') {
-            this.animator.play('run', this.weaponEquipped);
-        } else if (this.targetState === 'walk') {
-            this.animator.play('walk', this.weaponEquipped);
         } else {
-            this.animator.play('idle', this.weaponEquipped);
+            const firing = this.firing && this.weaponEquipped;
+            const moving = this.targetState === 'sprint' || this.targetState === 'walk';
+            const moveKey = firing ? (moving ? 'walk' : 'idle') : this.targetState === 'sprint' ? 'run' : moving ? 'walk' : 'idle';
+            this.animator.play(firing ? `${moveKey}-firing` : moveKey, this.weaponEquipped);
+        }
+
+        const clip = this.animator.getCurrentKey();
+        if (clip !== this.weaponClip) {
+            this.weaponClip = clip;
+            this.applyRemoteWeaponTransform();
         }
 
         this.animator.update(delta);
@@ -560,13 +586,14 @@ export class OtherPlayer extends Entity {
         if (!this.initialized) {
             this.mesh.position.copy(this.targetPosition);
             this.hitbox.position.copy(this.targetPosition);
-            this.hitbox.position.y += 0.9;
+            this.hitbox.position.y += 0.875;
             this.initialized = true;
         }
 
         this.targetRotation = data.rotation;
         this.targetPitch = data.pitch || 0;
         this.targetState = (data.state as any) || 'idle';
+        this.firing = data.isShooting === true;
 
         if (data.weaponEquipped !== undefined) {
             this.setWeaponVisible(data.weaponEquipped);
@@ -588,6 +615,14 @@ export class OtherPlayer extends Entity {
 
     public isMoving(): boolean {
         return this.targetState !== 'idle';
+    }
+
+    public listAnimationKeys(): string[] {
+        return this.animator.listKeys();
+    }
+
+    public currentAnimationKey(): string {
+        return this.animator.getCurrentKey();
     }
 
     public playPose(name: string | null) {

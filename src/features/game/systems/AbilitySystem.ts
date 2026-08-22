@@ -1,6 +1,36 @@
 // src/features/game/systems/AbilitySystem.ts
 import * as THREE from "three";
 import { AbilityEffectData, AbilityImpactPendingData, AbilityZoneData } from "../network/NetworkManager";
+import { SoundManager } from "../core/SoundManager";
+
+const ABILITY_SOUNDS: Record<string, string> = {
+    overdrive: "buff-apply",
+    ascendance: "buff-apply",
+    second_wind: "heal",
+    healing_rune: "heal",
+    soul_tether: "heal",
+    kinetic_barrier: "shield-up",
+    bulwark: "shield-up",
+    mana_shield: "shield-up",
+    reflect_ward: "shield-up",
+    shatter_ward: "shield-break",
+    suppression_field: "debuff-apply",
+    marked_target: "debuff-apply",
+    slow_field: "debuff-apply",
+    hex: "debuff-apply",
+    time_dilation: "debuff-apply",
+    chain_lightning: "stun",
+    gravity_well: "stun",
+    blink: "warp-out",
+    phase_step: "warp-out",
+    combat_roll: "warp-out",
+    frag_grenade: "aoe-impact",
+    shockwave: "aoe-impact",
+    barrage: "aoe-impact",
+    meteor: "aoe-impact",
+    cataclysm: "aoe-impact",
+    burning: "fire-loop",
+};
 
 const ABILITY_COLORS: Record<string, number> = {
     overdrive: 0xffb347,
@@ -394,6 +424,14 @@ export class AbilitySystem {
     playEffect(data: AbilityEffectData) {
         const color = colorFor(data.abilityId);
 
+        const sound = ABILITY_SOUNDS[data.abilityId]
+            ?? (data.kind === "chain" ? "stun" : data.kind === "target" ? "bolt-impact" : "aoe-impact");
+        SoundManager.getInstance().playAt(sound, {
+            x: data.position[0] ?? 0,
+            z: data.position[2] ?? 0,
+            volume: 0.5,
+        });
+
         if (data.kind === "chain" && data.chain && data.chain.length > 1) {
             const chain = new Chain(data.chain, color);
             this.root.add(chain.object);
@@ -418,6 +456,11 @@ export class AbilitySystem {
     }
 
     addPendingImpact(data: AbilityImpactPendingData) {
+        SoundManager.getInstance().playAt("bolt-launch", {
+            x: data.position[0] ?? 0,
+            z: data.position[2] ?? 0,
+            volume: 0.4,
+        });
         const telegraph = new Telegraph(
             data.position,
             data.radius,

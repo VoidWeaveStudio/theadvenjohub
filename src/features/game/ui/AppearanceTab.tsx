@@ -9,6 +9,7 @@ import { CosmeticCard } from "./CosmeticCard";
 import { PreviewModal } from "./preview/PreviewModal";
 import type { PreviewSubject } from "./preview/PreviewScene";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { SoundManager } from "../core/SoundManager";
 
 interface AppearanceTabProps {
     cosmetics: CosmeticStateData;
@@ -37,6 +38,9 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
         onRequestCosmetics();
     }, []);
 
+    const equipSound = (equipping: boolean) =>
+        SoundManager.getInstance().play(equipping ? "equip" : "unequip", { volume: 0.5 });
+
     const owned = new Set(cosmetics.owned);
     const skins = COSMETICS.filter((c) => c.slot === "skin");
     const accessories = COSMETICS.filter((c) => c.slot === "accessory");
@@ -58,7 +62,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                     </span>
                     {hasSkinEquipped && (
                         <button
-                            onClick={() => onEquip(null, cosmetics.accessoryId)}
+                            onClick={() => { equipSound(false); onEquip(null, cosmetics.accessoryId); }}
                             className="text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold transition-colors"
                         >
                             {t("g.appearance.takeOff")}
@@ -78,7 +82,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                                 equipped={cosmetics.skinId === cosmetic.id}
                                 onPreview={() => openPreview(cosmetic)}
                                 actionLabel="Equip"
-                                onAction={() => onEquip(cosmetic.id, null)}
+                                onAction={() => { equipSound(true); onEquip(cosmetic.id, null); }}
                             />
                         ))}
                     </div>
@@ -93,7 +97,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                     </span>
                     {cosmetics.accessoryId && (
                         <button
-                            onClick={() => onEquip(cosmetics.skinId, null)}
+                            onClick={() => { equipSound(false); onEquip(cosmetics.skinId, null); }}
                             className="text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold transition-colors"
                         >
                             {t("g.appearance.takeOffAccessory")}
@@ -115,7 +119,7 @@ export function AppearanceTab({ cosmetics, onRequestCosmetics, onEquip }: Appear
                                 blockedReason={hasSkinEquipped ? t("g.appearance.takeOffFirst") : undefined}
                                 onPreview={() => openPreview(cosmetic)}
                                 actionLabel="Equip"
-                                onAction={() => onEquip(null, cosmetic.id)}
+                                onAction={() => { equipSound(true); onEquip(null, cosmetic.id); }}
                             />
                         ))}
                     </div>

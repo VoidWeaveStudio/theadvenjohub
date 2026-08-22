@@ -1,6 +1,7 @@
 // src/features/game/ui/hooks/useAbilityState.ts
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AbilityMeterData, AbilityResultData, ProgressionStateData } from "../../network/NetworkManager";
+import { SoundManager } from "../../core/SoundManager";
 
 const ENERGY_TICK_MS = 120;
 
@@ -41,6 +42,26 @@ export function useAbilityState(progression: ProgressionStateData | null) {
         setEnergy(progression.energy ?? progression.stats?.maxEnergy ?? 0);
         setCooldowns(progression.cooldowns ?? {});
     }, [progression]);
+
+    useEffect(() => {
+        const now = Date.now();
+        const pending = Object.values(cooldowns).filter((until) => until > now);
+        if (pending.length === 0) return;
+
+        const timer = window.setTimeout(() => {
+            SoundManager.getInstance().play("ability-ready", { volume: 0.35 });
+            setCooldowns((prev) => {
+                const at = Date.now();
+                const next: Record<string, number> = {};
+                for (const [id, until] of Object.entries(prev)) {
+                    if (until > at) next[id] = until;
+                }
+                return next;
+            });
+        }, Math.max(0, Math.min(...pending) - now) + 30);
+
+        return () => window.clearTimeout(timer);
+    }, [cooldowns]);
 
     useEffect(() => {
         const timer = window.setInterval(() => {

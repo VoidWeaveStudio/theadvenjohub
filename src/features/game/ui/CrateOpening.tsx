@@ -7,6 +7,7 @@ import {
     COMPANIONS,
     COMPANIONS_BY_ID,
     RARITY_META,
+    companionRarity,
     TOTAL_DROP_WEIGHT,
     type CompanionId,
 } from "../data/companions";
@@ -80,6 +81,7 @@ export function CrateOpening({ isOpen, result, cratesLeft, onOpenAnother, onClos
         setReel(buildReel(result.itemId));
         setOffset(0);
         setPhase("spinning");
+        SoundManager.getInstance().play("crate-build", { volume: 0.5 });
 
         const jitter = (Math.random() - 0.5) * (TILE_WIDTH - 34);
         const target = -(WIN_INDEX * STEP + jitter);
@@ -90,7 +92,13 @@ export function CrateOpening({ isOpen, result, cratesLeft, onOpenAnother, onClos
 
         settleRef.current = window.setTimeout(() => {
             setPhase("revealed");
-            SoundManager.getInstance().play("loot-pickup");
+            const rarity = companionRarity(result.itemId);
+            const reveal = rarity === "legendary" || rarity === "epic"
+                ? "crate-legendary"
+                : rarity === "rare"
+                    ? "crate-rare"
+                    : "crate-common";
+            SoundManager.getInstance().play(reveal, { volume: 0.75 });
         }, SPIN_MS + 120);
 
         return () => {

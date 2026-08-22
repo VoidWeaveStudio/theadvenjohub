@@ -7,6 +7,7 @@ import { NetworkManager, SignData } from "../network/NetworkManager";
 import { InputManager } from "../core/InputManager";
 import { InteractionSystem } from "./InteractionSystem";
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
+import { SoundManager } from "../core/SoundManager";
 
 const REACH_DISTANCE = 3;
 const REMOVE_RADIUS = 5;
@@ -215,6 +216,7 @@ export class BuildSystem extends System {
             this.onNotification?.("You don't own any of that — buy one from the Shop", 2500);
             return;
         }
+        SoundManager.getInstance().play("build-place", { volume: 0.5 });
         this.network.sendSignPlace([x, y, z], rotation);
     }
 
@@ -232,6 +234,7 @@ export class BuildSystem extends System {
         }
 
         if (!nearestId) return;
+        SoundManager.getInstance().play("build-remove", { volume: 0.5 });
         this.network.sendSignRemove(nearestId);
     }
 

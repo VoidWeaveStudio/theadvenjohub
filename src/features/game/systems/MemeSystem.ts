@@ -1,5 +1,19 @@
 // src/features/game/systems/MemeSystem.ts
 import * as THREE from "three";
+import { SoundManager } from "../core/SoundManager";
+
+const MEME_SOUNDS: Record<string, string> = {
+    pump_it: "meme-pump-it",
+    rug_pull: "meme-rug-pull",
+    moon_launch: "meme-moon-launch",
+    airdrop: "meme-airdrop",
+    whale_splash: "splash",
+    copium_cloud: "smoke-deploy",
+    ink_dump: "aoe-impact",
+    bag_holder: "impact-dirt",
+    crab_walk: "grenade-bounce",
+    shrimp_squeak: "crate-common",
+};
 
 export interface MemeCastEvent {
     memeId: string;
@@ -349,6 +363,15 @@ export class MemeSystem {
     }
 
     play(event: MemeCastEvent, anchor: THREE.Object3D | null) {
+        const sound = MEME_SOUNDS[event.memeId];
+        if (sound) {
+            SoundManager.getInstance().playAt(sound, {
+                x: event.position?.[0] ?? 0,
+                z: event.position?.[2] ?? 0,
+                volume: 0.6,
+            });
+        }
+
         const durationSeconds = Math.max(0.4, event.durationMs / 1000);
         const instance = createInstance(event.memeId, durationSeconds, event.radius);
         if (!instance) return;

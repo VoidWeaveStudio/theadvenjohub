@@ -26,7 +26,18 @@ export class CharacterAnimator {
 
     play(name: string, armed: boolean = false) {
         const armedKey = `rifle-${name}`;
-        const key = armed && this.animations.has(armedKey) ? armedKey : name;
+        let key = armed && this.animations.has(armedKey) ? armedKey : name;
+
+        // A name the model does not carry would otherwise freeze the character
+        // on whatever was playing before.
+        if (!this.animations.has(key)) {
+            const base = name.replace(/-firing$/, "");
+            const armedBase = `rifle-${base}`;
+            key = armed && this.animations.has(armedBase) ? armedBase
+                : this.animations.has(base) ? base
+                : key;
+        }
+
         if (this.currentKey === key) return;
 
         const nextAction = this.animations.get(key);
@@ -39,6 +50,16 @@ export class CharacterAnimator {
             nextAction.reset().fadeIn(0.2).play();
             this.currentKey = key;
         }
+    }
+
+    getCurrentKey(): string {
+        return this.currentKey;
+    }
+
+    listKeys(): string[] {
+        const keys: string[] = [];
+        this.animations.forEach((_action, key) => keys.push(key));
+        return keys;
     }
 
     getPhase(): number {

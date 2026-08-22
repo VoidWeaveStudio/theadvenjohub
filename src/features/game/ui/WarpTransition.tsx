@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SoundManager } from "../core/SoundManager";
 
 interface WarpTransitionProps {
     active: boolean;
@@ -280,9 +281,11 @@ export function WarpTransition({ active, progress, message }: WarpTransitionProp
 
         if (active) {
             setPhase("pull");
+            SoundManager.getInstance().play("warp-in", { volume: 0.5 });
             timers.current.push(setTimeout(() => setPhase("travel"), PULL_MS));
         } else {
             setPhase("push");
+            SoundManager.getInstance().play("warp-out", { volume: 0.5 });
             timers.current.push(setTimeout(() => setPhase("idle"), PUSH_MS));
         }
     }, [active]);

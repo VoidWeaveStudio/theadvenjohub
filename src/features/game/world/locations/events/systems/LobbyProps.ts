@@ -266,7 +266,7 @@ export class LobbyProps {
             const upcoming = !!state && state.enabled && eventWindow(state).state === "upcoming";
 
             return {
-                label: `${door.glyph}  ${state?.title ?? t(door.name)}`,
+                label: `${door.glyph}  ${t(state?.title ?? door.name)}`,
                 value: open ? t("g.lobby.open") : upcoming ? t("g.lobby.soon") : t("g.lobby.sealed"),
                 accent: `#${new THREE.Color(state?.accent ?? door.accent).getHexString()}`,
                 live: open,

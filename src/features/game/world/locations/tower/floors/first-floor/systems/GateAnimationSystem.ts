@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import type { GateWall, SegmentContent } from "./SegmentBuilderSystem";
 import type { FirstFloor } from "../FirstFloor";
+import { SoundManager } from "../../../../../../core/SoundManager";
 
 interface GateAnimation {
     gate: GateWall;
@@ -15,6 +16,11 @@ export class GateAnimationSystem {
     constructor(private floor: FirstFloor) { }
 
     startCrumble(gate: GateWall) {
+        SoundManager.getInstance().playAt("gate-open", {
+            x: gate.group.position.x,
+            z: gate.group.position.z,
+            volume: 0.7,
+        });
         this.animations = this.animations.filter((a) => a.gate !== gate);
         this.animations.push({ gate, mode: "crumble", startTime: performance.now() });
     }

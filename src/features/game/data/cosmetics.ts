@@ -2,8 +2,6 @@
 export type CosmeticSlot = "skin" | "accessory";
 
 export type CosmeticId =
-    | "scream_mask"
-    | "scream_robe"
     | "trump_hair"
     | "trump_suit"
     | "pepe_frog"
@@ -13,7 +11,6 @@ export type CosmeticId =
     | "moon_astronaut"
     | "bull_market"
     | "bear_market"
-    | "wif_hat"
     | "laser_eyes"
     | "deal_shades";
 
@@ -30,28 +27,12 @@ export const COSMETIC_PRICE_ASH = 1;
 
 export const COSMETICS: CosmeticDefinition[] = [
     {
-        id: "scream_mask",
-        slot: "accessory",
-        name: "g.cosmetic.scream_mask.name",
-        description: "g.cosmetic.scream_mask.description",
-        priceAsh: COSMETIC_PRICE_ASH,
-        accent: "#E8E8EC",
-    },
-    {
         id: "trump_hair",
         slot: "accessory",
         name: "g.cosmetic.trump_hair.name",
         description: "g.cosmetic.trump_hair.description",
         priceAsh: COSMETIC_PRICE_ASH,
         accent: "#E3B23C",
-    },
-    {
-        id: "scream_robe",
-        slot: "skin",
-        name: "g.cosmetic.scream_robe.name",
-        description: "g.cosmetic.scream_robe.description",
-        priceAsh: COSMETIC_PRICE_ASH,
-        accent: "#2A2A32",
     },
     {
         id: "trump_suit",
@@ -116,14 +97,6 @@ export const COSMETICS: CosmeticDefinition[] = [
         description: "g.cosmetic.bear_market.description",
         priceAsh: COSMETIC_PRICE_ASH,
         accent: "#E2554B",
-    },
-    {
-        id: "wif_hat",
-        slot: "accessory",
-        name: "g.cosmetic.wif_hat.name",
-        description: "g.cosmetic.wif_hat.description",
-        priceAsh: COSMETIC_PRICE_ASH,
-        accent: "#EFA3C6",
     },
     {
         id: "laser_eyes",

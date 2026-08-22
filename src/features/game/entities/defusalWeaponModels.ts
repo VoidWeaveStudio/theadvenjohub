@@ -462,6 +462,44 @@ const BUILDERS: Record<string, () => WeaponRig> = {
     "rug-beater": buildRugBeater,
 };
 
+export interface RemoteWeaponTransform {
+    position: THREE.Vector3;
+    euler: THREE.Euler;
+    scale: number;
+}
+
+export const REMOTE_WEAPON_TRANSFORM: RemoteWeaponTransform = {
+    position: new THREE.Vector3(-0.185, 0.38, 0.025),
+    euler: new THREE.Euler(-4.475, 0.075, 0.06),
+    scale: 1.365,
+};
+
+// Clips that carry the hand differently need their own seating. Anything absent
+// falls back to the pose above, so only the clips that actually look wrong cost
+// a line here.
+export const REMOTE_WEAPON_CLIP_TRANSFORMS: Record<string, RemoteWeaponTransform> = {};
+
+export function remoteWeaponTransformFor(clip: string): RemoteWeaponTransform {
+    return REMOTE_WEAPON_CLIP_TRANSFORMS[clip] ?? REMOTE_WEAPON_TRANSFORM;
+}
+
+// Tuning a clip that has no entry yet starts it from the shared pose rather than
+// from zero, so dialling one clip in never means rebuilding it from nothing.
+export function remoteWeaponTransformSlot(clip: string): RemoteWeaponTransform {
+    if (!clip) return REMOTE_WEAPON_TRANSFORM;
+
+    let transform = REMOTE_WEAPON_CLIP_TRANSFORMS[clip];
+    if (!transform) {
+        transform = {
+            position: REMOTE_WEAPON_TRANSFORM.position.clone(),
+            euler: REMOTE_WEAPON_TRANSFORM.euler.clone(),
+            scale: REMOTE_WEAPON_TRANSFORM.scale,
+        };
+        REMOTE_WEAPON_CLIP_TRANSFORMS[clip] = transform;
+    }
+    return transform;
+}
+
 export function buildDefusalWeapon(itemId: string): WeaponRig {
     const builder = BUILDERS[itemId] ?? BUILDERS[DEFAULT_PISTOL] ?? BUILDERS[DEFAULT_MELEE];
     const rig = builder();

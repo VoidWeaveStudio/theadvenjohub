@@ -8,8 +8,8 @@ import { Weapon } from "./Weapon";
 import { CollisionGrid } from "../world/CollisionGrid";
 import { HeightProvider, FlightZone, WaterProvider } from "../world/Location";
 import { CharacterAnimator } from "./CharacterAnimator";
-import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, reparentPreservingWorldScale } from "./characterModel";
-import { SoundManager } from "../core/SoundManager";
+import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, findHandBone, MODEL_FORWARD_OFFSET, reparentPreservingWorldScale } from "./characterModel";
+import { SoundManager, SoundHandle, FootstepSurface } from "../core/SoundManager";
 import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl } from "./characterPaint";
@@ -46,7 +46,7 @@ export class Player extends Entity {
     private collisionGrid: CollisionGrid | null = null;
     private waterProvider: WaterProvider | null = null;
     private swimming: boolean = false;
-    public footstepSurface: "soft" | "stone" = "soft";
+    public footstepSurface: FootstepSurface = "soft";
     private static readonly SWIM_SUBMERSION = 0.85;
     private static readonly SWIM_SPEED_MULTIPLIER = 0.52;
     private static readonly MAX_COLLISION_STEP = 0.18;
@@ -69,6 +69,8 @@ export class Player extends Entity {
     private dead: boolean = false;
     private paintableMaterial: THREE.Material | null = null;
     private cosmeticRig: CosmeticRig | null = null;
+    private heartbeat: SoundHandle | null = null;
+    private shieldActive = false;
     private shield: SpawnShield | null = null;
     private posedAnimation: string | null = null;
     private movementLocked: boolean = false;
@@ -276,12 +278,7 @@ export class Player extends Entity {
         this.paintableMaterial = paintableMesh ? clonePaintableMaterial(paintableMesh) : null;
         this.cosmeticRig = new CosmeticRig(data.scene, this.paintableMaterial);
 
-        this.rightHand = findBoneFirst(data.scene, (name) =>
-            name === 'handr' || name === 'hand.r' ||
-            (name.includes('right') && name.includes('hand')) ||
-            name === 'r_hand' || name === 'rhand' ||
-            name.includes('righthand') || name.includes('rightarm')
-        );
+        this.rightHand = findHandBone(data.scene, "right");
         this.hips = findBoneFirst(data.scene, (name) =>
             name === 'hips' || name === 'pelvis' || name.includes('hips')
         );
@@ -334,7 +331,23 @@ export class Player extends Entity {
             this.shield = new SpawnShield();
             this.mesh.add(this.shield.group);
         }
+        if (active !== this.shieldActive) {
+            this.shieldActive = active;
+            SoundManager.getInstance().play(active ? "shield-up" : "shield-break", { volume: 0.45 });
+        }
         this.shield.setActive(active);
+    }
+
+    private updateHeartbeat() {
+        const critical = !this.dead && this.health > 0 && this.health <= this.maxHealth * 0.25;
+        if (critical === !!this.heartbeat) return;
+
+        if (critical) {
+            this.heartbeat = SoundManager.getInstance().playLoop("heartbeat-loop", { volume: 0.35 });
+        } else {
+            this.heartbeat?.stop(0.4);
+            this.heartbeat = null;
+        }
     }
 
     applyCosmetics(skinId: CosmeticId | null, accessoryId: CosmeticId | null) {
@@ -350,9 +363,13 @@ export class Player extends Entity {
     }
 
     public setDead(dead: boolean) {
+        const changed = this.dead !== dead;
         this.dead = dead;
         if (dead) {
             this.animator.play('death', this.weaponEquipped);
+            if (changed) SoundManager.getInstance().play("player-death", { volume: 0.6 });
+        } else if (changed) {
+            SoundManager.getInstance().play("respawn", { volume: 0.5 });
         }
     }
 
@@ -505,6 +522,7 @@ export class Player extends Entity {
 
     update(delta: number, isInteracting: boolean = false) {
         this.shield?.update(delta, this.mesh.rotation.y);
+        this.updateHeartbeat();
         this.cosmeticRig?.update(delta);
 
         if (!this.inputManager || !this.camera) return;
@@ -574,7 +592,8 @@ export class Player extends Entity {
                 this.isGrounded = true;
 
                 if (impact > 2.5) {
-                    SoundManager.getInstance().play(this.swimming ? "splash" : "land", {
+                    const landing = this.swimming ? "splash" : impact > 7 ? "land-heavy" : "land";
+                    SoundManager.getInstance().play(landing, {
                         volume: Math.min(0.8, 0.25 + impact * 0.045),
                     });
                 }
@@ -591,7 +610,8 @@ export class Player extends Entity {
 
         if (moveDir.lengthSq() > 0) {
             moveDir.normalize().applyAxisAngle(Player._UP, this.camera.getYaw());
-            const targetAngle = this.isShooting ? this.getCameraLookAngle() : Math.atan2(moveDir.x, moveDir.z);
+            const facesCamera = this.isShooting || this.selfHidden;
+            const targetAngle = facesCamera ? this.getCameraLookAngle() : Math.atan2(moveDir.x, moveDir.z);
             this.rotateToAngle(targetAngle, delta);
 
             const step = Player._step.copy(moveDir).multiplyScalar(currentSpeed * delta);
@@ -850,7 +870,7 @@ export class Player extends Entity {
     private updateHeadRotation() {
         if (!this.head) return;
 
-        let headYaw = this.camera.getYaw() - this.mesh.rotation.y;
+        let headYaw = this.camera.getYaw() - this.mesh.rotation.y + MODEL_FORWARD_OFFSET;
         while (headYaw > Math.PI) headYaw -= Math.PI * 2;
         while (headYaw < -Math.PI) headYaw += Math.PI * 2;
 

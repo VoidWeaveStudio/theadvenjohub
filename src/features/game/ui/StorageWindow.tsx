@@ -1,9 +1,10 @@
 // src/features/game/ui/StorageWindow.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeftRight, Box, X } from "lucide-react";
 import { InventoryGrid, InventoryGridItem } from "./InventoryGrid";
+import { SoundManager } from "../core/SoundManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface StorageWindowProps {
@@ -22,6 +23,14 @@ export function StorageWindow({ isOpen, slots, entries, inventory, onClose, onDe
     const { t } = useLanguage();
     const [side, setSide] = useState<Side>("inventory");
     const [selected, setSelected] = useState<InventoryGridItem | null>(null);
+    const wasOpenRef = useRef(false);
+
+    useEffect(() => {
+        if (isOpen && !wasOpenRef.current) {
+            SoundManager.getInstance().play("storage-open", { volume: 0.5 });
+        }
+        wasOpenRef.current = isOpen;
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -31,6 +40,7 @@ export function StorageWindow({ isOpen, slots, entries, inventory, onClose, onDe
 
     const transfer = (quantity: number) => {
         if (!active || quantity <= 0) return;
+        SoundManager.getInstance().play("inventory-move", { volume: 0.45 });
         move(active.address, quantity);
         setSelected(null);
     };

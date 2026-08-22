@@ -6,6 +6,7 @@ import { X, MapPinned, CheckCircle2, Lock, MapPin } from "lucide-react";
 import { CanyonMapData } from "../network/NetworkManager";
 import { SoundManager } from "../core/SoundManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { CANYON_BIOMES } from "../world/locations/tower/floors/first-floor/utils/canyonBiomes";
 
 interface CanyonMapPanelProps {
     isOpen: boolean;
@@ -17,7 +18,9 @@ interface CanyonMapPanelProps {
 export function CanyonMapPanel({ isOpen, data, onClose, onWarp }: CanyonMapPanelProps) {
     const { t } = useLanguage();
     const segmentName = (segment: number) =>
-        segment === 1 ? t("g.canyon.valley") : t("g.canyon.segment", { segment });
+        segment <= CANYON_BIOMES.length
+            ? t(`g.biome.${CANYON_BIOMES[segment - 1].key}`)
+            : t("g.canyon.segmentOf", { name: t(`g.biome.${CANYON_BIOMES[CANYON_BIOMES.length - 1].key}`), segment });
     const wasOpenRef = useRef(false);
     useEffect(() => {
         if (isOpen && !wasOpenRef.current) {

@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SoundManager } from "./core/SoundManager";
 import { Game } from "./core/Game";
 import { HUD } from "./ui/HUD";
 import { TopMenu, TopWindowId } from "./ui/TopMenu";
@@ -23,6 +24,7 @@ import { EventsFactionPicker } from "./ui/EventsFactionPicker";
 import { EventDoorPanel } from "./ui/EventDoorPanel";
 import { DefusalHUD } from "./ui/DefusalHUD";
 import { GrinderHUD } from "./ui/GrinderHUD";
+import { Minimap } from "./ui/Minimap";
 import { KillFeed, type KillFeedEntry } from "./ui/KillFeed";
 import { BuyMenu } from "./ui/BuyMenu";
 import { DefusalLoadout, type HeldSlot } from "./ui/DefusalLoadout";
@@ -199,6 +201,7 @@ export function GameClient({ slug }: GameClientProps) {
   const defusalMe = defusalMatch?.roster.find((entry) => entry.id === localPlayerId) ?? null;
   const grinderMe = grinderMatch?.roster.find((entry) => entry.id === localPlayerId) ?? null;
   const dust2Me = defusalMe ?? grinderMe;
+  const inDust2Match = defusalMatch !== null || grinderMatch !== null;
   const [homeTeleport, setHomeTeleport] = useState({ casting: false, cooldownUntil: 0 });
   const [storage, setStorage] = useState<{ key: string | null; slots: number; entries: InventoryEntry[] }>({
     key: null,
@@ -930,6 +933,33 @@ export function GameClient({ slug }: GameClientProps) {
   }, []);
 
   useEffect(() => {
+    const handleUiClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const control = target?.closest("button, [role=\"button\"], a[href]");
+      if (!control || control.hasAttribute("disabled")) return;
+      SoundManager.getInstance().play("ui-click", { volume: 0.32 });
+    };
+
+    let hovered: Element | null = null;
+    const handleUiHover = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const control = target?.closest("button, [role=\"button\"]") ?? null;
+      if (control === hovered) return;
+      hovered = control;
+      if (control && !control.hasAttribute("disabled")) {
+        SoundManager.getInstance().play("ui-hover", { volume: 0.14 });
+      }
+    };
+
+    window.addEventListener("click", handleUiClick);
+    window.addEventListener("mouseover", handleUiHover);
+    return () => {
+      window.removeEventListener("click", handleUiClick);
+      window.removeEventListener("mouseover", handleUiHover);
+    };
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (inventory.activeTokenData) return;
 
@@ -1203,7 +1233,11 @@ export function GameClient({ slug }: GameClientProps) {
             notifications.addNotification(t("g.notify.noSkillBound"), 2000);
             return;
           }
-          if ((abilityState.cooldowns[abilityId] ?? 0) > Date.now()) return;
+          if ((abilityState.cooldowns[abilityId] ?? 0) > Date.now()) {
+            SoundManager.getInstance().play("ability-fail", { volume: 0.4 });
+            return;
+          }
+          SoundManager.getInstance().play("ability-cast", { volume: 0.5 });
           gameRef.current?.castAbility(abilityId);
         }
       }
@@ -1394,13 +1428,13 @@ export function GameClient({ slug }: GameClientProps) {
         localPlayerId={localPlayerId}
         shardState={shardState}
         onSwitchShard={(instance) => gameRef.current?.switchShard(instance)}
-        progression={progressionState.progression}
-        xpPopups={progressionState.xpPopups}
+        progression={inDust2Match ? null : progressionState.progression}
+        xpPopups={inDust2Match ? [] : progressionState.xpPopups}
         onOpenSkills={() => {
           setIsSkillTreeOpen(true);
           document.exitPointerLock();
         }}
-        rightRail={<QuestTracker quest={quest.questTracker} />}
+        rightRail={inDust2Match ? null : <QuestTracker quest={quest.questTracker} />}
         topCenter={
           <>
             <ArenaHUD
@@ -1586,6 +1620,13 @@ export function GameClient({ slug }: GameClientProps) {
 
       <DefusalHUD match={defusalMatch} localPlayerId={localPlayerId} />
       <GrinderHUD match={grinderMatch} localPlayerId={localPlayerId} />
+      <Minimap
+        gameRef={gameRef}
+        active={inDust2Match}
+        objective={
+          defusalMatch?.bomb?.state === "planted" ? ((defusalMatch.bomb.site as "A" | "B" | null) ?? null) : null
+        }
+      />
       <KillFeed entries={killFeed} />
       <ScopeOverlay active={scopeStep > 0} zoomStep={scopeStep} />
       <FlashOverlay until={flashUntil} />

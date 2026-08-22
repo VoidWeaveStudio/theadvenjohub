@@ -4,7 +4,11 @@ import { renderProceduralSfx } from "./proceduralSfx";
 const OCEAN_WAVE_NAMES = ["ambient-ocean-1", "ambient-ocean-2", "ambient-ocean-3", "ambient-ocean-4"];
 const FOOTSTEP_NAMES = ["footstep-1", "footstep-2", "footstep-3"];
 const STONE_FOOTSTEP_NAMES = ["footstep-stone-1", "footstep-stone-2"];
+const WOOD_FOOTSTEP_NAMES = ["footstep-wood-1", "footstep-wood-2", "footstep-wood-3"];
+const SAND_FOOTSTEP_NAMES = ["footstep-sand-1", "footstep-sand-2"];
 const HEARING_RANGE = 46;
+
+export type FootstepSurface = "soft" | "stone" | "wood" | "sand";
 
 export interface PlayOptions {
     volume?: number;
@@ -216,8 +220,14 @@ export class SoundManager {
     this.start(name, { rate: 0.88 + Math.random() * 0.24 }, this.masterVolume * volume, (Math.random() - 0.5) * 0.7, false);
   }
 
-  playFootstep(surface: "soft" | "stone" = "soft") {
-    const pool = surface === "stone" ? STONE_FOOTSTEP_NAMES : FOOTSTEP_NAMES;
+  playFootstep(surface: FootstepSurface = "soft") {
+    const pool = surface === "stone"
+      ? STONE_FOOTSTEP_NAMES
+      : surface === "wood"
+        ? WOOD_FOOTSTEP_NAMES
+        : surface === "sand"
+          ? SAND_FOOTSTEP_NAMES
+          : FOOTSTEP_NAMES;
     const name = pool[Math.floor(Math.random() * pool.length)];
     this.play(name, { volume: 0.5, rate: 0.92 + Math.random() * 0.16 });
   }

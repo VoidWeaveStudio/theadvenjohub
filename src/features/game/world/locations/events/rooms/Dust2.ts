@@ -13,7 +13,6 @@ import {
     CALLOUTS,
     CONTAINERS,
     CRATES,
-    DOORWAYS,
     GROUND_PATCHES,
     MAP_HALF_X,
     MAP_HALF_Z,
@@ -56,6 +55,7 @@ export class Dust2 extends TowerFloor {
     private sky: EditorSky | null = null;
     private keyLight: THREE.DirectionalLight | null = null;
     private siteMaterials: THREE.MeshBasicMaterial[] = [];
+    private beaconMaterials: THREE.MeshBasicMaterial[] = [];
     private elapsed = 0;
     private spawnPoint = new THREE.Vector3(T_SPAWN.x, 2, T_SPAWN.z);
 
@@ -80,10 +80,10 @@ export class Dust2 extends TowerFloor {
         this.buildPlatforms();
         this.buildCrates();
         this.buildCrenellations();
-        this.buildDoorways();
         this.buildPalms();
         this.buildContainers();
         this.buildSites();
+        this.buildSiteBeacons();
         this.buildExitGate();
         this.buildSkyline();
     }
@@ -277,7 +277,8 @@ export class Dust2 extends TowerFloor {
             site: 0xa9906a,
         };
 
-        for (const patch of GROUND_PATCHES) {
+        const patches = GROUND_PATCHES;
+        for (const patch of patches) {
             const width = patch.x2 - patch.x1;
             const depth = patch.z2 - patch.z1;
             const mesh = new THREE.Mesh(
@@ -289,7 +290,7 @@ export class Dust2 extends TowerFloor {
                 }))
             );
             mesh.rotation.x = -Math.PI / 2;
-            mesh.position.set(patch.x1 + width / 2, 0.02, patch.z1 + depth / 2);
+            mesh.position.set(patch.x1 + width / 2, 0.02 + patches.indexOf(patch) * 0.004, patch.z1 + depth / 2);
             mesh.receiveShadow = true;
             mesh.matrixAutoUpdate = false;
             mesh.updateMatrix();
@@ -361,7 +362,7 @@ export class Dust2 extends TowerFloor {
             this.scene.add(mesh);
 
             const edge = new THREE.Mesh(new THREE.BoxGeometry(width + 0.14, 0.12, depth + 0.14), lip);
-            edge.position.set(x, pad.top, z);
+            edge.position.set(x, pad.top + 0.01, z);
             edge.matrixAutoUpdate = false;
             edge.updateMatrix();
             this.scene.add(edge);
@@ -470,92 +471,6 @@ export class Dust2 extends TowerFloor {
         this.scene.add(poles);
     }
 
-    // A framed arch reads as a doorway where a plain gap in a slab does not.
-    private buildDoorways() {
-        const frameMaterial = this.bin.material(new THREE.MeshStandardMaterial({
-            color: 0xbfa073,
-            roughness: 0.9,
-            metalness: 0.02,
-        }));
-        const doorMaterial = this.bin.material(new THREE.MeshStandardMaterial({
-            color: 0x2f7d78,
-            roughness: 0.55,
-            metalness: 0.35,
-        }));
-        const strapMaterial = this.bin.material(new THREE.MeshStandardMaterial({
-            color: 0x1f5450,
-            roughness: 0.5,
-            metalness: 0.45,
-        }));
-
-        for (const door of DOORWAYS) {
-            const group = new THREE.Group();
-            group.position.set(door.x, 0, door.z);
-            if (door.axis === "x") group.rotation.y = Math.PI / 2;
-
-            const half = door.width / 2;
-            const spring = door.height - half;
-            const thickness = 0.9;
-
-            const shape = new THREE.Shape();
-            shape.moveTo(-half - thickness, 0);
-            shape.lineTo(half + thickness, 0);
-            shape.lineTo(half + thickness, door.height + thickness);
-            shape.lineTo(-half - thickness, door.height + thickness);
-            shape.closePath();
-
-            const hole = new THREE.Path();
-            hole.moveTo(-half, 0);
-            hole.lineTo(-half, spring);
-            hole.absarc(0, spring, half, Math.PI, 0, true);
-            hole.lineTo(half, 0);
-            hole.closePath();
-            shape.holes.push(hole);
-
-            const frame = new THREE.Mesh(
-                new THREE.ExtrudeGeometry(shape, { depth: 1.3, bevelEnabled: false, curveSegments: 10 }),
-                frameMaterial
-            );
-            frame.position.z = -0.65;
-            frame.castShadow = true;
-            frame.receiveShadow = true;
-            group.add(frame);
-
-            const keystone = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 1.5), frameMaterial);
-            keystone.position.set(0, door.height + 0.2, 0);
-            group.add(keystone);
-
-            if (door.style === "door") {
-                for (const side of [-1, 1]) {
-                    const leaf = new THREE.Group();
-                    leaf.position.set(side * half, 0, 0);
-                    leaf.rotation.y = side * 1.9;
-
-                    const panel = new THREE.Mesh(
-                        new THREE.BoxGeometry(half * 0.94, door.height * 0.92, 0.12),
-                        doorMaterial
-                    );
-                    panel.position.set(-side * half * 0.47, door.height * 0.46, 0);
-                    panel.castShadow = true;
-                    leaf.add(panel);
-
-                    for (let i = 0; i < 2; i++) {
-                        const strap = new THREE.Mesh(
-                            new THREE.BoxGeometry(half * 0.9, 0.16, 0.17),
-                            strapMaterial
-                        );
-                        strap.position.set(-side * half * 0.47, door.height * (0.24 + i * 0.44), 0);
-                        leaf.add(strap);
-                    }
-
-                    group.add(leaf);
-                }
-            }
-
-            this.scene.add(group);
-        }
-    }
-
     private buildPalms() {
         const bark = this.bin.material(new THREE.MeshStandardMaterial({
             color: 0x7a6444,
@@ -657,7 +572,7 @@ export class Dust2 extends TowerFloor {
             group.add(lid);
 
             this.scene.add(group);
-            this.collisionGrid.insertOrientedBox(box.x, box.z, width, depth, box.rotation, 0, height + 0.2);
+            this.insertSolid(box.x, box.z, width, depth, 0, height + 0.2);
         }
     }
 
@@ -720,6 +635,15 @@ export class Dust2 extends TowerFloor {
         );
     }
 
+    // Anything a bullet has to stop at goes in as an axis-aligned box: that is
+    // the only list the shot raycast and the ground probe both read.
+    private insertSolid(x: number, z: number, width: number, depth: number, minY: number, maxY: number) {
+        this.collisionGrid.insert(new THREE.Box3(
+            new THREE.Vector3(x - width / 2, minY, z - depth / 2),
+            new THREE.Vector3(x + width / 2, maxY, z + depth / 2)
+        ));
+    }
+
     private buildCrates() {
         const wood = this.crateMaterial();
         const concrete = this.bin.material(new THREE.MeshStandardMaterial({
@@ -761,15 +685,7 @@ export class Dust2 extends TowerFloor {
             mesh.receiveShadow = true;
             this.scene.add(mesh);
 
-            this.collisionGrid.insertOrientedBox(
-                crate.x,
-                crate.z,
-                crate.width,
-                crate.depth,
-                crate.rotation ?? 0,
-                y,
-                y + crate.height
-            );
+            this.insertSolid(crate.x, crate.z, crate.width, crate.depth, y, y + crate.height);
         }
     }
 
@@ -787,7 +703,7 @@ export class Dust2 extends TowerFloor {
 
             const disc = new THREE.Mesh(new THREE.CircleGeometry(site.radius, 48), paint);
             disc.rotation.x = -Math.PI / 2;
-            disc.position.set(site.x, 0.06, site.z);
+            disc.position.set(site.x, 0.12, site.z);
             disc.renderOrder = 2;
             this.scene.add(disc);
 
@@ -803,11 +719,61 @@ export class Dust2 extends TowerFloor {
                 }))
             );
             ring.rotation.x = -Math.PI / 2;
-            ring.position.set(site.x, 0.07, site.z);
+            ring.position.set(site.x, 0.16, site.z);
             this.scene.add(ring);
 
             this.buildSiteLetter(site.x, site.z, label);
         }
+    }
+
+    private buildSiteBeacons() {
+        for (const [site, label, tint] of [
+            [BOMB_SITE_A, "A", 0xff6b5a],
+            [BOMB_SITE_B, "B", 0x5fa8e8],
+        ] as const) {
+            const beam = new THREE.Mesh(
+                new THREE.CylinderGeometry(1.5, 2.6, 20, 18, 1, true),
+                this.bin.material(new THREE.MeshBasicMaterial({
+                    color: tint,
+                    transparent: true,
+                    opacity: 0.16,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    toneMapped: false,
+                }))
+            );
+            beam.position.set(site.x, WALL_HEIGHT + 10, site.z);
+            beam.renderOrder = 2;
+            this.scene.add(beam);
+            this.beaconMaterials.push(beam.material as THREE.MeshBasicMaterial);
+
+            this.buildFloatingLetter(site.x, WALL_HEIGHT + 6.5, site.z, label, tint);
+        }
+    }
+
+    private buildFloatingLetter(x: number, y: number, z: number, label: string, tint: number) {
+        const { canvas, ctx } = makeCanvas(256);
+        ctx.clearRect(0, 0, 256, 256);
+        ctx.fillStyle = "#" + tint.toString(16).padStart(6, "0");
+        ctx.font = "bold 210px Georgia, serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, 128, 136);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+
+        const sprite = new THREE.Sprite(this.bin.material(new THREE.SpriteMaterial({
+            map: this.bin.texture(texture),
+            transparent: true,
+            opacity: 0.85,
+            depthWrite: false,
+            toneMapped: false,
+        })) as THREE.SpriteMaterial);
+        sprite.position.set(x, y, z);
+        sprite.scale.set(7, 7, 1);
+        sprite.renderOrder = 3;
+        this.scene.add(sprite);
     }
 
     private buildSiteLetter(x: number, z: number, label: string) {
@@ -833,7 +799,7 @@ export class Dust2 extends TowerFloor {
             }))
         );
         mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set(x, 0.08, z);
+        mesh.position.set(x, 0.2, z);
         mesh.renderOrder = 3;
         this.scene.add(mesh);
     }
@@ -951,6 +917,8 @@ export class Dust2 extends TowerFloor {
 
         const pulse = 0.18 + Math.sin(this.elapsed * 1.6) * 0.06;
         for (const material of this.siteMaterials) material.opacity = pulse;
+        const beacon = 0.12 + Math.sin(this.elapsed * 1.6) * 0.05;
+        for (const material of this.beaconMaterials) material.opacity = beacon;
 
         if (this.sky) this.sky.material.uniforms.time.value = this.elapsed;
         this.trackShadowCamera(playerPosition);

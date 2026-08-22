@@ -102,6 +102,43 @@ export function findBoneFirst(root: THREE.Object3D, matches: (nameLower: string)
     return found;
 }
 
+export const MODEL_FORWARD_OFFSET = Math.PI;
+
+export function findHandBone(root: THREE.Object3D, side: "right" | "left"): THREE.Object3D | null {
+    const initial = side === "right" ? "r" : "l";
+    const tiers: Array<(name: string) => boolean> = [
+        (name) => name === `hand${initial}` || name === `hand.${initial}` || name === `${initial}_hand` || name === `${initial}hand`,
+        (name) => name.includes(side) && name.includes("hand"),
+        (name) => name.includes(`${side}hand`),
+        (name) => name.includes("hand") && name.includes(initial),
+        (name) => name.includes(`${side}forearm`) || (name.includes(side) && name.includes("arm")),
+    ];
+
+    for (const matches of tiers) {
+        const bone = findBoneFirst(root, matches);
+        if (bone) {
+            reportHandBone(side, bone.name);
+            return bone;
+        }
+    }
+
+    reportHandBone(side, null);
+    return null;
+}
+
+// A weapon parented to a bone follows every clip for free; one parented to the
+// mesh because no bone matched looks right in the rest pose and drifts in every
+// animation. Reported once so that difference is visible instead of guessed at.
+const reportedHands = new Set<string>();
+
+function reportHandBone(side: string, name: string | null) {
+    if (reportedHands.has(side)) return;
+    reportedHands.add(side);
+
+    if (name) console.log(`[character] ${side} hand bone: ${name}`);
+    else console.warn(`[character] no ${side} hand bone found — weapons will not follow animations`);
+}
+
 export function findBoneLast(root: THREE.Object3D, matches: (nameLower: string) => boolean): THREE.Object3D | null {
     let found: THREE.Object3D | null = null;
     root.traverse((child) => {

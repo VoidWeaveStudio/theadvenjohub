@@ -19,7 +19,7 @@ const WEAPON_TIERS_BY_INDEX = new Map(WEAPON_TIERS.map((t) => [t.tier, t]));
 export function LevelUpToast({ event, onDismiss }: LevelUpToastProps) {
     const { t } = useLanguage();
     useEffect(() => {
-        if (event) SoundManager.getInstance().play("modal-open");
+        if (event) SoundManager.getInstance().play("level-up", { volume: 0.7 });
     }, [event]);
 
     if (!event) return null;

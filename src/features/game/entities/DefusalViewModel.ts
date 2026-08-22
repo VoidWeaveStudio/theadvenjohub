@@ -2,65 +2,73 @@
 import * as THREE from "three";
 import { ARSENAL_BY_ID } from "../data/defusalArsenal";
 import { buildDefusalWeapon, disposeWeaponRig, WeaponRig } from "./defusalWeaponModels";
+import { buildViewHand } from "./viewHands";
+import { applyPose, poseFor } from "./viewModelPoses";
 
-const HIP = new THREE.Vector3(0.13, -0.115, -0.28);
-const ADS = new THREE.Vector3(0, -0.052, -0.2);
-const SCOPED = new THREE.Vector3(0, -0.045, -0.34);
+const HIP = new THREE.Vector3(0.16, -0.2, -0.46);
+const ADS = new THREE.Vector3(0, -0.11, -0.4);
+const SCOPED = new THREE.Vector3(0, -0.1, -0.48);
 
 const RECOIL_RECOVERY = 11;
 const SWAY_LIMIT = 0.035;
 
-// Hands are blocked-out gloves rather than a rigged mesh — enough to read as
-// arms at the bottom of the screen without dragging a skinned model in. Both
-// sit on the rig's own grip anchors, so every weapon is held where it actually
-// has a handle.
-function buildHands(rig: WeaponRig, offset: THREE.Vector3): THREE.Group {
+export interface TunedTransform {
+    position: THREE.Vector3;
+    euler: THREE.Euler;
+    scale: number;
+}
+
+export function makeTransform(
+    position = new THREE.Vector3(),
+    euler = new THREE.Euler(),
+    scale = 1
+): TunedTransform {
+    return { position, euler, scale };
+}
+
+function applyTransform(object: THREE.Object3D, transform: TunedTransform) {
+    object.position.copy(transform.position);
+    object.rotation.copy(transform.euler);
+    object.scale.setScalar(transform.scale);
+}
+
+// Each hand is built around a grip rod on its local X axis, so seating one is a
+// single rotation: line that axis up with whatever the weapon is held by — the
+// raked pistol grip at the back, the handguard running down the barrel in front.
+export interface HandRig {
+    group: THREE.Group;
+    left: THREE.Group;
+    right: THREE.Group | null;
+}
+
+// Right hand on the pistol grip and trigger, left hand out on the handguard.
+// Each sits under a base group holding the solved seating, so the tunable
+// transform on the hand itself starts from a correct pose instead of zero.
+function buildHands(rig: WeaponRig): HandRig {
     const group = new THREE.Group();
-    const glove = new THREE.MeshStandardMaterial({ color: 0x2c2f36, roughness: 0.82, metalness: 0.06 });
-    const skin = new THREE.MeshStandardMaterial({ color: 0xb98a68, roughness: 0.78, metalness: 0.02 });
+    const glove = new THREE.MeshStandardMaterial({ color: 0x53585f, roughness: 0.8, metalness: 0.05 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0xc09274, roughness: 0.76, metalness: 0.02 });
 
-    const makeHand = (at: THREE.Vector3, rake: number, mirror: number) => {
-        const hand = new THREE.Group();
-        hand.position.copy(at);
-        hand.rotation.set(-0.35 - rake, mirror * 0.22, mirror * 0.18);
+    const leftBase = new THREE.Group();
+    leftBase.position.copy(rig.rearGrip.position).add(new THREE.Vector3(0.022, 0, 0.006));
+    leftBase.rotation.set(0.35, 0, -Math.PI / 2 + rig.gripRake);
+    group.add(leftBase);
 
-        const palm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.034, 0.058), glove);
-        hand.add(palm);
+    const left = buildViewHand(glove, skin, 1);
+    leftBase.add(left);
 
-        for (let i = 0; i < 4; i++) {
-            const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.0065, 0.03, 3, 6), glove);
-            finger.position.set(-0.016 + i * 0.0105, -0.012, -0.024);
-            finger.rotation.x = 1.35;
-            hand.add(finger);
-        }
-
-        const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.0075, 0.026, 3, 6), glove);
-        thumb.position.set(mirror * 0.023, 0.006, -0.014);
-        thumb.rotation.set(1.15, 0, mirror * -0.7);
-        hand.add(thumb);
-
-        const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.036, 0.22, 10), skin);
-        forearm.position.set(mirror * 0.03, -0.05, 0.11);
-        forearm.rotation.set(Math.PI / 2 - 0.42, 0, mirror * -0.16);
-        hand.add(forearm);
-
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.032, 10), glove);
-        cuff.position.set(mirror * 0.008, -0.014, 0.036);
-        cuff.rotation.x = Math.PI / 2 - 0.2;
-        hand.add(cuff);
-
-        return hand;
-    };
-
-    const rear = rig.rearGrip.position.clone().add(offset);
-    group.add(makeHand(rear, rig.gripRake, 1));
-
+    let right: THREE.Group | null = null;
     if (!rig.oneHanded) {
-        const front = rig.frontGrip.position.clone().add(offset).add(new THREE.Vector3(0, -0.024, 0.01));
-        group.add(makeHand(front, 0.15, -1));
+        const rightBase = new THREE.Group();
+        rightBase.position.copy(rig.frontGrip.position).add(new THREE.Vector3(-0.024, -0.018, 0));
+        rightBase.rotation.set(2.6, Math.PI / 2, 0);
+        group.add(rightBase);
+
+        right = buildViewHand(glove, skin, -1);
+        rightBase.add(right);
     }
 
-    return group;
+    return { group, left, right };
 }
 
 export class DefusalViewModel {
@@ -69,6 +77,8 @@ export class DefusalViewModel {
     private swayNode = new THREE.Group();
     private rig: WeaponRig | null = null;
     private hands: THREE.Group | null = null;
+    private handRig: HandRig | null = null;
+    public heldItemId: string | null = null;
 
     private itemId: string | null = null;
     private elapsed = 0;
@@ -83,8 +93,6 @@ export class DefusalViewModel {
     private aim = 0;
     private scopeBlend = 0;
     private scopeActive = false;
-    private readonly rigOffset = new THREE.Vector3();
-    private readonly rigEuler = new THREE.Euler();
     private muzzleFlash: THREE.PointLight | null = null;
     private flashUntil = 0;
 
@@ -101,37 +109,38 @@ export class DefusalViewModel {
         this.root.add(this.muzzleFlash);
     }
 
-    public readonly handOffset = new THREE.Vector3();
+    public readonly weaponTransform = makeTransform();
+    public readonly handsTransform = makeTransform();
+    public readonly leftHandTransform = makeTransform();
+    public readonly rightHandTransform = makeTransform();
 
     getWorldMuzzle(target = new THREE.Vector3()): THREE.Vector3 | null {
         if (!this.rig || !this.root.visible) return null;
         return this.rig.muzzle.getWorldPosition(target);
     }
 
-    setRigTransform(offset: THREE.Vector3, euler: THREE.Euler) {
-        this.rigOffset.copy(offset);
-        this.rigEuler.copy(euler);
-        if (this.rig) {
-            this.rig.group.position.copy(offset);
-            this.rig.group.rotation.copy(euler);
-        }
-    }
+    applyTunedTransforms() {
+        if (this.rig) applyTransform(this.rig.group, this.weaponTransform);
+        if (!this.handRig) return;
 
-    setHandOffset(offset: THREE.Vector3) {
-        this.handOffset.copy(offset);
-        this.rebuildHands();
+        applyTransform(this.handRig.group, this.handsTransform);
+        applyTransform(this.handRig.left, this.leftHandTransform);
+        if (this.handRig.right) applyTransform(this.handRig.right, this.rightHandTransform);
     }
 
     private rebuildHands() {
         if (!this.rig) return;
-        this.hands?.removeFromParent();
-        this.hands = buildHands(this.rig, this.handOffset);
-        this.recoilNode.add(this.hands);
+        this.handRig?.group.removeFromParent();
+        this.handRig = buildHands(this.rig);
+        this.hands = this.handRig.group;
+        this.recoilNode.add(this.handRig.group);
+        this.applyTunedTransforms();
     }
 
     setWeapon(itemId: string | null) {
         if (this.itemId === itemId) return;
         this.itemId = itemId;
+        this.heldItemId = itemId;
 
         if (this.rig) {
             disposeWeaponRig(this.rig);
@@ -140,6 +149,7 @@ export class DefusalViewModel {
         if (this.hands) {
             this.hands.removeFromParent();
             this.hands = null;
+            this.handRig = null;
         }
 
         if (!itemId) {
@@ -147,9 +157,14 @@ export class DefusalViewModel {
             return;
         }
 
+        const pose = poseFor(itemId);
+        applyPose(this.weaponTransform, pose.weapon);
+        applyPose(this.handsTransform, pose.hands);
+        applyPose(this.leftHandTransform, pose.left);
+        applyPose(this.rightHandTransform, pose.right);
+
         this.rig = buildDefusalWeapon(itemId);
-        this.rig.group.position.copy(this.rigOffset);
-        this.rig.group.rotation.copy(this.rigEuler);
+        applyTransform(this.rig.group, this.weaponTransform);
         this.rig.group.traverse((node) => {
             node.renderOrder = 20;
             const mesh = node as THREE.Mesh;

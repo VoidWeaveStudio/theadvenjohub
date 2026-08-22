@@ -50,6 +50,8 @@ export function WindowFrame({
     useEffect(() => {
         if (isOpen && !wasOpenRef.current) {
             SoundManager.getInstance().play('modal-open');
+        } else if (!isOpen && wasOpenRef.current) {
+            SoundManager.getInstance().play('ui-close', { volume: 0.45 });
         }
         wasOpenRef.current = isOpen;
     }, [isOpen]);
@@ -90,7 +92,10 @@ export function WindowFrame({
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
-                                onClick={() => onTabChange?.(tab.id)}
+                                onClick={() => {
+                                if (tab.id !== activeTab) SoundManager.getInstance().play('ui-tab', { volume: 0.3 });
+                                onTabChange?.(tab.id);
+                            }}
                                 className={`relative flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold tracking-wide whitespace-nowrap transition-colors ${activeTab === tab.id
                                     ? "text-[#0A0E14] bg-[#4FD1FF] shadow-[0_2px_10px_rgba(79,209,255,0.35)]"
                                     : "text-[#6B7280] hover:text-[#9CA3AF] hover:bg-white/5"

@@ -308,29 +308,30 @@ export class Game {
     }
 
     public async enterEventRoom(eventId: string) {
+        SoundManager.getInstance().play("door-open", { volume: 0.5 });
         const event = EVENT_DOORS_BY_ID.get(eventId);
         if (!event) return;
 
         if (!this.isEventOpen(eventId)) {
             const state = this.eventStates.find((entry) => entry.id === eventId);
-            const name = state?.title ?? event.name;
+            const name = t(state?.title ?? event.name);
 
             if (state?.enabled) {
                 const window = eventWindow(state);
                 this.onNotification?.(
-                    window.state === "upcoming" ? `⏳ ${name} has not opened yet` : `⏳ ${name} is over for now`,
+                    window.state === "upcoming" ? t("g.event.notOpenYet", { name }) : t("g.event.overForNow", { name }),
                     2500
                 );
             } else {
-                this.onNotification?.(`🔒 ${name} is sealed`, 2500);
+                this.onNotification?.(t("g.event.sealedNamed", { name }), 2500);
             }
             return;
         }
 
         await this.changeLocation(event.locationId, { silent: true }).then(() => {
-            this.onNotification?.(`${event.glyph} ${event.name}`, 2500);
+            this.onNotification?.(`${event.glyph} ${t(event.name)}`, 2500);
         }).catch(() => {
-            this.onNotification?.("⚠️ That door would not open", 2000);
+            this.onNotification?.(t("g.event.doorWontOpen"), 2000);
         });
     }
 
@@ -374,6 +375,7 @@ export class Game {
     }
 
     public async leaveEventRoom() {
+        SoundManager.getInstance().play("door-close", { volume: 0.5 });
         await this.changeLocation(EVENTS_LOBBY_ID, { silent: true }).then(() => {
             this.onNotification?.("📍 Events Hall", 2000);
         }).catch(() => {
@@ -479,6 +481,23 @@ export class Game {
             weaponEquipped: false,
             isShooting: false,
         });
+    }
+
+    // Fed to the minimap every frame. Only teammates are exposed: an FFA match
+    // has none, so the radar never gives away an enemy position.
+    public minimapMates: { x: number; z: number; alive: boolean }[] = [];
+    public dust2MateIds = new Set<string>();
+    public minimapBomb: { x: number; z: number } | null = null;
+
+    public getMinimapState() {
+        const position = this.player.mesh.position;
+        return {
+            x: position.x,
+            z: position.z,
+            yaw: this.cameraController.getYaw(),
+            mates: this.minimapMates,
+            bomb: this.minimapBomb,
+        };
     }
 
     public getPlayerGroundPosition(): { x: number; z: number } {
@@ -951,6 +970,7 @@ export class Game {
             this.player.clearSlow();
             this.memeMovementUntil = 0;
             this.player.setMovementLocked(false);
+            this.minimapMates.length = 0;
             this.otherPlayers.forEach((op) => {
                 if (!op.isHidden()) {
                     previousLocation.scene.remove(op.mesh);
@@ -1307,6 +1327,9 @@ export class Game {
             this.otherPlayers.forEach((op) => {
                 if (galaxy) op.setWispMode(!galaxy.isOnPlatform(op.mesh.position));
                 op.update(delta);
+                if (this.dust2MateIds.has(op.id)) {
+                    this.minimapMates.push({ x: op.mesh.position.x, z: op.mesh.position.z, alive: !op.isDead() });
+                }
             });
             perf.end("otherPlayers");
 
@@ -1360,6 +1383,9 @@ export class Game {
     setWeaponEquipped(equipped: boolean) {
         const currentLocation = this.locationManager.getCurrentLocation();
         const finalEquipped = currentLocation?.id === 'tower-main-hall' ? false : equipped;
+        if (finalEquipped !== this.hudState.isWeaponEquipped) {
+            SoundManager.getInstance().play(finalEquipped ? "weapon-equip" : "weapon-switch", { volume: 0.4 });
+        }
         this.hudState.isWeaponEquipped = finalEquipped;
         this.player.setWeaponVisible(finalEquipped);
         this.shootingSystem.setWeaponEquipped(finalEquipped);
@@ -2009,6 +2035,23 @@ export class Game {
             this.defusalViewModel = new DefusalViewModel(this.cameraController.camera);
             this.shootingSystem.setMuzzleProvider(() => this.defusalViewModel?.getWorldMuzzle() ?? null);
             this.viewModelTuner.init(this.inputManager, this.defusalViewModel);
+            this.viewModelTuner.onRemoteChange = () => {
+                this.otherPlayers.forEach((op) => op.applyRemoteWeaponTransform());
+            };
+
+            // The editor needs one character to judge against; any of them will
+            // do, since they all share the same rig and the same clip list.
+            const sample = (): OtherPlayer | undefined => {
+                let first: OtherPlayer | undefined;
+                this.otherPlayers.forEach((op) => { first = first ?? op; });
+                return first;
+            };
+
+            this.viewModelTuner.getClips = () => sample()?.listAnimationKeys() ?? [];
+            this.viewModelTuner.getCurrentClip = () => sample()?.currentAnimationKey() ?? "";
+            this.viewModelTuner.onPreviewClip = (clip) => {
+                this.otherPlayers.forEach((op) => op.playPose(clip));
+            };
         }
 
         this.defusalViewModel.setWeapon(itemId);
