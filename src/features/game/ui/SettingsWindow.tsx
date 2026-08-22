@@ -3,11 +3,12 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Info, Keyboard, TriangleAlert, LifeBuoy } from "lucide-react";
+import { Info, Keyboard, TriangleAlert, LifeBuoy, MonitorCog } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
+import { GraphicsTab } from "./GraphicsTab";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
-type SettingsTab = "controls" | "about";
+type SettingsTab = "controls" | "graphics" | "about";
 
 interface SettingsWindowProps {
     isOpen: boolean;
@@ -112,6 +113,7 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, isInComb
             size="lg"
             tabs={[
                 { id: "controls", label: t("g.settings.controls"), icon: <Keyboard className="w-3.5 h-3.5" /> },
+                { id: "graphics", label: t("g.settings.graphics"), icon: <MonitorCog className="w-3.5 h-3.5" /> },
                 { id: "about", label: t("g.settings.about"), icon: <Info className="w-3.5 h-3.5" /> },
             ]}
             activeTab={activeTab}
@@ -171,6 +173,8 @@ export function SettingsWindow({ isOpen, onClose, onTeleportToSafeZone, isInComb
                     ))}
                 </div>
             )}
+
+            {activeTab === "graphics" && <GraphicsTab />}
 
             {activeTab === "about" && (
                 <div className="space-y-4">

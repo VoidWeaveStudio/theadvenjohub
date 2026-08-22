@@ -443,7 +443,12 @@ export class Player extends Entity {
         return this.visualY;
     }
 
-    private getSurfaceHeight(x: number, z: number, allowStepUp: boolean = false): number {
+    private getSurfaceHeight(
+        x: number,
+        z: number,
+        allowStepUp: boolean = false,
+        sweepUp: number = 0
+    ): number {
         const terrainHeight = this.terrain?.getHeightAt(x, z, this.baseY) || 0;
         let platformHeight = -Infinity;
 
@@ -452,11 +457,12 @@ export class Player extends Entity {
 
         if (this.collisionGrid) {
             const centerY = this.baseY + Player.HALF_HEIGHT;
+            const reach = allowStepUp ? CollisionGrid.STEP_UP_HEIGHT : sweepUp;
             const platformCheck = this.collisionGrid.checkPlatformBelow(
                 Player._surfacePos.set(x, centerY, z),
                 Player._playerSize.y,
                 2.5,
-                allowStepUp ? CollisionGrid.STEP_UP_HEIGHT : 0
+                reach
             );
 
             if (platformCheck.found) {
@@ -550,10 +556,16 @@ export class Player extends Entity {
         }
 
         if (!this.isGrounded) {
+            const previousY = this.baseY;
             this.velocityY -= this.GRAVITY * delta;
             this.baseY += this.velocityY * delta;
 
-            const surfaceHeight = this.getSurfaceHeight(this.mesh.position.x, this.mesh.position.z);
+            const surfaceHeight = this.getSurfaceHeight(
+                this.mesh.position.x,
+                this.mesh.position.z,
+                false,
+                Math.max(0, previousY - this.baseY)
+            );
 
             if (this.baseY <= surfaceHeight) {
                 const impact = Math.abs(this.velocityY);

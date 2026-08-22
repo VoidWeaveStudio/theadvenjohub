@@ -61,6 +61,7 @@ import { registerNetworkHandlers } from "./GameNetworkHandlers";
 import type { GameCallbacks } from "./GameCallbacks";
 import { ViewModelTuner } from "../systems/ViewModelTuner";
 import { CosmeticTuner } from "../systems/CosmeticTuner";
+import { applyGraphicsSettings, reapplySceneGraphics } from "./graphicsSettings";
 import { createGameRenderer } from "./GameRenderer";
 import { perf } from "./PerfProfiler";
 import { updateDamageIndicator } from "./GameDamageIndicator";
@@ -517,6 +518,7 @@ export class Game {
         this.renderer = createGameRenderer(canvas, width, height);
         perf.attach(this.renderer);
         perf.registerToggle("fpsCap", (value) => this.setFrameCap(Number(value)));
+        applyGraphicsSettings();
 
         canvas.style.width = '100%';
         canvas.style.height = '100%';
@@ -609,6 +611,7 @@ export class Game {
                 this.cameraController.setTarget(this.player.mesh);
 
                 configureLocationSpecifics(this, currentLocation);
+                reapplySceneGraphics();
 
                 this.shootingSystem.init(
                     currentLocation.scene,
@@ -994,6 +997,7 @@ export class Game {
 
             applyLocationMovementConfig(this, newLocation);
             configureLocationSpecifics(this, newLocation);
+            reapplySceneGraphics();
 
             if (newLocation.id !== 'main-world' && !this.isOwnFactionRoom(newLocation) && this.hudState.equippedTool === 'blueprint') {
                 this.setBlueprintEquipped(false);

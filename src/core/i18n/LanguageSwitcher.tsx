@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
-import { Language, LANGUAGES, languageFlags, languageNames } from "@/core/i18n/index";
+import { Language, LANGUAGES, languageEnglishNames, languageFlags, languageNames } from "@/core/i18n/index";
 
 export function LanguageSwitcher() {
   const { language, setLanguage, t } = useLanguage();
@@ -52,7 +52,12 @@ export function LanguageSwitcher() {
                 }`}
             >
               <span className="w-6 text-center">{languageFlags[lang]}</span>
-              <span>{languageNames[lang]}</span>
+              <span className="flex flex-col leading-tight">
+                <span>{languageNames[lang]}</span>
+                {languageEnglishNames[lang] !== languageNames[lang] && (
+                  <span className="text-xs text-text-secondary/70">{languageEnglishNames[lang]}</span>
+                )}
+              </span>
             </button>
           ))}
         </div>

@@ -18,38 +18,25 @@ interface SwitchRow {
 
 const SWITCHES: SwitchRow[] = [
     { name: "lightsExceptFirst", label: "Extra lights", hint: "off = only one light + ambient" },
-    { name: "pointLights", label: "Point lights", hint: "off = all point lights hidden" },
     { name: "rectLights", label: "Rect area lights", hint: "off = all rect lights hidden" },
-    { name: "shadows", label: "Shadows", hint: "off = shadow maps disabled" },
     { name: "shadowAuto", label: "Shadow auto-update", hint: "off = shadows frozen after one pass" },
     { name: "transparent", label: "Transparent meshes", hint: "off = hides overdraw-heavy meshes" },
-    { name: "transmission", label: "Transmission (glass)", hint: "off = disables refraction pass" },
     { name: "sky", label: "Sky", hint: "off = hides sky dome" },
     { name: "environment", label: "Environment map", hint: "off = drops scene.environment" },
     { name: "castShadows", label: "Shadow casters", hint: "off = lights keep shadows but nothing casts" },
-    { name: "points", label: "Particles (Points)", hint: "off = hides sparks, embers, trails" },
     { name: "sprites", label: "Sprites", hint: "off = hides nametags, health bars, billboards" },
     { name: "skinned", label: "Characters (skinned)", hint: "off = hides players, NPCs, enemies" },
     { name: "instanced", label: "Instanced meshes", hint: "off = hides grass, undergrowth, props" },
-    { name: "fog", label: "Fog", hint: "off = scene.fog removed" },
     { name: "toneMapping", label: "Tone mapping", hint: "off = NoToneMapping, recompiles shaders" },
 ];
 
-const PIXEL_RATIOS = [0.5, 0.75, 1, 1.25, 1.5];
-const GRASS_DENSITIES = [0, 0.25, 0.5, 1];
-const FPS_CAPS = [30, 60, 90, 120, 0];
-const SHADOW_RES = [256, 512, 1024, 2048];
 
 export function PerfPanel({ isOpen, onClose }: PerfPanelProps) {
     const [fps, setFps] = useState(0);
     const [frameMs, setFrameMs] = useState(0);
     const [avgMs, setAvgMs] = useState(0);
-    const [fpsCap, setFpsCap] = useState<number | null>(null);
     const [info, setInfo] = useState<{ calls: number; triangles: number; programs: number } | null>(null);
     const [switches, setSwitches] = useState<Record<string, boolean>>({});
-    const [pixelRatio, setPixelRatio] = useState<number | null>(null);
-    const [grassDensity, setGrassDensity] = useState<number | null>(null);
-    const [shadowRes, setShadowRes] = useState<number | null>(null);
     const [gpuMs, setGpuMs] = useState<number | null>(null);
     const [memory, setMemory] = useState<{ geometries: number; textures: number; heapMb: number | null } | null>(null);
     const [context, setContext] = useState<ReturnType<typeof perf.getContextInfo>>(null);
@@ -129,38 +116,9 @@ export function PerfPanel({ isOpen, onClose }: PerfPanelProps) {
         perf.set(name, next);
     };
 
-    const applyPixelRatio = (value: number) => {
-        setPixelRatio(value);
-        perf.set("pixelRatio", value);
-        setContext(perf.getContextInfo());
-    };
-
-    const applyGrassDensity = (value: number) => {
-        setGrassDensity(value);
-        perf.set("grassDensity", value);
-    };
-
-    const applyFpsCap = (value: number) => {
-        setFpsCap(value);
-        perf.set("fpsCap", value);
-    };
-
-    const applyShadowRes = (value: number) => {
-        setShadowRes(value);
-        perf.set("shadowRes", value);
-    };
-
     const resetAll = () => {
         for (const row of SWITCHES) perf.set(row.name, true);
-        perf.set("pixelRatio", 1);
-        perf.set("grassDensity", 1);
-        perf.set("fpsCap", 0);
-        perf.set("shadowRes", 2048);
         setSwitches(Object.fromEntries(SWITCHES.map((row) => [row.name, true])));
-        setPixelRatio(null);
-        setGrassDensity(null);
-        setFpsCap(null);
-        setShadowRes(null);
     };
 
     const fpsColor = fps >= 55 ? "#4ADE80" : fps >= 30 ? "#FFD166" : "#FF5757";
@@ -252,80 +210,6 @@ export function PerfPanel({ isOpen, onClose }: PerfPanelProps) {
                         </button>
                     );
                 })}
-            </div>
-
-            <div className="space-y-2 px-3 pt-2.5">
-                <div>
-                    <div className="mb-1 text-[9px] uppercase tracking-wider text-[#6B7280]">Pixel ratio</div>
-                    <div className="flex gap-1">
-                        {PIXEL_RATIOS.map((value) => (
-                            <button
-                                key={value}
-                                onClick={() => applyPixelRatio(value)}
-                                className={`flex-1 rounded-md border px-1 py-1 text-[10px] font-bold transition-colors ${pixelRatio === value
-                                    ? "border-[#4FD1FF] bg-[#4FD1FF] text-[#0A0E14]"
-                                    : "border-white/10 bg-white/5 text-[#C9CDD3]"
-                                    }`}
-                            >
-                                {value}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div>
-                    <div className="mb-1 text-[9px] uppercase tracking-wider text-[#6B7280]">FPS cap</div>
-                    <div className="flex gap-1">
-                        {FPS_CAPS.map((value) => (
-                            <button
-                                key={value}
-                                onClick={() => applyFpsCap(value)}
-                                className={`flex-1 rounded-md border px-1 py-1 text-[10px] font-bold transition-colors ${fpsCap === value
-                                    ? "border-[#4FD1FF] bg-[#4FD1FF] text-[#0A0E14]"
-                                    : "border-white/10 bg-white/5 text-[#C9CDD3]"
-                                    }`}
-                            >
-                                {value === 0 ? "off" : value}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div>
-                    <div className="mb-1 text-[9px] uppercase tracking-wider text-[#6B7280]">Shadow resolution</div>
-                    <div className="flex gap-1">
-                        {SHADOW_RES.map((value) => (
-                            <button
-                                key={value}
-                                onClick={() => applyShadowRes(value)}
-                                className={`flex-1 rounded-md border px-1 py-1 text-[10px] font-bold transition-colors ${shadowRes === value
-                                    ? "border-[#4FD1FF] bg-[#4FD1FF] text-[#0A0E14]"
-                                    : "border-white/10 bg-white/5 text-[#C9CDD3]"
-                                    }`}
-                            >
-                                {value}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div>
-                    <div className="mb-1 text-[9px] uppercase tracking-wider text-[#6B7280]">Grass density</div>
-                    <div className="flex gap-1">
-                        {GRASS_DENSITIES.map((value) => (
-                            <button
-                                key={value}
-                                onClick={() => applyGrassDensity(value)}
-                                className={`flex-1 rounded-md border px-1 py-1 text-[10px] font-bold transition-colors ${grassDensity === value
-                                    ? "border-[#4FD1FF] bg-[#4FD1FF] text-[#0A0E14]"
-                                    : "border-white/10 bg-white/5 text-[#C9CDD3]"
-                                    }`}
-                            >
-                                {value}
-                            </button>
-                        ))}
-                    </div>
-                </div>
             </div>
 
             <div className="flex gap-1.5 px-3 py-3">

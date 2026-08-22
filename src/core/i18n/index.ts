@@ -38,11 +38,25 @@ export const languageNames: Record<Language, string> = {
   be: "Беларуская",
   es: "Español",
   it: "Italiano",
-  zh: "中文",
+  zh: "简体中文",
   ja: "日本語",
   ko: "한국어",
   vi: "Tiếng Việt",
   id: "Bahasa Indonesia",
+  fil: "Filipino",
+};
+
+export const languageEnglishNames: Record<Language, string> = {
+  en: "English",
+  ru: "Russian",
+  be: "Belarusian",
+  es: "Spanish",
+  it: "Italian",
+  zh: "Chinese (Simplified)",
+  ja: "Japanese",
+  ko: "Korean",
+  vi: "Vietnamese",
+  id: "Indonesian",
   fil: "Filipino",
 };
 

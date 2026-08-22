@@ -772,14 +772,14 @@ class PerfProfiler {
         this.toggles.set(name, apply);
     }
 
-    public set(name: string, value: boolean | number) {
+    public set(name: string, value: boolean | number, silent: boolean = false) {
         const toggle = this.toggles.get(name);
         if (!toggle) {
             console.log(`[perf] unknown toggle "${name}" — available: ${Array.from(this.toggles.keys()).join(", ")}`);
             return;
         }
         toggle(value);
-        console.log(`[perf] ${name} = ${value}`);
+        if (!silent) console.log(`[perf] ${name} = ${value}`);
     }
 
     private forEachMaterial(fn: (material: THREE.Material) => void) {
