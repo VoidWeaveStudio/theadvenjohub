@@ -33,7 +33,7 @@ const SELL_SEND_SPACING = 70;
 export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, placeables, onClose, onSell, onBuyItem }: VendorPanelProps) {
     const { t } = useLanguage();
     const [tab, setTab] = useState<VendorTab>("buy");
-    const shopPrices = useShopPrices(gameSlug, isOpen);
+    const { prices: shopPrices } = useShopPrices(gameSlug, isOpen);
     const [hovered, setHovered] = useState<InventoryGridItem | null>(null);
     const [pending, setPending] = useState<Record<string, number>>({});
     const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,7 +154,10 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
     };
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-2 sm:p-4">
+        <div
+            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-2 sm:p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
             <div className="flex items-center justify-between w-full max-w-6xl">
                 <div className="flex items-center gap-2">
                     <Store className="w-5 h-5 text-[#FFD166]" />

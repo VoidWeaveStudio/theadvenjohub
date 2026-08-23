@@ -66,7 +66,7 @@ export function WindowFrame({
             }}
         >
             <div
-                className={`game-window-panel w-full h-full ${SIZE_CLASSES[size]} flex flex-col bg-[rgba(13,17,23,0.98)] border border-white/10 rounded-none sm:rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65),0_0_0_1px_rgba(79,209,255,0.08)] overflow-hidden pt-safe pb-safe sm:pt-0 sm:pb-0`}
+                className={`game-window-panel w-full h-full max-h-full ${SIZE_CLASSES[size]} flex flex-col bg-[rgba(13,17,23,0.98)] border border-white/10 rounded-none sm:rounded-2xl shadow-[0_12px_48px_rgba(0,0,0,0.65),0_0_0_1px_rgba(79,209,255,0.08)] overflow-hidden pt-safe pb-safe sm:pt-0 sm:pb-0`}
             >
                 <div className="game-window-head relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 flex-shrink-0">
                     <div className="flex items-center gap-3">

@@ -87,7 +87,11 @@ export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTe
     if (!isOpen) return null;
 
     return (
-        <div className="absolute right-8 top-24 bottom-24 pointer-events-auto font-oxanium flex items-center">
+        <div
+            className="absolute inset-0 pointer-events-auto"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+        <div className="absolute right-8 top-24 bottom-24 font-oxanium flex items-center">
             <div className="bg-[rgba(12,12,14,0.9)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-4 w-full max-w-[420px] max-h-full flex flex-col shadow-2xl">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
@@ -146,6 +150,7 @@ export function Inventory({ items, ash, isOpen, onClose, placeables = {}, homeTe
                 onMouseEnter={cancelClear}
                 onMouseLeave={pinnedItem ? undefined : clearNow}
             />
+        </div>
         </div>
     );
 }

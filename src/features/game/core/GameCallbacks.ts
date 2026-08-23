@@ -38,6 +38,8 @@ import {
     TradeSessionData,
     CosmeticStateData,
     CompanionStateData,
+    CosmeticCrateOpenedData,
+    CosmeticCrateStateData,
     CrateOpenedData,
     FactionGateData,
     ShardStateData,
@@ -189,6 +191,8 @@ export interface GameCallbacks {
     onCosmeticState?: (data: CosmeticStateData) => void;
     onCompanionState?: (data: CompanionStateData) => void;
     onCrateOpened?: (data: CrateOpenedData) => void;
+    onCosmeticCrateState?: (data: CosmeticCrateStateData) => void;
+    onCosmeticCrateOpened?: (data: CosmeticCrateOpenedData) => void;
     onCompanionDusted?: (data: { itemId: string; gained: number }) => void;
     onSpawnProtectionChange?: (secondsLeft: number) => void;
     onTradeSession?: (data: TradeSessionData) => void;

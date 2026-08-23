@@ -40,11 +40,15 @@ export const AdminPlayersTable = forwardRef<AdminTableRef>(function AdminPlayers
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(true);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+    const [tab, setTab] = useState<"players" | "registered">("players");
 
-    const loadPlayers = async (q: string) => {
+    const loadPlayers = async (q: string, ownsFilter: "players" | "registered") => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/admin/players${q ? `?q=${encodeURIComponent(q)}` : ""}`, {
+            const params = new URLSearchParams();
+            if (q) params.set("q", q);
+            params.set("owns", ownsFilter === "players" ? "1" : "0");
+            const res = await fetch(`/api/admin/players?${params.toString()}`, {
                 credentials: "include",
             });
             if (res.ok) {
@@ -56,23 +60,51 @@ export const AdminPlayersTable = forwardRef<AdminTableRef>(function AdminPlayers
         }
     };
 
-    useImperativeHandle(ref, () => ({ refresh: () => loadPlayers(query) }));
+    useImperativeHandle(ref, () => ({ refresh: () => loadPlayers(query, tab) }));
 
     useEffect(() => {
-        loadPlayers("");
-    }, []);
+        loadPlayers(query, tab);
+    }, [tab]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        loadPlayers(query);
+        loadPlayers(query, tab);
     };
 
     const handleBanChanged = (userId: string, isBanned: boolean, banReason: string | null) => {
         setPlayers((prev) => prev.map((p) => (p.id === userId ? { ...p, isBanned, banReason } : p)));
     };
 
+    const handleLicenseChanged = (userId: string, ownsGame: boolean) => {
+        setPlayers((prev) =>
+            tab === (ownsGame ? "players" : "registered")
+                ? prev.map((p) => (p.id === userId ? { ...p, ownsGame } : p))
+                : prev.filter((p) => p.id !== userId)
+        );
+    };
+
+    const visible = players;
+
     return (
         <div className="space-y-4">
+            <div className="flex gap-2">
+                {([
+                    { id: "players" as const, label: "Players" },
+                    { id: "registered" as const, label: "Registered only" },
+                ]).map((entry) => (
+                    <button
+                        key={entry.id}
+                        onClick={() => setTab(entry.id)}
+                        className={`px-3 py-1.5 rounded text-sm border transition-colors ${tab === entry.id
+                            ? "border-cyan-500/60 bg-cyan-500/10 text-[#E5E7EB]"
+                            : "border-[rgba(255,255,255,0.08)] text-[#8B8F98] hover:text-[#E5E7EB]"
+                            }`}
+                    >
+                        {entry.label}
+                    </button>
+                ))}
+            </div>
+
             <form onSubmit={handleSearch} className="flex gap-2">
                 <input
                     type="text"
@@ -99,7 +131,7 @@ export const AdminPlayersTable = forwardRef<AdminTableRef>(function AdminPlayers
                             </tr>
                         </thead>
                         <tbody>
-                            {players.map((p) => (
+                            {visible.map((p) => (
                                 <tr
                                     key={p.id}
                                     onClick={() => setSelectedUserId(p.id)}
@@ -132,6 +164,7 @@ export const AdminPlayersTable = forwardRef<AdminTableRef>(function AdminPlayers
                 userId={selectedUserId}
                 onClose={() => setSelectedUserId(null)}
                 onBanChanged={handleBanChanged}
+                onLicenseChanged={handleLicenseChanged}
             />
         </div>
     );

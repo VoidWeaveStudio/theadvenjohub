@@ -2,10 +2,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Palette, Shirt, Gem, ArrowLeft } from "lucide-react";
+import { X, Palette, Shirt, Gem, ArrowLeft, Boxes, Puzzle } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
-import { COSMETICS, CosmeticId } from "../data/cosmetics";
-import { CosmeticStateData } from "../network/NetworkManager";
+import { COSMETICS, COSMETIC_FRAGMENTS_PER_CRATE, CosmeticId } from "../data/cosmetics";
+import { CosmeticCrateStateData, CosmeticStateData } from "../network/NetworkManager";
 import { CosmeticCard } from "./CosmeticCard";
 import { PreviewModal } from "./preview/PreviewModal";
 import type { PreviewSubject } from "./preview/PreviewScene";
@@ -21,6 +21,10 @@ interface AlfredoPanelProps {
     cosmetics: CosmeticStateData;
     onRequestCosmetics: () => void;
     onBuyCosmetic: (itemId: CosmeticId) => void;
+    crateWallet: CosmeticCrateStateData;
+    onRequestCrates: () => void;
+    onCombineFragments: () => void;
+    onOpenCrate: () => void;
 }
 
 export function AlfredoPanel({
@@ -32,13 +36,17 @@ export function AlfredoPanel({
     cosmetics,
     onRequestCosmetics,
     onBuyCosmetic,
+    crateWallet,
+    onRequestCrates,
+    onCombineFragments,
+    onOpenCrate,
 }: AlfredoPanelProps) {
     const { t } = useLanguage();
     const [preview, setPreview] = useState<
         { subject: PreviewSubject; title: string; accent: string } | null
     >(null);
     const [view, setView] = useState<"menu" | "wardrobe">("menu");
-    const livePrices = useShopPrices(gameSlug, isOpen);
+    const { prices: livePrices } = useShopPrices(gameSlug, isOpen);
     const wasOpenRef = useRef(false);
 
     useEffect(() => {
@@ -50,15 +58,65 @@ export function AlfredoPanel({
     }, [isOpen]);
 
     useEffect(() => {
-        if (view === "wardrobe") onRequestCosmetics();
+        if (view === "wardrobe") {
+            onRequestCosmetics();
+            onRequestCrates();
+        }
     }, [view]);
 
     if (!isOpen) return null;
 
     const owned = new Set(cosmetics.owned);
+    const canCombine = crateWallet.fragments >= COSMETIC_FRAGMENTS_PER_CRATE;
+    const collectionComplete = owned.size >= COSMETICS.length;
+
+    const crateBlock = (
+        <div className="mb-3 grid flex-shrink-0 grid-cols-2 gap-2">
+            <div className="rounded-xl border border-[#4FC3FF]/25 bg-[rgba(79,195,255,0.07)] p-3">
+                <div className="mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[#4FC3FF]">
+                        <Puzzle className="h-3.5 w-3.5" />
+                        {t("g.skinCrate.fragments")}
+                    </span>
+                    <span className="text-sm font-black text-[#E5E7EB]">{crateWallet.fragments}</span>
+                </div>
+
+                {canCombine ? (
+                    <button onClick={onCombineFragments} className="btn-primary w-full px-3 py-1.5 text-[11px]">
+                        {t("g.skinCrate.combine")}
+                    </button>
+                ) : (
+                    <p className="text-[10px] leading-snug text-[#6B7280]">
+                        {t("g.skinCrate.needMore", { count: COSMETIC_FRAGMENTS_PER_CRATE - crateWallet.fragments })}
+                    </p>
+                )}
+            </div>
+
+            <div className="rounded-xl border border-[#FFD166]/25 bg-[rgba(255,209,102,0.07)] p-3">
+                <div className="mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[#FFD166]">
+                        <Boxes className="h-3.5 w-3.5" />
+                        {t("g.skinCrate.title")}
+                    </span>
+                    <span className="text-sm font-black text-[#E5E7EB]">{crateWallet.crates}</span>
+                </div>
+
+                <button
+                    onClick={onOpenCrate}
+                    disabled={crateWallet.crates <= 0 || collectionComplete}
+                    className="btn-primary w-full px-3 py-1.5 text-[11px] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    {collectionComplete ? t("g.skinCrate.complete") : t("g.skinCrate.open")}
+                </button>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
+        <div
+            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
             <div className="w-full max-w-lg bg-[rgba(10,16,20,0.95)] border-2 border-[#4FC3FF]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(79,195,255,0.15)] max-h-[calc(85*var(--game-vh))] flex flex-col">
                 <div className="flex items-center justify-between mb-4 flex-shrink-0">
                     <div className="flex items-center gap-2">
@@ -119,6 +177,8 @@ export function AlfredoPanel({
                         <p className="text-[#8B8F98] text-xs mb-3 flex-shrink-0">
                             {t("g.alfredo.ownedForever")}
                         </p>
+
+                        {crateBlock}
 
                         <div className="space-y-2 overflow-y-auto min-h-0">
                             {COSMETICS.map((definition) => {

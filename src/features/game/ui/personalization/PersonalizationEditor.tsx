@@ -89,7 +89,10 @@ export function PersonalizationEditor({ isOpen, onClose, currentSkinUrl, onSave,
     };
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.92)] flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
+        <div
+            className="absolute inset-0 bg-[rgba(6,6,8,0.92)] flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
             <div className="game-paint-panel w-full max-w-4xl h-[calc(80*var(--game-vh))] bg-[rgba(10,16,20,0.97)] border-2 border-[#4FC3FF]/40 rounded-[16px] shadow-[0_0_35px_rgba(79,195,255,0.15)] flex flex-col overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
                     <div className="flex items-center gap-2">

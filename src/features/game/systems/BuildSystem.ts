@@ -76,6 +76,8 @@ export class BuildSystem extends System {
         }
     }
 
+    public onArmedChange?: (armed: boolean) => void;
+
     public setPlaceables(placeables: Record<string, number>) {
         this.placeables = placeables;
     }
@@ -106,13 +108,16 @@ export class BuildSystem extends System {
             this.scene.add(this.ghost.mesh);
         }
         this.ghost.mesh.visible = true;
+        this.onArmedChange?.(true);
     }
 
     public disarm() {
+        const wasArmed = this.armedItemId !== null;
         this.armedItemId = null;
         if (this.ghost) {
             this.ghost.mesh.visible = false;
         }
+        if (wasArmed) this.onArmedChange?.(false);
     }
 
     public isArmed(): boolean {

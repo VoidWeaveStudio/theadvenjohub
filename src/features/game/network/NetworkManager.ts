@@ -25,6 +25,8 @@ export type PlayerNetData = {
   position: number[];
   rotation: number;
   pitch: number;
+  headYaw?: number;
+  companionId?: string | null;
   state: 'idle' | 'walk' | 'sprint' | 'jump';
   jumping: boolean;
   velocityY: number;
@@ -205,6 +207,16 @@ export type CompanionStateData = {
   equipped: CompanionId | null;
   fragments: number;
   crates: number;
+};
+
+export type CosmeticCrateStateData = {
+  fragments: number;
+  crates: number;
+};
+
+export type CosmeticCrateOpenedData = {
+  itemId: string;
+  rarity: string;
 };
 
 export type CrateOpenedData = {
@@ -814,7 +826,7 @@ export class NetworkManager {
   private lastUpdateSent: number = 0;
   private lastUpdateForced: number = 0;
   private lastUpdateState: {
-    position: number[]; rotation: number; pitch: number; state: string;
+    position: number[]; rotation: number; pitch: number; headYaw: number; state: string;
     jumping: boolean; weaponEquipped: boolean; isShooting: boolean;
   } | null = null;
   private updateThrottleMs: number = 50;
@@ -845,6 +857,8 @@ export class NetworkManager {
   public onCosmeticState?: (data: CosmeticStateData) => void;
   public onCompanionState?: (data: CompanionStateData) => void;
   public onCrateOpened?: (data: CrateOpenedData) => void;
+  public onCosmeticCrateState?: (data: CosmeticCrateStateData) => void;
+  public onCosmeticCrateOpened?: (data: CosmeticCrateOpenedData) => void;
   public onCompanionDusted?: (data: { itemId: CompanionId; gained: number }) => void;
   public onSpawnProtection?: (data: { untilMs: number; durationMs: number }) => void;
   public onCosmeticUpdate?: (data: { playerId: string; skinId: CosmeticId | null; accessoryId: CosmeticId | null }) => void;
@@ -1078,6 +1092,8 @@ export class NetworkManager {
   public onNicknameChanged?: (nickname: string) => void;
   public onOtherPlayerNicknameChange?: (data: { id: string; nickname: string }) => void;
   public onSkinUpdate?: (data: { playerId: string; url: string | null }) => void;
+  public onPlayerCompanion?: (data: { playerId: string; companionId: string | null }) => void;
+
   public onPlayerFactionIdentity?: (data: {
     id: string;
     factionSymbol: string | null;
@@ -1238,6 +1254,8 @@ export class NetworkManager {
               position: p.position,
               rotation: p.rotation,
               pitch: p.pitch || 0,
+              headYaw: p.headYaw || 0,
+              companionId: p.companionId ?? null,
               state: p.state || 'idle',
               jumping: !!p.jumping,
               velocityY: p.velocityY || 0,
@@ -1300,6 +1318,19 @@ export class NetworkManager {
         });
         break;
       }
+      case "cosmeticCrateState":
+        this.onCosmeticCrateState?.({
+          fragments: Math.max(0, Math.floor(Number(data.fragments) || 0)),
+          crates: Math.max(0, Math.floor(Number(data.crates) || 0)),
+        });
+        break;
+      case "cosmeticCrateOpened":
+        if (typeof data.itemId !== "string") break;
+        this.onCosmeticCrateOpened?.({
+          itemId: data.itemId,
+          rarity: typeof data.rarity === "string" ? data.rarity : "common",
+        });
+        break;
       case "crateOpened": {
         if (!isCompanionId(data.itemId)) break;
         const rarity = COMPANIONS_BY_ID.get(data.itemId)?.rarity ?? "common";
@@ -1839,6 +1870,12 @@ export class NetworkManager {
       case "skinUpdate":
         this.onSkinUpdate?.({ playerId: data.playerId, url: data.url ?? null });
         break;
+      case "playerCompanion":
+        this.onPlayerCompanion?.({
+          playerId: data.playerId,
+          companionId: typeof data.companionId === "string" ? data.companionId : null,
+        });
+        break;
       case "playerFactionIdentity":
         this.onPlayerFactionIdentity?.({
           id: data.id,
@@ -2062,6 +2099,7 @@ export class NetworkManager {
     position: number[];
     rotation: number;
     pitch: number;
+    headYaw: number;
     state: string;
     jumping: boolean;
     velocityY: number;
@@ -2080,6 +2118,7 @@ export class NetworkManager {
       && Math.abs(previous.position[2] - data.position[2]) < 0.02
       && Math.abs(previous.rotation - data.rotation) < 0.01
       && Math.abs(previous.pitch - data.pitch) < 0.01
+      && Math.abs(previous.headYaw - data.headYaw) < 0.01
       && previous.state === data.state
       && previous.jumping === data.jumping
       && previous.weaponEquipped === data.weaponEquipped
@@ -2580,6 +2619,21 @@ export class NetworkManager {
   sendCrateOpen() {
     if (!this.authenticated) return;
     this.send({ type: "crateOpen" });
+  }
+
+  sendCosmeticCrateRequest() {
+    if (!this.authenticated) return;
+    this.send({ type: "cosmeticCrateRequest" });
+  }
+
+  sendCosmeticCombine() {
+    if (!this.authenticated) return;
+    this.send({ type: "cosmeticCombine" });
+  }
+
+  sendCosmeticCrateOpen() {
+    if (!this.authenticated) return;
+    this.send({ type: "cosmeticCrateOpen" });
   }
 
   requestTokenInfo(ca: string) {

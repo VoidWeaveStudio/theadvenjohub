@@ -232,7 +232,10 @@ export function GateStewardPanel({
                     t("g.gate.buyPrice", { amount: (gateQuote?.payableTnj ?? 0).toLocaleString("en-US") });
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
+        <div
+            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
             <div className="w-full max-w-md bg-[rgba(20,16,8,0.95)] border-2 border-[#E8A33D]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(232,163,61,0.15)]">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">

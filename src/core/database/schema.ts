@@ -510,6 +510,17 @@ export const gameMemeWallet = pgTable("game_meme_wallet", {
   uniqueIndex("idx_game_meme_wallet_user_game").on(table.userId, table.gameId),
 ]);
 
+export const gameCosmeticWallet = pgTable("game_cosmetic_wallet", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  fragments: integer("fragments").default(0).notNull(),
+  crates: integer("crates").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_game_cosmetic_wallet_user_game").on(table.userId, table.gameId),
+]);
+
 export const gameCrateOpenings = pgTable("game_crate_openings", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id),

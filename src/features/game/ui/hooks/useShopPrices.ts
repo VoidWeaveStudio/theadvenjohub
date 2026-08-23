@@ -13,11 +13,20 @@ export interface LiveShopPrice {
     enabled: boolean;
 }
 
-export function useShopPrices(gameSlug: string, enabled: boolean): Map<string, LiveShopPrice> {
+export interface ShopPriceState {
+    prices: Map<string, LiveShopPrice>;
+    ready: boolean;
+}
+
+export function useShopPrices(gameSlug: string, enabled: boolean): ShopPriceState {
     const [prices, setPrices] = useState<Map<string, LiveShopPrice>>(new Map());
+    const [ready, setReady] = useState(false);
 
     useEffect(() => {
-        if (!enabled || !gameSlug) return;
+        if (!enabled || !gameSlug) {
+            setReady(false);
+            return;
+        }
         let cancelled = false;
 
         const load = async () => {
@@ -27,6 +36,7 @@ export function useShopPrices(gameSlug: string, enabled: boolean): Map<string, L
                 const data = await res.json();
                 if (cancelled) return;
                 setPrices(new Map((data.items || []).map((i: LiveShopPrice) => [i.itemId, i])));
+                setReady(true);
             } catch {
                 return;
             }
@@ -40,5 +50,5 @@ export function useShopPrices(gameSlug: string, enabled: boolean): Map<string, L
         };
     }, [gameSlug, enabled]);
 
-    return prices;
+    return { prices, ready };
 }

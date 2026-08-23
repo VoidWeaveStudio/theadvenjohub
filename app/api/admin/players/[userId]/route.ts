@@ -20,6 +20,7 @@ import {
 import { eq, desc } from "drizzle-orm";
 import { ACHIEVEMENTS_BY_KEY } from "@/core/lib/achievements";
 import { COSMETICS_BY_ID, normalizeLoadout } from "@/features/game/data/cosmetics";
+import { EMPTY_COSMETIC_CRATE_STATE, readCosmeticCrateState } from "@/core/lib/cosmeticCrates";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 import { resolveGameId } from "@/core/lib/shopPricing";
 import { EMPTY_COMPANION_STATE, readCompanionState } from "@/core/lib/companionInventory";
@@ -137,6 +138,9 @@ export async function GET(
         const companions = companionGameId
             ? await readCompanionState(userId, companionGameId)
             : EMPTY_COMPANION_STATE;
+        const cosmeticCrates = companionGameId
+            ? await readCosmeticCrateState(userId, companionGameId)
+            : EMPTY_COSMETIC_CRATE_STATE;
 
         return NextResponse.json({
             player: {
@@ -167,6 +171,7 @@ export async function GET(
                 },
                 skinTextureUrl,
                 cosmetics,
+                cosmeticCrates,
                 companions,
                 placeables,
                 locationId: progress?.locationId ?? null,

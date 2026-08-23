@@ -16,11 +16,23 @@ import { TIERS } from "../data/progression";
 import { findPaintableMesh, clonePaintableMaterial, applySkinTextureUrl, disposePaintableMaterial } from "./characterPaint";
 import type { PlayerNetData } from "../network/NetworkManager";
 import { EnergyWisp } from "./EnergyWisp";
+import { createCompanion, type CompanionInstance } from "./companionModels";
+import { isCompanionId, type CompanionId } from "../data/companions";
+import { getGraphicsSettings } from "../core/graphicsSettings";
+import { getFactionImage, loadFactionImage } from "../world/locations/tower/floors/main-hall/utils/factionImages";
 
 const TIERS_BY_ID = new Map(TIERS.map((t) => [t.id, t]));
 
 // Matches the local player's head tracking rate.
 const HEAD_TRACK_SPEED = 12;
+const COMPANION_FOLLOW_DISTANCE = 2.2;
+const COMPANION_FOLLOW_SIDE = 0.8;
+const COMPANION_WALK_SPEED = 5.5;
+const COMPANION_RUN_SPEED = 9;
+const COMPANION_TELEPORT_DISTANCE = 35;
+const HEAD_MAX_YAW = Math.PI * 0.5;
+const HEAD_MAX_PITCH = Math.PI * 0.4;
+const NECK_PITCH_SHARE = 0.6;
 
 export class OtherPlayer extends Entity {
     public nickname: string;
@@ -36,9 +48,18 @@ export class OtherPlayer extends Entity {
     private targetRotation: number = 0;
     private targetPitch: number = 0;
     private pitch: number = 0;
+    private headYaw: number = 0;
+    private targetHeadYaw: number = 0;
     private targetState: 'idle' | 'walk' | 'sprint' | 'jump' = 'idle';
     private nameSprite: THREE.Sprite | null = null;
     private headBone: THREE.Object3D | null = null;
+    private neckBone: THREE.Object3D | null = null;
+    private companion: CompanionInstance | null = null;
+    private companionId: CompanionId | null = null;
+    private companionScene: THREE.Scene | null = null;
+    private companionElapsed = 0;
+    private readonly companionDesired = new THREE.Vector3();
+    private readonly companionStep = new THREE.Vector3();
     private hipsBone: THREE.Object3D | null = null;
     private rightHand: THREE.Object3D | null = null;
     private defusalWeaponId: string | null = null;
@@ -131,6 +152,7 @@ export class OtherPlayer extends Entity {
         this.cosmeticRig = new CosmeticRig(data.scene, this.paintableMaterial);
 
         this.headBone = findBoneLast(data.scene, (name) => name.includes('head') && !name.endsWith('_end'));
+        this.neckBone = findBoneLast(data.scene, (name) => !name.includes('head') && name.includes('neck') && !name.endsWith('_end'));
         this.hipsBone = findBoneFirst(data.scene, (name) =>
             name === 'hips' || name === 'pelvis' || name.includes('hips')
         );
@@ -146,6 +168,8 @@ export class OtherPlayer extends Entity {
 
         this.nameSprite = this.createNameTag(this.nickname);
         this.mesh.add(this.nameSprite);
+        this.companionScene = scene;
+        this.spawnCompanion();
 
         scene.add(this.hitbox);
         scene.add(this.mesh);
@@ -176,6 +200,7 @@ export class OtherPlayer extends Entity {
         canvas.height = hasFaction ? 128 : 96;
         this.nameCanvas = canvas;
         this.nameCtx = canvas.getContext("2d")!;
+        this.factionImageEl = getFactionImage(this.factionImage);
 
         this.drawNameTag(name);
 
@@ -187,15 +212,12 @@ export class OtherPlayer extends Entity {
         const baseScaleX = hasFaction ? 2.6 : 2;
         sprite.scale.set(baseScaleX * (canvas.width / baseWidth), hasFaction ? 0.52 : 0.4, 1);
 
-        if (this.factionImage) {
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = () => {
-                this.factionImageEl = img;
+        if (this.factionImage && !this.factionImageEl) {
+            loadFactionImage(this.factionImage, () => {
+                this.factionImageEl = getFactionImage(this.factionImage);
                 this.drawNameTag(name);
                 if (this.nameTexture) this.nameTexture.needsUpdate = true;
-            };
-            img.src = this.factionImage;
+            });
         }
 
         return sprite;
@@ -374,6 +396,75 @@ export class OtherPlayer extends Entity {
         if (this.nameTexture) this.nameTexture.needsUpdate = true;
     }
 
+    public setCompanion(companionId: string | null) {
+        const next = isCompanionId(companionId) ? companionId : null;
+        if (next === this.companionId) return;
+
+        this.companionId = next;
+        this.despawnCompanion();
+        this.spawnCompanion();
+    }
+
+    public moveCompanionToScene(scene: THREE.Scene) {
+        this.companionScene = scene;
+        if (this.companion) scene.add(this.companion.root);
+    }
+
+    private spawnCompanion() {
+        if (!this.companionId || !this.companionScene || this.companion) return;
+
+        this.companion = createCompanion(this.companionId);
+        this.companion.root.name = "remote-companion";
+        this.companion.root.position.copy(this.mesh.position);
+        this.companionScene.add(this.companion.root);
+    }
+
+    private despawnCompanion() {
+        if (!this.companion) return;
+        this.companion.root.removeFromParent();
+        this.companion.dispose();
+        this.companion = null;
+    }
+
+    private updateCompanion(delta: number, getGroundHeight?: (x: number, z: number) => number) {
+        if (this.companionId && !this.companion) this.spawnCompanion();
+        if (!this.companion) return;
+
+        const root = this.companion.root;
+        const visible = getGraphicsSettings().otherCompanions && !this.hidden && !this.wispMode;
+        root.visible = visible;
+        if (!visible) return;
+
+        this.companionElapsed += delta;
+
+        const yaw = this.mesh.rotation.y;
+        this.companionDesired.set(
+            this.mesh.position.x - Math.sin(yaw) * COMPANION_FOLLOW_DISTANCE + Math.cos(yaw) * COMPANION_FOLLOW_SIDE,
+            this.mesh.position.y,
+            this.mesh.position.z - Math.cos(yaw) * COMPANION_FOLLOW_DISTANCE - Math.sin(yaw) * COMPANION_FOLLOW_SIDE
+        );
+
+        if (root.position.distanceTo(this.companionDesired) > COMPANION_TELEPORT_DISTANCE) {
+            root.position.copy(this.companionDesired);
+        }
+
+        this.companionStep.set(this.companionDesired.x - root.position.x, 0, this.companionDesired.z - root.position.z);
+        const distance = this.companionStep.length();
+        let speed = distance > 6 ? COMPANION_RUN_SPEED : COMPANION_WALK_SPEED;
+        if (distance < 0.5) speed = 0;
+
+        if (speed > 0 && distance > 0.05) {
+            const step = Math.min(speed * delta, distance);
+            this.companionStep.normalize();
+            root.position.x += this.companionStep.x * step;
+            root.position.z += this.companionStep.z * step;
+            root.rotation.y = Math.atan2(this.companionStep.x, this.companionStep.z);
+        }
+
+        root.position.y = getGroundHeight ? getGroundHeight(root.position.x, root.position.z) : this.mesh.position.y;
+        this.companion.update(this.companionElapsed, speed <= 0 ? 0 : Math.min(1, speed / COMPANION_RUN_SPEED), false);
+    }
+
     public setFactionIdentity(symbol: string | null, image: string | null, isFactionCreator: boolean) {
         const nextSymbol = symbol || null;
         const nextImage = image || null;
@@ -399,16 +490,15 @@ export class OtherPlayer extends Entity {
             return;
         }
 
-        if (nextImage && this.factionImageEl?.src !== nextImage) {
-            this.factionImageEl = null;
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.onload = () => {
-                this.factionImageEl = img;
-                this.drawNameTag(this.nickname);
-                if (this.nameTexture) this.nameTexture.needsUpdate = true;
-            };
-            img.src = nextImage;
+        if (nextImage) {
+            this.factionImageEl = getFactionImage(nextImage);
+            if (!this.factionImageEl) {
+                loadFactionImage(nextImage, () => {
+                    this.factionImageEl = getFactionImage(nextImage);
+                    this.drawNameTag(this.nickname);
+                    if (this.nameTexture) this.nameTexture.needsUpdate = true;
+                });
+            }
         }
 
         this.drawNameTag(this.nickname);
@@ -445,6 +535,11 @@ export class OtherPlayer extends Entity {
         this.hidden = hidden;
         this.mesh.visible = !hidden;
         this.hitbox.visible = !hidden;
+
+        if (hidden && this.companion) {
+            this.companion.root.removeFromParent();
+            this.companionScene = null;
+        }
     }
 
     public isHidden(): boolean {
@@ -519,7 +614,8 @@ export class OtherPlayer extends Entity {
         if (this.weaponMesh) this.weaponMesh.visible = !active && this.weaponEquipped;
     }
 
-    update(delta: number) {
+    update(delta: number, getGroundHeight?: (x: number, z: number) => number) {
+        this.updateCompanion(delta, getGroundHeight);
         if (this.hidden) return;
         this.cosmeticRig?.update(delta);
         if (this.dead) {
@@ -596,8 +692,16 @@ export class OtherPlayer extends Entity {
         // it would stall at a fixed fraction of the way to the target instead of
         // converging on it.
         if (this.headBone) {
-            this.pitch += (this.targetPitch - this.pitch) * (1 - Math.exp(-delta * HEAD_TRACK_SPEED));
-            OtherPlayer._targetEuler.set(this.pitch, 0, 0);
+            const follow = 1 - Math.exp(-delta * HEAD_TRACK_SPEED);
+            this.pitch += (this.targetPitch - this.pitch) * follow;
+            this.headYaw += (this.targetHeadYaw - this.headYaw) * follow;
+
+            if (this.neckBone) {
+                OtherPlayer._targetEuler.set(this.pitch * NECK_PITCH_SHARE, 0, 0);
+                this.neckBone.quaternion.setFromEuler(OtherPlayer._targetEuler);
+            }
+
+            OtherPlayer._targetEuler.set(this.pitch, this.headYaw, 0);
             this.headBone.quaternion.setFromEuler(OtherPlayer._targetEuler);
         }
     }
@@ -613,7 +717,8 @@ export class OtherPlayer extends Entity {
         }
 
         this.targetRotation = data.rotation;
-        this.targetPitch = data.pitch || 0;
+        this.targetPitch = Math.max(-HEAD_MAX_PITCH, Math.min(HEAD_MAX_PITCH, -(data.pitch || 0)));
+        this.targetHeadYaw = Math.max(-HEAD_MAX_YAW, Math.min(HEAD_MAX_YAW, data.headYaw || 0));
         this.targetState = (data.state as any) || 'idle';
         this.firing = data.isShooting === true;
 
@@ -657,6 +762,7 @@ export class OtherPlayer extends Entity {
     }
 
     dispose(scene: THREE.Scene) {
+        this.despawnCompanion();
         this.cosmeticRig?.dispose();
         this.setShielded(false);
         super.dispose(scene);

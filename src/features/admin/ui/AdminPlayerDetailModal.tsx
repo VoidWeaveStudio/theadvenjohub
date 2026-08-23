@@ -1,10 +1,11 @@
 // src/features/admin/ui/AdminPlayerDetailModal.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { PLACEABLE_ITEMS } from "../../game/data/placeableItems";
 import { COMPANIONS, COMPANIONS_BY_ID, FRAGMENTS_PER_CRATE } from "../../game/data/companions";
+import { COSMETICS, COSMETIC_FRAGMENTS_PER_CRATE } from "../../game/data/cosmetics";
 import { useAdminLabel } from "../lib/useAdminLabel";
 import { MAX_LEVEL, skillPointsForLevel } from "../../game/data/progression";
 
@@ -63,6 +64,7 @@ interface PlayerDetail {
         joinedAt: string;
     }[];
     achievements: { key: string; label: string; description: string; unlockedAt: string }[];
+    cosmeticCrates?: { fragments: number; crates: number };
     licenses: {
         id: string;
         gameId: string;
@@ -80,6 +82,7 @@ interface AdminPlayerDetailModalProps {
     userId: string | null;
     onClose: () => void;
     onBanChanged: (userId: string, isBanned: boolean, banReason: string | null) => void;
+    onLicenseChanged?: (userId: string, ownsGame: boolean) => void;
 }
 
 const MUTE_DURATIONS: { label: string; minutes: number }[] = [
@@ -101,13 +104,15 @@ function formatPlaytime(seconds: number): string {
     return `${minutes}m`;
 }
 
-export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminPlayerDetailModalProps) {
+export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicenseChanged }: AdminPlayerDetailModalProps) {
     const [player, setPlayer] = useState<PlayerDetail | null>(null);
     const [loading, setLoading] = useState(false);
     const [banReasonInput, setBanReasonInput] = useState("");
     const [actionError, setActionError] = useState<string | null>(null);
     const [ashAmountInput, setAshAmountInput] = useState("100");
     const [levelInput, setLevelInput] = useState("1");
+    const [cosmeticIdInput, setCosmeticIdInput] = useState<string>(COSMETICS[0]?.id ?? "");
+    const [cosmeticAmountInput, setCosmeticAmountInput] = useState("1");
     const [itemToGrant, setItemToGrant] = useState(PLACEABLE_ITEMS[0]?.id || "");
     const [companionToGrant, setCompanionToGrant] = useState<string>(COMPANIONS[0]?.id ?? "");
     const [companionQuantityInput, setCompanionQuantityInput] = useState("1");
@@ -117,17 +122,21 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
     const { signedFetch } = useAdminSignature();
     const adminLabel = useAdminLabel();
 
+    const loadPlayer = useCallback(async () => {
+        if (!userId) return;
+        const res = await fetch(`/api/admin/players/${userId}`, { credentials: "include" });
+        const data = await res.json().catch(() => null);
+        setPlayer(data?.player || null);
+    }, [userId]);
+
     useEffect(() => {
         if (!userId) {
             setPlayer(null);
             return;
         }
         setLoading(true);
-        fetch(`/api/admin/players/${userId}`, { credentials: "include" })
-            .then((r) => r.json())
-            .then((data) => setPlayer(data.player || null))
-            .finally(() => setLoading(false));
-    }, [userId]);
+        loadPlayer().finally(() => setLoading(false));
+    }, [userId, loadPlayer]);
 
     if (!userId) return null;
 
@@ -288,6 +297,64 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
         }
     };
 
+    const toggleLicense = async (grant: boolean) => {
+        if (!userId) return;
+        setActionError(null);
+        try {
+            const res = await signedFetch(
+                `/api/admin/players/${userId}/license`,
+                grant ? "grantLicense" : "revokeLicense",
+                userId,
+                { grant }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                onLicenseChanged?.(userId, !!data.ownsGame);
+                await loadPlayer();
+            } else {
+                setActionError(grant ? "Failed to grant the game license" : "Failed to revoke the game license");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        }
+    };
+
+    const adjustCosmetics = async (scope: "cosmetic" | "fragments" | "crates", sign: 1 | -1) => {
+        if (!userId) return;
+
+        const itemId = scope === "cosmetic" ? cosmeticIdInput : "";
+        const amount = scope === "cosmetic" ? 1 : Math.floor(Number(cosmeticAmountInput));
+        if (!Number.isFinite(amount) || amount <= 0) return;
+
+        const delta = amount * sign;
+        const action =
+            scope === "cosmetic"
+                ? (sign > 0 ? "grantCosmetic" : "takeCosmetic")
+                : scope === "fragments"
+                    ? (sign > 0 ? "grantCosmeticFragments" : "takeCosmeticFragments")
+                    : (sign > 0 ? "grantCosmeticCrates" : "takeCosmeticCrates");
+
+        setActionError(null);
+        try {
+            const res = await signedFetch(
+                `/api/admin/players/${userId}/cosmetics`,
+                action,
+                `${userId}:${scope}:${itemId}`,
+                { scope, itemId, delta }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                setPlayer((prev) => (prev ? { ...prev, cosmeticCrates: data.cosmeticCrates } : prev));
+                if (scope === "cosmetic") await loadPlayer();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                setActionError(data?.error === "not_applied" ? "Nothing changed — already in that state" : "Failed to update cosmetics");
+            }
+        } catch (err: any) {
+            setActionError(err.message || "Signature failed");
+        }
+    };
+
     const setEquippedCompanion = async (itemId: string) => {
         setActionError(null);
         try {
@@ -413,6 +480,14 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
 
                         <div>
                             <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">GAME LICENSES ({player.licenses.length})</div>
+                            <div className="mb-2 flex items-center gap-2">
+                                <button onClick={() => toggleLicense(true)} className="btn-secondary px-3 py-1.5 text-xs">
+                                    Grant game access
+                                </button>
+                                <button onClick={() => toggleLicense(false)} className="btn-secondary px-3 py-1.5 text-xs">
+                                    Revoke access
+                                </button>
+                            </div>
                             {player.licenses.length === 0 ? (
                                 <p className="text-[#6B7280] text-xs">No licenses.</p>
                             ) : (
@@ -463,6 +538,37 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged }: AdminP
                                     <div className="text-white font-bold">{player.cosmetics?.equippedAccessory ? adminLabel(player.cosmetics.equippedAccessory.name) : "—"}</div>
                                 </div>
                             </div>
+                            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                                <select
+                                    value={cosmeticIdInput}
+                                    onChange={(e) => setCosmeticIdInput(e.target.value)}
+                                    className="bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
+                                >
+                                    {COSMETICS.map((entry) => (
+                                        <option key={entry.id} value={entry.id}>
+                                            {adminLabel(entry.name)}
+                                        </option>
+                                    ))}
+                                </select>
+                                <button onClick={() => adjustCosmetics("cosmetic", 1)} className="btn-secondary px-3 py-1.5 text-xs">Grant</button>
+                                <button onClick={() => adjustCosmetics("cosmetic", -1)} className="btn-secondary px-3 py-1.5 text-xs">Take</button>
+                            </div>
+
+                            <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-[#8B8F98]">
+                                <span>Fragments {player.cosmeticCrates?.fragments ?? 0} / {COSMETIC_FRAGMENTS_PER_CRATE}</span>
+                                <span className="text-[#FFD166]">Crates {player.cosmeticCrates?.crates ?? 0}</span>
+                                <input
+                                    type="number"
+                                    value={cosmeticAmountInput}
+                                    onChange={(e) => setCosmeticAmountInput(e.target.value)}
+                                    className="w-16 bg-zinc-900 text-white px-2 py-1 rounded text-xs border border-zinc-700 outline-none"
+                                />
+                                <button onClick={() => adjustCosmetics("fragments", 1)} className="btn-secondary px-2 py-1 text-xs">+ frag</button>
+                                <button onClick={() => adjustCosmetics("fragments", -1)} className="btn-secondary px-2 py-1 text-xs">− frag</button>
+                                <button onClick={() => adjustCosmetics("crates", 1)} className="btn-secondary px-2 py-1 text-xs">+ crate</button>
+                                <button onClick={() => adjustCosmetics("crates", -1)} className="btn-secondary px-2 py-1 text-xs">− crate</button>
+                            </div>
+
                             {!player.cosmetics || player.cosmetics.owned.length === 0 ? (
                                 <p className="text-[#6B7280] text-xs">None owned.</p>
                             ) : (

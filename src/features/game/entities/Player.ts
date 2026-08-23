@@ -920,6 +920,10 @@ export class Player extends Entity {
         this.head.quaternion.setFromEuler(Player._headEuler);
     }
 
+    public getHeadYaw(): number {
+        return this.headYaw;
+    }
+
     getWeapon(): Weapon {
         return this.weapon;
     }

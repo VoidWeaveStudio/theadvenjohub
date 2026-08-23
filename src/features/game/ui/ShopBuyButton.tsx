@@ -18,6 +18,7 @@ interface ShopBuyButtonProps {
     itemId: string;
     gameSlug: string;
     owned: boolean;
+    priceLoading?: boolean;
     onPurchased: (itemId: string) => void;
 }
 
@@ -52,7 +53,7 @@ function payErrorKey(error: PayTnjError): string {
     }
 }
 
-export function ShopBuyButton({ itemId, gameSlug, owned, onPurchased }: ShopBuyButtonProps) {
+export function ShopBuyButton({ itemId, gameSlug, owned, priceLoading = false, onPurchased }: ShopBuyButtonProps) {
     const { t } = useLanguage();
     const { publicKey, connected, wallet } = useWallet();
     const { isAuthorized } = useAuth();
@@ -137,7 +138,7 @@ export function ShopBuyButton({ itemId, gameSlug, owned, onPurchased }: ShopBuyB
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
             <button
                 onClick={handleBuy}
-                disabled={payState !== false}
+                disabled={payState !== false || priceLoading}
                 className="bg-gradient-to-r from-[#4FD1FF] to-[#2C9BC4] text-[rgba(12,12,14,0.9)] font-bold px-4 py-2 rounded-[8px] text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
                 {payState !== false && <Loader2 className="w-3.5 h-3.5 animate-spin" />}

@@ -231,7 +231,7 @@ export function registerNetworkHandlers(game: Game) {
             op.setHidden(true);
             game.onChatMessage?.({
                 id: systemMessageId(), sender: "System",
-                message: `${op.nickname} left the area`,
+                message: t("g.system.leftArea", { name: op.nickname }),
                 timestamp: Date.now(), type: "system",
             });
         }
@@ -268,11 +268,13 @@ export function registerNetworkHandlers(game: Game) {
             perf.measure("otherPlayer.weapon", () =>
                 joined.setWeaponLoadout(data.branch === "arcanist" ? "staff" : "rifle", data.weaponTier ?? 1)
             );
+            joined.moveCompanionToScene(currentLocation.scene);
+            joined.setCompanion(data.companionId ?? null);
             perf.measure("syncNearbyPeers", () => game.syncNearbyPeers());
             perf.measure("chat.systemMessage", () =>
                 game.onChatMessage?.({
                     id: systemMessageId(), sender: "System",
-                    message: `${data.nickname} entered the area`,
+                    message: t("g.system.enteredArea", { name: data.nickname }),
                     timestamp: Date.now(), type: "system",
                 })
             );
@@ -390,11 +392,12 @@ export function registerNetworkHandlers(game: Game) {
         perf.measure("otherPlayer.cosmetics", () =>
             joined.applyCosmetics((data.cosmeticSkinId ?? null) as any, (data.cosmeticAccessoryId ?? null) as any)
         );
+        joined.setCompanion(data.companionId ?? null);
         perf.measure("syncNearbyPeers", () => game.syncNearbyPeers());
         perf.measure("chat.systemMessage", () =>
             game.onChatMessage?.({
                 id: systemMessageId(), sender: "System",
-                message: `${data.nickname} joined the game`,
+                message: t("g.system.joinedGame", { name: data.nickname }),
                 timestamp: Date.now(), type: "system",
             })
         );
@@ -406,7 +409,7 @@ export function registerNetworkHandlers(game: Game) {
         if (op) {
             game.onChatMessage?.({
                 id: systemMessageId(), sender: "System",
-                message: `${op.nickname} left the game`,
+                message: t("g.system.leftGame", { name: op.nickname }),
                 timestamp: Date.now(), type: "system",
             });
             const currentLocation = game.locationManager.getCurrentLocation();
@@ -426,6 +429,14 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onCosmeticState = (data) => {
         game.player.applyCosmetics(data.skinId, data.accessoryId);
         game.onCosmeticState?.(data);
+    };
+
+    game.networkManager.onCosmeticCrateState = (data) => {
+        game.onCosmeticCrateState?.(data);
+    };
+
+    game.networkManager.onCosmeticCrateOpened = (data) => {
+        game.onCosmeticCrateOpened?.(data);
     };
 
     game.networkManager.onCompanionState = (data) => {
@@ -576,7 +587,7 @@ export function registerNetworkHandlers(game: Game) {
                 if (!game.dust2Mode) {
                     game.onChatMessage?.({
                         id: systemMessageId(), sender: "System",
-                        message: `${op.nickname} was eliminated`,
+                        message: t("g.system.eliminated", { name: op.nickname }),
                         timestamp: Date.now(), type: "system",
                     });
                 }
@@ -1212,6 +1223,10 @@ export function registerNetworkHandlers(game: Game) {
         op?.setFactionIdentity(data.factionSymbol, data.factionImage, data.isFactionCreator);
     };
 
+    game.networkManager.onPlayerCompanion = (data) => {
+        game.otherPlayers.get(data.playerId)?.setCompanion(data.companionId);
+    };
+
     game.networkManager.onFactionRosterChanged = (data) => {
         game.refreshFactionViews(data.mine);
     };
@@ -1406,6 +1421,7 @@ export function registerNetworkHandlers(game: Game) {
                 position: spawnPoint.toArray(),
                 rotation: game.player.mesh.rotation.y,
                 pitch: game.cameraController.getPitch(),
+                headYaw: 0,
                 state: 'idle', jumping: false, velocityY: 0,
                 weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
             });
@@ -1439,6 +1455,7 @@ export function registerNetworkHandlers(game: Game) {
                 position: spawnPoint.toArray(),
                 rotation: game.player.mesh.rotation.y,
                 pitch: game.cameraController.getPitch(),
+                headYaw: 0,
                 state: 'idle', jumping: false, velocityY: 0,
                 weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
             });

@@ -60,7 +60,7 @@ import { QuestMarkerKind } from "./entities/questMarker";
 import { AbilityBar } from "./ui/AbilityBar";
 import { EMOTES, isEmoteKey } from "./data/emotes";
 import { MEME_ABILITIES, MEME_ABILITIES_BY_ID, TIERS } from "./data/progression";
-import { CosmeticId } from "./data/cosmetics";
+import { COSMETICS_BY_ID, CosmeticId } from "./data/cosmetics";
 import { useCosmeticState } from "./ui/hooks/useCosmeticState";
 import { FactionsWindow } from "./ui/FactionsWindow";
 import { QuestsWindow } from "./ui/QuestsWindow";
@@ -69,6 +69,7 @@ import { ShopWindow } from "./ui/ShopWindow";
 import { CrateOpening } from "./ui/CrateOpening";
 import { PerfPanel } from "./ui/PerfPanel";
 import { useCompanionState } from "./ui/hooks/useCompanionState";
+import { useCosmeticCrateState } from "./ui/hooks/useCosmeticCrateState";
 import { LeaderboardsWindow } from "./ui/LeaderboardsWindow";
 import { SettingsWindow } from "./ui/SettingsWindow";
 import { SupportModal } from "./ui/SupportModal";
@@ -165,6 +166,7 @@ export function GameClient({ slug }: GameClientProps) {
   const gameContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [chatExpanded, setChatExpanded] = useState(false);
+  const [buildArmed, setBuildArmed] = useState(false);
   const enterImmersion = useMobileImmersion(touchMode && !authError, gameContainerRef);
 
   const rotated = useForcedLandscape(touchMode);
@@ -274,6 +276,7 @@ export function GameClient({ slug }: GameClientProps) {
     tournamentState.tournaments.find((entry) => entry.id === tournamentState.pendingBuildShot) ?? null;
   const cosmeticState = useCosmeticState();
   const companionState = useCompanionState();
+  const cosmeticCrateState = useCosmeticCrateState();
   const profileState = useProfileState();
   const leaderboardState = useLeaderboardState();
   const socialState = useSocialState();
@@ -582,6 +585,10 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           inventory.handleInventoryChange(inv, ashValue, placeablesValue);
         };
+        game.onBuildArmedChange = (armed) => {
+          if (cancelled) return;
+          setBuildArmed(armed);
+        };
         game.onOpenTokenUI = (tokenData) => {
           if (cancelled) return;
           inventory.handleOpenTokenUI(tokenData);
@@ -797,6 +804,13 @@ export function GameClient({ slug }: GameClientProps) {
         game.onCosmeticState = (data) => { if (!cancelled) cosmeticState.handleCosmeticState(data); };
         game.onCompanionState = (data) => { if (!cancelled) companionState.handleCompanionState(data); };
         game.onCrateOpened = (data) => { if (!cancelled) companionState.handleCrateOpened(data); };
+        game.onCosmeticCrateState = (data) => { if (!cancelled) cosmeticCrateState.handleState(data); };
+        game.onCosmeticCrateOpened = (data) => {
+          if (cancelled) return;
+          cosmeticCrateState.handleOpened(data);
+          const definition = COSMETICS_BY_ID.get(data.itemId as CosmeticId);
+          notifications.addNotification(t("g.skinCrate.dropped", { name: definition ? t(definition.name) : data.itemId }), 3500);
+        };
         game.onCompanionDusted = (data) => {
           if (cancelled) return;
           companionState.handleCompanionDusted(data);
@@ -1604,6 +1618,13 @@ export function GameClient({ slug }: GameClientProps) {
         onFinish={npcDialogue.finish}
         onSkip={npcDialogue.finish}
       />
+      {buildArmed && (
+        <div className="absolute bottom-36 sm:bottom-28 left-1/2 -translate-x-1/2 z-40 pointer-events-none font-oxanium">
+          <div className="rounded-full bg-[rgba(10,13,18,0.82)] backdrop-blur-md ring-1 ring-[#4FD1FF]/30 px-4 py-2 text-[11px] font-bold tracking-wide text-[#4FD1FF] whitespace-nowrap">
+            {touchMode ? t("g.build.hintTouch") : t("g.build.hintDesktop")}
+          </div>
+        </div>
+      )}
       <TouchLandscapeGate active={touchMode && rotated && !authError} onEnterImmersion={enterImmersion} />
       <TouchOnboarding active={touchMode && !loading && !authError} />
       <TouchControls
@@ -2036,6 +2057,10 @@ export function GameClient({ slug }: GameClientProps) {
         cosmetics={cosmeticState.cosmetics}
         onRequestCosmetics={() => gameRef.current?.requestCosmetics()}
         onBuyCosmetic={(itemId: CosmeticId) => gameRef.current?.buyCosmetic(itemId)}
+        crateWallet={cosmeticCrateState.wallet}
+        onRequestCrates={() => gameRef.current?.requestCosmeticCrates()}
+        onCombineFragments={() => gameRef.current?.combineCosmeticFragments()}
+        onOpenCrate={() => gameRef.current?.openCosmeticCrate()}
       />
 
       <GateStewardPanel

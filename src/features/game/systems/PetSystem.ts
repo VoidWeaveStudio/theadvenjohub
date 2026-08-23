@@ -227,7 +227,7 @@ export class PetSystem extends System {
             }
         }
 
-        if (this.mode === "follow") this.pickTarget();
+        if (this.mode !== "fetch") this.pickTarget();
 
         let speed = this.tuning.walkSpeed;
         if (this.mode === "fetch") {

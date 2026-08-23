@@ -84,7 +84,7 @@ export class CanyonTerrainSystem {
         const cached = this.instancedMaterials.get(biome.key);
         if (cached) return cached;
 
-        const material = createCanyonTerrainMaterial(biome, this.textures, this.highQuality);
+        const material = createCanyonTerrainMaterial(biome, this.textures, this.highQuality, 0);
         this.instancedMaterials.set(biome.key, material);
         return material;
     }

@@ -11,6 +11,7 @@ export interface GraphicsSettings {
     transmission: boolean;
     portalDetail: boolean;
     fog: boolean;
+    otherCompanions: boolean;
 }
 
 export type GraphicsPreset = "mobile" | "low" | "medium" | "high";
@@ -30,6 +31,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
     transmission: true,
     portalDetail: true,
     fog: true,
+    otherCompanions: true,
 };
 
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
@@ -43,6 +45,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
         transmission: false,
         portalDetail: false,
         fog: true,
+        otherCompanions: false,
     },
     low: {
         fpsCap: 60,
@@ -54,6 +57,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
         transmission: false,
         portalDetail: false,
         fog: true,
+        otherCompanions: false,
     },
     medium: {
         fpsCap: 144,
@@ -65,6 +69,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
         transmission: false,
         portalDetail: false,
         fog: true,
+        otherCompanions: true,
     },
     high: {
         fpsCap: 144,
@@ -76,6 +81,7 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
         transmission: true,
         portalDetail: true,
         fog: true,
+        otherCompanions: true,
     },
 };
 
@@ -99,6 +105,7 @@ function sanitize(raw: unknown): GraphicsSettings {
         transmission: typeof source.transmission === "boolean" ? source.transmission : DEFAULT_GRAPHICS.transmission,
         portalDetail: typeof source.portalDetail === "boolean" ? source.portalDetail : DEFAULT_GRAPHICS.portalDetail,
         fog: typeof source.fog === "boolean" ? source.fog : DEFAULT_GRAPHICS.fog,
+        otherCompanions: typeof source.otherCompanions === "boolean" ? source.otherCompanions : DEFAULT_GRAPHICS.otherCompanions,
     };
 }
 

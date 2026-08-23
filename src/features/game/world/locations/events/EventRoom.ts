@@ -32,6 +32,7 @@ export abstract class EventRoom extends TowerFloor {
     protected keyLight: THREE.DirectionalLight | null = null;
 
     private particles: ParticleField | null = null;
+    private exitGate: THREE.Group | null = null;
     private exitVeil: THREE.MeshBasicMaterial | null = null;
     private exitLight: THREE.PointLight | null = null;
     private elapsed = 0;
@@ -165,6 +166,11 @@ export abstract class EventRoom extends TowerFloor {
         }
     }
 
+    public override getInteractables(): THREE.Object3D[] {
+        const base = super.getInteractables();
+        return this.exitGate ? [...base, this.exitGate] : base;
+    }
+
     protected buildExitGate() {
         const radius = this.theme.radius - EXIT_INSET;
         const group = new THREE.Group();
@@ -233,6 +239,7 @@ export abstract class EventRoom extends TowerFloor {
         group.userData.interactionId = EVENT_EXIT_INTERACTION;
         group.userData.interactionRadius = 6.5;
 
+        this.exitGate = group;
         this.scene.add(group);
         this.collisionGrid.insertOrientedBox(group.position.x, group.position.z, 11, 2.2, group.rotation.y, 0, 12);
     }

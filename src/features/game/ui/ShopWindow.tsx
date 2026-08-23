@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Boxes, Coins, PawPrint, Shirt, Smile, Store, Swords } from "lucide-react";
+import { Boxes, Coins, PawPrint, Shirt, Smile, Store, Swords, Loader2 } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { SHOP_CATALOG, ShopCatalogEntry, ShopItemKind } from "@/core/lib/shopCatalog";
 import { COMPANIONS, COMPANIONS_BY_ID, RARITY_META, RARITY_ORDER, type CompanionId } from "../data/companions";
@@ -61,7 +61,7 @@ export function ShopWindow({
     onClose,
 }: ShopWindowProps) {
     const { t } = useLanguage();
-    const livePrices = useShopPrices(gameSlug, isOpen);
+    const { prices: livePrices, ready: pricesReady } = useShopPrices(gameSlug, isOpen);
     const [activeTab, setActiveTab] = useState<ShopTab>("companions");
     const [justBought, setJustBought] = useState<Set<string>>(new Set());
     const [expandedCrate, setExpandedCrate] = useState<string | null>(null);
@@ -90,7 +90,7 @@ export function ShopWindow({
             <div className="text-right">
                 <div className="flex items-center justify-end gap-1.5 text-sm font-bold text-[#4FD1FF]">
                     <Coins className="h-3.5 w-3.5" />
-                    {price.tnj > 0 ? `${formatTnj(price.tnj)} TNJ` : "—"}
+                    {!pricesReady ? "…" : price.tnj > 0 ? `${formatTnj(price.tnj)} TNJ` : "—"}
                 </div>
             </div>
         );
@@ -106,6 +106,7 @@ export function ShopWindow({
                 itemId={entry.itemId}
                 gameSlug={gameSlug}
                 owned={owned}
+                priceLoading={!pricesReady}
                 onPurchased={(id) => {
                     setJustBought((prev) => new Set(prev).add(id));
                     onRequestCompanions();
@@ -381,6 +382,13 @@ export function ShopWindow({
                 <Store className="mt-px h-4 w-4 flex-shrink-0 text-[#FFD166]" />
                 <span className="text-[#C9CDD3]">{t("g.shop.tnjOnly")}</span>
             </div>
+
+            {!pricesReady && (
+                <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-[#4FD1FF]/25 bg-[rgba(79,209,255,0.08)] px-3 py-2.5 text-xs">
+                    <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-[#4FD1FF]" />
+                    <span className="text-[#C9CDD3]">{t("g.shop.pricesLoading")}</span>
+                </div>
+            )}
 
             {activeTab === "companions" && renderCompanions()}
             {activeTab === "lootboxes" && renderLootboxes()}

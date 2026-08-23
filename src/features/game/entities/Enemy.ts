@@ -3,12 +3,13 @@ import * as THREE from "three";
 import { SlimeModel } from "./slimeModel";
 import { SoundManager } from "../core/SoundManager";
 
-const BOSS_TYPES = new Set(["slime_boss", "husk_boss", "frost_boss", "spore_boss", "void_boss", "cave_warden", "slime_warden"]);
+const BOSS_TYPES = new Set(["slime_boss", "husk_boss", "frost_boss", "spore_boss", "void_boss", "cave_warden", "slime_warden", "slime_seer"]);
 
 const TYPE_BASE_SCALE: Record<string, number> = {
     slime: 1,
     slime_boss: 3,
     slime_warden: 3.4,
+    slime_seer: 3.8,
     husk: 1.15,
     husk_boss: 3.4,
     frostling: 0.9,
@@ -24,6 +25,7 @@ const TYPE_COLOR: Record<string, number> = {
     slime: 0x33cc55,
     slime_boss: 0x8b2fc9,
     slime_warden: 0x4fd17a,
+    slime_seer: 0xff4dc4,
     husk: 0xd4541f,
     husk_boss: 0xff7a2f,
     frostling: 0x7fd8ff,

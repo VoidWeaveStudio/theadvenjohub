@@ -137,7 +137,12 @@ export function EventDoorPanel({
     if (!door) return null;
 
     const accent = `#${(event?.accent ?? door.accent).toString(16).padStart(6, "0")}`;
-    const title = event?.title ?? t(door.name);
+    const localized = (value: string | null | undefined, fallbackKey: string) => {
+        const source = value && value.trim().length > 0 ? value : fallbackKey;
+        return /^g\.[A-Za-z0-9_.-]+$/.test(source) ? t(source) : source;
+    };
+
+    const title = localized(event?.title, door.name);
     const scored = door.scored;
     const partyOk = !event || (partySize >= event.minParty && partySize <= event.maxParty);
 
@@ -151,7 +156,10 @@ export function EventDoorPanel({
             : t("g.door.finished");
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-2 sm:p-4">
+        <div
+            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto p-2 sm:p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
             <div
                 className="w-full max-w-lg bg-[rgba(12,14,16,0.96)] border-2 rounded-[16px] overflow-hidden"
                 style={{ borderColor: `${accent}55`, boxShadow: `0 0 40px ${accent}22` }}
@@ -165,7 +173,7 @@ export function EventDoorPanel({
                         <div className="min-w-0">
                             <h2 className="text-xl font-black text-[#E5E7EB] truncate">{title}</h2>
                             <div className="text-xs font-bold tracking-widest uppercase mt-0.5" style={{ color: accent }}>
-                                {event?.tagline ?? t(door.tagline)}
+                                {localized(event?.tagline, door.tagline)}
                             </div>
                         </div>
                     </div>
@@ -175,12 +183,12 @@ export function EventDoorPanel({
                 </div>
 
                 <div className="px-5 pb-5 space-y-4">
-                    <p className="text-[#C9CDD3] text-sm leading-relaxed">{event?.description ?? t(door.teaser)}</p>
+                    <p className="text-[#C9CDD3] text-sm leading-relaxed">{localized(event?.description, door.teaser)}</p>
 
                     <div className="space-y-2">
                         <div className="flex items-start gap-2.5 text-xs bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2.5">
                             <Gift className="w-4 h-4 flex-shrink-0 mt-px" style={{ color: accent }} />
-                            <span className="text-[#C9CDD3]">{event?.rewardText ?? t(door.rewardText)}</span>
+                            <span className="text-[#C9CDD3]">{localized(event?.rewardText, door.rewardText)}</span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">

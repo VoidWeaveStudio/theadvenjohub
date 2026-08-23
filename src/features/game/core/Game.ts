@@ -176,9 +176,22 @@ export class Game {
         );
     }
 
+    private readonly groundProbe = new THREE.Vector3();
+
     public readonly getGroundHeight = (x: number, z: number) => {
         const currentLoc = this.locationManager.getCurrentLocation();
-        return currentLoc?.terrain?.getHeightAt(x, z) ?? 0;
+        if (!currentLoc) return 0;
+
+        const terrainHeight = currentLoc.terrain?.getHeightAt(x, z);
+        if (terrainHeight !== undefined) return terrainHeight;
+
+        const reference = this.player.mesh.position.y;
+        const grid = currentLoc.collisionGrid;
+        if (!grid) return reference;
+
+        this.groundProbe.set(x, reference + 0.9, z);
+        const platform = grid.checkPlatformBelow(this.groundProbe, 1.8, 8, 2.5);
+        return platform.found ? platform.platformY : reference;
     };
     public readonly lootSystem: LootSystem;
     public readonly petSystem: PetSystem;
@@ -515,6 +528,7 @@ export class Game {
             position: target.toArray(),
             rotation: this.player.mesh.rotation.y,
             pitch: this.cameraController.getPitch(),
+            headYaw: this.player.getHeadYaw(),
             state: 'idle',
             jumping: false,
             velocityY: 0,
@@ -732,6 +746,7 @@ export class Game {
                 this.petSystem.setLocation(currentLocation.id);
                 this.buildSystem.init(currentLocation.scene, currentLocation.id, this.networkManager, this.player, this.inputManager, getGroundHeight, this.interactionSystem, this.session.userId);
                 this.shootingSystem.onShotFired = () => this.notifyLocalShot();
+                this.buildSystem.onArmedChange = (armed) => this.onBuildArmedChange?.(armed);
                 this.buildSystem.onNotification = (msg, duration) => {
                     this.onNotification?.(msg, duration);
                 };
@@ -1400,7 +1415,7 @@ export class Game {
             const galaxy = currentLocation instanceof Basement ? currentLocation : null;
             this.otherPlayers.forEach((op) => {
                 if (galaxy) op.setWispMode(!galaxy.isOnPlatform(op.mesh.position));
-                op.update(delta);
+                op.update(delta, this.getGroundHeight);
                 if (this.dust2MateIds.has(op.id)) {
                     this.minimapMates.push({ x: op.mesh.position.x, z: op.mesh.position.z, alive: !op.isDead() });
                 }
@@ -1411,6 +1426,7 @@ export class Game {
                 position: this.player.mesh.position.toArray(),
                 rotation: this.player.mesh.rotation.y,
                 pitch: this.cameraController.getPitch(),
+                headYaw: this.player.getHeadYaw(),
                 state: this.player.getState(),
                 jumping: this.player.isJumping(),
                 velocityY: this.player.getVelocityY(),
@@ -1543,6 +1559,8 @@ export class Game {
     buyShopItem(itemId: string, quantity: number = 1) {
         this.networkManager.sendShopBuyItem(itemId, quantity);
     }
+
+    public onBuildArmedChange?: (armed: boolean) => void;
 
     armPlaceable(itemId: string) {
         this.buildSystem.armPlaceable(itemId);
@@ -1803,6 +1821,18 @@ export class Game {
 
     openCrate() {
         this.networkManager.sendCrateOpen();
+    }
+
+    requestCosmeticCrates() {
+        this.networkManager.sendCosmeticCrateRequest();
+    }
+
+    combineCosmeticFragments() {
+        this.networkManager.sendCosmeticCombine();
+    }
+
+    openCosmeticCrate() {
+        this.networkManager.sendCosmeticCrateOpen();
     }
 
     setSpawnProtection(untilMs: number) {

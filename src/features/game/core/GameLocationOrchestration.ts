@@ -84,6 +84,7 @@ function resyncPosition(game: Game) {
         position: game.player.mesh.position.toArray(),
         rotation: game.player.mesh.rotation.y,
         pitch: game.cameraController.getPitch(),
+        headYaw: 0,
         state: 'idle',
         jumping: false,
         velocityY: 0,

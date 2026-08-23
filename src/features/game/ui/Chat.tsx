@@ -23,7 +23,7 @@ interface ChatMessage {
     type: "player" | "system";
 }
 
-type MainTab = "general" | "faction" | { dm: string };
+type MainTab = "general" | "system" | "faction" | { dm: string };
 
 function tabKey(tab: MainTab): string {
     return typeof tab === "string" ? tab : `dm:${tab.dm}`;
@@ -122,7 +122,9 @@ export function Chat({
 
     let activeMessages: ChatMessage[];
     if (activeTab === "general") {
-        activeMessages = messages;
+        activeMessages = messages.filter((m) => m.type !== "system");
+    } else if (activeTab === "system") {
+        activeMessages = messages.filter((m) => m.type === "system");
     } else if (activeTab === "faction") {
         activeMessages = activeFactionId ? factionMessages[activeFactionId] || [] : [];
     } else {
@@ -150,7 +152,9 @@ export function Chat({
         const text = input.trim();
         if (!text) return;
 
-        if (activeTab === "general") {
+        if (activeTab === "system") {
+            return;
+        } else if (activeTab === "general") {
             onSendMessage(text);
         } else if (activeTab === "faction") {
             if (activeFactionId) onSendFactionMessage(activeFactionId, text);
@@ -184,8 +188,9 @@ export function Chat({
         );
     }
 
-    const tabAccent = (tab: "general" | "faction" | "dm"): string => {
+    const tabAccent = (tab: "general" | "system" | "faction" | "dm"): string => {
         if (tab === "general") return "#4FD1FF";
+        if (tab === "system") return "#FFD166";
         if (tab === "faction") return "#C084FC";
         return "#4ADE80";
     };
@@ -206,6 +211,17 @@ export function Chat({
                             }}
                         >
                             {t("g.chat.general")}
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab("system")}
+                            className="bg-transparent border-0 px-3 py-1.5 rounded-t text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0"
+                            style={{
+                                color: isActiveTab("system") ? tabAccent("system") : "#8B8F98",
+                                borderBottom: isActiveTab("system") ? `2px solid ${tabAccent("system")}` : "2px solid transparent",
+                            }}
+                        >
+                            {t("g.chat.system")}
                         </button>
 
                         {myFactions.length > 0 && (
@@ -324,6 +340,7 @@ export function Chat({
                     )}
                 </div>
 
+                {activeTab !== "system" && (
                 <div className="border-t border-white/10 p-2">
                     <form onSubmit={handleSubmit} className="flex gap-2">
                         <input
@@ -347,6 +364,7 @@ export function Chat({
                         </button>
                     </form>
                 </div>
+                )}
             </div>
         </div>
     );

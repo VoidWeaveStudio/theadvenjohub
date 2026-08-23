@@ -151,7 +151,8 @@ const canyonAlbedoLQ = /* glsl */`
 export function createCanyonTerrainMaterial(
     biome: CanyonBiome,
     textures: CanyonTerrainTextures,
-    highQuality: boolean
+    highQuality: boolean,
+    veinScale = 1
 ): THREE.MeshStandardMaterial {
     const material = new THREE.MeshStandardMaterial({
         color: 0xffffff,
@@ -175,7 +176,7 @@ export function createCanyonTerrainMaterial(
         shader.uniforms.uStrataB = { value: new THREE.Color(biome.strataB) };
         shader.uniforms.uStrataC = { value: new THREE.Color(biome.strataC) };
         shader.uniforms.uVeinColor = { value: new THREE.Color(biome.veinColor) };
-        shader.uniforms.uVeinStrength = { value: biome.veinStrength };
+        shader.uniforms.uVeinStrength = { value: biome.veinStrength * veinScale };
         shader.uniforms.uRockScale = { value: 0.045 };
         shader.uniforms.uGroundScale = { value: 0.075 };
         shader.uniforms.uStrataFreq = { value: 0.115 };
@@ -228,8 +229,9 @@ export function createCanyonTerrainMaterial(
                 if (uVeinStrength > 0.001) {
                     float veinField = canyonNoise(vec2(canyonPos.y * 0.09, canyonPos.x * 0.025 + canyonPos.z * 0.06));
                     float vein = 1.0 - abs(veinField * 2.0 - 1.0);
-                    vein = smoothstep(0.88, 1.0, vein) * rockWeight * uVeinStrength;
-                    totalEmissiveRadiance = uVeinColor * vein * 2.6;
+                    vein = smoothstep(0.955, 1.0, vein) * rockWeight * uVeinStrength;
+                    vein *= smoothstep(3.0, 12.0, canyonPos.y);
+                    totalEmissiveRadiance = uVeinColor * vein * 0.85;
                 } else {
                     totalEmissiveRadiance = vec3(0.0);
                 }

@@ -32,7 +32,10 @@ export function CanyonMapPanel({ isOpen, data, onClose, onWarp }: CanyonMapPanel
     if (!isOpen) return null;
 
     return (
-        <div className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
+        <div
+            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
             <div className="w-full max-w-md bg-[rgba(12,14,20,0.95)] border-2 border-[#4FD1FF]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(79,209,255,0.15)]">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
