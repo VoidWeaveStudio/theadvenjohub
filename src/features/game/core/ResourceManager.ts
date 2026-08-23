@@ -95,7 +95,8 @@ export class ResourceManager {
     });
 
     const lazyTextures = [
-      { name: "nebula-sky", url: "/models/nebula_7_0.webp", isSRGB: true },
+      { name: "nebula-sky", url: "/models/nebula_sky_4k.webp", isSRGB: true },
+      { name: "nebula-env", url: "/models/nebula_env.webp", isSRGB: true },
       { name: "floor-color", url: "/models/textures/basement_floor/cobblestone_01_diff_1k.webp", isSRGB: true },
       { name: "floor-normal", url: "/models/textures/basement_floor/cobblestone_01_nor_gl_1k.webp", isSRGB: false },
       { name: "floor-roughness", url: "/models/textures/basement_floor/cobblestone_01_rough_1k.webp", isSRGB: false },

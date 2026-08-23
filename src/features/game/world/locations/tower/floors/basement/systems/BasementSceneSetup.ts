@@ -40,9 +40,21 @@ export function setupBasementSky(
 
         floor.scene.add(skySphere);
 
-        tex.mapping = EquirectangularReflectionMapping;
-        floor.scene.environment = tex;
-        (floor.scene as any).environmentIntensity = 0.55;
+        const applyEnvironment = () => {
+            if (isDisposed()) return;
+            const envTexture = rm.getTexture("nebula-env");
+            if (!envTexture) return;
+
+            envTexture.mapping = EquirectangularReflectionMapping;
+            floor.scene.environment = envTexture;
+            (floor.scene as any).environmentIntensity = 0.55;
+        };
+
+        if (rm.getTexture("nebula-env")) {
+            applyEnvironment();
+        } else {
+            rm.onTextureLoaded("nebula-env", applyEnvironment);
+        }
 
         onReady(skySphere);
     };
