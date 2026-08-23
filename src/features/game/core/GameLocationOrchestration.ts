@@ -5,20 +5,23 @@ import type { Game } from "./Game";
 export const DEFAULT_SPAWN_LOCATION_ID = "tower-main-hall";
 
 const TELEPORT_GRACE_MS = 2500;
+const LOCATION_SYNC_RETRY_MS = 250;
+const LOCATION_SYNC_ATTEMPTS = 12;
 const RECOVERY_FLOOR_Y = -40;
 const RECOVERY_MARGIN = 6;
 
 export async function restoreToSavedProgress(game: Game) {
     try {
+        const target = game.serverLocationId ?? DEFAULT_SPAWN_LOCATION_ID;
         const currentId = game.locationManager.getCurrentLocation()?.id;
-        if (currentId !== DEFAULT_SPAWN_LOCATION_ID) {
-            await game.changeLocation(DEFAULT_SPAWN_LOCATION_ID, { silent: true });
+        if (currentId !== target) {
+            await game.changeLocation(target, { silent: true, fromServer: true });
         }
 
-        const hall = game.locationManager.getCurrentLocation();
-        if (hall) placeAtLocationSpawn(game, { notify: false, resync: false });
+        const spawned = game.locationManager.getCurrentLocation();
+        if (spawned) placeAtLocationSpawn(game, { notify: false, resync: false });
     } catch (error) {
-        console.error("Failed to place player at the main hall:", error);
+        console.error("Failed to place player at the spawn location:", error);
     } finally {
         game.setWeaponEquipped(game.hudState.isWeaponEquipped);
         game.restoreResolver?.();
@@ -37,6 +40,39 @@ export function waitForProgressRestore(game: Game, timeoutMs = 6000): Promise<vo
         game.restoreResolver = finish;
         setTimeout(finish, timeoutMs);
     });
+}
+
+export async function applyServerLocation(
+    game: Game,
+    data: { locationId: string; position?: number[] }
+): Promise<void> {
+    game.serverLocationId = data.locationId;
+
+    if (!game.hasRestoredLocation) return;
+
+    for (let attempt = 0; attempt < LOCATION_SYNC_ATTEMPTS; attempt++) {
+        if (game.serverLocationId !== data.locationId) return;
+        if (game.locationManager.getCurrentLocation()?.id === data.locationId) return;
+
+        if (!game.isChangingLocation) {
+            try {
+                await game.changeLocation(data.locationId, {
+                    silent: true,
+                    fromServer: true,
+                    position: data.position,
+                });
+            } catch (error) {
+                console.error("Failed to follow the server location:", error);
+                return;
+            }
+
+            if (game.locationManager.getCurrentLocation()?.id === data.locationId) return;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, LOCATION_SYNC_RETRY_MS));
+    }
+
+    console.warn(`[location] could not follow the server to ${data.locationId}`);
 }
 
 export function beginTeleportGrace(game: Game) {

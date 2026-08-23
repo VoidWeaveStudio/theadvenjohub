@@ -86,6 +86,14 @@ body {
   --header-height: 64px;
   --tap-target: 44px;
   --game-ui-scale: 1;
+  --top-menu-band: 148px;
+}
+
+html[data-game-rotated="true"] {
+  --safe-top: env(safe-area-inset-right, 0px);
+  --safe-right: env(safe-area-inset-bottom, 0px);
+  --safe-bottom: env(safe-area-inset-left, 0px);
+  --safe-left: env(safe-area-inset-top, 0px);
 }
 
 .min-h-dvh {
@@ -156,13 +164,29 @@ html[data-game-immersive="true"] main > div {
   transform-origin: left top;
 }
 
+[data-touch="true"] {
+  --top-menu-band: 74px;
+}
+
 [data-touch="true"] .game-ui-scale-tc {
   transform: scale(var(--game-ui-scale, 1));
   transform-origin: center top;
 }
 
+[data-touch="true"] .game-ui-topmenu {
+  transform: scale(max(0.82, var(--game-ui-scale, 1)));
+}
+
+[data-touch="true"] .game-ui-topmenu-row {
+  gap: 0.75rem;
+}
+
+[data-touch="true"] .game-ui-topmenu-icon {
+  height: 3.5rem;
+}
+
 [data-touch="true"] .game-ui-scale-bc {
-  bottom: calc(120px + var(--safe-bottom));
+  bottom: calc(10px + var(--safe-bottom));
   transform: scale(var(--game-ui-scale, 1));
   transform-origin: center bottom;
 }
@@ -187,9 +211,40 @@ html[data-game-immersive="true"] main > div {
 
 [data-touch="true"] .game-ui-weapon {
   top: auto;
-  bottom: 300px;
-  right: 24px;
-  left: auto;
+  bottom: calc(56px + var(--safe-bottom));
+  right: auto;
+  left: 50%;
+  translate: -50% 0;
+  transform: scale(var(--game-ui-scale, 1));
+  transform-origin: center bottom;
+}
+
+[data-touch="true"] .game-window-frame {
+  align-items: center;
+  padding: 8px calc(8px + var(--safe-right)) 8px calc(8px + var(--safe-left));
+}
+
+[data-touch="true"] .game-window-panel {
+  width: 100%;
+  max-width: 620px;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 1rem;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+[data-touch="true"] .game-window-head {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+[data-touch="true"] .game-window-body {
+  padding: 0.75rem 1rem;
+}
+
+[data-touch="true"] .game-window-footer {
+  padding: 0.5rem 1rem;
 }
 
 @media (max-width: 380px) {

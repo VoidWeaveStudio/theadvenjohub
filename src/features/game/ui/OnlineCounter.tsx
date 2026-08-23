@@ -6,26 +6,32 @@ import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface OnlineCounterProps {
     count: number;
-    maxCount?: number;
+    here?: number;
 }
 
-export function OnlineCounter({ count, maxCount = 100 }: OnlineCounterProps) {
+export function OnlineCounter({ count, here }: OnlineCounterProps) {
     const { t } = useLanguage();
+    const nearby = here ?? count;
+
     return (
-        <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] px-5 py-3 font-oxanium">
-            <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                    <div className="relative flex items-center justify-center">
-                        <span className="absolute inline-flex h-2 w-2 rounded-full bg-[#4ADE80] animate-ping opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#4ADE80]" />
-                    </div>
-                    <Users className="w-4 h-4 text-[#8B8F98]" />
-                </div>
-                <div className="flex flex-col">
-                    <span className="text-[#8B8F98] text-[10px] font-bold tracking-wider">{t("g.hud.online")}</span>
-                    <span className="text-[#E5E7EB] text-xl font-bold leading-none">{count}</span>
-                </div>
+        <div className="flex items-center gap-2 rounded-full bg-[rgba(10,13,18,0.66)] backdrop-blur-md ring-1 ring-white/10 px-3 py-1.5 font-oxanium">
+            <div className="relative flex items-center justify-center">
+                <span className="absolute inline-flex h-1.5 w-1.5 rounded-full bg-[#4ADE80] animate-ping opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#4ADE80]" />
             </div>
+
+            <Users className="w-3.5 h-3.5 text-[#8B8F98]" />
+
+            <span
+                className="text-white text-sm font-black leading-none tabular-nums"
+                title={t("g.hud.onlineHere")}
+            >
+                {nearby}
+            </span>
+
+            <span className="text-white/35 text-[11px] font-bold leading-none tabular-nums" title={t("g.hud.online")}>
+                / {count}
+            </span>
         </div>
     );
 }

@@ -930,6 +930,7 @@ export const en: Translations = {
   "g.hud.inCombat": "IN COMBAT",
   "g.hud.invulnerable": "INVULNERABLE",
   "g.hud.online": "ONLINE",
+  "g.hud.onlineHere": "Players in this location",
   "g.hud.reloading": "RELOADING...",
   "g.hud.hintFireMode": "Press [B] for fire mode",
   "g.hud.hintReload": "Press [R] to reload, [B] for fire mode",

@@ -8,6 +8,17 @@ const WOOD_FOOTSTEP_NAMES = ["footstep-wood-1", "footstep-wood-2", "footstep-woo
 const SAND_FOOTSTEP_NAMES = ["footstep-sand-1", "footstep-sand-2"];
 const HEARING_RANGE = 46;
 
+const MUTED_SOUNDS = new Set([
+    "jump",
+    "land",
+    "land-heavy",
+    "splash",
+    "portal-enter",
+    "modal-open",
+    "ui-close",
+    "ui-tab",
+]);
+
 export type FootstepSurface = "soft" | "stone" | "wood" | "sand";
 
 export interface PlayOptions {
@@ -133,6 +144,8 @@ export class SoundManager {
   }
 
   private start(name: string, opts: PlayOptions, gainValue: number, pan: number, loop: boolean): SoundHandle | null {
+    if (MUTED_SOUNDS.has(name)) return null;
+
     const ctx = this.audioContext;
     const buffer = this.buffers.get(name);
     if (!ctx || !buffer || gainValue <= 0.0005) return null;

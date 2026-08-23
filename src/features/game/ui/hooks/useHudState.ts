@@ -12,6 +12,7 @@ export function useHudState() {
     reloadProgress: 0,
     reserve: 0,
     online: 1,
+    onlineHere: 1,
     inSafeZone: true,
     prompt: null,
     isReloading: false,

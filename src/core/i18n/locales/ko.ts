@@ -931,6 +931,7 @@ export const ko: Translations = {
   "g.hud.inCombat": "전투 중",
   "g.hud.invulnerable": "무적",
   "g.hud.online": "온라인",
+  "g.hud.onlineHere": "이 지역의 플레이어",
   "g.hud.reloading": "재장전 중...",
   "g.hud.hintFireMode": "[B] 키로 사격 모드 전환",
   "g.hud.hintReload": "[R] 키로 재장전, [B] 키로 사격 모드 전환",

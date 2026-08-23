@@ -1238,6 +1238,7 @@ export const id: PartialTranslations = {
   "g.hud.inCombat": "DALAM PERTEMPURAN",
   "g.hud.invulnerable": "KEBAL",
   "g.hud.online": "ONLINE",
+  "g.hud.onlineHere": "Pemain di lokasi ini",
   "g.hud.reloading": "MENGISI ULANG...",
   "g.hud.hintFireMode": "Tekan [B] untuk mode tembak",
   "g.hud.hintReload": "Tekan [R] untuk isi ulang, [B] untuk mode tembak",

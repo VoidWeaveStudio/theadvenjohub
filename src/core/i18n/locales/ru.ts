@@ -934,6 +934,7 @@ export const ru: Translations = {
   "g.hud.inCombat": "В БОЮ",
   "g.hud.invulnerable": "НЕУЯЗВИМОСТЬ",
   "g.hud.online": "ОНЛАЙН",
+  "g.hud.onlineHere": "Игроков в этой локации",
   "g.hud.reloading": "ПЕРЕЗАРЯДКА...",
   "g.hud.hintFireMode": "[B] — режим огня",
   "g.hud.hintReload": "[R] — перезарядка, [B] — режим огня",

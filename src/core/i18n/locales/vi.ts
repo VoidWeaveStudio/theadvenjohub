@@ -1238,6 +1238,7 @@ export const vi: PartialTranslations = {
   "g.hud.inCombat": "ĐANG CHIẾN ĐẤU",
   "g.hud.invulnerable": "BẤT TỬ",
   "g.hud.online": "TRỰC TUYẾN",
+  "g.hud.onlineHere": "Người chơi ở khu vực này",
   "g.hud.reloading": "ĐANG NẠP ĐẠN...",
   "g.hud.hintFireMode": "Nhấn [B] để đổi chế độ bắn",
   "g.hud.hintReload": "Nhấn [R] để nạp đạn, [B] để đổi chế độ bắn",

@@ -9,7 +9,7 @@ import { ShardSwitcher } from "./ShardSwitcher";
 import { XpBar } from "./XpBar";
 import type { ShardStateData, ProgressionStateData, PartyMemberData } from "../network/NetworkManager";
 import type { XpPopup } from "./hooks/useProgressionState";
-import { TOP_MENU_BAND_PX } from "./hudLayout";
+
 
 interface HUDProps {
     state: HUDState;
@@ -39,21 +39,22 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
         <div className="game-ui-scale-fill absolute inset-0 pointer-events-none select-none font-oxanium">
             <div className="absolute top-3 left-3 sm:top-6 sm:left-6" style={{ marginTop: "var(--safe-top)", marginLeft: "var(--safe-left)" }}>
                 <div className="flex items-end gap-3">
-                    <div>
-                        <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-4 min-w-[220px]">
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                    <Heart className="w-5 h-5 text-[#FF5757] fill-[#FF5757]" />
-                                    <span className="text-[#E5E7EB] text-xs font-bold tracking-wider">{t("g.hud.health")}</span>
-                                </div>
-                                <span className="text-[#E5E7EB] text-lg font-bold">{state.health}</span>
-                            </div>
-                            <div className="w-full h-2 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-gradient-to-r from-[#FF5757] to-[#FF7B7B] transition-all duration-300 ease-out"
-                                    style={{ width: `${healthPercentage}%` }}
-                                />
-                            </div>
+                    <div className="relative w-[236px] max-w-[58vw]">
+                        <div className="absolute -inset-3 -z-10 rounded-2xl bg-gradient-to-br from-black/60 via-black/35 to-transparent" />
+
+                        <div className="flex items-baseline gap-2">
+                            <Heart className="w-4 h-4 self-center text-[#FF5757] fill-[#FF5757] drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]" />
+                            <span className={`text-2xl font-black leading-none tabular-nums drop-shadow-[0_1px_4px_rgba(0,0,0,0.95)] ${healthPercentage <= 30 ? "text-[#FF7B7B]" : "text-white"}`}>
+                                {state.health}
+                            </span>
+                            <span className="text-white/40 text-[11px] font-bold leading-none">/ {state.maxHealth}</span>
+                        </div>
+
+                        <div className="mt-1 h-2 rounded-full bg-black/55 ring-1 ring-white/10 overflow-hidden">
+                            <div
+                                className="h-full rounded-full bg-gradient-to-r from-[#FF5757] to-[#FF9B7B] transition-all duration-300 ease-out"
+                                style={{ width: `${healthPercentage}%` }}
+                            />
                         </div>
 
                         <XpBar progression={progression} popups={xpPopups} onOpenSkills={onOpenSkills} />
@@ -68,7 +69,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
                                     return (
                                         <div
                                             key={member.id}
-                                            className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(138,212,255,0.2)] rounded-[8px] px-3 py-1.5 min-w-[220px]"
+                                            className="px-0.5"
                                         >
                                             <div className="flex items-center gap-1.5">
                                                 {member.id === partyLeaderId && <Crown className="w-3 h-3 text-[#FFD166] shrink-0" />}
@@ -100,7 +101,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
             </div>
 
             <div className="game-ui-rightrail absolute top-16 sm:top-6 right-3 sm:right-6 flex flex-col items-end gap-1.5 max-w-[220px] sm:max-w-[300px]" style={{ marginRight: "var(--safe-right)" }}>
-                <OnlineCounter count={state.online} maxCount={100} />
+                <OnlineCounter count={state.online} here={state.onlineHere} />
                 <ShardSwitcher state={shardState ?? null} onSwitch={onSwitchShard ?? (() => { })} />
 
                 {combatRemainingMs > 0 && (
@@ -119,7 +120,7 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
 
             <div
                 className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-                style={{ top: TOP_MENU_BAND_PX }}
+                style={{ top: "var(--top-menu-band, 148px)" }}
             >
                 {topCenter}
 
@@ -147,57 +148,40 @@ export function HUD({ state, isPointerLocked, isHitMark = false, isTalking = fal
 
             {state.isWeaponEquipped && (
                 <div className="game-ui-weapon absolute bottom-44 right-4 sm:bottom-8 sm:right-8">
-                    <div className="bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] p-5 min-w-[180px]">
-                        <div className="flex items-baseline justify-between gap-3 mb-2">
-                            <span className="text-[#8B8F98] text-xs font-bold tracking-wider uppercase">{t(state.weaponName)}</span>
-                            <span className="text-[#4FD1FF] text-[10px] font-bold tracking-wider uppercase">{state.fireMode}</span>
+                    <div className="flex items-center gap-3 rounded-full bg-[rgba(10,13,18,0.66)] backdrop-blur-md ring-1 ring-white/10 pl-3.5 pr-4 py-1.5">
+                        <div className="flex flex-col leading-none gap-0.5">
+                            <span className="text-[#C5C9D1] text-[10px] font-bold tracking-wider uppercase">{t(state.weaponName)}</span>
+                            <span className="text-[#4FD1FF] text-[9px] font-bold tracking-wider uppercase">{state.fireMode}</span>
                         </div>
 
                         {state.weaponKind === "staff" ? (
-                            <div className="flex items-baseline gap-3">
-                                <span className="text-[#C79AE0] text-4xl font-bold leading-none">{t("g.hud.mana")}</span>
-                            </div>
+                            <span className="text-[#C79AE0] text-lg font-black leading-none tracking-wide">{t("g.hud.mana")}</span>
                         ) : (
-                            <div className="flex items-baseline gap-3">
-                                <span className="text-[#4FD1FF] text-5xl font-bold leading-none">{state.ammo}</span>
-                                <div className="flex flex-col">
-                                    <div className="h-[2px] bg-[rgba(255,255,255,0.2)] w-12 mb-1" />
-                                    <span className="text-[#8B8F98] text-xl font-semibold">{state.maxAmmo}</span>
-                                </div>
+                            <div className="flex items-baseline gap-1 tabular-nums">
+                                {state.isReloading ? (
+                                    <Activity className="w-5 h-5 self-center text-[#FF5757] animate-pulse" />
+                                ) : (
+                                    <>
+                                        <span className={`text-2xl font-black leading-none ${state.ammo === 0 ? "text-[#FF5757]" : "text-white"}`}>
+                                            {state.ammo}
+                                        </span>
+                                        <span className="text-white/35 text-[11px] font-bold">/ {state.maxAmmo}</span>
+                                    </>
+                                )}
                             </div>
                         )}
-
-                        {state.chargeProgress > 0 && (
-                            <div className="mt-3 h-1 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-[#C79AE0]"
-                                    style={{ width: `${Math.round(state.chargeProgress * 100)}%` }}
-                                />
-                            </div>
-                        )}
-
-                        {state.isReloading && (
-                            <div className="mt-2 h-1.5 bg-[rgba(255,255,255,0.12)] rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-[#FF5757] transition-none"
-                                    style={{ width: `${Math.round(state.reloadProgress * 100)}%` }}
-                                />
-                            </div>
-                        )}
-
-                        <div className="mt-3 flex items-center gap-2">
-                            {state.isReloading ? (
-                                <Activity className="w-4 h-4 text-[#FF5757] animate-pulse" />
-                            ) : null}
-                            <span className={`text-xs font-medium ${state.isReloading ? 'text-[#FF5757]' : 'text-[#8B8F98]'}`}>
-                                {state.isReloading
-                                    ? t("g.hud.reloading")
-                                    : state.weaponKind === "staff"
-                                        ? t("g.hud.hintFireMode")
-                                        : t("g.hud.hintReload")}
-                            </span>
-                        </div>
                     </div>
+
+                    {(state.isReloading || state.chargeProgress > 0) && (
+                        <div className="mx-3 mt-1 h-1 rounded-full bg-black/60 overflow-hidden">
+                            <div
+                                className={`h-full rounded-full ${state.isReloading ? "bg-[#FF5757] transition-none" : "bg-[#C79AE0]"}`}
+                                style={{
+                                    width: `${Math.round((state.isReloading ? state.reloadProgress : state.chargeProgress) * 100)}%`,
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
             )}
 

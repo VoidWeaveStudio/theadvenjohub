@@ -1238,6 +1238,7 @@ export const it: PartialTranslations = {
   "g.hud.inCombat": "IN COMBATTIMENTO",
   "g.hud.invulnerable": "INVULNERABILE",
   "g.hud.online": "ONLINE",
+  "g.hud.onlineHere": "Giocatori in questa zona",
   "g.hud.reloading": "RICARICA...",
   "g.hud.hintFireMode": "Premi [B] per la modalità di fuoco",
   "g.hud.hintReload": "Premi [R] per ricaricare, [B] per la modalità di fuoco",

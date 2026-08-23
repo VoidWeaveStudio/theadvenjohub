@@ -1613,7 +1613,6 @@ export function GameClient({ slug }: GameClientProps) {
         canBuy={grinderMatch ? grinderMatch.phase === "live" : defusalMatch?.phase === "freeze" || defusalMatch?.phase === "warmup"}
         visible={touchMode && !loading && !chatExpanded && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null}
         onOpenWheel={() => openWheel("touch")}
-        onOpenMenu={() => setActiveTopWindow("settings")}
       />
       <RadialWheel
         isOpen={wheelMode !== null}

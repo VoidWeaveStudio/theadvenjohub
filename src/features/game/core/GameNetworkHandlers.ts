@@ -64,6 +64,9 @@ interface AuthData {
     playerId: string;
     nickname: string;
     skinTextureUrl?: string | null;
+    locationId?: string;
+    instance?: number;
+    position?: number[];
 }
 
 interface PlayerUpdateData {
@@ -310,6 +313,9 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onAuthenticated = (data: AuthData) => {
         game.localPlayerNetId = data.playerId;
+        if (data.locationId) {
+            void game.applyServerLocation({ locationId: data.locationId, position: data.position });
+        }
         game.voiceChat.setLocalId(data.playerId);
         game.onLocalPlayerId?.(data.playerId);
         game.onNicknameLoaded?.(data.nickname);
@@ -473,8 +479,9 @@ export function registerNetworkHandlers(game: Game) {
         playWhizIfClose(game, data.origin, data.direction);
     };
 
-    game.networkManager.onCount = (count: number) => {
+    game.networkManager.onCount = (count: number, here: number) => {
         game.hudState.online = count;
+        game.hudState.onlineHere = here;
         game.emitState(true);
     };
 
@@ -499,6 +506,10 @@ export function registerNetworkHandlers(game: Game) {
     };
     game.networkManager.onVoiceIceCandidate = (data) => {
         game.voiceChat.handleIceCandidate(data.fromId, data.candidate);
+    };
+
+    game.networkManager.onLocationSync = (data) => {
+        void game.applyServerLocation(data);
     };
 
     game.networkManager.onProgressLoaded = (data: ProgressData) => {

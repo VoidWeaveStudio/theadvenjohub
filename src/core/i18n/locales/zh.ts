@@ -931,6 +931,7 @@ export const zh: Translations = {
   "g.hud.inCombat": "战斗中",
   "g.hud.invulnerable": "无敌",
   "g.hud.online": "在线",
+  "g.hud.onlineHere": "此区域的玩家",
   "g.hud.reloading": "装填中…",
   "g.hud.hintFireMode": "按 [B] 切换射击模式",
   "g.hud.hintReload": "[R] 装填，[B] 切换射击模式",

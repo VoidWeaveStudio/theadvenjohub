@@ -858,12 +858,13 @@ export class NetworkManager {
     speed?: number;
   }) => void;
   public onDisconnected?: () => void;
-  public onCount?: (count: number) => void;
+  public onCount?: (count: number, here: number) => void;
   public onChatMessage?: (data: { id: string; sender: string; senderWallet?: string; senderFactionSymbol?: string | null; senderFactionImage?: string | null; senderIsAdmin?: boolean; senderIsFactionCreator?: boolean; message: string; timestamp: number }) => void;
   public onVoiceOffer?: (data: { fromId: string; sdp: string }) => void;
   public onVoiceAnswer?: (data: { fromId: string; sdp: string }) => void;
   public onVoiceIceCandidate?: (data: { fromId: string; candidate: RTCIceCandidateInit }) => void;
-  public onAuthenticated?: (data: { playerId: string; nickname: string; skinTextureUrl?: string | null }) => void;
+  public onAuthenticated?: (data: { playerId: string; nickname: string; skinTextureUrl?: string | null; locationId?: string; instance?: number; position?: number[] }) => void;
+  public onLocationSync?: (data: { locationId: string; instance: number; position?: number[] }) => void;
   public onProgressLoaded?: (data: any) => void;
   public onAuthError?: (error: string) => void;
   public onSessionRevoked?: () => void;
@@ -1204,6 +1205,9 @@ export class NetworkManager {
           playerId: data.playerId,
           nickname: data.nickname,
           skinTextureUrl: data.skinTextureUrl ?? null,
+          locationId: typeof data.locationId === "string" ? data.locationId : undefined,
+          instance: typeof data.instance === "number" ? data.instance : undefined,
+          position: Array.isArray(data.position) ? data.position : undefined,
         });
         if (typeof data.daySyncEpoch === "number") {
           this.onDayNightSync?.({
@@ -1802,8 +1806,17 @@ export class NetworkManager {
           data.messageKey ? t(data.messageKey, data.messageVars) : data.message || "Server error"
         );
         break;
+      case "locationSync":
+        if (typeof data.locationId === "string") {
+          this.onLocationSync?.({
+            locationId: data.locationId,
+            instance: typeof data.instance === "number" ? data.instance : 1,
+            position: Array.isArray(data.position) ? data.position : undefined,
+          });
+        }
+        break;
       case "count":
-        this.onCount?.(data.count);
+        this.onCount?.(data.count, typeof data.here === "number" ? data.here : data.count);
         break;
       case "chat":
         this.onChatMessage?.(data);

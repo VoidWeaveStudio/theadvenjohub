@@ -65,7 +65,7 @@ import { applyGraphicsSettings, reapplySceneGraphics } from "./graphicsSettings"
 import { createGameRenderer } from "./GameRenderer";
 import { perf } from "./PerfProfiler";
 import { updateDamageIndicator } from "./GameDamageIndicator";
-import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone, beginTeleportGrace, enforcePlayerBounds } from "./GameLocationOrchestration";
+import { restoreToSavedProgress, waitForProgressRestore, teleportToSafeZone, beginTeleportGrace, enforcePlayerBounds, applyServerLocation } from "./GameLocationOrchestration";
 import { BuildSession } from "../world/building/BuildSession";
 import { SoundManager } from "./SoundManager";
 import { QuestMarkerKind, createQuestMarker, animateQuestMarker, disposeQuestMarker } from "../entities/questMarker";
@@ -98,6 +98,7 @@ export interface HUDState {
     maxAmmo: number;
     reserve: number;
     online: number;
+    onlineHere: number;
     inSafeZone: boolean;
     prompt: string | null;
     isReloading: boolean;
@@ -229,6 +230,7 @@ export class Game {
     public dayNightConfig: DayNightConfig | null = null;
     public hasRestoredLocation: boolean = false;
     public restoreResolver: (() => void) | null = null;
+    public serverLocationId: string | null = null;
     public restoreTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
     public readonly hudState: HUDState = {
@@ -238,6 +240,7 @@ export class Game {
         maxAmmo: 30,
         reserve: 0,
         online: 1,
+        onlineHere: 1,
         inSafeZone: true,
         prompt: null,
         isReloading: false,
@@ -943,7 +946,7 @@ export class Game {
         targetLocationId: string,
         options?: {
             position?: number[]; rotation?: number; silent?: boolean; factionId?: string; factionName?: string;
-            factionSymbol?: string | null; factionImage?: string | null;
+            factionSymbol?: string | null; factionImage?: string | null; fromServer?: boolean;
         }
     ) {
         if (this.isChangingLocation) return;
@@ -975,7 +978,7 @@ export class Game {
                 return;
             }
 
-            this.networkManager.sendLocationChange(newLocation.id);
+            if (!options?.fromServer) this.networkManager.sendLocationChange(newLocation.id);
             this.shootingSystem.clearAllEffects();
 
             previousLocation.scene.remove(this.player.mesh);
@@ -1125,6 +1128,10 @@ export class Game {
 
     public async restoreToSavedProgress() {
         return restoreToSavedProgress(this);
+    }
+
+    public async applyServerLocation(data: { locationId: string; position?: number[] }) {
+        return applyServerLocation(this, data);
     }
 
     private waitForProgressRestore(timeoutMs = 6000): Promise<void> {

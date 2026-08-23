@@ -28,19 +28,22 @@ export function XpBar({ progression, popups, onOpenSkills }: XpBarProps) {
         <div
             onClick={onOpenSkills}
             title={t("g.xp.skillsHint")}
-            className="relative mt-1.5 bg-[rgba(12,12,14,0.72)] backdrop-blur-md border border-[rgba(255,255,255,0.08)] rounded-[10px] px-4 py-2.5 min-w-[220px] pointer-events-auto cursor-pointer hover:border-[rgba(255,255,255,0.2)] transition-colors"
+            className="relative mt-2.5 pointer-events-auto cursor-pointer group"
         >
-            <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                    <span className="text-base leading-none">{tier?.emoji ?? "🦐"}</span>
-                    <span className="text-[10px] font-bold tracking-wider" style={{ color: accent }}>
-                        {t(tier?.name ?? "g.tier.shrimp.name").toUpperCase()}
-                    </span>
-                </div>
-                <span className="text-[#E5E7EB] text-sm font-bold">LV {progression.level}</span>
+            <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-sm leading-none drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{tier?.emoji ?? "🦐"}</span>
+                <span
+                    className="text-[10px] font-black tracking-wider drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]"
+                    style={{ color: accent }}
+                >
+                    {t(tier?.name ?? "g.tier.shrimp.name").toUpperCase()}
+                </span>
+                <span className="ml-auto text-white text-xs font-black tabular-nums drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]">
+                    LV {progression.level}
+                </span>
             </div>
 
-            <div className="w-full h-1.5 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden">
+            <div className="h-1.5 rounded-full bg-black/55 ring-1 ring-white/10 overflow-hidden group-hover:ring-white/25 transition-colors">
                 <div
                     className="h-full transition-all duration-500 ease-out rounded-full"
                     style={{ width: `${percentage}%`, background: `linear-gradient(90deg, ${accent}99, ${accent})` }}
@@ -48,13 +51,13 @@ export function XpBar({ progression, popups, onOpenSkills }: XpBarProps) {
             </div>
 
             <div className="flex items-center justify-between mt-1">
-                <span className="text-[#6B7280] text-[10px]">
+                <span className="text-white/45 text-[9px] font-semibold tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                     {progression.xpForLevel > 0
                         ? `${progression.xpIntoLevel.toLocaleString()} / ${progression.xpForLevel.toLocaleString()} XP`
                         : t("g.xp.maxLevel")}
                 </span>
                 {progression.skillPoints > 0 && (
-                    <span className="text-[#FFD166] text-[10px] font-bold">
+                    <span className="text-[#FFD166] text-[9px] font-black drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                         {progression.skillPoints} SP
                     </span>
                 )}

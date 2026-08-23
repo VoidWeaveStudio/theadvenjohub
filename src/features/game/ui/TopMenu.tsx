@@ -25,8 +25,8 @@ export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
     const { t } = useLanguage();
 
     return (
-        <div className="game-ui-scale-tc absolute top-3 sm:top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-auto font-oxanium select-none max-w-full px-2" style={{ marginTop: "var(--safe-top)" }}>
-            <div className="flex items-start gap-2 sm:gap-5">
+        <div className="game-ui-topmenu game-ui-scale-tc absolute top-3 sm:top-6 left-1/2 -translate-x-1/2 z-40 pointer-events-auto font-oxanium select-none max-w-full px-2" style={{ marginTop: "var(--safe-top)" }}>
+            <div className="game-ui-topmenu-row flex items-start gap-2 sm:gap-5">
                 {ITEMS.map(({ id, icon, labelKey }) => {
                     const label = t(labelKey);
                     return (
@@ -43,7 +43,7 @@ export function TopMenu({ active, onSelect, badges }: TopMenuProps) {
                             alt={label}
                             width={100}
                             height={200}
-                            className={`h-9 sm:h-14 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] transition-[filter] duration-200 ${active === id
+                            className={`game-ui-topmenu-icon h-9 sm:h-14 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] transition-[filter] duration-200 ${active === id
                                 ? "brightness-125 drop-shadow-[0_0_14px_rgba(79,209,255,0.8)]"
                                 : "hover:brightness-125 hover:drop-shadow-[0_0_14px_rgba(79,209,255,0.7)]"
                                 }`}

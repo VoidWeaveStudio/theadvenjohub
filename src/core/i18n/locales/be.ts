@@ -1238,6 +1238,7 @@ export const be: PartialTranslations = {
   "g.hud.inCombat": "У БАІ",
   "g.hud.invulnerable": "НЯЎРАЗЛІВЫ",
   "g.hud.online": "АНЛАЙН",
+  "g.hud.onlineHere": "Гульцоў у гэтай лакацыі",
   "g.hud.reloading": "ПЕРАЗАРАДКА...",
   "g.hud.hintFireMode": "Націсніце [B] для рэжыму агню",
   "g.hud.hintReload": "Націсніце [R] для перазарадкі, [B] для рэжыму агню",

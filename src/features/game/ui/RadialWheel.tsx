@@ -46,6 +46,7 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
     const [hovered, setHovered] = useState<string | null>(null);
     const [viewport, setViewport] = useState({ width: 0, height: 0 });
     const wasOpenRef = useRef(false);
+    const backdropDownRef = useRef(false);
 
     useEffect(() => {
         if (isOpen && !wasOpenRef.current) {
@@ -112,8 +113,13 @@ export function RadialWheel({ isOpen, pages, onSelect, onClose }: RadialWheelPro
     return (
         <div
             className="absolute inset-0 z-50 flex items-center justify-center pointer-events-auto font-oxanium bg-[rgba(6,8,12,0.55)] backdrop-blur-[2px]"
-            onClick={(e) => {
-                if (e.target === e.currentTarget) onClose();
+            onPointerDown={(e) => {
+                backdropDownRef.current = e.target === e.currentTarget;
+            }}
+            onPointerUp={(e) => {
+                const startedOnBackdrop = backdropDownRef.current;
+                backdropDownRef.current = false;
+                if (startedOnBackdrop && e.target === e.currentTarget) onClose();
             }}
         >
             <div

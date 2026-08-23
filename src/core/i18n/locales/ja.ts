@@ -932,6 +932,7 @@ export const ja: Translations = {
   "g.hud.inCombat": "戦闘中",
   "g.hud.invulnerable": "無敵",
   "g.hud.online": "オンライン",
+  "g.hud.onlineHere": "このエリアのプレイヤー",
   "g.hud.reloading": "リロード中...",
   "g.hud.hintFireMode": "[B] で射撃モード切替",
   "g.hud.hintReload": "[R] でリロード、[B] で射撃モード切替",

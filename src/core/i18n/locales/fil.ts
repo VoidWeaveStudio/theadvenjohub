@@ -1238,6 +1238,7 @@ export const fil: PartialTranslations = {
   "g.hud.inCombat": "NAKIKIPAGLABAN",
   "g.hud.invulnerable": "INVULNERABLE",
   "g.hud.online": "ONLINE",
+  "g.hud.onlineHere": "Mga manlalaro sa lugar na ito",
   "g.hud.reloading": "NAGRE-RELOAD...",
   "g.hud.hintFireMode": "Pindutin ang [B] para sa fire mode",
   "g.hud.hintReload": "Pindutin ang [R] para mag-reload, [B] para sa fire mode",

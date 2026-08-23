@@ -17,7 +17,6 @@ interface TouchControlsProps {
   input: InputManager | null;
   mode: TouchMode;
   onOpenWheel: () => void;
-  onOpenMenu: () => void;
   visible: boolean;
   rotated?: boolean;
   canBuy?: boolean;
@@ -43,6 +42,16 @@ interface LookState {
 
 const MOVE_KEYS = ["KeyW", "KeyS", "KeyA", "KeyD", "ShiftLeft"] as const;
 
+const WORLD_ARC_RADIUS = 88;
+
+function arcOffset(angle: number) {
+  const radians = (angle * Math.PI) / 180;
+  return {
+    x: Math.round(Math.cos(radians) * WORLD_ARC_RADIUS),
+    y: Math.round(Math.sin(radians) * WORLD_ARC_RADIUS),
+  };
+}
+
 const COMBAT_SLOTS: { code: string; label: string }[] = [
   { code: "Digit1", label: "1" },
   { code: "Digit2", label: "2" },
@@ -60,7 +69,6 @@ export function TouchControls({
   input,
   mode,
   onOpenWheel,
-  onOpenMenu,
   visible,
   rotated = false,
   canBuy = false,
@@ -250,6 +258,12 @@ export function TouchControls({
     });
   }, [input]);
 
+  const worldArc = [
+    { label: "E", angle: 180, press: () => tapKey("KeyE") },
+    { label: "⤒", angle: 225, press: () => tapKey("Space") },
+    { label: "✦", angle: 270, press: onOpenWheel },
+  ];
+
   const startFire = useCallback(() => {
     if (!input) return;
     input.setVirtualMouseButton(0, true);
@@ -292,11 +306,11 @@ export function TouchControls({
       </div>
 
       <div
-        className="game-touch-actions absolute bottom-6 right-6 flex flex-col items-end gap-3 pointer-events-auto"
+        className="game-touch-actions absolute bottom-6 right-6 pointer-events-auto"
         style={{ marginBottom: "var(--safe-bottom)", marginRight: "var(--safe-right)" }}
       >
         {combat ? (
-          <>
+          <div className="flex flex-col items-end gap-3">
             <div className="flex items-end gap-3">
               <TouchButton label="R" onPress={() => tapKey("KeyR")} />
               <TouchButton label="◎" active={aiming} onPress={toggleAim} />
@@ -308,20 +322,25 @@ export function TouchControls({
               <TouchButton label="⤒" onPress={() => tapKey("Space")} />
               <HoldButton label="🔥" active={firing} onStart={startFire} onStop={stopFire} />
             </div>
-          </>
+          </div>
         ) : (
-          <>
-            <TouchButton label="✦" size="sm" onPress={onOpenWheel} />
+          <div className="relative w-20 h-20">
+            {worldArc.map(({ label, angle, press }) => {
+              const { x, y } = arcOffset(angle);
 
-            <div className="flex items-end gap-3">
-              <div className="flex flex-col gap-3">
-                <TouchButton label="⤒" onPress={() => tapKey("Space")} />
-                <TouchButton label="E" onPress={() => tapKey("KeyE")} />
-              </div>
+              return (
+                <div
+                  key={label}
+                  className="absolute left-1/2 top-1/2"
+                  style={{ transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))` }}
+                >
+                  <TouchButton label={label} onPress={press} />
+                </div>
+              );
+            })}
 
-              <HoldButton label="🔥" active={firing} onStart={startFire} onStop={stopFire} />
-            </div>
-          </>
+            <HoldButton label="🔥" active={firing} onStart={startFire} onStop={stopFire} />
+          </div>
         )}
       </div>
 
@@ -337,14 +356,6 @@ export function TouchControls({
         </div>
       )}
 
-      {!combat && (
-        <div
-          className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-2 pointer-events-auto"
-          style={{ marginTop: "var(--safe-top)" }}
-        >
-          <TouchButton label="☰" size="sm" onPress={onOpenMenu} />
-        </div>
-      )}
     </div>
   );
 }
