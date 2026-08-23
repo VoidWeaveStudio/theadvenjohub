@@ -45,7 +45,6 @@ export class TokenColumnSystem {
 
     public async whenReady() {
         if (this.initialSync) await this.initialSync;
-        await Promise.all(this.pendingColumnLoads);
     }
 
     private async refreshAssignments() {

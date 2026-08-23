@@ -6,12 +6,15 @@ import type { Basement } from "../Basement";
 import { setupBasementSky, setupBasementFloor, setupBasementPortals } from "./BasementSceneSetup";
 import type { ProceduralPortal } from "../utils/proceduralPortal";
 import { LiftCrystal } from "../../../../../liftCrystal";
+import { isLowEndDevice } from "../../main-hall/layout";
 
 const HEMI_INTENSITY = 0.42;
 const PLATFORM_LIGHT_HEIGHT = 52;
 const PLATFORM_LIGHT_POWER = 105000;
 const PLATFORM_LIGHT_PULSE = 6000;
 const PLATFORM_LIGHT_SHADOW_FAR = 220;
+const PLATFORM_LIGHT_SHADOW_RES = 512;
+const PLATFORM_LIGHT_SHADOW_RES_LOW = 256;
 const SINK_GLOW_POWER = 2600;
 const SINK_GLOW_PULSE = 350;
 const DUST_COUNT = 420;
@@ -20,6 +23,11 @@ const DUST_CEILING = 26;
 
 export class BasementEnvironmentSystem {
     public basementCrystal!: THREE.Group;
+
+    public refreshShadows() {
+        if (this.platformLight) this.platformLight.shadow.needsUpdate = true;
+    }
+
     private crystal: LiftCrystal | null = null;
 
     private platformLight!: THREE.PointLight;
@@ -57,7 +65,9 @@ export class BasementEnvironmentSystem {
         this.platformLight.power = PLATFORM_LIGHT_POWER;
         this.platformLight.position.set(0, PLATFORM_LIGHT_HEIGHT, 0);
         this.platformLight.castShadow = true;
-        this.platformLight.shadow.mapSize.set(2048, 2048);
+        const shadowRes = isLowEndDevice() ? PLATFORM_LIGHT_SHADOW_RES_LOW : PLATFORM_LIGHT_SHADOW_RES;
+        this.platformLight.shadow.mapSize.set(shadowRes, shadowRes);
+        this.platformLight.shadow.autoUpdate = false;
         this.platformLight.shadow.bias = -0.0006;
         this.platformLight.shadow.normalBias = 0.06;
         this.platformLight.shadow.camera.near = 2;

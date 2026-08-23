@@ -876,6 +876,10 @@ class PerfProfiler {
         this.registerToggle("shadows", (value) => {
             if (!this.renderer) return;
             this.renderer.shadowMap.enabled = Boolean(value);
+            this.scene?.traverse((object) => {
+                const light = object as THREE.DirectionalLight;
+                if (light.isLight && light.shadow) light.shadow.needsUpdate = true;
+            });
             this.forEachMaterial((material) => {
                 material.needsUpdate = true;
             });
@@ -957,6 +961,7 @@ class PerfProfiler {
                 light.shadow.mapSize.set(size, size);
                 light.shadow.map?.dispose();
                 (light.shadow as any).map = null;
+                light.shadow.needsUpdate = true;
             });
             if (this.renderer) this.renderer.shadowMap.needsUpdate = true;
         });

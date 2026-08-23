@@ -104,6 +104,8 @@ export class Basement extends TowerFloor {
         this.factions.onInteractablesChanged = (added, removed) => this.onInteractablesChanged?.(added, removed);
         this.factions.start();
         this.steward.create(rm);
+
+        this.environment.refreshShadows();
     }
 
     public setAccountCount(count: number) {

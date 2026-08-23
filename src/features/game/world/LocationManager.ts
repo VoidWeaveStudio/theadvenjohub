@@ -9,6 +9,8 @@ import { FactionGateRoom } from "./locations/tower/floors/FactionGateRoom";
 import { PersonalRoom, PERSONAL_ROOM_PREFIX } from "./locations/tower/floors/PersonalRoom";
 import { perf } from "../core/PerfProfiler";
 
+const SLOW_CREATE_MS = 150;
+
 export class LocationManager {
     private locations: Map<string, Location> = new Map();
     private locationFactories: Map<string, () => Location> = new Map();
@@ -54,7 +56,12 @@ export class LocationManager {
             location.camera = this.activeCamera;
             if (this.resourceManager) {
                 const created = location;
+                const createStartedAt = performance.now();
                 perf.measure(`create ${locationId}`, () => created.create(this.resourceManager!));
+                const createMs = performance.now() - createStartedAt;
+                if (createMs > SLOW_CREATE_MS) {
+                    console.warn(`[location] "${locationId}" blocked the main thread for ${Math.round(createMs)}ms while building`);
+                }
                 perf.flushLoad(locationId);
                 perf.logSceneReport(locationId, created.scene);
             }
