@@ -1,7 +1,7 @@
 // src/features/game/ui/personalization/PaintEditorScene.ts
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ResourceManager } from "../../core/ResourceManager";
+import { screenDeltaToGameSpace, screenPointToGameSpace, screenRectToGameSpace } from "../../utils/rotatedViewport";
 import { applyRestPoseCorrection, scaleAndCenterModel } from "../../entities/characterModel";
 import { findPaintableMesh, clonePaintableMaterial } from "../../entities/characterPaint";
 import { canvasToPngBlob } from "../../utils/exportPng";
@@ -9,6 +9,13 @@ import { canvasToPngBlob } from "../../utils/exportPng";
 const CANVAS_SIZE = 1024;
 const MODEL_HEIGHT = 1.8;
 const SEAM_MARGIN_PX = 2.5;
+
+const ORBIT_SPEED = 0.008;
+const MIN_DISTANCE = 1.2;
+const MAX_DISTANCE = 5;
+const MIN_POLAR = 0.15;
+const MAX_POLAR = Math.PI - 0.15;
+const WHEEL_STEP = 1.12;
 
 interface PaintTriangle {
     a: number;
@@ -31,8 +38,15 @@ export class PaintEditorScene {
     private renderer: THREE.WebGLRenderer;
     private scene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
-    private controls: OrbitControls;
     private raycaster = new THREE.Raycaster();
+    private orbitTarget = new THREE.Vector3(0, 0.9, 0);
+    private orbitRadius = 3;
+    private orbitAzimuth = 0;
+    private orbitPolar = 1.5;
+    private pointers = new Map<number, { x: number; y: number }>();
+    private gestureMode: "none" | "paint" | "orbit" = "none";
+    private orbitPointerId: number | null = null;
+    private pinchDistance = 0;
     private paintMesh: THREE.Mesh | null = null;
     private paintMaterial: THREE.MeshStandardMaterial | null = null;
     private paintTriangles: PaintTriangle[] = [];
@@ -69,7 +83,7 @@ export class PaintEditorScene {
         this.scene.background = new THREE.Color(0x14161a);
 
         this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-        this.camera.position.set(0, 1.1, 3);
+        this.applyOrbit();
 
         const ambient = new THREE.AmbientLight(0xffffff, 0.7);
         this.scene.add(ambient);
@@ -79,14 +93,6 @@ export class PaintEditorScene {
         const fill = new THREE.DirectionalLight(0xffffff, 0.5);
         fill.position.set(-2, 1, -2);
         this.scene.add(fill);
-
-        this.controls = new OrbitControls(this.camera, canvas);
-        this.controls.target.set(0, 0.9, 0);
-        this.controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
-        this.controls.enablePan = false;
-        this.controls.minDistance = 1.2;
-        this.controls.maxDistance = 5;
-        this.controls.update();
 
         const data = resourceManager.getModel("player");
         if (data) {
@@ -107,25 +113,115 @@ export class PaintEditorScene {
             }
         }
 
+        canvas.style.touchAction = "none";
         canvas.addEventListener("pointerdown", this.handlePointerDown);
-        canvas.addEventListener("pointermove", this.handlePointerMove);
+        canvas.addEventListener("wheel", this.handleWheel, { passive: false });
+        canvas.addEventListener("contextmenu", this.handleContextMenu);
+        window.addEventListener("pointermove", this.handlePointerMove);
         window.addEventListener("pointerup", this.handlePointerUp);
+        window.addEventListener("pointercancel", this.handlePointerUp);
 
         this.resize();
         this.animate();
     }
 
+    private applyOrbit() {
+        this.orbitPolar = THREE.MathUtils.clamp(this.orbitPolar, MIN_POLAR, MAX_POLAR);
+        this.orbitRadius = THREE.MathUtils.clamp(this.orbitRadius, MIN_DISTANCE, MAX_DISTANCE);
+
+        const sinPolar = Math.sin(this.orbitPolar);
+        this.camera.position.set(
+            this.orbitTarget.x + this.orbitRadius * sinPolar * Math.sin(this.orbitAzimuth),
+            this.orbitTarget.y + this.orbitRadius * Math.cos(this.orbitPolar),
+            this.orbitTarget.z + this.orbitRadius * sinPolar * Math.cos(this.orbitAzimuth)
+        );
+        this.camera.lookAt(this.orbitTarget);
+    }
+
+    private pointerSpread(): number {
+        const points = Array.from(this.pointers.values());
+        if (points.length < 2) return 0;
+        return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+    }
+
+    private stopPainting() {
+        this.isPainting = false;
+        this.lastPaintPoint = null;
+    }
+
+    private handleContextMenu = (e: MouseEvent) => {
+        e.preventDefault();
+    };
+
+    private handleWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        this.orbitRadius *= e.deltaY > 0 ? WHEEL_STEP : 1 / WHEEL_STEP;
+        this.applyOrbit();
+    };
+
     private handlePointerDown = (e: PointerEvent) => {
-        if (e.button !== 0) return;
+        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        try {
+            this.canvas.setPointerCapture(e.pointerId);
+        } catch {
+        }
+
+        if (this.pointers.size >= 2) {
+            this.stopPainting();
+            this.gestureMode = "orbit";
+            this.orbitPointerId = null;
+            this.pinchDistance = this.pointerSpread();
+            return;
+        }
+
+        if (e.pointerType === "mouse" && e.button !== 0) {
+            this.gestureMode = "orbit";
+            this.orbitPointerId = e.pointerId;
+            return;
+        }
+
+        this.gestureMode = "paint";
+        this.orbitPointerId = null;
+
         const point = this.getHitAtPointer(e);
         if (!point) return;
+
         this.isPainting = true;
         this.paintAtLocalPoint(point);
         this.lastPaintPoint = point;
     };
 
     private handlePointerMove = (e: PointerEvent) => {
+        const previous = this.pointers.get(e.pointerId);
+        if (!previous) return;
+
+        const rawDx = e.clientX - previous.x;
+        const rawDy = e.clientY - previous.y;
+        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (this.gestureMode === "orbit") {
+            if (this.pointers.size >= 2) {
+                const spread = this.pointerSpread();
+                if (this.pinchDistance > 0 && spread > 0) {
+                    this.orbitRadius *= this.pinchDistance / spread;
+                }
+                this.pinchDistance = spread;
+            }
+
+            if (this.orbitPointerId === null) this.orbitPointerId = e.pointerId;
+
+            if (this.orbitPointerId === e.pointerId) {
+                const { dx, dy } = screenDeltaToGameSpace(rawDx, rawDy);
+                this.orbitAzimuth -= dx * ORBIT_SPEED;
+                this.orbitPolar -= dy * ORBIT_SPEED;
+            }
+
+            this.applyOrbit();
+            return;
+        }
+
         if (!this.isPainting) return;
+
         const point = this.getHitAtPointer(e);
         if (!point) return;
 
@@ -138,17 +234,27 @@ export class PaintEditorScene {
         this.lastPaintPoint = point;
     };
 
-    private handlePointerUp = () => {
-        this.isPainting = false;
-        this.lastPaintPoint = null;
+    private handlePointerUp = (e: PointerEvent) => {
+        if (!this.pointers.delete(e.pointerId)) return;
+
+        if (this.orbitPointerId === e.pointerId) this.orbitPointerId = null;
+        if (this.pointers.size < 2) this.pinchDistance = 0;
+
+        if (this.pointers.size === 0) {
+            this.gestureMode = "none";
+            this.stopPainting();
+        }
     };
 
     private getHitAtPointer(e: PointerEvent): THREE.Vector3 | null {
         if (!this.paintMesh) return null;
-        const rect = this.canvas.getBoundingClientRect();
+        const rect = screenRectToGameSpace(this.canvas.getBoundingClientRect());
+        const local = screenPointToGameSpace(e.clientX, e.clientY);
+        const width = Math.max(1, rect.right - rect.left);
+        const height = Math.max(1, rect.bottom - rect.top);
         const ndc = new THREE.Vector2(
-            ((e.clientX - rect.left) / rect.width) * 2 - 1,
-            -((e.clientY - rect.top) / rect.height) * 2 + 1
+            ((local.x - rect.left) / width) * 2 - 1,
+            -((local.y - rect.top) / height) * 2 + 1
         );
         this.raycaster.setFromCamera(ndc, this.camera);
         const hits = this.raycaster.intersectObject(this.paintMesh, false);
@@ -337,7 +443,6 @@ export class PaintEditorScene {
     private animate = () => {
         if (this.disposed) return;
         this.animationFrameId = requestAnimationFrame(this.animate);
-        this.controls.update();
         this.renderer.render(this.scene, this.camera);
     };
 
@@ -345,9 +450,11 @@ export class PaintEditorScene {
         this.disposed = true;
         if (this.animationFrameId !== null) cancelAnimationFrame(this.animationFrameId);
         this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
-        this.canvas.removeEventListener("pointermove", this.handlePointerMove);
+        this.canvas.removeEventListener("wheel", this.handleWheel);
+        this.canvas.removeEventListener("contextmenu", this.handleContextMenu);
+        window.removeEventListener("pointermove", this.handlePointerMove);
         window.removeEventListener("pointerup", this.handlePointerUp);
-        this.controls.dispose();
+        window.removeEventListener("pointercancel", this.handlePointerUp);
         if (this.paintMaterial) {
             this.paintMaterial.map = null;
             this.paintMaterial.dispose();

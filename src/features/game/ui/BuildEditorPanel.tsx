@@ -200,7 +200,7 @@ export function BuildEditorPanel({
                         </div>
                     )}
 
-                    <div className="max-h-[46dvh] overflow-y-auto space-y-1 pr-1">
+                    <div className="max-h-[calc(46*var(--game-vh))] overflow-y-auto space-y-1 pr-1">
                         {entries.map((entry) => (
                             <button
                                 key={entry.id}

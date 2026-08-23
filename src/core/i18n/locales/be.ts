@@ -1952,6 +1952,7 @@ export const be: PartialTranslations = {
   "g.paint.sessionExpired": "🔒 Сесія скончылася — ваша праца на месцы, націсніце «Захаваць» яшчэ раз",
   "g.paint.saveFailed": "⚠️ Не ўдалося захаваць — ваша праца на месцы, націсніце «Захаваць» яшчэ раз",
   "g.paint.controls": "ЛКМ цягнуць — маляваць · ПКМ цягнуць — паварот · Колца — маштаб",
+  "g.paint.controlsTouch": "Адзін палец — маляваць · два — круціць і зум",
   "g.paint.brushSize": "ПАМЕР ПЭНЗЛЯ",
   "g.paint.color": "КОЛЕР",
   "g.paint.resetToWhite": "Вярнуць белы",

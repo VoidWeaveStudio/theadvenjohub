@@ -1943,6 +1943,7 @@ export const ja: Translations = {
   "g.paint.sessionExpired": "🔒 セッションが切れた — 塗りはそのまま残っている。もう一度「保存」を押そう",
   "g.paint.saveFailed": "⚠️ 保存できなかった — 塗りはそのまま残っている。もう一度「保存」を押そう",
   "g.paint.controls": "左ドラッグで塗る · 右ドラッグで回転 · ホイールでズーム",
+  "g.paint.controlsTouch": "1本指でペイント・2本指で回転とズーム",
   "g.paint.brushSize": "ブラシサイズ",
   "g.paint.color": "色",
   "g.paint.resetToWhite": "白に戻す",

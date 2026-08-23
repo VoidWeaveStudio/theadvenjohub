@@ -36,6 +36,11 @@ export function screenPointToGameSpace(x: number, y: number): { x: number; y: nu
   return { x: y, y: window.innerWidth - x };
 }
 
+export function screenDeltaToGameSpace(dx: number, dy: number): { dx: number; dy: number } {
+  if (!isGameRotated()) return { dx, dy };
+  return { dx: dy, dy: -dx };
+}
+
 export function screenRectToGameSpace(rect: DOMRect): {
   left: number;
   top: number;

@@ -1,6 +1,7 @@
 // src/features/game/world/building/BuildEditor.ts
 import * as THREE from "three";
 import { EditorCamera } from "./EditorCamera";
+import { screenDeltaToGameSpace, screenPointToGameSpace, screenRectToGameSpace } from "../../utils/rotatedViewport";
 import { getBuildEntry, getBuildParts, CELL_SIZE, LEVEL_HEIGHT } from "./BuildCatalog";
 import {
     BuildLayout,
@@ -129,12 +130,17 @@ export class BuildEditor {
         this.onMouseMove = (event) => {
             if (!this.active || !this.canvas) return;
 
-            const rect = this.canvas.getBoundingClientRect();
-            this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            const rect = screenRectToGameSpace(this.canvas.getBoundingClientRect());
+            const local = screenPointToGameSpace(event.clientX, event.clientY);
+            this.pointer.x = ((local.x - rect.left) / Math.max(1, rect.right - rect.left)) * 2 - 1;
+            this.pointer.y = -((local.y - rect.top) / Math.max(1, rect.bottom - rect.top)) * 2 + 1;
 
             if (this.orbiting) {
-                this.camera.orbit(event.clientX - this.lastMouse.x, event.clientY - this.lastMouse.y);
+                const orbitDelta = screenDeltaToGameSpace(
+                    event.clientX - this.lastMouse.x,
+                    event.clientY - this.lastMouse.y
+                );
+                this.camera.orbit(orbitDelta.dx, orbitDelta.dy);
             }
             this.lastMouse.x = event.clientX;
             this.lastMouse.y = event.clientY;

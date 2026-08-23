@@ -1952,6 +1952,7 @@ export const fil: PartialTranslations = {
   "g.paint.sessionExpired": "🔒 Nag-expire ang session — nandito pa ang pintura mo, pindutin ulit ang Save",
   "g.paint.saveFailed": "⚠️ Hindi na-save — nandito pa ang pintura mo, pindutin ulit ang Save",
   "g.paint.controls": "I-drag ang left-click para magpinta · i-drag ang right-click para umikot · mag-scroll para mag-zoom",
+  "g.paint.controlsTouch": "Isang daliri para magpinta · dalawa para paikutin at mag-zoom",
   "g.paint.brushSize": "LAKI NG BRUSH",
   "g.paint.color": "KULAY",
   "g.paint.resetToWhite": "Ibalik sa Puti",

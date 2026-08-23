@@ -87,15 +87,16 @@ export function DeathScreen({ isVisible, killerName, options, loot, onRespawn }:
   const available: RespawnOptions = options ?? { hall: true, home: false, canyon_hub: false };
 
   return (
-    <div className="absolute inset-0 z-[60] flex items-center justify-center bg-gradient-to-b from-red-950/40 via-black/60 to-black/80 backdrop-blur-sm">
+    <div className="absolute inset-0 z-[60] overflow-y-auto overscroll-contain bg-gradient-to-b from-red-950/40 via-black/60 to-black/80 backdrop-blur-sm">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)] pointer-events-none" />
 
       <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-70 pointer-events-none" />
       <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-70 pointer-events-none" />
 
-      <div className="relative flex flex-col items-center gap-6 animate-fade-in">
+      <div className="relative min-h-full flex items-center justify-center py-6 px-4">
+      <div className="game-death-panel relative flex flex-col items-center gap-6 animate-fade-in">
         <div className="text-center">
-          <h1 className="text-7xl md:text-8xl font-black text-red-500 tracking-wider drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse">
+          <h1 className="game-death-title text-7xl md:text-8xl font-black text-red-500 tracking-wider drop-shadow-[0_0_20px_rgba(239,68,68,0.8)] animate-pulse">
             {t("g.death.title")}
           </h1>
           <div className="mt-2 h-1 w-64 mx-auto bg-gradient-to-r from-transparent via-red-500 to-transparent" />
@@ -114,7 +115,7 @@ export function DeathScreen({ isVisible, killerName, options, loot, onRespawn }:
 
         <div className="text-zinc-400 text-sm tracking-widest uppercase">{t("g.death.choose")}</div>
 
-        <div className="flex flex-wrap items-stretch justify-center gap-3 px-4">
+        <div className="flex flex-wrap items-stretch justify-center gap-3">
           {CHOICES.map((choice) => {
             const enabled = available[choice.target];
             const Icon = choice.icon;
@@ -124,7 +125,7 @@ export function DeathScreen({ isVisible, killerName, options, loot, onRespawn }:
                 key={choice.target}
                 disabled={!enabled}
                 onClick={() => onRespawn(choice.target)}
-                className="w-44 bg-black/60 backdrop-blur-md border border-red-500/30 hover:border-red-400 hover:bg-red-950/40 disabled:border-white/10 disabled:bg-black/40 disabled:cursor-not-allowed rounded-lg px-4 py-4 transition-colors text-center group"
+                className="game-death-choice w-44 bg-black/60 backdrop-blur-md border border-red-500/30 hover:border-red-400 hover:bg-red-950/40 disabled:border-white/10 disabled:bg-black/40 disabled:cursor-not-allowed rounded-lg px-4 py-4 transition-colors text-center group"
               >
                 <Icon className={`w-6 h-6 mx-auto mb-2 ${enabled ? "text-red-400 group-hover:scale-110 transition-transform" : "text-zinc-600"}`} />
                 <div className={`font-bold text-sm ${enabled ? "text-white" : "text-zinc-500"}`}>{t(choice.labelKey)}</div>
@@ -133,6 +134,7 @@ export function DeathScreen({ isVisible, killerName, options, loot, onRespawn }:
             );
           })}
         </div>
+      </div>
       </div>
 
       <style jsx>{`

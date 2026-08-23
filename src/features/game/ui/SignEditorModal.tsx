@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { X, Type, Pencil, Eraser } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import { ColorPalette } from "./shell/ColorPalette";
+import { screenPointToGameSpace, screenRectToGameSpace } from "../utils/rotatedViewport";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface SignEditorModalProps {
@@ -57,10 +58,11 @@ export function SignEditorModal({ isOpen, onClose, signId, onSubmitText, onSubmi
     if (!isOpen || !signId) return null;
 
     const getPoint = (e: React.PointerEvent<HTMLCanvasElement>) => {
-        const rect = e.currentTarget.getBoundingClientRect();
+        const rect = screenRectToGameSpace(e.currentTarget.getBoundingClientRect());
+        const local = screenPointToGameSpace(e.clientX, e.clientY);
         return {
-            x: ((e.clientX - rect.left) / rect.width) * CANVAS_WIDTH,
-            y: ((e.clientY - rect.top) / rect.height) * CANVAS_HEIGHT,
+            x: ((local.x - rect.left) / Math.max(1, rect.right - rect.left)) * CANVAS_WIDTH,
+            y: ((local.y - rect.top) / Math.max(1, rect.bottom - rect.top)) * CANVAS_HEIGHT,
         };
     };
 

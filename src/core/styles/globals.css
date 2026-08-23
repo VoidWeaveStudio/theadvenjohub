@@ -87,9 +87,11 @@ body {
   --tap-target: 44px;
   --game-ui-scale: 1;
   --top-menu-band: 148px;
+  --game-vh: 1dvh;
 }
 
 html[data-game-rotated="true"] {
+  --game-vh: 1dvw;
   --safe-top: env(safe-area-inset-right, 0px);
   --safe-right: env(safe-area-inset-bottom, 0px);
   --safe-bottom: env(safe-area-inset-left, 0px);
@@ -245,6 +247,25 @@ html[data-game-immersive="true"] main > div {
 
 [data-touch="true"] .game-window-footer {
   padding: 0.5rem 1rem;
+}
+
+[data-touch="true"] .game-death-panel {
+  gap: 0.6rem;
+}
+
+[data-touch="true"] .game-death-title {
+  font-size: 2.75rem;
+  line-height: 1;
+}
+
+[data-touch="true"] .game-death-choice {
+  width: 8.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+[data-touch="true"] .game-paint-panel {
+  height: 100%;
+  max-width: none;
 }
 
 @media (max-width: 380px) {

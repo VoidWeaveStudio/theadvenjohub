@@ -1941,6 +1941,7 @@ export const en: Translations = {
   "g.paint.sessionExpired": "🔒 Session expired — your paint job is still here, hit Save again",
   "g.paint.saveFailed": "⚠️ Could not save — your paint job is still here, hit Save again",
   "g.paint.controls": "Left-click drag to paint · Right-click drag to rotate · Scroll to zoom",
+  "g.paint.controlsTouch": "One finger paints · two fingers rotate and zoom",
   "g.paint.brushSize": "BRUSH SIZE",
   "g.paint.color": "COLOR",
   "g.paint.resetToWhite": "Reset to White",

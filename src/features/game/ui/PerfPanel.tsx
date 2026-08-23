@@ -187,7 +187,7 @@ export function PerfPanel({ isOpen, onClose }: PerfPanelProps) {
                 </div>
             )}
 
-            <div className="max-h-[30dvh] space-y-1 overflow-y-auto px-3">
+            <div className="max-h-[calc(30*var(--game-vh))] space-y-1 overflow-y-auto px-3">
                 {SWITCHES.map((row) => {
                     const on = switches[row.name] ?? true;
                     return (

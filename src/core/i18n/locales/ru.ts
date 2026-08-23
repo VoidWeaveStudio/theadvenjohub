@@ -1945,6 +1945,7 @@ export const ru: Translations = {
   "g.paint.sessionExpired": "🔒 Сессия истекла — раскраска на месте, нажми «Сохранить» ещё раз",
   "g.paint.saveFailed": "⚠️ Не удалось сохранить — раскраска на месте, нажми «Сохранить» ещё раз",
   "g.paint.controls": "ЛКМ — рисовать · ПКМ — вращать · колесо — зум",
+  "g.paint.controlsTouch": "Один палец — рисовать · два — вращать и зум",
   "g.paint.brushSize": "РАЗМЕР КИСТИ",
   "g.paint.color": "ЦВЕТ",
   "g.paint.resetToWhite": "Сбросить в белый",

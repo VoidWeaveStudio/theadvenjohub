@@ -1952,6 +1952,7 @@ export const vi: PartialTranslations = {
   "g.paint.sessionExpired": "🔒 Phiên đã hết hạn — bản vẽ của bạn vẫn còn đây, hãy bấm Lưu lần nữa",
   "g.paint.saveFailed": "⚠️ Không lưu được — bản vẽ của bạn vẫn còn đây, hãy bấm Lưu lần nữa",
   "g.paint.controls": "Giữ chuột trái kéo để vẽ · giữ chuột phải kéo để xoay · cuộn để phóng to",
+  "g.paint.controlsTouch": "Một ngón để vẽ · hai ngón để xoay và thu phóng",
   "g.paint.brushSize": "CỠ CỌ",
   "g.paint.color": "MÀU",
   "g.paint.resetToWhite": "Đưa về màu trắng",

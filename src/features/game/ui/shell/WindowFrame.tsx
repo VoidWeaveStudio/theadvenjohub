@@ -10,8 +10,8 @@ export type WindowFrameSize = "sm" | "md" | "lg" | "xl";
 const SIZE_CLASSES: Record<WindowFrameSize, string> = {
     sm: "sm:max-w-sm",
     md: "sm:max-w-lg",
-    lg: "sm:max-w-4xl sm:h-[82dvh]",
-    xl: "sm:max-w-6xl sm:h-[88dvh]",
+    lg: "sm:max-w-4xl sm:h-[calc(82*var(--game-vh))]",
+    xl: "sm:max-w-6xl sm:h-[calc(88*var(--game-vh))]",
 };
 
 export interface WindowFrameTab {

@@ -274,7 +274,7 @@ export function Chat({
                     </div>
                 )}
 
-                <div className={`overflow-y-auto p-3 space-y-2 ${touch ? "h-[26dvh] min-h-[88px]" : "h-64"}`}>
+                <div className={`overflow-y-auto p-3 space-y-2 ${touch ? "h-[calc(26*var(--game-vh))] min-h-[88px]" : "h-64"}`}>
                     {activeMessages.length === 0 ? (
                         <div className="text-zinc-500 text-sm text-center py-8">
                             {t("g.chat.noMessages")}

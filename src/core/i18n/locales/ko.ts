@@ -1942,6 +1942,7 @@ export const ko: Translations = {
   "g.paint.sessionExpired": "🔒 세션이 만료되었습니다 — 칠한 것은 그대로 남아 있습니다. 다시 「저장」을 누르세요",
   "g.paint.saveFailed": "⚠️ 저장하지 못했습니다 — 칠한 것은 그대로 남아 있습니다. 다시 「저장」을 누르세요",
   "g.paint.controls": "좌클릭 드래그로 칠하기 · 우클릭 드래그로 회전 · 휠로 확대·축소",
+  "g.paint.controlsTouch": "한 손가락으로 칠하기 · 두 손가락으로 회전과 줌",
   "g.paint.brushSize": "붓 크기",
   "g.paint.color": "색상",
   "g.paint.resetToWhite": "흰색으로 되돌리기",

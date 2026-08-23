@@ -7,6 +7,7 @@ import { ResourceManager } from "../../core/ResourceManager";
 import { PaintEditorScene } from "./PaintEditorScene";
 import { SoundManager } from "../../core/SoundManager";
 import { ColorPalette } from "../shell/ColorPalette";
+import { useDevice } from "@/core/lib/useDevice";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface PersonalizationEditorProps {
@@ -19,6 +20,7 @@ interface PersonalizationEditorProps {
 
 export function PersonalizationEditor({ isOpen, onClose, currentSkinUrl, onSave, onNotification }: PersonalizationEditorProps) {
     const { t } = useLanguage();
+    const device = useDevice();
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const sceneRef = useRef<PaintEditorScene | null>(null);
     const [brushSize, setBrushSize] = useState(24);
@@ -88,7 +90,7 @@ export function PersonalizationEditor({ isOpen, onClose, currentSkinUrl, onSave,
 
     return (
         <div className="absolute inset-0 bg-[rgba(6,6,8,0.92)] flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
-            <div className="w-full max-w-4xl h-[80dvh] bg-[rgba(10,16,20,0.97)] border-2 border-[#4FC3FF]/40 rounded-[16px] shadow-[0_0_35px_rgba(79,195,255,0.15)] flex flex-col overflow-hidden">
+            <div className="game-paint-panel w-full max-w-4xl h-[calc(80*var(--game-vh))] bg-[rgba(10,16,20,0.97)] border-2 border-[#4FC3FF]/40 rounded-[16px] shadow-[0_0_35px_rgba(79,195,255,0.15)] flex flex-col overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
                     <div className="flex items-center gap-2">
                         <Palette className="w-5 h-5 text-[#4FC3FF]" />
@@ -102,8 +104,8 @@ export function PersonalizationEditor({ isOpen, onClose, currentSkinUrl, onSave,
                 <div className="flex-1 min-h-0 flex">
                     <div className="flex-1 relative">
                         <canvas ref={canvasRef} className="w-full h-full block" />
-                        <div className="absolute bottom-3 left-3 text-[#6B7280] text-[11px]">
-                            {t("g.paint.controls")}
+                        <div className="absolute bottom-2 left-3 right-3 text-[#6B7280] text-[11px] pointer-events-none">
+                            {device.isTouch ? t("g.paint.controlsTouch") : t("g.paint.controls")}
                         </div>
                     </div>
 

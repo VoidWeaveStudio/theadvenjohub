@@ -1942,6 +1942,7 @@ export const zh: Translations = {
   "g.paint.sessionExpired": "🔒 会话已过期 — 你的涂装仍在，请再次点击保存",
   "g.paint.saveFailed": "⚠️ 保存失败 — 你的涂装仍在，请再次点击保存",
   "g.paint.controls": "左键拖动绘制 · 右键拖动旋转 · 滚轮缩放",
+  "g.paint.controlsTouch": "单指绘制 · 双指旋转和缩放",
   "g.paint.brushSize": "笔刷大小",
   "g.paint.color": "颜色",
   "g.paint.resetToWhite": "重置为白色",

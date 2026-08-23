@@ -1952,6 +1952,7 @@ export const id: PartialTranslations = {
   "g.paint.sessionExpired": "🔒 Sesi kedaluwarsa — hasil lukisanmu masih ada, tekan Simpan lagi",
   "g.paint.saveFailed": "⚠️ Gagal menyimpan — hasil lukisanmu masih ada, tekan Simpan lagi",
   "g.paint.controls": "Seret klik kiri untuk melukis · seret klik kanan untuk memutar · gulir untuk zoom",
+  "g.paint.controlsTouch": "Satu jari untuk melukis · dua jari untuk memutar dan zoom",
   "g.paint.brushSize": "UKURAN KUAS",
   "g.paint.color": "WARNA",
   "g.paint.resetToWhite": "Kembalikan ke putih",

@@ -92,7 +92,7 @@ export function BuyMenu({ mode, open, me, side, money, closesAt, onBuy, onClose,
                     </div>
                 </div>
 
-                <div className="p-4 max-h-[65dvh] overflow-y-auto space-y-4">
+                <div className="p-4 max-h-[calc(65*var(--game-vh))] overflow-y-auto space-y-4">
                     {SLOT_ORDER.map(({ slot, labelKey }) => {
                         const group = items.filter((item) => item.slot === slot);
                         if (group.length === 0) return null;

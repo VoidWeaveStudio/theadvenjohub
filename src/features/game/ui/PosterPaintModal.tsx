@@ -6,6 +6,7 @@ import { X, Eraser, Paintbrush, Undo2 } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import { ColorPalette } from "./shell/ColorPalette";
 import { canvasToPngBlob } from "../utils/exportPng";
+import { screenPointToGameSpace, screenRectToGameSpace } from "../utils/rotatedViewport";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface PosterPaintModalProps {
@@ -95,10 +96,11 @@ export function PosterPaintModal({
     };
 
     const getPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
-        const rect = event.currentTarget.getBoundingClientRect();
+        const rect = screenRectToGameSpace(event.currentTarget.getBoundingClientRect());
+        const local = screenPointToGameSpace(event.clientX, event.clientY);
         return {
-            x: ((event.clientX - rect.left) / rect.width) * width,
-            y: ((event.clientY - rect.top) / rect.height) * height,
+            x: ((local.x - rect.left) / Math.max(1, rect.right - rect.left)) * width,
+            y: ((local.y - rect.top) / Math.max(1, rect.bottom - rect.top)) * height,
         };
     };
 
@@ -200,7 +202,7 @@ export function PosterPaintModal({
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
                         onPointerLeave={handlePointerUp}
-                        className="max-h-[46dvh] max-w-full rounded border border-zinc-700 touch-none cursor-crosshair bg-white"
+                        className="max-h-[calc(46*var(--game-vh))] max-w-full rounded border border-zinc-700 touch-none cursor-crosshair bg-white"
                         style={{ aspectRatio: `${width} / ${height}` }}
                     />
                 </div>

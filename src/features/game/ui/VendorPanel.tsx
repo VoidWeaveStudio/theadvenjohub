@@ -182,7 +182,7 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
             </div>
 
             {tab === "buy" && (
-                <div className="w-full max-w-3xl h-[60dvh] bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
+                <div className="w-full max-w-3xl h-[calc(60*var(--game-vh))] bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
                     <AshStore ash={ash} placeables={placeables} prices={shopPrices} onBuyItem={onBuyItem} />
                 </div>
             )}

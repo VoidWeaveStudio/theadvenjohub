@@ -1952,6 +1952,7 @@ export const it: PartialTranslations = {
   "g.paint.sessionExpired": "🔒 Sessione scaduta: il tuo lavoro è ancora qui, premi di nuovo Salva",
   "g.paint.saveFailed": "⚠️ Salvataggio non riuscito: il tuo lavoro è ancora qui, premi di nuovo Salva",
   "g.paint.controls": "Trascina col tasto sinistro per dipingere · col destro per ruotare · rotellina per lo zoom",
+  "g.paint.controlsTouch": "Un dito dipinge · due dita ruotano e zoomano",
   "g.paint.brushSize": "DIMENSIONE PENNELLO",
   "g.paint.color": "COLORE",
   "g.paint.resetToWhite": "Riporta al bianco",

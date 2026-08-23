@@ -425,7 +425,7 @@ export function BubbleMapPanel({
 
     return (
         <div className="absolute inset-0 bg-[rgba(4,4,8,0.9)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4">
-            <div className="w-full max-w-4xl h-[80dvh] bg-[rgba(8,10,18,0.96)] border-2 border-[#66CCFF]/30 rounded-[16px] p-4 flex flex-col shadow-[0_0_35px_rgba(102,204,255,0.12)]">
+            <div className="w-full max-w-4xl h-[calc(80*var(--game-vh))] bg-[rgba(8,10,18,0.96)] border-2 border-[#66CCFF]/30 rounded-[16px] p-4 flex flex-col shadow-[0_0_35px_rgba(102,204,255,0.12)]">
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <MapIcon className="w-5 h-5 text-[#66CCFF]" />

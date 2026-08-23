@@ -1933,6 +1933,7 @@ export const es: PartialTranslations = {
   "g.paint.sessionExpired": "🔒 La sesión expiró: tu pintura sigue aquí, vuelve a pulsar Guardar",
   "g.paint.saveFailed": "⚠️ No se pudo guardar: tu pintura sigue aquí, vuelve a pulsar Guardar",
   "g.paint.controls": "Arrastra con el clic izquierdo para pintar · Arrastra con el derecho para girar · Rueda para el zoom",
+  "g.paint.controlsTouch": "Un dedo pinta · dos dedos giran y hacen zoom",
   "g.paint.brushSize": "TAMAÑO DEL PINCEL",
   "g.paint.color": "COLOR",
   "g.paint.resetToWhite": "Volver al blanco",
