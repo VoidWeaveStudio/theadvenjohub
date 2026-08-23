@@ -517,6 +517,14 @@ export class Player extends Entity {
         }
     }
 
+    public listAnimations(): string[] {
+        return this.animator.listKeys();
+    }
+
+    public currentAnimation(): string {
+        return this.animator.getCurrentKey();
+    }
+
     public setMovementLocked(locked: boolean) {
         this.movementLocked = locked;
     }
@@ -534,6 +542,7 @@ export class Player extends Entity {
         this.shield?.update(delta, this.mesh.rotation.y);
         this.updateHeartbeat();
         this.cosmeticRig?.update(delta);
+        this.weapon.setAnimationClip(this.animator.getCurrentKey());
 
         if (!this.inputManager || !this.camera) return;
 

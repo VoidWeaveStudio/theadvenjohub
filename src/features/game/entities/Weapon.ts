@@ -2,7 +2,8 @@
 import * as THREE from "three";
 import { ResourceManager } from "../core/ResourceManager";
 import { buildStaff, disposeStaff, STAFF_FOREGRIP_OFFSET, STAFF_GRIP_POINT_OFFSET, STAFF_MUZZLE_OFFSET } from "./Staff";
-import { buildRifle, disposeRifle, RIFLE_BARREL_SIGN } from "./proceduralRifle";
+import { buildRifle, disposeRifle } from "./proceduralRifle";
+import { applyWeaponPose, easeWeaponPose, weaponPoseFor } from "./weaponPoses";
 import {
     accentForTier,
     buildWeaponTierAttachments,
@@ -18,13 +19,9 @@ export const RIFLE_GRIP_QUATERNION = new THREE.Quaternion(
     -0.43556503715239797
 );
 
-export const RIFLE_GRIP_OFFSET = new THREE.Vector3(-0.09299880266052234, 0.8357661666701275, 0.4848819943996206);
-
-export const STAFF_GRIP_OFFSET = RIFLE_GRIP_OFFSET.clone();
-
-const RIFLE_MUZZLE_OFFSET = new THREE.Vector3(0, 0.4 * RIFLE_BARREL_SIGN, 0.03);
-const RIFLE_FOREGRIP_OFFSET = new THREE.Vector3(0, 0.15 * RIFLE_BARREL_SIGN, 0);
-const RIFLE_GRIP_POINT_OFFSET = new THREE.Vector3(0, -0.1 * RIFLE_BARREL_SIGN, 0);
+const RIFLE_MUZZLE_OFFSET = new THREE.Vector3(0, 0.4, 0.03);
+const RIFLE_FOREGRIP_OFFSET = new THREE.Vector3(0, 0.15, 0);
+const RIFLE_GRIP_POINT_OFFSET = new THREE.Vector3(0, -0.1, 0);
 
 export function buildWeaponVisual(
     kind: WeaponKind,
@@ -41,10 +38,6 @@ export function buildWeaponVisual(
 
     group.add(buildWeaponTierAttachments(kind, tier));
     return group;
-}
-
-export function weaponGripOffset(kind: WeaponKind): THREE.Vector3 {
-    return kind === "staff" ? STAFF_GRIP_OFFSET : RIFLE_GRIP_OFFSET;
 }
 
 export class Weapon {
@@ -68,6 +61,7 @@ export class Weapon {
     private resourceManager: ResourceManager | null = null;
     private visual: THREE.Group | null = null;
     private elapsed = 0;
+    private clip = "";
 
     create(playerMesh: THREE.Group, resourceManager: ResourceManager) {
         this.resourceManager = resourceManager;
@@ -100,7 +94,7 @@ export class Weapon {
 
         this.visual = visual;
         this.mesh.add(visual);
-        this.mesh.position.copy(weaponGripOffset(this.kind));
+        applyWeaponPose(this.mesh, this.visual, weaponPoseFor(this.kind, this.clip));
 
         const isStaff = this.kind === "staff";
         this.muzzle.position.copy(isStaff ? STAFF_MUZZLE_OFFSET : RIFLE_MUZZLE_OFFSET);
@@ -122,9 +116,8 @@ export class Weapon {
         this.visual = null;
     }
 
-    setGripTransform(offset: THREE.Vector3, euler: THREE.Euler) {
-        this.mesh.position.copy(offset);
-        if (this.visual) this.visual.rotation.copy(euler);
+    setAnimationClip(clip: string) {
+        this.clip = clip;
     }
 
     setFireRate(seconds: number) {
@@ -170,7 +163,10 @@ export class Weapon {
             }
         }
 
-        if (this.visual) updateWeaponTierAttachments(this.visual, this.elapsed, delta);
+        if (!this.visual) return;
+
+        easeWeaponPose(this.mesh, this.visual, weaponPoseFor(this.kind, this.clip), delta);
+        updateWeaponTierAttachments(this.visual, this.elapsed, delta);
     }
 
     getReloadProgress(): number {

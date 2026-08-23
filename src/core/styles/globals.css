@@ -87,6 +87,10 @@ body {
   --tap-target: 44px;
   --game-ui-scale: 1;
   --top-menu-band: 148px;
+  --game-vh: calc((100dvh - var(--header-height)) / 100);
+}
+
+html[data-game-immersive="true"] {
   --game-vh: 1dvh;
 }
 

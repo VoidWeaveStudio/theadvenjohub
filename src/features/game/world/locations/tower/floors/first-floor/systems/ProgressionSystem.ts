@@ -40,6 +40,7 @@ export class ProgressionSystem {
         this.floor.thresholdZ = null;
 
         this.floor.inHub = true;
+        this.floor.applyBiome(undefined, 1);
         this.hubGateOpen = false;
         this.floor.gateAnimation.resetGate(this.floor.hub.farGate, this.floor.hub);
         this.floor.segmentBuilder.rebuildCollisionGrid();

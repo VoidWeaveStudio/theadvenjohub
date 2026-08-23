@@ -4,9 +4,11 @@ import { Entity } from "./Entity";
 import { ResourceManager } from "../core/ResourceManager";
 import { CharacterAnimator } from "./CharacterAnimator";
 import { buildDefusalWeapon, disposeWeaponRig, remoteWeaponTransformFor, type WeaponRig } from "./defusalWeaponModels";
-import { buildWeaponVisual, weaponGripOffset } from "./Weapon";
+import { buildWeaponVisual } from "./Weapon";
+import { applyWeaponPose, easeWeaponPose, weaponPoseFor } from "./weaponPoses";
 import { disposeWeaponTierAttachments, updateWeaponTierAttachments, WeaponKind } from "./weaponTiers";
 import { disposeStaff } from "./Staff";
+import { disposeRifle } from "./proceduralRifle";
 import { scaleAndCenterModel, alignModelToGround, findBoneFirst, findBoneLast, findHandBone, reparentPreservingWorldScale } from "./characterModel";
 import { CosmeticRig } from "./CosmeticRig";
 import { CosmeticId } from "../data/cosmetics";
@@ -43,6 +45,7 @@ export class OtherPlayer extends Entity {
     private defusalRig: WeaponRig | null = null;
     private remoteWeaponBaseScale = 1;
     private weaponClip = '';
+    private weaponVisual: THREE.Group | null = null;
     private initialized: boolean = false;
     private time: number = 0;
 
@@ -269,7 +272,7 @@ export class OtherPlayer extends Entity {
 
         const weaponMount = new THREE.Group();
         weaponMount.add(visual);
-        weaponMount.position.copy(weaponGripOffset(this.weaponKind));
+        applyWeaponPose(weaponMount, visual, weaponPoseFor(this.weaponKind, this.weaponClip));
         weaponMount.visible = wasVisible;
 
         this.mesh.add(weaponMount);
@@ -277,6 +280,7 @@ export class OtherPlayer extends Entity {
             reparentPreservingWorldScale(weaponMount, this.rightHand);
         }
         this.weaponMesh = weaponMount;
+        this.weaponVisual = visual;
     }
 
     private disposeWeapon() {
@@ -290,16 +294,20 @@ export class OtherPlayer extends Entity {
 
         const disposable: THREE.Group[] = [];
         this.weaponMesh.traverse((child) => {
-            if (child.name === "weapon-tier" || child.name === "staff") disposable.push(child as THREE.Group);
+            if (child.name === "weapon-tier" || child.name === "staff" || child.name === "rifle") {
+                disposable.push(child as THREE.Group);
+            }
         });
 
         for (const group of disposable) {
             if (group.name === "weapon-tier") disposeWeaponTierAttachments(group);
+            else if (group.name === "rifle") disposeRifle(group);
             else disposeStaff(group);
         }
 
         this.weaponMesh.removeFromParent();
         this.weaponMesh = null;
+        this.weaponVisual = null;
     }
 
     private drawNameTag(name: string) {
@@ -566,6 +574,10 @@ export class OtherPlayer extends Entity {
         if (clip !== this.weaponClip) {
             this.weaponClip = clip;
             this.applyRemoteWeaponTransform();
+        }
+
+        if (this.weaponMesh && !this.defusalRig) {
+            easeWeaponPose(this.weaponMesh, this.weaponVisual, weaponPoseFor(this.weaponKind, this.weaponClip), delta);
         }
 
         this.animator.update(delta);

@@ -61,6 +61,8 @@ import { registerNetworkHandlers } from "./GameNetworkHandlers";
 import type { GameCallbacks } from "./GameCallbacks";
 import { ViewModelTuner } from "../systems/ViewModelTuner";
 import { CosmeticTuner } from "../systems/CosmeticTuner";
+import { CanyonTuner } from "../systems/CanyonTuner";
+import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
 import { applyGraphicsSettings, reapplySceneGraphics } from "./graphicsSettings";
 import { createGameRenderer } from "./GameRenderer";
 import { perf } from "./PerfProfiler";
@@ -148,6 +150,7 @@ export class Game {
     public readonly weaponTuner: WeaponTuner = new WeaponTuner();
     public readonly viewModelTuner: ViewModelTuner = new ViewModelTuner();
     public readonly cosmeticTuner: CosmeticTuner = new CosmeticTuner();
+    public readonly canyonTuner: CanyonTuner = new CanyonTuner();
     public readonly memeSystem: MemeSystem = new MemeSystem();
     private memeMovementUntil: number = 0;
     public readonly interactionSystem: InteractionSystem;
@@ -343,11 +346,19 @@ export class Game {
     }
 
 
+    private closeTunersExcept(keep: { isEnabled(): boolean; toggle(): void } | null) {
+        for (const tuner of [this.weaponTuner, this.viewModelTuner, this.petTuner, this.cosmeticTuner, this.canyonTuner]) {
+            if (tuner === keep) continue;
+            if (tuner.isEnabled()) tuner.toggle();
+        }
+    }
+
     public togglePetTuner() {
         if (!this.petTuner.isReady()) {
             this.onNotification?.("🐕 No pet out to tune", 2000);
             return;
         }
+        this.closeTunersExcept(this.petTuner);
         this.petTuner.toggle();
     }
 
@@ -356,14 +367,26 @@ export class Game {
             this.onNotification?.("👕 No cosmetic equipped to tune", 2000);
             return;
         }
+        this.closeTunersExcept(this.cosmeticTuner);
         this.cosmeticTuner.toggle();
+    }
+
+    public toggleCanyonTuner() {
+        if (!this.canyonTuner.isReady()) {
+            this.onNotification?.("⛰ Canyon tuner only works in the canyon", 2000);
+            return;
+        }
+        this.closeTunersExcept(this.canyonTuner);
+        this.canyonTuner.toggle();
     }
 
     public toggleWeaponTuner() {
         if (this.dust2Mode && this.viewModelTuner.isReady()) {
+            this.closeTunersExcept(this.viewModelTuner);
             this.viewModelTuner.toggle();
             return;
         }
+        this.closeTunersExcept(this.weaponTuner);
         this.weaponTuner.toggle();
     }
 
@@ -679,7 +702,7 @@ export class Game {
                 this.enemySystem.init(currentLocation.scene, this.networkManager, getGroundHeight);
                 this.abilitySystem.attach(currentLocation.scene);
                 this.memeSystem.attach(currentLocation.scene);
-                this.weaponTuner.init(this.inputManager, this.player.getWeapon());
+                this.weaponTuner.init(this.inputManager, this.player);
                 this.weaponTuner.onReadout = (text) => {
                     this.hudState.tunerReadout = text;
                     this.emitState(true);
@@ -692,6 +715,11 @@ export class Game {
                 this.petSystem.init(this.networkManager, this.player, getGroundHeight, () => this.lootSystem.getFetchableDrops());
                 this.petTuner.init(this.inputManager, this.petSystem);
                 this.petTuner.onReadout = (text) => {
+                    this.hudState.tunerReadout = text;
+                    this.emitState(true);
+                };
+                this.canyonTuner.init(this.inputManager, currentLocation instanceof FirstFloor ? currentLocation : null);
+                this.canyonTuner.onReadout = (text) => {
                     this.hudState.tunerReadout = text;
                     this.emitState(true);
                 };
@@ -1326,6 +1354,7 @@ export class Game {
             this.petSystem.update(delta);
             this.petTuner.update();
             this.cosmeticTuner.update();
+            this.canyonTuner.update();
             this.buildSystem.update(delta);
             perf.end("combat");
 

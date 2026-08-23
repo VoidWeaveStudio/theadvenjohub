@@ -8,7 +8,6 @@ export const BOSS_ZONE_DEPTH = 40;
 export const SEGMENT_LENGTH = SAFE_ENTRANCE_DEPTH + COMBAT_DEPTH + BOSS_ZONE_DEPTH;
 export const SEAL_TRIGGER_MARGIN = 20;
 export const RETURN_PAD_OFFSET = 20;
-export const FLOOR_HALF_WIDTH = 100;
 
 export function segmentStartZ(segment: number): number {
     return CANYON_START_Z + (segment - 1) * SEGMENT_LENGTH;

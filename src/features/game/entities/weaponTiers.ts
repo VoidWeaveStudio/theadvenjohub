@@ -35,67 +35,65 @@ function glow(accent: number, intensity = 1.6): THREE.MeshStandardMaterial {
 function addRiflePlates(group: THREE.Group, accent: number) {
     for (const side of [-1, 1]) {
         const plate = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.26, 0.055), alloy(0x6d7480));
-        plate.position.set(side * 0.045, -0.16, 0.01);
+        plate.position.set(side * 0.045, 0.16, 0.01);
         group.add(plate);
     }
 
     const collar = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.008, 8, 14), alloy(accent));
     collar.rotation.x = Math.PI / 2;
-    collar.position.y = -0.03;
+    collar.position.y = 0.03;
     group.add(collar);
 }
 
 function addRifleOptics(group: THREE.Group, accent: number) {
     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.3, 0.018), alloy(0x4d545e));
-    rail.position.set(0, -0.06, 0.075);
+    rail.position.set(0, 0.06, 0.075);
     group.add(rail);
 
     const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.17, 12), alloy(0x2f343c));
-    scope.rotation.x = Math.PI / 2;
-    scope.rotation.z = Math.PI / 2;
-    scope.position.set(0, -0.05, 0.105);
+    scope.position.set(0, 0.05, 0.105);
     group.add(scope);
 
     const lens = new THREE.Mesh(new THREE.CircleGeometry(0.021, 14), glow(accent, 1.1));
-    lens.position.set(0, -0.135, 0.105);
-    lens.rotation.x = Math.PI / 2;
+    lens.position.set(0, 0.136, 0.105);
+    lens.rotation.x = -Math.PI / 2;
     group.add(lens);
 }
 
 function addRifleCell(group: THREE.Group, accent: number) {
     const cell = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.11, 0.045), glow(accent, 1.5));
     cell.name = PULSE_NAME;
-    cell.position.set(-0.055, 0.07, -0.01);
+    cell.position.set(-0.055, -0.07, -0.01);
     group.add(cell);
 
     const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.02, 0.055), alloy(0x5b626c));
-    clamp.position.set(-0.055, 0.135, -0.01);
+    clamp.position.set(-0.055, -0.135, -0.01);
     group.add(clamp);
 }
 
 function addRifleVents(group: THREE.Group, accent: number) {
     for (let i = 0; i < 3; i++) {
         const vent = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.014, 0.03), alloy(0x3c424b));
-        vent.position.set(0, -0.26 - i * 0.045, 0.03);
+        vent.position.set(0, 0.26 + i * 0.045, 0.03);
         group.add(vent);
     }
 
     const coil = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.006, 8, 16), glow(accent, 2));
     coil.name = PULSE_NAME;
     coil.rotation.x = Math.PI / 2;
-    coil.position.y = -0.33;
+    coil.position.y = 0.33;
     group.add(coil);
 }
 
 function addRifleCrown(group: THREE.Group, accent: number) {
     const crown = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.011, 10, 20), glow(accent, 2.4));
     crown.rotation.x = Math.PI / 2;
-    crown.position.y = -0.42;
+    crown.position.y = 0.42;
     group.add(crown);
 
     const orbit = new THREE.Group();
     orbit.name = ORBIT_NAME;
-    orbit.position.y = -0.42;
+    orbit.position.y = 0.42;
     for (let i = 0; i < 3; i++) {
         const angle = (Math.PI * 2 * i) / 3;
         const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.019, 0), glow(accent, 2.6));

@@ -1272,18 +1272,18 @@ export function GameClient({ slug }: GameClientProps) {
           return;
         }
 
-        if (e.code === "Numpad0" && !e.repeat) {
-          gameRef.current?.toggleWeaponTuner();
-          return;
-        }
-
         if (e.code === "NumpadDecimal" && !e.repeat) {
-          gameRef.current?.togglePetTuner();
+          gameRef.current?.toggleWeaponTuner();
           return;
         }
 
         if (e.code === "NumpadEnter" && !e.repeat) {
           gameRef.current?.toggleCosmeticTuner();
+          return;
+        }
+
+        if (e.code === "Backquote" && !e.repeat) {
+          gameRef.current?.toggleCanyonTuner();
           return;
         }
 
