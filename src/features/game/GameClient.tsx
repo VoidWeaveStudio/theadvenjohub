@@ -1911,8 +1911,11 @@ export function GameClient({ slug }: GameClientProps) {
         gameSlug={slug}
         placeables={inventory.placeables}
         companions={companionState.companions}
+        cosmeticCrates={cosmeticCrateState.wallet}
         onRequestCompanions={() => gameRef.current?.requestCompanions()}
+        onRequestCosmeticCrates={() => gameRef.current?.requestCosmeticCrates()}
         onOpenCrate={handleOpenCrate}
+        onOpenCosmeticCrate={() => gameRef.current?.openCosmeticCrate()}
         onClose={() => setActiveTopWindow(null)}
       />
 

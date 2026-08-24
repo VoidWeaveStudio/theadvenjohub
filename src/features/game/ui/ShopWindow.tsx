@@ -7,10 +7,17 @@ import { Boxes, Coins, PawPrint, Shirt, Smile, Store, Swords, Loader2 } from "lu
 import { WindowFrame } from "./shell/WindowFrame";
 import { SHOP_CATALOG, ShopCatalogEntry, ShopItemKind } from "@/core/lib/shopCatalog";
 import { COMPANIONS, COMPANIONS_BY_ID, RARITY_META, RARITY_ORDER, type CompanionId } from "../data/companions";
-import { COSMETICS_BY_ID, type CosmeticId } from "../data/cosmetics";
+import {
+    COSMETICS,
+    COSMETICS_BY_ID,
+    COSMETIC_CRATE_ITEM_ID,
+    COSMETIC_FRAGMENTS_PER_CRATE,
+    COSMETIC_TOTAL_DROP_WEIGHT,
+    type CosmeticId,
+} from "../data/cosmetics";
 import { PreviewModal } from "./preview/PreviewModal";
 import type { PreviewSubject } from "./preview/PreviewScene";
-import { CompanionStateData } from "../network/NetworkManager";
+import { CompanionStateData, CosmeticCrateStateData } from "../network/NetworkManager";
 import { CompanionCard } from "./CompanionCard";
 import { CosmeticCard } from "./CosmeticCard";
 import { useShopPrices, type LiveShopPrice } from "./hooks/useShopPrices";
@@ -32,8 +39,11 @@ interface ShopWindowProps {
     gameSlug: string;
     placeables: Record<string, number>;
     companions: CompanionStateData;
+    cosmeticCrates: CosmeticCrateStateData;
     onRequestCompanions: () => void;
+    onRequestCosmeticCrates: () => void;
     onOpenCrate: () => void;
+    onOpenCosmeticCrate: () => void;
     onClose: () => void;
 }
 
@@ -56,8 +66,11 @@ export function ShopWindow({
     gameSlug,
     placeables,
     companions,
+    cosmeticCrates,
     onRequestCompanions,
+    onRequestCosmeticCrates,
     onOpenCrate,
+    onOpenCosmeticCrate,
     onClose,
 }: ShopWindowProps) {
     const { t } = useLanguage();
@@ -71,9 +84,12 @@ export function ShopWindow({
     const wasOpenRef = useRef(false);
 
     useEffect(() => {
-        if (isOpen && !wasOpenRef.current) onRequestCompanions();
+        if (isOpen && !wasOpenRef.current) {
+            onRequestCompanions();
+            onRequestCosmeticCrates();
+        }
         wasOpenRef.current = isOpen;
-    }, [isOpen, onRequestCompanions]);
+    }, [isOpen, onRequestCompanions, onRequestCosmeticCrates]);
 
     const sellableOf = (kind: ShopItemKind) =>
         SHOP_CATALOG.filter((entry) => {
@@ -109,7 +125,8 @@ export function ShopWindow({
                 priceLoading={!pricesReady}
                 onPurchased={(id) => {
                     setJustBought((prev) => new Set(prev).add(id));
-                    onRequestCompanions();
+                    if (id === COSMETIC_CRATE_ITEM_ID) onRequestCosmeticCrates();
+                    else onRequestCompanions();
                 }}
             />
         );
@@ -242,6 +259,11 @@ export function ShopWindow({
         );
     };
 
+    const skinCrateSummary = () => t("g.skinCrate.summary", { count: COSMETICS.length });
+
+    const cosmeticDropChance = (dropWeight: number) =>
+        ((dropWeight / COSMETIC_TOTAL_DROP_WEIGHT) * 100).toFixed(1);
+
     const renderLootboxes = () => {
         const items = sellableOf("lootbox");
         if (items.length === 0) {
@@ -250,71 +272,104 @@ export function ShopWindow({
 
         return (
             <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-[#FFD166]/25 bg-[rgba(255,209,102,0.07)] px-4 py-2.5 text-xs">
-                    <span className="text-[#C9CDD3]">{t("g.crate.ownedLabel")}</span>
-                    <div className="flex items-center gap-3">
-                        <span className="font-black text-[#FFD166]">{companions.crates}</span>
-                        <button
-                            onClick={onOpenCrate}
-                            disabled={companions.crates <= 0}
-                            className="btn-primary px-3 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40"
+                {items.map((entry) => {
+                    const skins = entry.itemId === COSMETIC_CRATE_ITEM_ID;
+                    const accent = skins ? "#4FC3FF" : "#FFD166";
+                    const stash = skins ? cosmeticCrates.crates : companions.crates;
+
+                    return (
+                        <div
+                            key={entry.itemId}
+                            className="rounded-xl border p-4"
+                            style={{ borderColor: `${accent}40`, background: `${accent}0D` }}
                         >
-                            {t("g.crate.open")}
-                        </button>
-                    </div>
-                </div>
-
-                {items.map((entry) => (
-                    <div
-                        key={entry.itemId}
-                        className="rounded-xl border border-[#FFD166]/25 bg-[rgba(255,209,102,0.05)] p-4"
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-2xl">📦</span>
-                                    <span className="text-sm font-black text-[#E5E7EB]">{t(entry.nameKey)}</span>
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-2xl">{skins ? "🎁" : "📦"}</span>
+                                        <span className="text-sm font-black text-[#E5E7EB]">{t(entry.nameKey)}</span>
+                                    </div>
+                                    <p className="mt-1.5 text-xs leading-snug text-[#8B8F98]">{t(entry.descriptionKey)}</p>
                                 </div>
-                                <p className="mt-1.5 text-xs leading-snug text-[#8B8F98]">{t(entry.descriptionKey)}</p>
+                                <div className="flex flex-shrink-0 items-center gap-3">
+                                    {priceTag(entry)}
+                                    {buyButton(entry, stash)}
+                                </div>
                             </div>
-                            <div className="flex flex-shrink-0 items-center gap-3">
-                                {priceTag(entry)}
-                                {buyButton(entry, companions.crates)}
+
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3 text-xs">
+                                <span className="text-[#C9CDD3]">
+                                    {t("g.crate.ownedLabel")}{" "}
+                                    <span className="font-black" style={{ color: accent }}>{stash}</span>
+                                    {skins && (
+                                        <span className="ml-2 text-[#8B8F98]">
+                                            {t("g.skinCrate.fragments")} {cosmeticCrates.fragments} / {COSMETIC_FRAGMENTS_PER_CRATE}
+                                        </span>
+                                    )}
+                                </span>
+                                <button
+                                    onClick={skins ? onOpenCosmeticCrate : onOpenCrate}
+                                    disabled={stash <= 0}
+                                    className="btn-primary flex-shrink-0 px-3 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    {t("g.crate.open")}
+                                </button>
                             </div>
+
+                            <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/8 pt-3">
+                                <span className="text-[11px] text-[#8B8F98]">{skins ? skinCrateSummary() : crateSummary()}</span>
+                                <button
+                                    onClick={() =>
+                                        setExpandedCrate((prev) => (prev === entry.itemId ? null : entry.itemId))
+                                    }
+                                    className="btn-secondary flex-shrink-0 px-3 py-1 text-[11px]"
+                                >
+                                    {expandedCrate === entry.itemId ? t("g.crate.hideDetails") : t("g.crate.details")}
+                                </button>
+                            </div>
+
+                            {expandedCrate === entry.itemId && (
+                                <div className="mt-3">
+                                    <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">
+                                        {t("g.crate.contents")}
+                                    </div>
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        {skins
+                                            ? COSMETICS.map((cosmetic) => (
+                                                <CosmeticCard
+                                                    key={cosmetic.id}
+                                                    cosmetic={cosmetic}
+                                                    owned={false}
+                                                    equipped={false}
+                                                    actionLabel=""
+                                                    onAction={() => { }}
+                                                    onPreview={() => previewCosmetic(cosmetic.id)}
+                                                    priceLabel={
+                                                        <span className="text-[10px] text-[#6B7280]">
+                                                            {t("g.companions.dropChance")}{" "}
+                                                            <span className="font-bold text-[#C9CDD3]">
+                                                                {cosmeticDropChance(cosmetic.dropWeight)}%
+                                                            </span>
+                                                        </span>
+                                                    }
+                                                    actionSlot={<span />}
+                                                />
+                                            ))
+                                            : COMPANIONS.map((companion) => (
+                                                <CompanionCard
+                                                    key={companion.id}
+                                                    companion={companion}
+                                                    quantity={quantityOf(companion.id)}
+                                                    showDropChance
+                                                    onPreview={() => previewCompanion(companion.id)}
+                                                />
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
-
-                        <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/8 pt-3">
-                            <span className="text-[11px] text-[#8B8F98]">{crateSummary()}</span>
-                            <button
-                                onClick={() =>
-                                    setExpandedCrate((prev) => (prev === entry.itemId ? null : entry.itemId))
-                                }
-                                className="btn-secondary flex-shrink-0 px-3 py-1 text-[11px]"
-                            >
-                                {expandedCrate === entry.itemId ? t("g.crate.hideDetails") : t("g.crate.details")}
-                            </button>
-                        </div>
-
-                        {expandedCrate === entry.itemId && (
-                            <div className="mt-3">
-                                <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[#6B7280]">
-                                    {t("g.crate.contents")}
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    {COMPANIONS.map((companion) => (
-                                        <CompanionCard
-                                            key={companion.id}
-                                            companion={companion}
-                                            quantity={quantityOf(companion.id)}
-                                            showDropChance
-                                            onPreview={() => previewCompanion(companion.id)}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         );
     };

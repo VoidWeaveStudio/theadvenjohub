@@ -34,6 +34,10 @@ const KIND_LABEL: Record<string, string> = {
     faction: "Faction",
     consumable: "Consumable",
     pet: "Pet",
+    lootbox: "Lootbox",
+    companion: "Companion",
+    weapon: "Weapon",
+    emote: "Emote",
 };
 
 export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShopPricesTable(_props, ref) {

@@ -2,10 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
-import { gameProgress, shopPurchases, gameCompanions, gameCosmetics, gameMemeWallet } from "@/core/database/schema";
+import { gameProgress, shopPurchases, gameCompanions, gameCosmetics, gameMemeWallet, gameCosmeticWallet } from "@/core/database/schema";
 import { and, eq } from "drizzle-orm";
 import { adjustCompanion, adjustWallet, seedLegacyDog } from "@/core/lib/companionInventory";
+import { adjustCosmeticWallet } from "@/core/lib/cosmeticCrates";
 import { DEFAULT_COMPANION_ID } from "@/features/game/data/companions";
+import { COSMETIC_CRATE_ITEM_ID } from "@/features/game/data/cosmetics";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/lib/tnjPayment";
@@ -116,10 +118,17 @@ export async function POST(req: NextRequest) {
             });
             owned = Math.max(0, stack?.quantity ?? 0);
         } else if (entry.kind === "lootbox") {
-            const wallet = await db.query.gameMemeWallet.findFirst({
-                where: and(eq(gameMemeWallet.userId, user.userId), eq(gameMemeWallet.gameId, gameId)),
-            });
-            owned = Math.max(0, wallet?.crates ?? 0);
+            if (itemId === COSMETIC_CRATE_ITEM_ID) {
+                const wallet = await db.query.gameCosmeticWallet.findFirst({
+                    where: and(eq(gameCosmeticWallet.userId, user.userId), eq(gameCosmeticWallet.gameId, gameId)),
+                });
+                owned = Math.max(0, wallet?.crates ?? 0);
+            } else {
+                const wallet = await db.query.gameMemeWallet.findFirst({
+                    where: and(eq(gameMemeWallet.userId, user.userId), eq(gameMemeWallet.gameId, gameId)),
+                });
+                owned = Math.max(0, wallet?.crates ?? 0);
+            }
         } else if (entry.kind === "cosmetic") {
             const cosmetic = await db.query.gameCosmetics.findFirst({
                 where: and(
@@ -221,7 +230,11 @@ export async function POST(req: NextRequest) {
                 await seedLegacyDog(user.userId, gameId, Math.floor(Number(placeables[DEFAULT_COMPANION_ID]) || 0));
                 await adjustCompanion(user.userId, gameId, itemId, 1);
             } else if (entry.kind === "lootbox") {
-                await adjustWallet(user.userId, gameId, 0, 1);
+                if (itemId === COSMETIC_CRATE_ITEM_ID) {
+                    await adjustCosmeticWallet(user.userId, gameId, 0, 1);
+                } else {
+                    await adjustWallet(user.userId, gameId, 0, 1);
+                }
             } else if (entry.kind === "cosmetic") {
                 await db
                     .insert(gameCosmetics)

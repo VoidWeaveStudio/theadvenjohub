@@ -30,6 +30,7 @@ export const SHOP_CATALOG: ShopCatalogEntry[] = [
     { itemId: "run-insurance", name: "Run Insurance", nameKey: "g.placeable.run-insurance.name", kind: "consumable", description: "Keeps your tokens through one death", descriptionKey: "g.placeable.run-insurance.hint", defaultCurrency: "ash", defaultPriceAsh: 1000, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: 1 },
 
     { itemId: "companion-crate", name: "Meme Crate", nameKey: "g.crate.name", kind: "lootbox", description: "Rolls one companion", descriptionKey: "g.crate.description", defaultCurrency: "usd", defaultPriceAsh: 0, defaultPriceTnj: 60000, defaultPriceUsdCents: 300, maxOwned: null },
+    { itemId: "cosmetic-crate", name: "Skin Crate", nameKey: "g.skinCrate.name", kind: "lootbox", description: "Rolls one skin or accessory", descriptionKey: "g.skinCrate.description", defaultCurrency: "usd", defaultPriceAsh: 0, defaultPriceTnj: 60000, defaultPriceUsdCents: 300, maxOwned: null },
 
     { itemId: "pet-dog", name: "Scrap Hound", nameKey: "g.pet.pet-dog.name", kind: "companion", description: "Fetches loot from mobs you killed", descriptionKey: "g.shopItem.pet-dog.description", defaultCurrency: "usd", defaultPriceAsh: 0, defaultPriceTnj: 100000, defaultPriceUsdCents: 500, maxOwned: null },
     { itemId: "pet-shiba", name: "Doge", nameKey: "g.pet.pet-shiba.name", kind: "companion", description: "Crate drop", descriptionKey: "g.pet.pet-shiba.hint", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 0, defaultPriceUsdCents: 0, maxOwned: null },

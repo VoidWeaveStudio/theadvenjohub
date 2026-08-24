@@ -31,6 +31,8 @@ export const COSMETIC_PRICE_ASH = 1;
 
 export const COSMETIC_FRAGMENTS_PER_CRATE = 100;
 
+export const COSMETIC_CRATE_ITEM_ID = "cosmetic-crate";
+
 export const COSMETICS: CosmeticDefinition[] = [
     {
         id: "trump_hair",
