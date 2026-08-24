@@ -135,12 +135,20 @@ export async function GET(
         };
 
         const companionGameId = progress?.gameId ?? (await resolveGameId(null));
-        const companions = companionGameId
-            ? await readCompanionState(userId, companionGameId)
-            : EMPTY_COMPANION_STATE;
-        const cosmeticCrates = companionGameId
-            ? await readCosmeticCrateState(userId, companionGameId)
-            : EMPTY_COSMETIC_CRATE_STATE;
+        const [companions, cosmeticCrates] = await Promise.all([
+            companionGameId
+                ? readCompanionState(userId, companionGameId).catch((error) => {
+                    console.error("[admin/players/:userId GET] companion state failed:", error);
+                    return EMPTY_COMPANION_STATE;
+                })
+                : EMPTY_COMPANION_STATE,
+            companionGameId
+                ? readCosmeticCrateState(userId, companionGameId).catch((error) => {
+                    console.error("[admin/players/:userId GET] cosmetic crate state failed:", error);
+                    return EMPTY_COSMETIC_CRATE_STATE;
+                })
+                : EMPTY_COSMETIC_CRATE_STATE,
+        ]);
 
         return NextResponse.json({
             player: {

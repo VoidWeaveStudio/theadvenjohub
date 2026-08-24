@@ -107,6 +107,7 @@ function formatPlaytime(seconds: number): string {
 export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicenseChanged }: AdminPlayerDetailModalProps) {
     const [player, setPlayer] = useState<PlayerDetail | null>(null);
     const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [banReasonInput, setBanReasonInput] = useState("");
     const [actionError, setActionError] = useState<string | null>(null);
     const [ashAmountInput, setAshAmountInput] = useState("100");
@@ -126,7 +127,13 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicens
         if (!userId) return;
         const res = await fetch(`/api/admin/players/${userId}`, { credentials: "include" });
         const data = await res.json().catch(() => null);
-        setPlayer(data?.player || null);
+        if (!res.ok || !data?.player) {
+            setPlayer(null);
+            setLoadError(`Failed to load player — ${data?.error || `HTTP ${res.status}`}`);
+            return;
+        }
+        setLoadError(null);
+        setPlayer(data.player);
     }, [userId]);
 
     useEffect(() => {
@@ -134,6 +141,7 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicens
             setPlayer(null);
             return;
         }
+        setLoadError(null);
         setLoading(true);
         loadPlayer().finally(() => setLoading(false));
     }, [userId, loadPlayer]);
@@ -399,8 +407,13 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicens
                 className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-[#0a0a0c] border border-[rgba(255,255,255,0.1)] rounded-xl p-6 space-y-5"
                 onClick={(e) => e.stopPropagation()}
             >
-                {loading || !player ? (
+                {loading ? (
                     <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
+                ) : !player ? (
+                    <div className="py-10 text-center space-y-3">
+                        <p className="text-red-400 text-sm">{loadError || "Failed to load player"}</p>
+                        <button onClick={onClose} className="btn-secondary px-3 py-1.5 text-xs">Close</button>
+                    </div>
                 ) : (
                     <>
                         <div className="flex items-start justify-between">
