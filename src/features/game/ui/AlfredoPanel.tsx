@@ -184,19 +184,26 @@ export function AlfredoPanel({
                             {COSMETICS.map((definition) => {
                                 const live = livePrices.get(definition.id);
                                 if (live && live.enabled === false) return null;
+                                const tnjOnly = !!live && live.currency !== "ash";
                                 const cosmetic = {
                                     ...definition,
                                     priceAsh: live && live.currency === "ash" ? live.priceAsh : definition.priceAsh,
                                 };
                                 const isOwned = owned.has(cosmetic.id);
+                                const tooPoor = !isOwned && !tnjOnly && ash < cosmetic.priceAsh;
                                 return (
                                     <CosmeticCard
                                         key={cosmetic.id}
                                         cosmetic={cosmetic}
                                         owned={isOwned}
                                         equipped={false}
-                                        blocked={!isOwned && ash < cosmetic.priceAsh}
-                                        blockedReason={!isOwned && ash < cosmetic.priceAsh ? t("g.alfredo.notEnoughAsh") : undefined}
+                                        blocked={!isOwned && (tnjOnly || tooPoor)}
+                                        blockedReason={tooPoor ? t("g.alfredo.notEnoughAsh") : undefined}
+                                        priceLabel={
+                                            !isOwned && tnjOnly
+                                                ? <span className="text-[11px] text-[#6B7280]">{t("g.alfredo.tnjOnly")}</span>
+                                                : undefined
+                                        }
                                         actionLabel={isOwned ? t("g.alfredo.owned") : t("g.alfredo.buy")}
                                         onPreview={() =>
                                             setPreview({
@@ -210,7 +217,7 @@ export function AlfredoPanel({
                                             })
                                         }
                                         onAction={() => {
-                                            if (!isOwned) onBuyCosmetic(cosmetic.id);
+                                            if (!isOwned && !tnjOnly) onBuyCosmetic(cosmetic.id);
                                         }}
                                     />
                                 );
