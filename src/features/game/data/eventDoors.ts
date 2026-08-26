@@ -132,7 +132,7 @@ export const EVENT_DOORS: EventDoor[] = [
         ashCap: 1500,
         xpCap: 3000,
         cooldownMinutes: 60,
-        maxParty: 4,
+        maxParty: 5,
         scored: false,
     },
     {

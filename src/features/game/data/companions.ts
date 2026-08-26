@@ -9,7 +9,10 @@ export type CompanionId =
     | "pet-chad"
     | "pet-rocket"
     | "pet-diamond"
-    | "pet-kraken";
+    | "pet-kraken"
+    | "pet-slime";
+
+export type CompanionSource = "crate" | "boss";
 
 export interface CompanionDefinition {
     id: CompanionId;
@@ -19,6 +22,7 @@ export interface CompanionDefinition {
     dropWeight: number;
     accent: string;
     icon: string;
+    source?: CompanionSource;
 }
 
 export interface RarityMeta {
@@ -52,6 +56,7 @@ export const COMPANIONS: CompanionDefinition[] = [
     { id: "pet-rocket", rarity: "rare", nameKey: "g.pet.pet-rocket.name", descriptionKey: "g.pet.pet-rocket.hint", dropWeight: 70, accent: "#F87171", icon: "🚀" },
     { id: "pet-diamond", rarity: "epic", nameKey: "g.pet.pet-diamond.name", descriptionKey: "g.pet.pet-diamond.hint", dropWeight: 60, accent: "#C084FC", icon: "💎" },
     { id: "pet-kraken", rarity: "legendary", nameKey: "g.pet.pet-kraken.name", descriptionKey: "g.pet.pet-kraken.hint", dropWeight: 20, accent: "#FFD166", icon: "🐙" },
+    { id: "pet-slime", rarity: "legendary", nameKey: "g.pet.pet-slime.name", descriptionKey: "g.pet.pet-slime.hint", dropWeight: 0, accent: "#7CE87C", icon: "🟢", source: "boss" },
 ];
 
 export const COMPANIONS_BY_ID = new Map(COMPANIONS.map((c) => [c.id, c]));
@@ -60,7 +65,9 @@ export const COMPANION_IDS: CompanionId[] = COMPANIONS.map((c) => c.id);
 
 export const DEFAULT_COMPANION_ID: CompanionId = "pet-dog";
 
-export const TOTAL_DROP_WEIGHT = COMPANIONS.reduce((sum, c) => sum + c.dropWeight, 0);
+export const CRATE_COMPANIONS = COMPANIONS.filter((c) => (c.source ?? "crate") === "crate");
+
+export const TOTAL_DROP_WEIGHT = CRATE_COMPANIONS.reduce((sum, c) => sum + c.dropWeight, 0);
 
 export function isCompanionId(value: unknown): value is CompanionId {
     return typeof value === "string" && (COMPANION_IDS as string[]).includes(value);

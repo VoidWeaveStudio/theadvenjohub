@@ -834,7 +834,42 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onCaveChestOpened = ({ chestId, ash }) => {
         const location = game.locationManager.getCurrentLocation();
         if (location instanceof Cave) location.markChestOpened(chestId);
-        game.onNotification?.(t("g.notify.chestLooted", { amount: ash }), 3000);
+        if (ash > 0) game.onNotification?.(t("g.notify.chestLooted", { amount: ash }), 3000);
+    };
+
+    game.networkManager.onCaveChestSpawn = ({ chestId, x, z }) => {
+        const location = game.locationManager.getCurrentLocation();
+        if (location instanceof Cave) location.spawnChest(chestId, x, z);
+    };
+
+    game.networkManager.onCompanionShot = ({ origin, target, travel }) => {
+        game.bossProjectiles.addProjectile(
+            new THREE.Vector3(origin[0], origin[1], origin[2]),
+            new THREE.Vector3(target[0], target[1], target[2]),
+            travel,
+            0.5,
+            false
+        );
+    };
+
+    game.networkManager.onCaveBossReward = ({ slime, companionFragments, cosmeticFragments, ash }) => {
+        const location = game.locationManager.getCurrentLocation();
+        if (location instanceof Cave) location.markChestOpened("boss");
+
+        if (slime) {
+            game.onNotification?.(t("g.notify.bossChestSlime", { fragments: companionFragments }), 6000);
+            return;
+        }
+
+        game.onNotification?.(
+            t("g.notify.bossChest", { companion: companionFragments, cosmetic: cosmeticFragments, ash }),
+            5000
+        );
+    };
+
+    game.networkManager.onBossWave = ({ x, z, radius, windup }) => {
+        game.bossProjectiles.addTelegraph(x, z, radius, windup, game.getGroundHeight(x, z));
+        game.onNotification?.(t("g.notify.bossWave"), Math.min(3000, windup));
     };
 
     game.networkManager.onCaveBossState = ({ defeated }) => {

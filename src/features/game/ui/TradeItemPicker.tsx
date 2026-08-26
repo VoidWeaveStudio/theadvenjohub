@@ -2,20 +2,36 @@
 "use client";
 
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
+import { COMPANIONS_BY_ID, type CompanionId } from "../data/companions";
+import type { CompanionStateData } from "../network/NetworkManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface TradeItemPickerProps {
     isOpen: boolean;
     onClose: () => void;
     placeables: Record<string, number>;
+    companions: CompanionStateData;
     onSelect: (itemId: string) => void;
 }
 
-export function TradeItemPicker({ isOpen, onClose, placeables, onSelect }: TradeItemPickerProps) {
+export function TradeItemPicker({ isOpen, onClose, placeables, companions, onSelect }: TradeItemPickerProps) {
     const { t } = useLanguage();
     if (!isOpen) return null;
 
-    const owned = PLACEABLE_ITEMS.filter((item) => item.tradeable && (placeables[item.id] || 0) > 0);
+    const placeableRows = PLACEABLE_ITEMS.filter((item) => item.tradeable && (placeables[item.id] || 0) > 0)
+        .map((item) => ({ id: item.id, icon: item.icon, name: item.name, quantity: placeables[item.id] }));
+
+    const companionRows = companions.owned
+        .map((stack) => ({ stack, definition: COMPANIONS_BY_ID.get(stack.itemId as CompanionId) }))
+        .filter((row) => row.definition?.source === "boss" && row.stack.quantity > 0)
+        .map((row) => ({
+            id: row.stack.itemId,
+            icon: row.definition!.icon,
+            name: row.definition!.nameKey,
+            quantity: row.stack.quantity,
+        }));
+
+    const owned = [...placeableRows, ...companionRows];
 
     return (
         <div
@@ -44,7 +60,7 @@ export function TradeItemPicker({ isOpen, onClose, placeables, onSelect }: Trade
                             >
                                 <span className="text-xl">{item.icon}</span>
                                 <span className="flex-1 text-[#E5E7EB] text-sm font-bold">{t(item.name)}</span>
-                                <span className="text-[#8B8F98] text-xs">x{placeables[item.id]}</span>
+                                <span className="text-[#8B8F98] text-xs">x{item.quantity}</span>
                             </button>
                         ))}
                     </div>

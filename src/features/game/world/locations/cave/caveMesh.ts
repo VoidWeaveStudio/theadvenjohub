@@ -9,10 +9,10 @@ export const WALL_SEGMENTS = 4;
 const COLLIDER_DEPTH = 3;
 
 export const CAVE_BOUNDS = {
-    minX: -120,
-    maxX: 108,
-    minZ: -336,
-    maxZ: 28,
+    minX: -330,
+    maxX: 330,
+    minZ: -330,
+    maxZ: 330,
 };
 
 export interface CaveOpenCell {
@@ -25,10 +25,17 @@ export interface CaveOpenCell {
     wallZ: number;
 }
 
+export const CAVE_CHUNK = 48;
+
+export interface CaveChunk {
+    x: number;
+    z: number;
+    radius: number;
+    geometry: THREE.BufferGeometry;
+}
+
 export interface CaveMeshResult {
-    floor: THREE.BufferGeometry;
-    ceiling: THREE.BufferGeometry;
-    walls: THREE.BufferGeometry;
+    chunks: CaveChunk[];
     colliders: THREE.Box3[];
     cells: CaveOpenCell[];
 }
@@ -113,12 +120,27 @@ export function buildCaveMesh(): CaveMeshResult {
         }
     }
 
-    const floorPositions: number[] = [];
-    const floorColors: number[] = [];
-    const ceilingPositions: number[] = [];
-    const ceilingColors: number[] = [];
-    const wallPositions: number[] = [];
-    const wallColors: number[] = [];
+    interface ChunkBuild {
+        ix: number;
+        iz: number;
+        positions: number[];
+        colors: number[];
+    }
+
+    const chunkBuilds = new Map<number, ChunkBuild>();
+
+    const chunkAt = (x: number, z: number): ChunkBuild => {
+        const cix = Math.floor(x / CAVE_CHUNK);
+        const ciz = Math.floor(z / CAVE_CHUNK);
+        const key = (cix << 12) ^ (ciz & 0xfff);
+
+        let build = chunkBuilds.get(key);
+        if (!build) {
+            build = { ix: cix, iz: ciz, positions: [], colors: [] };
+            chunkBuilds.set(key, build);
+        }
+        return build;
+    };
 
     const colliders: THREE.Box3[] = [];
     const cells: CaveOpenCell[] = [];
@@ -140,7 +162,10 @@ export function buildCaveMesh(): CaveMeshResult {
         rockColor(colors, cx, cy, cz, wet, shade);
     };
 
-    const wallPush = (ax: number, az: number, bx: number, bz: number) => {
+    const wallPush = (target: ChunkBuild, ax: number, az: number, bx: number, bz: number) => {
+        const wallPositions = target.positions;
+        const wallColors = target.colors;
+
         for (let s = 0; s < WALL_SEGMENTS; s++) {
             const t0 = s / WALL_SEGMENTS;
             const t1 = (s + 1) / WALL_SEGMENTS;
@@ -200,13 +225,17 @@ export function buildCaveMesh(): CaveMeshResult {
             const z0 = cz - half;
             const z1 = cz + half;
 
+            const chunk = chunkAt(cx, cz);
+            const chunkPositions = chunk.positions;
+            const chunkColors = chunk.colors;
+
             const h00 = caveFloorHeight(x0, z0);
             const h10 = caveFloorHeight(x1, z0);
             const h01 = caveFloorHeight(x0, z1);
             const h11 = caveFloorHeight(x1, z1);
 
-            pushTriangle(floorPositions, floorColors, x0, h00, z0, x0, h01, z1, x1, h10, z0, 0.35);
-            pushTriangle(floorPositions, floorColors, x1, h10, z0, x0, h01, z1, x1, h11, z1, 0.35);
+            pushTriangle(chunkPositions, chunkColors, x0, h00, z0, x0, h01, z1, x1, h10, z0, 0.35);
+            pushTriangle(chunkPositions, chunkColors, x1, h10, z0, x0, h01, z1, x1, h11, z1, 0.35);
 
             const ceiling = ceilings[slot];
             const c00 = caveCeilingHeight(x0, z0);
@@ -214,30 +243,30 @@ export function buildCaveMesh(): CaveMeshResult {
             const c01 = caveCeilingHeight(x0, z1);
             const c11 = caveCeilingHeight(x1, z1);
 
-            pushTriangle(ceilingPositions, ceilingColors, x0, c00, z0, x1, c10, z0, x0, c01, z1, 0);
-            pushTriangle(ceilingPositions, ceilingColors, x1, c10, z0, x1, c11, z1, x0, c01, z1, 0);
+            pushTriangle(chunkPositions, chunkColors, x0, c00, z0, x1, c10, z0, x0, c01, z1, 0);
+            pushTriangle(chunkPositions, chunkColors, x1, c10, z0, x1, c11, z1, x0, c01, z1, 0);
 
             let edge = false;
             let wallX = 0;
             let wallZ = 0;
 
             if (ix > 0 && !open[index(ix - 1, iz)]) {
-                wallPush(x0, z0, x0, z1);
+                wallPush(chunk, x0, z0, x0, z1);
                 edge = true;
                 wallX = -1;
             }
             if (ix < cols - 1 && !open[index(ix + 1, iz)]) {
-                wallPush(x1, z1, x1, z0);
+                wallPush(chunk, x1, z1, x1, z0);
                 edge = true;
                 wallX = 1;
             }
             if (iz > 0 && !open[index(ix, iz - 1)]) {
-                wallPush(x1, z0, x0, z0);
+                wallPush(chunk, x1, z0, x0, z0);
                 edge = true;
                 wallZ = -1;
             }
             if (iz < rows - 1 && !open[index(ix, iz + 1)]) {
-                wallPush(x0, z1, x1, z1);
+                wallPush(chunk, x0, z1, x1, z1);
                 edge = true;
                 wallZ = 1;
             }
@@ -246,20 +275,25 @@ export function buildCaveMesh(): CaveMeshResult {
         }
     }
 
-    const make = (positions: number[], colors: number[]) => {
+    const chunks: CaveChunk[] = [];
+
+    for (const build of chunkBuilds.values()) {
+        if (build.positions.length === 0) continue;
+
         const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-        geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(build.positions, 3));
+        geometry.setAttribute("color", new THREE.Float32BufferAttribute(build.colors, 3));
         geometry.computeVertexNormals();
         geometry.computeBoundingSphere();
-        return geometry;
-    };
 
-    return {
-        floor: make(floorPositions, floorColors),
-        ceiling: make(ceilingPositions, ceilingColors),
-        walls: make(wallPositions, wallColors),
-        colliders,
-        cells,
-    };
+        const sphere = geometry.boundingSphere;
+        chunks.push({
+            x: build.ix * CAVE_CHUNK + CAVE_CHUNK / 2,
+            z: build.iz * CAVE_CHUNK + CAVE_CHUNK / 2,
+            radius: sphere ? sphere.radius : CAVE_CHUNK,
+            geometry,
+        });
+    }
+
+    return { chunks, colliders, cells };
 }

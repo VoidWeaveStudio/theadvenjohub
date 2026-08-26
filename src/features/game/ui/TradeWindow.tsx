@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { X, ArrowLeftRight, Package, Loader2, CheckCircle2, XCircle } from "lucide-react";
-import { TradeSessionData } from "../network/NetworkManager";
+import { TradeSessionData, CompanionStateData } from "../network/NetworkManager";
 import { PLACEABLE_ITEMS } from "../data/placeableItems";
 import { TradeItemPicker } from "./TradeItemPicker";
 import { useLanguage } from "@/core/i18n/LanguageContext";
@@ -119,6 +119,7 @@ interface TradeWindowProps {
     session: TradeSessionData | null;
     myUserId: string;
     placeables: Record<string, number>;
+    companions: CompanionStateData;
     onSetOffer: (tradeId: string, itemId: string | null, priceTnj: number | null) => void;
     onSetReady: (tradeId: string, ready: boolean) => void;
     onSubmitPayment: (tradeId: string, signature: string) => void;
@@ -126,7 +127,7 @@ interface TradeWindowProps {
     onDismiss: () => void;
 }
 
-export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetReady, onSubmitPayment, onCancel, onDismiss }: TradeWindowProps) {
+export function TradeWindow({ session, myUserId, placeables, companions, onSetOffer, onSetReady, onSubmitPayment, onCancel, onDismiss }: TradeWindowProps) {
     const { t } = useLanguage();
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [pendingItemId, setPendingItemId] = useState<string | null>(null);
@@ -354,6 +355,7 @@ export function TradeWindow({ session, myUserId, placeables, onSetOffer, onSetRe
                 isOpen={isPickerOpen}
                 onClose={() => setIsPickerOpen(false)}
                 placeables={placeables}
+                companions={companions}
                 onSelect={(itemId) => setPendingItemId(itemId)}
             />
         </div>

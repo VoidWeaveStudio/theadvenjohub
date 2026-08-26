@@ -1601,6 +1601,7 @@ export function GameClient({ slug }: GameClientProps) {
       {dust2Me ? (
         <DefusalLoadout
           me={dust2Me}
+          touch={touchMode}
           onSelect={(slot) => gameRef.current?.switchDefusalSlot(slot)}
         />
       ) : touchMode ? null : (
@@ -1632,6 +1633,7 @@ export function GameClient({ slug }: GameClientProps) {
         mode={defusalMatch || grinderMatch ? "combat" : "world"}
         rotated={rotated}
         canBuy={grinderMatch ? grinderMatch.phase === "live" : defusalMatch?.phase === "freeze" || defusalMatch?.phase === "warmup"}
+        showSlots={!dust2Me}
         visible={touchMode && !loading && !chatExpanded && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null}
         onOpenWheel={() => openWheel("touch")}
       />
@@ -1851,6 +1853,7 @@ export function GameClient({ slug }: GameClientProps) {
         session={tradeSession}
         myUserId={gameRef.current?.session.userId ?? ""}
         placeables={inventory.placeables}
+        companions={companionState.companions}
         onSetOffer={(tradeId, itemId, priceTnj) => gameRef.current?.setTradeOffer(tradeId, itemId, priceTnj)}
         onSetReady={(tradeId, ready) => gameRef.current?.setTradeReady(tradeId, ready)}
         onSubmitPayment={(tradeId, signature) => gameRef.current?.submitTradePayment(tradeId, signature)}

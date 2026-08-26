@@ -1003,6 +1003,10 @@ export class NetworkManager {
   public onAccountCount?: (count: number) => void;
   public onShardState?: (state: ShardStateData) => void;
   public onCaveChestOpened?: (data: { chestId: string; ash: number }) => void;
+  public onCaveChestSpawn?: (data: { chestId: string; x: number; z: number }) => void;
+  public onBossWave?: (data: { enemyId: string; x: number; z: number; radius: number; windup: number }) => void;
+  public onCaveBossReward?: (data: { slime: boolean; companionFragments: number; cosmeticFragments: number; ash: number }) => void;
+  public onCompanionShot?: (data: { ownerId: string; enemyId: string; origin: number[]; target: number[]; travel: number }) => void;
   public onCaveBossState?: (data: { defeated: boolean }) => void;
   public onShardTeleport?: (data: { position: number[]; instance: number }) => void;
   public onSignState?: (signs: SignData[]) => void;
@@ -1357,6 +1361,35 @@ export class NetworkManager {
         break;
       case "caveChestOpened":
         this.onCaveChestOpened?.({ chestId: data.chestId, ash: data.ash ?? 0 });
+        break;
+      case "caveChestSpawn":
+        this.onCaveChestSpawn?.({ chestId: data.chestId, x: data.x ?? 0, z: data.z ?? 0 });
+        break;
+      case "companionShot":
+        this.onCompanionShot?.({
+          ownerId: data.ownerId,
+          enemyId: data.enemyId,
+          origin: data.origin ?? [0, 0, 0],
+          target: data.target ?? [0, 0, 0],
+          travel: data.travel ?? 200,
+        });
+        break;
+      case "caveBossReward":
+        this.onCaveBossReward?.({
+          slime: !!data.slime,
+          companionFragments: data.companionFragments ?? 0,
+          cosmeticFragments: data.cosmeticFragments ?? 0,
+          ash: data.ash ?? 0,
+        });
+        break;
+      case "bossWave":
+        this.onBossWave?.({
+          enemyId: data.enemyId,
+          x: data.x ?? 0,
+          z: data.z ?? 0,
+          radius: data.radius ?? 0,
+          windup: data.windup ?? 0,
+        });
         break;
       case "caveBossState":
         this.onCaveBossState?.({ defeated: !!data.defeated });

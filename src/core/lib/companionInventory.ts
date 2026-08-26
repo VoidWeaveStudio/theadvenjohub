@@ -10,6 +10,7 @@ import {
 } from "@/core/database/schema";
 import {
     COMPANIONS,
+    CRATE_COMPANIONS,
     DEFAULT_COMPANION_ID,
     FRAGMENTS_PER_CRATE,
     TOTAL_DROP_WEIGHT,
@@ -252,11 +253,11 @@ export async function combineFragments(
 
 export function rollCompanionSecure(): CompanionId {
     let ticket = randomInt(0, TOTAL_DROP_WEIGHT);
-    for (const entry of COMPANIONS) {
+    for (const entry of CRATE_COMPANIONS) {
         ticket -= entry.dropWeight;
         if (ticket < 0) return entry.id;
     }
-    return COMPANIONS[0].id;
+    return CRATE_COMPANIONS[0].id;
 }
 
 export async function openCrate(

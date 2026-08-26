@@ -11,6 +11,7 @@ import {
     CAVE_BOSS_ARENA,
     CAVE_CHESTS,
     CAVE_ENTRANCE,
+    CAVE_ENTRIES,
     CAVE_SECRETS,
     CAVE_SECRET_DOOR_HEIGHT,
     CAVE_SECRET_DOOR_WIDTH,
@@ -30,6 +31,10 @@ const DRIP_MIN_DELAY = 5;
 const DRIP_DELAY_SPREAD = 11;
 const DRIP_SOUND_COOLDOWN = 0.55;
 const DRIP_SOUND_CHANCE = 0.45;
+const CHUNK_DRAW_DISTANCE = 78;
+const LIGHT_ACTIVE_RANGE = 46;
+const VICTORY_PORTAL_OFFSET = 26;
+const AMBIENT_LIGHT_BUDGET = 2;
 const MOSS_TEAL = 0x2fd8c4;
 const MOSS_LIME = 0x8dff6a;
 const MOSS_VIOLET = 0x9a72ff;
@@ -59,6 +64,7 @@ export class Cave extends Location {
     public onSecretFound: ((secretId: string) => void) | null = null;
 
     private readonly bin: THREE.Object3D[] = [];
+    private readonly chunks: { mesh: THREE.Mesh; x: number; z: number; radius: number }[] = [];
     private staticColliders: THREE.Box3[] = [];
     private doors: SecretDoor[] = [];
     private chests: Chest[] = [];
@@ -76,8 +82,10 @@ export class Cave extends Location {
     private readonly drips: { x: number; y: number; z: number; velocity: number; floorY: number; splash: number; delay: number }[] = [];
     private moss: THREE.Points | null = null;
     private mossMaterial: THREE.ShaderMaterial | null = null;
-    private ambientLights: { light: THREE.PointLight; base: number; phase: number }[] = [];
+    private ambientLights: { light: THREE.PointLight; base: number; phase: number; wx: number; wz: number; distance: number }[] = [];
+    private lightOrder: number[] = [];
     private bossDefeated = false;
+    private victoryPortalsOpen = false;
     private time = 0;
 
     private activePrompt: string | null = null;
@@ -91,6 +99,9 @@ export class Cave extends Location {
     }
 
     create(_rm: ResourceManager) {
+        this.bossDefeated = false;
+        this.victoryPortalsOpen = false;
+
         this.scene.background = new THREE.Color(0x010204);
         this.scene.fog = new THREE.FogExp2(0x010204, 0.092);
 
@@ -106,29 +117,24 @@ export class Cave extends Location {
             flatShading: true,
         });
 
-        const floorMesh = new THREE.Mesh(mesh.floor, rockMaterial);
-        floorMesh.name = "cave-floor";
-        floorMesh.receiveShadow = true;
-        this.addStatic(floorMesh);
-
-        const ceilingMesh = new THREE.Mesh(mesh.ceiling, rockMaterial);
-        ceilingMesh.name = "cave-ceiling";
-        this.addStatic(ceilingMesh);
-
-        const wallMesh = new THREE.Mesh(mesh.walls, rockMaterial);
-        wallMesh.name = "cave-walls";
-        wallMesh.receiveShadow = true;
-        this.addStatic(wallMesh);
+        for (const chunk of mesh.chunks) {
+            const chunkMesh = new THREE.Mesh(chunk.geometry, rockMaterial);
+            chunkMesh.name = `cave-chunk-${chunk.x}-${chunk.z}`;
+            this.addStatic(chunkMesh);
+            this.chunks.push({ mesh: chunkMesh, x: chunk.x, z: chunk.z, radius: chunk.radius });
+        }
 
         this.createFormations(mesh.cells);
         this.createFungi(mesh.cells);
         this.createSecretDoors();
-        this.createChests();
+
         this.createEntrancePortal();
         this.createBossArenaMood();
         this.createLantern();
         this.createDust();
         this.createDrips();
+
+        this.lightOrder = this.ambientLights.map((_, index) => index);
 
         this.rebuildColliders();
     }
@@ -340,16 +346,20 @@ export class Cave extends Location {
         }
     }
 
-    private createChests() {
-        const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x3a2618, roughness: 0.86, metalness: 0.05, flatShading: true });
-        const ironMaterial = new THREE.MeshStandardMaterial({ color: 0x6a6f78, roughness: 0.45, metalness: 0.85, flatShading: true });
-        const runeMaterial = new THREE.MeshBasicMaterial({ color: 0x8fe9ff, toneMapped: false });
+    public spawnChest(chestId: string, x: number, z: number) {
+        if (this.chests.some((entry) => entry.id === chestId)) return;
 
-        for (const chest of CAVE_CHESTS) {
+        const chest = CAVE_CHESTS.find((entry) => entry.id === chestId);
+
+        {
+            const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x3a2618, roughness: 0.86, metalness: 0.05, flatShading: true });
+            const ironMaterial = new THREE.MeshStandardMaterial({ color: 0x6a6f78, roughness: 0.45, metalness: 0.85, flatShading: true });
+            const runeMaterial = new THREE.MeshBasicMaterial({ color: 0x8fe9ff, toneMapped: false });
+
             const group = new THREE.Group();
-            const floorY = caveFloorHeight(chest.x, chest.z);
-            group.position.set(chest.x, floorY, chest.z);
-            group.rotation.y = chest.rotation;
+            const floorY = caveFloorHeight(x, z);
+            group.position.set(x, floorY, z);
+            group.rotation.y = chest?.rotation ?? 0;
 
             const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.95, 1.1), woodMaterial);
             body.position.y = 0.48;
@@ -378,44 +388,42 @@ export class Cave extends Location {
             group.add(glow);
 
             this.addStatic(group);
-            this.chests.push({ id: chest.id, group, lid, glow, opened: false, lidAngle: 0 });
+            this.chests.push({ id: chestId, group, lid, glow, opened: false, lidAngle: 0 });
+            this.ambientLights.push({ light: glow, base: 1.5, phase: 0, wx: x, wz: z, distance: 0 });
+            this.lightOrder.push(this.ambientLights.length - 1);
         }
     }
 
     private createEntrancePortal() {
-        const floorY = caveFloorHeight(CAVE_ENTRANCE.x, CAVE_ENTRANCE.z);
-        const group = new THREE.Group();
-        group.position.set(CAVE_ENTRANCE.x, floorY, CAVE_ENTRANCE.z);
+        const ringGeometry = new THREE.TorusGeometry(2.6, 0.28, 8, 26);
+        const ringMaterial = new THREE.MeshStandardMaterial({ color: 0x4a4438, roughness: 0.8, metalness: 0.3, flatShading: true });
+        const veilGeometry = new THREE.CircleGeometry(2.4, 28);
+        const veilMaterial = new THREE.MeshBasicMaterial({ color: 0x6fd6ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, toneMapped: false });
 
-        const ring = new THREE.Mesh(
-            new THREE.TorusGeometry(2.6, 0.28, 8, 26),
-            new THREE.MeshStandardMaterial({ color: 0x4a4438, roughness: 0.8, metalness: 0.3, flatShading: true })
-        );
-        ring.position.y = 2.7;
-        group.add(ring);
+        for (const entry of CAVE_ENTRIES) {
+            const floorY = caveFloorHeight(entry.x, entry.z);
+            const group = new THREE.Group();
+            group.position.set(entry.x, floorY, entry.z);
 
-        const veil = new THREE.Mesh(
-            new THREE.CircleGeometry(2.4, 28),
-            new THREE.MeshBasicMaterial({ color: 0x6fd6ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, toneMapped: false })
-        );
-        veil.position.y = 2.7;
-        group.add(veil);
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            ring.position.y = 2.7;
+            group.add(ring);
 
-        const light = new THREE.PointLight(0x6fd6ff, 2.4, 26, 0);
-        light.position.y = 2.8;
-        group.add(light);
-        this.ambientLights.push({ light, base: 2.4, phase: 0 });
+            const veil = new THREE.Mesh(veilGeometry, veilMaterial);
+            veil.position.y = 2.7;
+            group.add(veil);
 
-        this.addStatic(group);
+            this.addStatic(group);
 
-        this.addPortal({
-            id: "cave-to-main",
-            position: new THREE.Vector3(CAVE_ENTRANCE.x, floorY, CAVE_ENTRANCE.z),
-            radius: 2.6,
-            targetLocationId: "main-world",
-            targetSpawnPoint: new THREE.Vector3(0, 0, 0),
-            mesh: group,
-        });
+            this.addPortal({
+                id: `cave-to-main-${entry.id}`,
+                position: new THREE.Vector3(entry.x, floorY, entry.z),
+                radius: 2.6,
+                targetLocationId: "main-world",
+                targetSpawnPoint: new THREE.Vector3(0, 0, 0),
+                mesh: group,
+            });
+        }
     }
 
     private createBossArenaMood() {
@@ -439,7 +447,7 @@ export class Cave extends Location {
             light.position.set(x, floorY + 2.4, z);
             light.castShadow = false;
             this.addStatic(light);
-            this.ambientLights.push({ light, base: 1.15, phase: i * 1.3 });
+            this.ambientLights.push({ light, base: 1.15, phase: i * 1.3, wx: x, wz: z, distance: 0 });
         }
     }
 
@@ -654,6 +662,57 @@ export class Cave extends Location {
 
     public setBossDefeated(defeated: boolean) {
         this.bossDefeated = defeated;
+        if (defeated) this.openVictoryPortals();
+    }
+
+    private openVictoryPortals() {
+        if (this.victoryPortalsOpen) return;
+        this.victoryPortalsOpen = true;
+
+        const exits: { id: string; target: string; angle: number; colour: number }[] = [
+            { id: "cave-victory-hall", target: "tower-main-hall", angle: Math.PI * 0.25, colour: 0xffd166 },
+            { id: "cave-victory-world", target: "main-world", angle: Math.PI * 1.25, colour: 0x6fd6ff },
+        ];
+
+        for (const exit of exits) {
+            const x = CAVE_BOSS_ARENA.x + Math.cos(exit.angle) * VICTORY_PORTAL_OFFSET;
+            const z = CAVE_BOSS_ARENA.z + Math.sin(exit.angle) * VICTORY_PORTAL_OFFSET;
+            const floorY = caveFloorHeight(x, z);
+
+            const group = new THREE.Group();
+            group.position.set(x, floorY, z);
+
+            const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(2.8, 0.3, 8, 26),
+                new THREE.MeshBasicMaterial({ color: exit.colour, toneMapped: false })
+            );
+            ring.position.y = 2.9;
+            group.add(ring);
+
+            const veil = new THREE.Mesh(
+                new THREE.CircleGeometry(2.6, 28),
+                new THREE.MeshBasicMaterial({
+                    color: exit.colour,
+                    transparent: true,
+                    opacity: 0.34,
+                    side: THREE.DoubleSide,
+                    toneMapped: false,
+                })
+            );
+            veil.position.y = 2.9;
+            group.add(veil);
+
+            this.addStatic(group);
+
+            this.addPortal({
+                id: exit.id,
+                position: new THREE.Vector3(x, floorY, z),
+                radius: 2.8,
+                targetLocationId: exit.target,
+                targetSpawnPoint: new THREE.Vector3(0, 0, 0),
+                mesh: group,
+            });
+        }
     }
 
     public markChestOpened(chestId: string) {
@@ -694,11 +753,37 @@ export class Cave extends Location {
         this.updateChests(delta);
         this.updateInteractions(playerPosition, isEPressed === true);
 
-        for (const entry of this.ambientLights) {
-            entry.light.intensity = entry.base * (0.72 + Math.sin(this.time * 2.6 + entry.phase) * 0.28);
-        }
+        this.updateChunkVisibility(playerPosition);
+        this.updateLightBudget(playerPosition);
 
         if (this.mossMaterial) this.mossMaterial.uniforms.uTime.value = this.time;
+    }
+
+    private updateChunkVisibility(playerPosition: THREE.Vector3) {
+        for (const chunk of this.chunks) {
+            const dx = chunk.x - playerPosition.x;
+            const dz = chunk.z - playerPosition.z;
+            chunk.mesh.visible = dx * dx + dz * dz < (CHUNK_DRAW_DISTANCE + chunk.radius) ** 2;
+        }
+    }
+
+    private updateLightBudget(playerPosition: THREE.Vector3) {
+        for (const entry of this.ambientLights) {
+            const dx = entry.wx - playerPosition.x;
+            const dz = entry.wz - playerPosition.z;
+            entry.distance = dx * dx + dz * dz;
+        }
+
+        this.lightOrder.sort((a, b) => this.ambientLights[a].distance - this.ambientLights[b].distance);
+
+        for (let rank = 0; rank < this.lightOrder.length; rank++) {
+            const entry = this.ambientLights[this.lightOrder[rank]];
+            const inRange = entry.distance < LIGHT_ACTIVE_RANGE * LIGHT_ACTIVE_RANGE;
+            entry.light.visible = rank < AMBIENT_LIGHT_BUDGET && inRange;
+            if (entry.light.visible) {
+                entry.light.intensity = entry.base * (0.72 + Math.sin(this.time * 2.6 + entry.phase) * 0.28);
+            }
+        }
     }
 
     private updateLantern(playerPosition: THREE.Vector3, delta: number) {
@@ -836,6 +921,8 @@ export class Cave extends Location {
         }
 
         this.bin.length = 0;
+        this.chunks.length = 0;
+        this.lightOrder = [];
         this.doors = [];
         this.chests = [];
         this.lantern = null;

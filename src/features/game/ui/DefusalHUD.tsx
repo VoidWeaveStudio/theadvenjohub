@@ -61,7 +61,10 @@ export function DefusalHUD({ match, localPlayerId }: DefusalHUDProps) {
 
     return (
         <>
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none select-none font-oxanium z-30">
+            <div
+                className="game-ui-scale-tc absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none select-none font-oxanium z-30"
+                style={{ marginTop: "var(--safe-top)" }}
+            >
                 <div className="flex items-stretch gap-px rounded-[10px] overflow-hidden border border-white/15 bg-[rgba(10,12,16,0.88)] backdrop-blur-md">
                     {teams.map((side) => {
                         const alive = match.roster.filter((entry) => entry.side === side && entry.alive).length;

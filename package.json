@@ -22,6 +22,8 @@
     "check:arsenal": "node scripts/sync-arsenal.js --check",
     "sync:dust2": "node scripts/sync-dust2.js",
     "check:dust2": "node scripts/sync-dust2.js --check",
+    "sync:cave": "node scripts/sync-cave.js",
+    "check:cave": "node scripts/sync-cave.js --check",
     "check:progression": "node scripts/check-progression-catalog.js && node scripts/sync-progression-catalog.js --check",
     "check:protocol": "node scripts/check-protocol.js",
     "check:types": "tsc --noEmit -p tsconfig.check.json",

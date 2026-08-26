@@ -10,6 +10,7 @@ export type HeldSlot = "primary" | "pistol" | "melee" | "grenade1" | "grenade2";
 
 interface DefusalLoadoutProps {
     me: BuyMenuEntry | null;
+    touch?: boolean;
     onSelect: (slot: HeldSlot) => void;
 }
 
@@ -29,13 +30,24 @@ function itemIdFor(me: BuyMenuEntry, slot: HeldSlot): string | null {
     return me.grenades?.[1] ?? null;
 }
 
-export function DefusalLoadout({ me, onSelect }: DefusalLoadoutProps) {
+export function DefusalLoadout({ me, touch = false, onSelect }: DefusalLoadoutProps) {
     const { t } = useLanguage();
 
     if (!me) return null;
 
     return (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 pointer-events-auto font-oxanium z-30">
+        <div
+            className={`absolute flex pointer-events-auto font-oxanium z-40 ${touch ? "gap-1" : "bottom-6 left-1/2 -translate-x-1/2 gap-2"}`}
+            style={
+                touch
+                    ? {
+                        left: "calc(160px + var(--safe-left))",
+                        right: "calc(296px + var(--safe-right))",
+                        bottom: "calc(8px + var(--safe-bottom))",
+                    }
+                    : undefined
+            }
+        >
             {SLOTS.map(({ slot, key }) => {
                 const itemId = itemIdFor(me, slot);
                 const item = itemId ? ARSENAL_BY_ID.get(itemId) : null;
@@ -48,24 +60,26 @@ export function DefusalLoadout({ me, onSelect }: DefusalLoadoutProps) {
                         onClick={() => !empty && onSelect(slot)}
                         disabled={empty}
                         title={item ? t(item.name) : undefined}
-                        className={`relative w-[92px] h-[58px] rounded-[8px] border-2 flex flex-col items-center justify-center transition-all ${empty
+                        className={`relative rounded-[8px] border-2 flex flex-col items-center justify-center transition-all ${touch ? "flex-1 min-w-0 h-[46px]" : "w-[92px] h-[58px]"} ${empty
                             ? "border-white/5 bg-[rgba(12,12,14,0.4)] opacity-35 cursor-default"
                             : held
                                 ? "border-[#D9A441] bg-[rgba(24,18,6,0.9)] scale-105 shadow-lg shadow-[#D9A441]/20"
                                 : "border-white/15 bg-[rgba(12,12,14,0.72)] hover:border-white/35"
                             }`}
                     >
-                        <span className="absolute top-1 left-1.5 text-[10px] font-black text-[#8B8F98]">{key}</span>
+                        <span className={`absolute font-black text-[#8B8F98] ${touch ? "top-0.5 left-1 text-[9px]" : "top-1 left-1.5 text-[10px]"}`}>{key}</span>
 
                         {item ? (
                             <>
-                                <WeaponIcon itemId={item.id} className={`w-11 h-5 ${held ? "text-[#FFD9A0]" : "text-[#9AA0A9]"}`} />
-                                <span className={`text-[9px] font-bold tracking-wide mt-0.5 truncate max-w-[84px] ${held ? "text-[#FFD9A0]" : "text-[#8B8F98]"}`}>
-                                    {t(item.name)}
-                                </span>
+                                <WeaponIcon itemId={item.id} className={`${touch ? "w-8 h-4" : "w-11 h-5"} ${held ? "text-[#FFD9A0]" : "text-[#9AA0A9]"}`} />
+                                {!touch && (
+                                    <span className={`text-[9px] font-bold tracking-wide mt-0.5 truncate max-w-[84px] ${held ? "text-[#FFD9A0]" : "text-[#8B8F98]"}`}>
+                                        {t(item.name)}
+                                    </span>
+                                )}
                             </>
                         ) : (
-                            <span className="text-[10px] text-[#4A4F58]">{t("g.loadout.empty")}</span>
+                            <span className="text-[10px] text-[#4A4F58]">{touch ? "—" : t("g.loadout.empty")}</span>
                         )}
                     </button>
                 );

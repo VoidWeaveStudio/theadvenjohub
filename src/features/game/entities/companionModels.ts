@@ -784,6 +784,75 @@ function createKraken(): CompanionInstance {
     };
 }
 
+function createSlime(): CompanionInstance {
+    const root = new THREE.Group();
+    root.name = "pet-slime";
+
+    const gelMat = new THREE.MeshStandardMaterial({
+        color: 0x7ce87c,
+        roughness: 0.24,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.72,
+        emissive: 0x2f7d3f,
+        emissiveIntensity: 0.5,
+    });
+
+    const body = new THREE.Group();
+    body.position.y = 0.26;
+    root.add(body);
+
+    const blob = new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 14), gelMat);
+    blob.scale.set(1.1, 0.82, 1.05);
+    blob.castShadow = true;
+    body.add(blob);
+
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xd8ffb0, toneMapped: false });
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), coreMat);
+    core.position.y = -0.02;
+    body.add(core);
+
+    const eyeMat = standard(0x141018, 0.2);
+    const eyes: THREE.Object3D[] = [];
+    for (const side of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), eyeMat);
+        eye.position.set(side * 0.11, 0.05, 0.24);
+        body.add(eye);
+        eyes.push(eye);
+    }
+
+    const dropMat = gelMat.clone();
+    const drops: THREE.Mesh[] = [];
+    for (let i = 0; i < 3; i++) {
+        const drop = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), dropMat);
+        drop.position.set((i - 1) * 0.16, -0.2, 0.06);
+        body.add(drop);
+        drops.push(drop);
+    }
+
+    return {
+        root,
+        update: (elapsed, speed01) => {
+            const squash = Math.sin(elapsed * 4.2 + speed01 * 3) * 0.12;
+            blob.scale.set(1.1 + squash * 0.6, 0.82 - squash, 1.05 + squash * 0.6);
+            body.position.y = 0.26 + Math.max(0, Math.sin(elapsed * 4.2)) * 0.09 * (0.4 + speed01);
+
+            core.rotation.y = elapsed * 1.3;
+            core.rotation.x = elapsed * 0.7;
+
+            for (let i = 0; i < drops.length; i++) {
+                const fall = (elapsed * 0.9 + i * 0.33) % 1;
+                drops[i].position.y = -0.2 - fall * 0.14;
+                (drops[i].material as THREE.MeshStandardMaterial).opacity = 0.72 * (1 - fall);
+            }
+
+            const blink = Math.sin(elapsed * 1.4) > 0.96 ? 0.15 : 1;
+            for (const eye of eyes) eye.scale.y = blink;
+        },
+        dispose: () => disposeTree(root),
+    };
+}
+
 const BUILDERS: Record<CompanionId, () => CompanionInstance> = {
     "pet-dog": createScrapHound,
     "pet-shiba": createShiba,
@@ -793,6 +862,7 @@ const BUILDERS: Record<CompanionId, () => CompanionInstance> = {
     "pet-rocket": createRocket,
     "pet-diamond": createDiamondHands,
     "pet-kraken": createKraken,
+    "pet-slime": createSlime,
 };
 
 export function createCompanion(id: CompanionId): CompanionInstance {

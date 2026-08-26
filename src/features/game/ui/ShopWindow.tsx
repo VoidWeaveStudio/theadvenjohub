@@ -398,7 +398,9 @@ export function ShopWindow({
                                         {buyButton(entry, quantityOf(companion.id))}
                                     </div>
                                 ) : (
-                                    <span className="text-[11px] text-[#6B7280]">{t("g.shop.crateOnly")}</span>
+                                    <span className="text-[11px] text-[#6B7280]">
+                                        {t(companion.source === "boss" ? "g.shop.bossOnly" : "g.shop.crateOnly")}
+                                    </span>
                                 )
                             }
                         />

@@ -20,6 +20,7 @@ interface TouchControlsProps {
   visible: boolean;
   rotated?: boolean;
   canBuy?: boolean;
+  showSlots?: boolean;
 }
 
 interface StickState {
@@ -72,6 +73,7 @@ export function TouchControls({
   visible,
   rotated = false,
   canBuy = false,
+  showSlots = true,
 }: TouchControlsProps) {
   const stickRef = useRef<StickState | null>(null);
   const lookRef = useRef<LookState | null>(null);
@@ -350,7 +352,7 @@ export function TouchControls({
           style={{ marginRight: "var(--safe-right)" }}
         >
           <TouchButton label={canBuy ? "🛒" : "⇄"} size="sm" onPress={() => tapKey("KeyB")} />
-          {COMBAT_SLOTS.map((slot) => (
+          {showSlots && COMBAT_SLOTS.map((slot) => (
             <TouchButton key={slot.code} label={slot.label} size="sm" onPress={() => tapKey(slot.code)} />
           ))}
         </div>
