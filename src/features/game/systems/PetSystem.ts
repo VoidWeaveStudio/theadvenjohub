@@ -18,10 +18,24 @@ const FOLLOW_TELEPORT_DISTANCE = 35;
 const PICKUP_REACH = 1.1;
 const PICKUP_RETRY_MS = 600;
 const BLOCKED_LOCATION_PREFIX = "event-";
+const REST_DELAY = 3.2;
+const OWNER_STILL_SPEED = 0.4;
+const REST_FACE_RATE = 2.5;
+const ATTACK_RANGE = 18;
+const ATTACK_STANDOFF = 3.2;
+const ATTACK_MIN_GAP = 2;
+const ATTACK_FLANK = 1.1;
+const ATTACK_LEASH = 9;
+const ATTACK_FACE_RATE = 9;
 
-type PetMode = "follow" | "fetch" | "return";
+type PetMode = "follow" | "fetch" | "return" | "attack";
 
 export interface FetchableDrop {
+    id: string;
+    position: THREE.Vector3;
+}
+
+export interface PetThreat {
     id: string;
     position: THREE.Vector3;
 }
@@ -56,6 +70,14 @@ export class PetSystem extends System {
 
     private readonly desired = new THREE.Vector3();
     private readonly toTarget = new THREE.Vector3();
+    private readonly ownerLast = new THREE.Vector3();
+    private readonly threatSpot = new THREE.Vector3();
+    private readonly muzzle = new THREE.Vector3();
+    private ownerTracked = false;
+    private restTimer = 0;
+    private combatUntil = 0;
+    private isInCombat: () => boolean = () => false;
+    private getThreat: (from: THREE.Vector3, range: number) => PetThreat | null = () => null;
 
     private tuning: PetTuning = {
         followDistance: FOLLOW_DISTANCE,
@@ -84,12 +106,32 @@ export class PetSystem extends System {
         network: NetworkManager,
         player: Player,
         getGroundHeight: (x: number, z: number) => number,
-        getFetchableDrops: () => FetchableDrop[]
+        getFetchableDrops: () => FetchableDrop[],
+        isInCombat?: () => boolean,
+        getThreat?: (from: THREE.Vector3, range: number) => PetThreat | null
     ) {
         this.network = network;
         this.player = player;
         this.getGroundHeight = getGroundHeight;
         this.getFetchableDrops = getFetchableDrops;
+        if (isInCombat) this.isInCombat = isInCombat;
+        if (getThreat) this.getThreat = getThreat;
+    }
+
+    public fireAt(target: THREE.Vector3): THREE.Vector3 | null {
+        if (!this.instance || !this.isActive()) return null;
+
+        const root = this.instance.root;
+        root.rotation.y = Math.atan2(target.x - root.position.x, target.z - root.position.z);
+        root.updateMatrixWorld(true);
+
+        this.instance.attack?.();
+        if (!this.instance.getMuzzle?.(this.muzzle)) return null;
+        return this.muzzle;
+    }
+
+    public setCombatUntil(until: number) {
+        this.combatUntil = until;
     }
 
     public setScene(scene: THREE.Scene) {
@@ -162,10 +204,13 @@ export class PetSystem extends System {
     private resetFetch() {
         this.mode = "follow";
         this.targetId = null;
+        this.restTimer = 0;
         this.lastPickupAt.clear();
     }
 
     private snapToPlayer() {
+        this.restTimer = 0;
+        this.ownerTracked = false;
         if (!this.instance) return;
         const p = this.player.mesh.position;
         const yaw = this.player.mesh.rotation.y;
@@ -216,6 +261,17 @@ export class PetSystem extends System {
             this.resetFetch();
         }
 
+        const combat = Date.now() < this.combatUntil || this.isInCombat();
+        const threat = combat ? this.getThreat(playerPos, ATTACK_RANGE) : null;
+
+        if (threat) {
+            this.mode = "attack";
+            this.targetId = null;
+            this.threatSpot.copy(threat.position);
+        } else if (this.mode === "attack") {
+            this.mode = "return";
+        }
+
         if (this.mode === "fetch") {
             const drops = this.getFetchableDrops();
             const current = this.targetId ? drops.find((d) => d.id === this.targetId) : undefined;
@@ -227,10 +283,14 @@ export class PetSystem extends System {
             }
         }
 
-        if (this.mode !== "fetch") this.pickTarget();
+        if (this.mode !== "fetch" && this.mode !== "attack" && !combat) this.pickTarget();
 
         let speed = this.tuning.walkSpeed;
-        if (this.mode === "fetch") {
+        if (this.mode === "attack") {
+            this.standoffFor(this.threatSpot, playerPos);
+            const gap = Math.hypot(this.desired.x - root.position.x, this.desired.z - root.position.z);
+            speed = gap > 0.6 ? this.tuning.runSpeed : 0;
+        } else if (this.mode === "fetch") {
             this.desired.copy(this.target);
             speed = this.tuning.runSpeed;
         } else {
@@ -252,8 +312,10 @@ export class PetSystem extends System {
             this.toTarget.normalize();
             root.position.x += this.toTarget.x * step;
             root.position.z += this.toTarget.z * step;
-            root.rotation.y = Math.atan2(this.toTarget.x, this.toTarget.z);
+            if (this.mode !== "attack") root.rotation.y = Math.atan2(this.toTarget.x, this.toTarget.z);
         }
+
+        if (this.mode === "attack") this.turnTowards(root, this.threatSpot, delta, ATTACK_FACE_RATE);
 
         root.position.y = this.getGroundHeight(root.position.x, root.position.z);
 
@@ -266,8 +328,66 @@ export class PetSystem extends System {
             }
         }
 
+        const ownerStill = this.ownerIsStill(playerPos, delta);
+        const parked = this.mode === "follow" && speed <= 0 && distance <= 0.6;
+
+        if (combat || !parked || !ownerStill) this.restTimer = 0;
+        else this.restTimer += delta;
+
+        const resting = this.restTimer >= REST_DELAY;
+        if (resting) this.turnTowards(root, playerPos, delta, REST_FACE_RATE);
+
         const speed01 = speed <= 0 ? 0 : Math.min(1, speed / this.tuning.runSpeed);
-        this.instance.update(this.elapsed, speed01, this.mode === "return");
+        this.instance.update(this.elapsed, speed01, this.mode === "return", { delta, combat, resting });
+    }
+
+    private ownerIsStill(playerPos: THREE.Vector3, delta: number): boolean {
+        const travelled = Math.hypot(playerPos.x - this.ownerLast.x, playerPos.z - this.ownerLast.z);
+        const tracked = this.ownerTracked;
+
+        this.ownerLast.copy(playerPos);
+        this.ownerTracked = true;
+
+        if (!tracked || delta <= 0) return false;
+        return travelled / delta < OWNER_STILL_SPEED;
+    }
+
+    private turnTowards(root: THREE.Group, point: THREE.Vector3, delta: number, rate: number) {
+        const target = Math.atan2(point.x - root.position.x, point.z - root.position.z);
+        let diff = target - root.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        root.rotation.y += diff * Math.min(1, delta * rate);
+    }
+
+    private standoffFor(threat: THREE.Vector3, playerPos: THREE.Vector3) {
+        let awayX = playerPos.x - threat.x;
+        let awayZ = playerPos.z - threat.z;
+        const span = Math.hypot(awayX, awayZ);
+
+        if (span < 0.001) {
+            awayX = 0;
+            awayZ = 1;
+        } else {
+            awayX /= span;
+            awayZ /= span;
+        }
+
+        const reach = Math.max(ATTACK_MIN_GAP, Math.min(span, ATTACK_STANDOFF));
+
+        this.desired.set(
+            threat.x + awayX * reach - awayZ * ATTACK_FLANK,
+            playerPos.y,
+            threat.z + awayZ * reach + awayX * ATTACK_FLANK
+        );
+
+        const strayX = this.desired.x - playerPos.x;
+        const strayZ = this.desired.z - playerPos.z;
+        const stray = Math.hypot(strayX, strayZ);
+        if (stray > ATTACK_LEASH) {
+            const scale = ATTACK_LEASH / stray;
+            this.desired.set(playerPos.x + strayX * scale, playerPos.y, playerPos.z + strayZ * scale);
+        }
     }
 
     public clear() {

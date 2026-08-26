@@ -665,6 +665,7 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onCombatState = (data) => {
+        game.petSystem.setCombatUntil(data.until);
         game.onCombatStateChange?.(data.until);
     };
 
@@ -842,14 +843,14 @@ export function registerNetworkHandlers(game: Game) {
         if (location instanceof Cave) location.spawnChest(chestId, x, z);
     };
 
-    game.networkManager.onCompanionShot = ({ origin, target, travel }) => {
-        game.bossProjectiles.addProjectile(
-            new THREE.Vector3(origin[0], origin[1], origin[2]),
-            new THREE.Vector3(target[0], target[1], target[2]),
-            travel,
-            0.5,
-            false
-        );
+    game.networkManager.onCompanionShot = ({ ownerId, origin, target, travel }) => {
+        const aim = new THREE.Vector3(target[0], target[1], target[2]);
+        const muzzle = ownerId === game.localPlayerNetId
+            ? game.petSystem.fireAt(aim)
+            : game.otherPlayers.get(ownerId)?.fireCompanionAt(aim) ?? null;
+
+        const from = muzzle ?? new THREE.Vector3(origin[0], origin[1], origin[2]);
+        game.bossProjectiles.addProjectile(from, aim, travel, 0.5, false, 0.45);
     };
 
     game.networkManager.onCaveBossReward = ({ slime, companionFragments, cosmeticFragments, ash }) => {

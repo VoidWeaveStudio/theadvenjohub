@@ -29,6 +29,22 @@ export class EnemySystem extends System {
         return this.enemies.get(id);
     }
 
+    public getNearestEnemy(from: THREE.Vector3, maxDistance: number): Enemy | null {
+        let best: Enemy | null = null;
+        let bestDist = maxDistance;
+
+        for (const enemy of this.enemies.values()) {
+            const dx = enemy.mesh.position.x - from.x;
+            const dz = enemy.mesh.position.z - from.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist >= bestDist) continue;
+            bestDist = dist;
+            best = enemy;
+        }
+
+        return best;
+    }
+
     public waitForInitialSync(timeoutMs = 3000): Promise<void> {
         return new Promise((resolve) => {
             let resolved = false;

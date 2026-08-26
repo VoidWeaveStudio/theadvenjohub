@@ -90,18 +90,19 @@ export class BossProjectiles {
         target: THREE.Vector3,
         travelMs: number,
         radius: number,
-        lobbed: boolean
+        lobbed: boolean,
+        globScale = 1
     ) {
         if (!this.scene) return;
 
         const mesh = new THREE.Mesh(this.globGeometry, this.globMaterial);
         mesh.position.copy(origin);
-        mesh.scale.setScalar(Math.max(0.6, radius * 0.32));
+        mesh.scale.setScalar(Math.max(0.6, radius * 0.32) * globScale);
         this.scene.add(mesh);
 
         const trail = new THREE.Mesh(this.trailGeometry, this.trailMaterial);
         trail.position.copy(origin);
-        trail.scale.setScalar(Math.max(1.1, radius * 0.62));
+        trail.scale.setScalar(Math.max(1.1, radius * 0.62) * globScale);
         this.scene.add(trail);
 
         this.projectiles.push({

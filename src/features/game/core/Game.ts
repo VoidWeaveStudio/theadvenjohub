@@ -229,6 +229,7 @@ export class Game {
     public damageAttackerId: string | null = null;
     public lastDamageTime: number = 0;
     public readonly DAMAGE_INDICATOR_DURATION = 2000;
+    public readonly PET_COMBAT_MEMORY = 3500;
 
     private isLoaded: boolean = false;
     private animationFrameId: number | null = null;
@@ -726,7 +727,17 @@ export class Game {
                     this.emitState(true);
                 };
                 this.lootSystem.init(currentLocation.scene, this.networkManager, this.player, getGroundHeight, this.interactionSystem);
-                this.petSystem.init(this.networkManager, this.player, getGroundHeight, () => this.lootSystem.getFetchableDrops());
+                this.petSystem.init(
+                    this.networkManager,
+                    this.player,
+                    getGroundHeight,
+                    () => this.lootSystem.getFetchableDrops(),
+                    () => this.isPlayerFighting(),
+                    (from, range) => {
+                        const enemy = this.enemySystem.getNearestEnemy(from, range);
+                        return enemy ? { id: enemy.id, position: enemy.mesh.position } : null;
+                    }
+                );
                 this.petTuner.init(this.inputManager, this.petSystem);
                 this.petTuner.onReadout = (text) => {
                     this.hudState.tunerReadout = text;
@@ -1849,6 +1860,11 @@ export class Game {
 
     public isSpawnProtected(): boolean {
         return this.spawnProtectionUntil > Date.now();
+    }
+
+    public isPlayerFighting(): boolean {
+        if (this.player.getIsShooting() && this.hudState.isWeaponEquipped) return true;
+        return Date.now() - this.lastDamageTime < this.PET_COMBAT_MEMORY;
     }
 
     private updateSpawnProtection() {

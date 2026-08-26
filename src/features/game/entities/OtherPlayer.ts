@@ -30,6 +30,7 @@ const COMPANION_FOLLOW_SIDE = 0.8;
 const COMPANION_WALK_SPEED = 5.5;
 const COMPANION_RUN_SPEED = 9;
 const COMPANION_TELEPORT_DISTANCE = 35;
+const COMPANION_REST_DELAY = 3.2;
 const HEAD_MAX_YAW = Math.PI * 0.5;
 const HEAD_MAX_PITCH = Math.PI * 0.4;
 const NECK_PITCH_SHARE = 0.6;
@@ -58,6 +59,8 @@ export class OtherPlayer extends Entity {
     private companionId: CompanionId | null = null;
     private companionScene: THREE.Scene | null = null;
     private companionElapsed = 0;
+    private companionRestTimer = 0;
+    private readonly companionMuzzle = new THREE.Vector3();
     private readonly companionDesired = new THREE.Vector3();
     private readonly companionStep = new THREE.Vector3();
     private hipsBone: THREE.Object3D | null = null;
@@ -405,6 +408,18 @@ export class OtherPlayer extends Entity {
         this.spawnCompanion();
     }
 
+    public fireCompanionAt(target: THREE.Vector3): THREE.Vector3 | null {
+        if (!this.companion || !this.companion.root.visible) return null;
+
+        const root = this.companion.root;
+        root.rotation.y = Math.atan2(target.x - root.position.x, target.z - root.position.z);
+        root.updateMatrixWorld(true);
+
+        this.companion.attack?.();
+        if (!this.companion.getMuzzle?.(this.companionMuzzle)) return null;
+        return this.companionMuzzle;
+    }
+
     public moveCompanionToScene(scene: THREE.Scene) {
         this.companionScene = scene;
         if (this.companion) scene.add(this.companion.root);
@@ -462,7 +477,18 @@ export class OtherPlayer extends Entity {
         }
 
         root.position.y = getGroundHeight ? getGroundHeight(root.position.x, root.position.z) : this.mesh.position.y;
-        this.companion.update(this.companionElapsed, speed <= 0 ? 0 : Math.min(1, speed / COMPANION_RUN_SPEED), false);
+
+        const combat = this.firing && this.weaponEquipped;
+        const parked = speed <= 0 && this.targetState === 'idle';
+        if (combat || !parked) this.companionRestTimer = 0;
+        else this.companionRestTimer += delta;
+
+        this.companion.update(
+            this.companionElapsed,
+            speed <= 0 ? 0 : Math.min(1, speed / COMPANION_RUN_SPEED),
+            false,
+            { delta, combat, resting: this.companionRestTimer >= COMPANION_REST_DELAY }
+        );
     }
 
     public setFactionIdentity(symbol: string | null, image: string | null, isFactionCreator: boolean) {
