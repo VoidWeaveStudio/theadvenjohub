@@ -51,6 +51,11 @@ import {
     AbilityMeterData,
     AbilityTriggerData,
     MemeResultData,
+    InfluenceStateData,
+    InfluenceGateData,
+    InfluenceCrystalPanelData,
+    InfluenceCaptureData,
+    InfluenceLootResultData,
 } from "../network/NetworkManager";
 import type { HUDState, DamageEvent } from "./Game";
 import type { BranchId } from "../data/progression";
@@ -101,6 +106,11 @@ export interface GameCallbacks {
     onOpenSolaUI?: () => void;
     onOpenAlfredoUI?: () => void;
     onOpenGateStewardUI?: () => void;
+    onInfluenceStateChange?: (state: InfluenceStateData | null) => void;
+    onOpenInfluenceGateUI?: (data: InfluenceGateData) => void;
+    onOpenInfluenceCrystalUI?: (data: InfluenceCrystalPanelData) => void;
+    onInfluenceCaptureChange?: (data: InfluenceCaptureData | null) => void;
+    onInfluenceLootResult?: (data: InfluenceLootResultData) => void;
     onOpenTournamentBoardUI?: () => void;
     onOpenPlayerBubbleUI?: (bubbleIndex: number) => void;
     onOpenFactionBubbleUI?: (factionId: string) => void;

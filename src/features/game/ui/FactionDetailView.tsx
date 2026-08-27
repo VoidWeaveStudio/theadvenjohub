@@ -2,9 +2,10 @@
 "use client";
 
 import { ArrowLeft, LogOut, UserPlus } from "lucide-react";
-import { FactionDetail } from "../network/NetworkManager";
+import { FactionDetail, InfluenceStateData } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { FactionRosterList } from "./FactionRosterList";
+import { FactionControlZones } from "./FactionControlZones";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
@@ -15,9 +16,10 @@ interface FactionDetailViewProps {
     onJoinFaction?: () => void;
     onBack?: () => void;
     getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
+    influence?: InfluenceStateData | null;
 }
 
-export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoinFaction, onBack, getNicknameMenuActions }: FactionDetailViewProps) {
+export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoinFaction, onBack, getNicknameMenuActions, influence }: FactionDetailViewProps) {
     const { t } = useLanguage();
     return (
         <div className="space-y-4">
@@ -32,6 +34,7 @@ export function FactionDetailView({ faction, isOwnFaction, onLeaveFaction, onJoi
             )}
 
             <FactionHeader faction={faction} />
+            <FactionControlZones factionId={faction.id} influence={influence ?? null} />
             <FactionRosterList faction={faction} getNicknameMenuActions={getNicknameMenuActions} />
 
             {isOwnFaction && onLeaveFaction && (

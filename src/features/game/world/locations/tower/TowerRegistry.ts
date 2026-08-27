@@ -8,6 +8,7 @@ import { EventsLobby } from "../events/EventsLobby";
 import { EVENT_LOCATIONS } from "../events/eventLocations";
 import { MainWorld } from "../main-world/MainWorld";
 import { TokenCanyon } from "../token-gates/TokenCanyon";
+import { InfluencePoint, INFLUENCE_LOCATION_ID } from "../influence/InfluencePoint";
 
 export interface TowerFloorConfig {
     id: string;
@@ -33,6 +34,13 @@ export const ALL_LOCATIONS: TowerFloorConfig[] = [
         name: 'Open World Canyon',
         locationClass: () => new TokenCanyon(),
         description: 'The vast desert expanse',
+        icon: 'arrow-up' as const
+    },
+    {
+        id: INFLUENCE_LOCATION_ID,
+        name: 'The Sundered Ward',
+        locationClass: () => new InfluencePoint(),
+        description: 'A city torn out of the world',
         icon: 'arrow-up' as const
     },
     ...EVENT_LOCATIONS.map((event) => ({

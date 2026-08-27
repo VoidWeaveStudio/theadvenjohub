@@ -60,6 +60,7 @@ export class Player extends Entity {
     private static readonly MAX_COLLISION_SUBSTEPS = 12;
 
     private maxRadius: number | null = null;
+    private boundsProbe: ((x: number, z: number) => boolean) | null = null;
     private bounds: { min: THREE.Vector3; max: THREE.Vector3 } | null = null;
 
     private animator = new CharacterAnimator();
@@ -206,6 +207,10 @@ export class Player extends Entity {
 
     public setMaxRadius(radius: number | null) {
         this.maxRadius = radius;
+    }
+
+    public setBoundsProbe(probe: ((x: number, z: number) => boolean) | null) {
+        this.boundsProbe = probe;
     }
 
     public setFlightZone(zone: FlightZone | null) {
@@ -422,6 +427,7 @@ export class Player extends Entity {
 
     private outOfBounds(x: number, z: number): boolean {
         if (this.maxRadius !== null && x * x + z * z > this.maxRadius * this.maxRadius) return true;
+        if (this.boundsProbe !== null && this.boundsProbe(x, z)) return true;
 
         if (this.bounds) {
             if (x < this.bounds.min.x || x > this.bounds.max.x) return true;

@@ -238,6 +238,7 @@ export type EnemyNetData = {
   maxHealth: number;
   alive: boolean;
   targetId: string | null;
+  state?: string | null;
 };
 
 export type WorldPortalStatus = "locked" | "active" | "cooldown";
@@ -813,6 +814,78 @@ export type MailEntry = {
   createdAt: string;
 };
 
+
+export type InfluenceStatus = "closed" | "open" | "collapsing";
+export type InfluencePhase = "sealed" | "claimable" | "owned" | "siege" | "collapse";
+export type InfluenceFeeCurrency = "none" | "ash" | "tnj" | "faction";
+
+export interface InfluenceStateData {
+    status: InfluenceStatus;
+    phase: InfluencePhase;
+    breach: { x: number; y: number; z: number; spawnedAt: number };
+    ownerFactionId: string | null;
+    ownerFactionName: string | null;
+    ownerFactionSymbol: string | null;
+    ownerFactionImage: string | null;
+    feeCurrency: InfluenceFeeCurrency;
+    feeAmount: number;
+    bossDefeated: boolean;
+    crystalHealth: number;
+    crystalMaxHealth: number;
+    nextSiegeAt: number;
+    occupants: number;
+    capacity: number;
+    siegeWave: number;
+}
+
+export interface InfluenceGateData {
+    allowed: boolean;
+    reason: string | null;
+    messageKey: string | null;
+    fee: { currency: InfluenceFeeCurrency; amount: number; tokenCa: string | null; wallet: string | null } | null;
+    factionId: string | null;
+    factionName: string | null;
+    ownerFactionId: string | null;
+    ownerFactionName: string | null;
+    occupants: number;
+    capacity: number;
+    phase: InfluencePhase;
+}
+
+export interface InfluenceCrystalPanelData {
+    inRange: boolean;
+    canCapture: boolean;
+    canManage: boolean;
+    bossDefeated: boolean;
+    ownerFactionId: string | null;
+    ownerFactionName: string | null;
+    feeCurrency: InfluenceFeeCurrency;
+    feeAmount: number;
+    crystalHealth: number;
+    crystalMaxHealth: number;
+    nextSiegeAt: number;
+    captureMs: number;
+}
+
+export interface InfluenceCaptureData {
+    factionId: string | null;
+    factionName: string | null;
+    playerId: string | null;
+    until: number;
+    duration: number;
+    contested: boolean;
+}
+
+export interface InfluenceLootResultData {
+    containerId: string;
+    tier: number;
+    ash: number;
+    companionFragments: number;
+    cosmeticFragments: number;
+    taken: number;
+    perVisit: number;
+}
+
 export class NetworkManager {
   private ws: WebSocket | null = null;
   private readonly baseReconnectInterval: number = 3000;
@@ -973,6 +1046,21 @@ export class NetworkManager {
   public onPartyInviteReceived?: (invite: PartyInviteData) => void;
   public onPartyInviteExpired?: (data: { fromId: string }) => void;
   public onPartyDisbanded?: (data: { reason: string }) => void;
+  public onInfluenceState?: (state: InfluenceStateData) => void;
+  public onInfluenceGate?: (data: InfluenceGateData) => void;
+  public onInfluenceCrystalPanel?: (data: InfluenceCrystalPanelData) => void;
+  public onInfluenceCapture?: (data: InfluenceCaptureData) => void;
+  public onInfluenceCaptured?: (data: { factionId: string; factionName: string }) => void;
+  public onInfluenceCrystal?: (data: { health: number; maxHealth: number; sourceId: string | null }) => void;
+  public onInfluenceWave?: (data: { wave: number; collapse: boolean; total: number }) => void;
+  public onInfluenceBossDown?: (data: { killerFactionId: string | null; killerFactionName: string | null }) => void;
+  public onInfluenceBossReward?: (data: { ash: number; killer: boolean }) => void;
+  public onInfluenceContainerOpened?: (data: { containerId: string; playerId: string }) => void;
+  public onInfluenceLootResult?: (data: InfluenceLootResultData) => void;
+  public onInfluenceLootState?: (data: { opened: string[]; taken: number; perVisit: number }) => void;
+  public onInfluenceToll?: (data: { amount: number; currency: string; payer: string }) => void;
+  public onWardAmbush?: (data: { enemyId: string; x: number; z: number }) => void;
+  public onWardBossPhase?: (data: { enemyId: string; phase: string; health: number; maxHealth: number }) => void;
   public onArenaState?: (state: ArenaStateData) => void;
   public onArenaStartResult?: (data: { ok: boolean; reason: string | null; cooldownUntil: number }) => void;
   public onDefusalState?: (data: DefusalStateData) => void;
@@ -1007,7 +1095,7 @@ export class NetworkManager {
   public onShardState?: (state: ShardStateData) => void;
   public onCaveChestOpened?: (data: { chestId: string; ash: number }) => void;
   public onCaveChestSpawn?: (data: { chestId: string; x: number; z: number }) => void;
-  public onBossWave?: (data: { enemyId: string; x: number; z: number; radius: number; windup: number }) => void;
+  public onBossWave?: (data: { enemyId: string; x: number; z: number; radius: number; windup: number; silent: boolean }) => void;
   public onCaveBossReward?: (data: { slime: boolean; companionFragments: number; cosmeticFragments: number; ash: number }) => void;
   public onCompanionShot?: (data: { ownerId: string; enemyId: string; origin: number[]; target: number[]; travel: number }) => void;
   public onCaveBossState?: (data: { defeated: boolean }) => void;
@@ -1175,6 +1263,39 @@ export class NetworkManager {
       this.ws.onerror = () => { };
     } catch (e) {
     }
+  }
+
+
+  public queryInfluenceGate() {
+    this.send({ type: "influenceGateQuery" });
+  }
+
+  public enterInfluence(tx?: string) {
+    this.send(tx ? { type: "influenceEnter", tx } : { type: "influenceEnter" });
+  }
+
+  public leaveInfluence() {
+    this.send({ type: "influenceLeave" });
+  }
+
+  public queryInfluenceCrystal() {
+    this.send({ type: "influenceCrystalQuery" });
+  }
+
+  public startInfluenceCapture() {
+    this.send({ type: "influenceCaptureStart" });
+  }
+
+  public stopInfluenceCapture() {
+    this.send({ type: "influenceCaptureStop" });
+  }
+
+  public setInfluenceFee(currency: InfluenceFeeCurrency, amount: number) {
+    this.send({ type: "influenceFee", currency, amount });
+  }
+
+  public lootInfluenceContainer(containerId: string) {
+    this.send({ type: "influenceLoot", containerId });
   }
 
   private scheduleReconnect(needsFreshToken: boolean) {
@@ -1392,6 +1513,7 @@ export class NetworkManager {
           z: data.z ?? 0,
           radius: data.radius ?? 0,
           windup: data.windup ?? 0,
+          silent: data.silent === true,
         });
         break;
       case "caveBossState":
@@ -1598,6 +1720,78 @@ export class NetworkManager {
         break;
       case "partyDisbanded":
         this.onPartyDisbanded?.({ reason: typeof data.reason === "string" ? data.reason : "disbanded" });
+        break;
+      case "influenceState":
+        this.onInfluenceState?.(data as InfluenceStateData);
+        break;
+      case "influenceGate":
+        this.onInfluenceGate?.(data as InfluenceGateData);
+        break;
+      case "influenceCrystalPanel":
+        this.onInfluenceCrystalPanel?.(data as InfluenceCrystalPanelData);
+        break;
+      case "influenceCapture":
+        this.onInfluenceCapture?.(data as InfluenceCaptureData);
+        break;
+      case "influenceCaptured":
+        this.onInfluenceCaptured?.({ factionId: data.factionId, factionName: data.factionName });
+        break;
+      case "influenceCrystal":
+        this.onInfluenceCrystal?.({
+          health: typeof data.health === "number" ? data.health : 0,
+          maxHealth: typeof data.maxHealth === "number" ? data.maxHealth : 1,
+          sourceId: typeof data.sourceId === "string" ? data.sourceId : null,
+        });
+        break;
+      case "influenceWave":
+        this.onInfluenceWave?.({
+          wave: typeof data.wave === "number" ? data.wave : 0,
+          collapse: data.collapse === true,
+          total: typeof data.total === "number" ? data.total : 0,
+        });
+        break;
+      case "influenceBossDown":
+        this.onInfluenceBossDown?.({
+          killerFactionId: typeof data.killerFactionId === "string" ? data.killerFactionId : null,
+          killerFactionName: typeof data.killerFactionName === "string" ? data.killerFactionName : null,
+        });
+        break;
+      case "influenceBossReward":
+        this.onInfluenceBossReward?.({
+          ash: typeof data.ash === "number" ? data.ash : 0,
+          killer: data.killer === true,
+        });
+        break;
+      case "influenceContainerOpened":
+        this.onInfluenceContainerOpened?.({ containerId: data.containerId, playerId: data.playerId });
+        break;
+      case "influenceLootResult":
+        this.onInfluenceLootResult?.(data as InfluenceLootResultData);
+        break;
+      case "influenceLootState":
+        this.onInfluenceLootState?.({
+          opened: Array.isArray(data.opened) ? data.opened : [],
+          taken: typeof data.taken === "number" ? data.taken : 0,
+          perVisit: typeof data.perVisit === "number" ? data.perVisit : 0,
+        });
+        break;
+      case "influenceToll":
+        this.onInfluenceToll?.({
+          amount: typeof data.amount === "number" ? data.amount : 0,
+          currency: typeof data.currency === "string" ? data.currency : "ash",
+          payer: typeof data.payer === "string" ? data.payer : "",
+        });
+        break;
+      case "wardAmbush":
+        this.onWardAmbush?.({ enemyId: data.enemyId, x: data.x, z: data.z });
+        break;
+      case "wardBossPhase":
+        this.onWardBossPhase?.({
+          enemyId: data.enemyId,
+          phase: typeof data.phase === "string" ? data.phase : "litany",
+          health: typeof data.health === "number" ? data.health : 0,
+          maxHealth: typeof data.maxHealth === "number" ? data.maxHealth : 1,
+        });
         break;
       case "arenaState":
         this.onArenaState?.({

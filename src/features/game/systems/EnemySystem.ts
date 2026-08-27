@@ -9,6 +9,7 @@ export class EnemySystem extends System {
     private network!: NetworkManager;
     private getGroundHeight!: (x: number, z: number) => number;
     private enemies: Map<string, Enemy> = new Map();
+    private readonly viewer = new THREE.Vector3();
     private pendingSyncResolvers: (() => void)[] = [];
 
     public onEnemySpawn?: (id: string, hitbox: THREE.Mesh) => void;
@@ -117,8 +118,17 @@ export class EnemySystem extends System {
         this.onEnemyEliminated?.(data.killerId);
     }
 
+    public handleWardBossPhase(data: { enemyId: string; phase: string }) {
+        this.enemies.get(data.enemyId)?.setWardPhase(data.phase);
+    }
+
+    public setViewer(position: THREE.Vector3) {
+        this.viewer.copy(position);
+    }
+
     public update(delta: number) {
         for (const enemy of this.enemies.values()) {
+            enemy.setViewerDistance(enemy.mesh.position.distanceTo(this.viewer));
             enemy.update(delta, this.getGroundHeight);
         }
     }

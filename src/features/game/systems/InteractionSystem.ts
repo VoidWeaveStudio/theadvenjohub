@@ -11,6 +11,10 @@ import { ARENA_ALTAR_INTERACTION, EVENT_DOORS_BY_ID, EVENT_DOOR_PREFIX, EVENT_EX
 import { TOURNAMENT_BOARD_INTERACTION } from "../world/locations/tower/floors/main-hall/layout";
 import { PERSONAL_ROOM_PREFIX } from "../world/locations/tower/floors/PersonalRoom";
 import { FACTION_ROOM_PREFIX } from "../world/locations/tower/floors/FactionGateRoom";
+import { BREACH_INTERACTION } from "../world/locations/tower/floors/basement/systems/BreachSystem";
+import { CRYSTAL_INTERACTION } from "../world/locations/influence/systems/InfluenceCrystalSystem";
+import { CITY_LOOT_PREFIX } from "../world/locations/influence/systems/CityLootSystem";
+import { INFLUENCE_EXIT_INTERACTION } from "../world/locations/influence/InfluencePoint";
 import { t } from "@/core/i18n";
 
 const ARENA_REVIVE_PREFIX = "arena-revive:";
@@ -62,6 +66,11 @@ export class InteractionSystem extends System {
     public onOpenStorage?: (pieceKey: string) => void;
     public onLootCrate?: (crateId: string) => void;
     public onOpenArena?: () => void;
+    public onOpenBreach?: () => void;
+    public onOpenInfluenceCrystal?: () => void;
+    public onLootInfluenceContainer?: (containerId: string) => void;
+    public onLeaveInfluence?: () => void;
+    public influenceLootedIds: Set<string> = new Set();
     public onEnterEventRoom?: (eventId: string) => void;
     public onLeaveEventRoom?: () => void;
     public onArenaRevive?: (targetId: string) => void;
@@ -247,6 +256,23 @@ export class InteractionSystem extends System {
             } else if (id === EVENT_EXIT_INTERACTION) {
                 this.onPrompt?.(t("g.prompt.eventsExit"));
                 if (isEJustPressed === true) this.onLeaveEventRoom?.();
+            } else if (id === BREACH_INTERACTION) {
+                this.onPrompt?.(t("g.prompt.breach"));
+                if (isEJustPressed === true) this.onOpenBreach?.();
+            } else if (id === CRYSTAL_INTERACTION) {
+                this.onPrompt?.(t("g.prompt.influenceCrystal"));
+                if (isEJustPressed === true) this.onOpenInfluenceCrystal?.();
+            } else if (id === INFLUENCE_EXIT_INTERACTION) {
+                this.onPrompt?.(t("g.prompt.influenceExit"));
+                if (isEJustPressed === true) this.onLeaveInfluence?.();
+            } else if (id?.startsWith(CITY_LOOT_PREFIX)) {
+                const containerId = id.slice(CITY_LOOT_PREFIX.length);
+                if (this.influenceLootedIds.has(containerId)) {
+                    this.onPrompt?.(t("g.prompt.influenceSearched"));
+                } else {
+                    this.onPrompt?.(t("g.prompt.influenceSearch"));
+                    if (isEJustPressed === true) this.onLootInfluenceContainer?.(containerId);
+                }
             } else if (id === ARENA_ALTAR_INTERACTION) {
                 this.onPrompt?.(t("g.prompt.lightCandle"));
                 if (isEJustPressed === true) this.onOpenArena?.();

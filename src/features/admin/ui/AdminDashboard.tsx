@@ -37,6 +37,7 @@ import { AdminShopPricesTable } from "./AdminShopPricesTable";
 import { AdminGamePricesTable } from "./AdminGamePricesTable";
 import { AdminMaintenanceToggle } from "./AdminMaintenanceToggle";
 import { AdminWorldPanel } from "./AdminWorldPanel";
+import { AdminInfluencePanel } from "./AdminInfluencePanel";
 import { AdminOverview } from "./AdminOverview";
 import { AdminPurchasesTable } from "./AdminPurchasesTable";
 import { AdminTableRef } from "./AdminTableRef";
@@ -134,6 +135,7 @@ export function AdminDashboard() {
     const gamePricesRef = useRef<AdminTableRef>(null);
     const maintenanceRef = useRef<AdminTableRef>(null);
     const worldRef = useRef<AdminTableRef>(null);
+    const influenceRef = useRef<AdminTableRef>(null);
     const purchasesRef = useRef<AdminTableRef>(null);
 
     const loadHeader = useCallback(async () => {
@@ -290,6 +292,7 @@ export function AdminDashboard() {
                     <>
                         <AdminMaintenanceToggle ref={maintenanceRef} />
                         <AdminWorldPanel ref={worldRef} />
+                        <AdminInfluencePanel ref={influenceRef} />
                         <Panel title="Basement pedestals">
                             <AdminBasementTable ref={basementRef} />
                         </Panel>

@@ -3,8 +3,10 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
 import { ResourceManager } from "./ResourceManager";
-import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData, RespawnTarget, TournamentSummary, TournamentActionPayload } from "../network/NetworkManager";
+import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData, RespawnTarget, TournamentSummary, TournamentActionPayload, InfluenceStateData, InfluenceCaptureData } from "../network/NetworkManager";
 import { BranchId } from "../data/progression";
+import { InfluencePoint } from "../world/locations/influence/InfluencePoint";
+import { factionTint } from "../utils/factionTint";
 import { Player } from "../entities/Player";
 import { OtherPlayer } from "../entities/OtherPlayer";
 import { SafeZone } from "../world/SafeZone";
@@ -205,6 +207,9 @@ export class Game {
     public gateFactionIds: string[] = [];
     public factionGates: FactionGateData[] = [];
     public caveBossDefeated: boolean = false;
+    public influenceState: InfluenceStateData | null = null;
+    public influenceCapture: InfluenceCaptureData | null = null;
+    public influenceLooted: Set<string> = new Set();
     public worldStatus: WorldStatusData | null = null;
     public leaderboard: LeaderboardEntry[] = [];
     public factionLeaderboard: FactionSummary[] = [];
@@ -510,6 +515,100 @@ export class Game {
         if (location instanceof Basement) {
             location.setOwnBubbleIndex(index);
         }
+    }
+
+    public applyInfluenceToLocation(location: InfluencePoint) {
+        const state = this.influenceState;
+        const owner = state?.ownerFactionId ? factionTint(state.ownerFactionId) : null;
+
+        location.setCrystalState(
+            state?.phase === "collapse" || (state?.crystalHealth ?? 1) <= 0
+                ? "broken"
+                : state?.phase === "siege"
+                    ? "siege"
+                    : state?.ownerFactionId
+                        ? "owned"
+                        : state?.bossDefeated
+                            ? "claimable"
+                            : "sealed",
+            owner,
+            state ? state.crystalHealth / Math.max(1, state.crystalMaxHealth) : 1
+        );
+
+        location.loot.setOpened(this.influenceLooted);
+        this.interactionSystem.influenceLootedIds = this.influenceLooted;
+    }
+
+    public applyInfluenceState(state: InfluenceStateData | null) {
+        const wasOpen = this.influenceState?.status === "open" || this.influenceState?.status === "collapsing";
+        const isOpen = state?.status === "open" || state?.status === "collapsing";
+
+        this.influenceState = state;
+        this.onInfluenceStateChange?.(state);
+
+        if (!wasOpen && isOpen && state) {
+            this.onNotification?.(t("g.notify.breachOpened"), 6000);
+
+            if (this.locationManager.getCurrentLocation() instanceof Basement) {
+                SoundManager.getInstance().playAt("breach-tear", {
+                    x: state.breach.x,
+                    z: state.breach.z,
+                    volume: 1,
+                    maxDistance: 900,
+                });
+            }
+        }
+
+        if (wasOpen && !isOpen) {
+            this.onNotification?.(t("g.notify.breachClosed"), 5000);
+        }
+
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof Basement) location.applyInfluenceState(state);
+        if (location instanceof InfluencePoint) this.applyInfluenceToLocation(location);
+    }
+
+    public applyInfluenceCapture(data: InfluenceCaptureData | null) {
+        this.influenceCapture = data && data.factionId ? data : null;
+        this.onInfluenceCaptureChange?.(this.influenceCapture);
+
+        const location = this.locationManager.getCurrentLocation();
+        if (!(location instanceof InfluencePoint)) return;
+
+        if (!this.influenceCapture) {
+            location.setCaptureProgress(0);
+            return;
+        }
+
+        const remaining = Math.max(0, this.influenceCapture.until - Date.now());
+        const duration = Math.max(1, this.influenceCapture.duration);
+        location.setCaptureProgress(1 - remaining / duration);
+    }
+
+    public applyInfluenceCrystalHealth(health: number, maxHealth: number) {
+        if (!this.influenceState) return;
+
+        this.influenceState = { ...this.influenceState, crystalHealth: health, crystalMaxHealth: maxHealth };
+        this.onInfluenceStateChange?.(this.influenceState);
+
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof InfluencePoint) this.applyInfluenceToLocation(location);
+    }
+
+    public markInfluenceContainerOpened(containerId: string) {
+        this.influenceLooted.add(containerId);
+        this.interactionSystem.influenceLootedIds = this.influenceLooted;
+
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof InfluencePoint) location.loot.open(containerId);
+    }
+
+    public resetInfluenceLoot(opened: string[]) {
+        this.influenceLooted = new Set(opened);
+        this.interactionSystem.influenceLootedIds = this.influenceLooted;
+
+        const location = this.locationManager.getCurrentLocation();
+        if (location instanceof InfluencePoint) location.loot.setOpened(this.influenceLooted);
     }
 
     public applyGalaxySpawn(location: Basement) {
@@ -877,6 +976,22 @@ export class Game {
                 this.interactionSystem.onOpenGateSteward = () => {
                     this.networkManager.sendNpcVisit("gate-steward");
                     this.onOpenGateStewardUI?.();
+                };
+
+                this.interactionSystem.onOpenBreach = () => {
+                    this.networkManager.queryInfluenceGate();
+                };
+
+                this.interactionSystem.onOpenInfluenceCrystal = () => {
+                    this.networkManager.queryInfluenceCrystal();
+                };
+
+                this.interactionSystem.onLootInfluenceContainer = (containerId) => {
+                    this.networkManager.lootInfluenceContainer(containerId);
+                };
+
+                this.interactionSystem.onLeaveInfluence = () => {
+                    this.networkManager.leaveInfluence();
                 };
 
                 this.interactionSystem.onOpenTournamentBoard = () => {
@@ -1363,6 +1478,7 @@ export class Game {
             this.updateAudioListener();
 
             perf.begin("combat");
+            this.enemySystem.setViewer(this.player.mesh.position);
             this.enemySystem.update(delta);
             this.bossProjectiles.update(delta);
 

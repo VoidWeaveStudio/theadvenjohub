@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Search, Trophy, Plus, Users, Sparkles, ClipboardList, Star, ChevronLeft, ScrollText, Flag } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FactionDetailView } from "./FactionDetailView";
+import type { InfluenceStateData } from "../network/NetworkManager";
 import { FactionMembersPanel } from "./FactionMembersPanel";
 import { FactionUpgradesPanel } from "./FactionUpgradesPanel";
 import { FactionTasksPanel } from "./FactionTasksPanel";
@@ -45,6 +46,7 @@ interface FactionsWindowProps {
     onRequestQuestManageList: (factionId: string) => void;
     onCreateQuest: (factionId: string, targetUrl: string, slotsTotal: number, rewardAsh: number) => void;
     getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
+    influence?: InfluenceStateData | null;
 }
 
 export function FactionsWindow({
@@ -76,6 +78,7 @@ export function FactionsWindow({
     onRequestQuestManageList,
     onCreateQuest,
     getNicknameMenuActions,
+    influence,
 }: FactionsWindowProps) {
     const view = useFactionsViewState({
         isOpen,
@@ -250,6 +253,7 @@ export function FactionsWindow({
                             onJoinFaction={() => onJoinFaction(viewedFaction.id)}
                             onBack={() => view.setViewingFactionId(null)}
                             getNicknameMenuActions={getNicknameMenuActions}
+                            influence={influence}
                         />
                     ) : (
                         <div className="space-y-3">
@@ -302,6 +306,7 @@ export function FactionsWindow({
                             onJoinFaction={() => onJoinFaction(viewedFaction.id)}
                             onBack={() => view.setViewingFactionId(null)}
                             getNicknameMenuActions={getNicknameMenuActions}
+                            influence={influence}
                         />
                     ) : (
                         <FactionLeaderboardList factions={factionLeaderboard} onSelect={view.setViewingFactionId} />

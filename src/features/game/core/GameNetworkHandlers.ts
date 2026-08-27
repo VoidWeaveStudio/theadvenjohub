@@ -519,6 +519,93 @@ export function registerNetworkHandlers(game: Game) {
         game.voiceChat.handleIceCandidate(data.fromId, data.candidate);
     };
 
+    game.networkManager.onInfluenceState = (state) => {
+        game.applyInfluenceState(state);
+    };
+
+    game.networkManager.onInfluenceGate = (data) => {
+        game.onOpenInfluenceGateUI?.(data);
+    };
+
+    game.networkManager.onInfluenceCrystalPanel = (data) => {
+        game.onOpenInfluenceCrystalUI?.(data);
+    };
+
+    game.networkManager.onInfluenceCapture = (data) => {
+        game.applyInfluenceCapture(data.factionId ? data : null);
+    };
+
+    game.networkManager.onInfluenceCaptured = (data) => {
+        game.onNotification?.(t("g.notify.influenceCaptured", { name: data.factionName }), 5000);
+    };
+
+    game.networkManager.onInfluenceCrystal = (data) => {
+        game.applyInfluenceCrystalHealth(data.health, data.maxHealth);
+    };
+
+    game.networkManager.onInfluenceWave = (data) => {
+        if (data.wave <= 0) return;
+        game.onNotification?.(
+            data.collapse
+                ? t("g.notify.influenceCollapseWave", { wave: data.wave })
+                : t("g.notify.influenceSiegeWave", { wave: data.wave, total: data.total }),
+            4000
+        );
+    };
+
+    game.networkManager.onInfluenceBossDown = (data) => {
+        game.onNotification?.(
+            data.killerFactionName
+                ? t("g.notify.influenceBossDownFaction", { name: data.killerFactionName })
+                : t("g.notify.influenceBossDown"),
+            6000
+        );
+    };
+
+    game.networkManager.onInfluenceBossReward = (data) => {
+        game.onNotification?.(t("g.notify.influenceBossReward", { ash: data.ash }), 5000);
+    };
+
+    game.networkManager.onInfluenceContainerOpened = (data) => {
+        game.markInfluenceContainerOpened(data.containerId);
+    };
+
+    game.networkManager.onInfluenceLootResult = (data) => {
+        game.markInfluenceContainerOpened(data.containerId);
+        game.onInfluenceLootResult?.(data);
+    };
+
+    game.networkManager.onInfluenceLootState = (data) => {
+        game.resetInfluenceLoot(data.opened);
+    };
+
+    game.networkManager.onInfluenceToll = (data) => {
+        game.onNotification?.(t("g.notify.influenceToll", { amount: data.amount, payer: data.payer }), 4000);
+    };
+
+    game.networkManager.onWardAmbush = (data) => {
+        game.enemySystem.handleEnemyAttack(data.enemyId);
+        SoundManager.getInstance().playAt("ward-shriek", {
+            x: data.x,
+            z: data.z,
+            volume: 0.85,
+            maxDistance: 60,
+        });
+    };
+
+    game.networkManager.onWardBossPhase = (data) => {
+        game.enemySystem.handleWardBossPhase(data);
+        SoundManager.getInstance().play("ward-bell");
+        const line = data.phase === "rapture"
+            ? t("g.notify.influencePhase.rapture")
+            : data.phase === "toll"
+                ? t("g.notify.influencePhase.toll")
+                : data.phase === "procession"
+                    ? t("g.notify.influencePhase.procession")
+                    : t("g.notify.influencePhase.litany");
+        game.onNotification?.(line, 4500);
+    };
+
     game.networkManager.onLocationSync = (data) => {
         void game.applyServerLocation(data);
     };
@@ -868,9 +955,16 @@ export function registerNetworkHandlers(game: Game) {
         );
     };
 
-    game.networkManager.onBossWave = ({ x, z, radius, windup }) => {
+    game.networkManager.onBossWave = ({ x, z, radius, windup, silent }) => {
         game.bossProjectiles.addTelegraph(x, z, radius, windup, game.getGroundHeight(x, z));
-        game.onNotification?.(t("g.notify.bossWave"), Math.min(3000, windup));
+        if (!silent) {
+            game.onNotification?.(t("g.notify.bossWave"), Math.min(3000, windup));
+            return;
+        }
+
+        window.setTimeout(() => {
+            SoundManager.getInstance().playAt("ward-slam", { x, z, volume: 0.9, maxDistance: 70 });
+        }, windup);
     };
 
     game.networkManager.onCaveBossState = ({ defeated }) => {

@@ -6,6 +6,7 @@ import { MainHall } from "../world/locations/tower/floors/main-hall/MainHall";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { FirstFloor } from "../world/locations/tower/floors/first-floor/FirstFloor";
 import { Cave } from "../world/locations/cave/Cave";
+import { InfluencePoint } from "../world/locations/influence/InfluencePoint";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
@@ -32,6 +33,7 @@ export function applyLocationMovementConfig(game: Game, location: Location) {
     game.cameraController.setCoverProbe(location.coverProbe ?? null);
     game.cameraController.setCameraBounds(location.cameraBounds ?? null);
     game.player.setMaxRadius(location.maxPlayerRadius ?? 9999);
+    game.player.setBoundsProbe(location.boundsProbe ?? null);
     game.player.setFlightZone(location.flightZone ?? null);
     game.shootingSystem.setLocation(location, location.collisionGrid ?? null);
 }
@@ -121,6 +123,9 @@ export function configureLocationSpecifics(game: Game, location: Location) {
             removed.forEach((obj) => game.interactionSystem.removeInteractable(obj));
             added.forEach((obj) => game.interactionSystem.registerInteractable(obj));
         };
+    } else if (location instanceof InfluencePoint) {
+        location.onOpenContainer = (containerId) => game.networkManager.lootInfluenceContainer(containerId);
+        game.applyInfluenceToLocation(location);
     } else if (location instanceof Cave) {
         location.onOpenChest = (chestId) => game.networkManager.sendCaveChestOpen(chestId);
         location.setBossDefeated(game.caveBossDefeated);

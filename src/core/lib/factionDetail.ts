@@ -132,6 +132,7 @@ export async function getMyFactionsList(userId: string, gameId: string) {
             description: faction.description,
             tokenCa: faction.tokenCa,
             founderWallet: faction.founderWallet,
+            founderUserId: faction.founderUserId,
             memberCount,
             rank,
             role: membership.role,

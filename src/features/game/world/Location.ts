@@ -51,6 +51,7 @@ export abstract class Location {
     public coverProbe?: CoverProbe;
     public waterProvider?: WaterProvider;
     public maxPlayerRadius?: number | null;
+    public boundsProbe?: (x: number, z: number) => boolean;
     public cameraBounds?: CameraBounds;
     public flightZone?: FlightZone;
 

@@ -12,8 +12,9 @@ import { FactionBubbleSystem } from "../token-gates/galaxy/FactionBubbleSystem";
 import { GALAXY, ORBIT_OMEGA, galaxyOrbitTime, playerBubbleOrbit, orbitPosition } from "../token-gates/galaxy/GalaxyLayout";
 import { StewardNpc } from "./systems/StewardNpc";
 import { DragonSystem } from "./systems/DragonSystem";
+import { BreachSystem } from "./systems/BreachSystem";
 import type { FlightZone, HeightProvider } from "../../../../Location";
-import type { FactionGateData } from "../../../../../network/NetworkManager";
+import type { FactionGateData, InfluenceStateData } from "../../../../../network/NetworkManager";
 
 export type { MemeToken } from "./systems/CoinFeedSystem";
 
@@ -42,6 +43,7 @@ export class Basement extends TowerFloor {
     public readonly factions: FactionBubbleSystem;
     public readonly steward: StewardNpc;
     public readonly dragon: DragonSystem;
+    public readonly breach: BreachSystem;
 
     public terrain: HeightProvider;
     public flightZone: FlightZone = {
@@ -80,6 +82,7 @@ export class Basement extends TowerFloor {
         this.factions = new FactionBubbleSystem(this.galaxyRoot);
         this.steward = new StewardNpc(this);
         this.dragon = new DragonSystem(this.scene, PLATFORM_RADIUS);
+        this.breach = new BreachSystem(this.scene);
 
         this.terrain = {
             getHeightAt: (x, z) => (Math.hypot(x, z) <= PLATFORM_RADIUS ? 0 : -100000),
@@ -124,6 +127,16 @@ export class Basement extends TowerFloor {
         this.bubbles.setViewportHeight(height);
     }
 
+    public applyInfluenceState(state: InfluenceStateData | null) {
+        const wasVisible = this.breach.group.visible;
+        this.breach.apply(state);
+
+        if (this.breach.group.visible !== wasVisible) {
+            if (this.breach.group.visible) this.onInteractablesChanged?.([this.breach.group], []);
+            else this.onInteractablesChanged?.([], [this.breach.group]);
+        }
+    }
+
     public handleFactionGatesState(list: FactionGateData[]) {
         this.factions.handleFactionGatesState(list);
     }
@@ -156,6 +169,8 @@ export class Basement extends TowerFloor {
         this.coinFeed.update(delta);
         this.steward.update(delta);
         this.dragon.update(delta);
+        this.breach.update(delta, playerPosition);
+        this.breach.faceCamera(playerPosition);
 
         Basement._local.copy(playerPosition).sub(this.galaxyRoot.position);
 
@@ -209,6 +224,7 @@ export class Basement extends TowerFloor {
     public override getInteractables(): THREE.Object3D[] {
         const interactables: THREE.Object3D[] = [];
         if (this.environment.basementCrystal) interactables.push(this.environment.basementCrystal);
+        if (this.breach.group.visible) interactables.push(this.breach.group);
         if (this.steward.group) interactables.push(this.steward.group);
         interactables.push(...this.columns.columns.map(c => c.group));
         interactables.push(...this.factions.getInteractables());
@@ -217,6 +233,7 @@ export class Basement extends TowerFloor {
     }
 
     dispose() {
+        this.breach.dispose();
         this.dragon.dispose();
         this.steward.dispose();
         this.factions.dispose();

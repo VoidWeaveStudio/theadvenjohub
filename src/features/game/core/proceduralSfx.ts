@@ -329,6 +329,53 @@ const SPECS: Record<string, SoundSpec> = {
         },
     },
 
+    "ward-groan": {
+        duration: 1.5,
+        build: (context) => {
+            toneVoice(context, { type: "sawtooth", frequency: 84, endFrequency: 58, peak: 0.3, attack: 0.22, decay: 1.1 });
+            toneVoice(context, { type: "sine", frequency: 126, endFrequency: 74, peak: 0.16, attack: 0.3, decay: 1, detune: 14 });
+            noiseVoice(context, { duration: 1.4, seed: 3121, peak: 0.14, attack: 0.25, decay: 1.05, type: "bandpass", frequency: 420, endFrequency: 180, q: 2.4 });
+        },
+    },
+
+    "ward-shriek": {
+        duration: 0.9,
+        build: (context) => {
+            toneVoice(context, { type: "sawtooth", frequency: 340, endFrequency: 1240, peak: 0.5, attack: 0.02, decay: 0.5 });
+            toneVoice(context, { type: "square", frequency: 510, endFrequency: 1860, peak: 0.2, attack: 0.03, decay: 0.42, detune: 22 });
+            noiseVoice(context, { duration: 0.8, seed: 3229, peak: 0.34, attack: 0.01, decay: 0.6, type: "bandpass", frequency: 900, endFrequency: 3200, q: 1.8 });
+        },
+    },
+
+    "ward-slam": {
+        duration: 1.1,
+        build: (context) => {
+            toneVoice(context, { type: "sine", frequency: 92, endFrequency: 30, peak: 0.8, attack: 0.004, decay: 0.6 });
+            noiseVoice(context, { duration: 0.9, seed: 3331, peak: 0.6, attack: 0.002, decay: 0.55, type: "lowpass", frequency: 1400, endFrequency: 110, q: 1 });
+            noiseVoice(context, { duration: 0.7, seed: 3413, peak: 0.24, attack: 0.03, decay: 0.6, type: "highpass", frequency: 2200, q: 0.7 });
+        },
+    },
+
+    "ward-bell": {
+        duration: 2.6,
+        build: (context) => {
+            toneVoice(context, { type: "sine", frequency: 196, peak: 0.5, attack: 0.006, decay: 2.3 });
+            toneVoice(context, { type: "sine", frequency: 293, peak: 0.28, attack: 0.008, decay: 1.9, detune: 6 });
+            toneVoice(context, { type: "sine", frequency: 522, peak: 0.16, attack: 0.006, decay: 1.2, detune: -8 });
+            toneVoice(context, { type: "triangle", frequency: 98, peak: 0.3, attack: 0.02, decay: 2.4 });
+            noiseVoice(context, { duration: 0.5, seed: 3517, peak: 0.2, attack: 0.002, decay: 0.35, type: "bandpass", frequency: 2600, q: 2.6 });
+        },
+    },
+
+    "breach-tear": {
+        duration: 2.2,
+        build: (context) => {
+            noiseVoice(context, { duration: 2.1, seed: 3607, peak: 0.3, attack: 0.5, decay: 1.5, type: "bandpass", frequency: 220, endFrequency: 1500, q: 1.4 });
+            toneVoice(context, { type: "sawtooth", frequency: 44, endFrequency: 132, peak: 0.34, attack: 0.7, decay: 1.4 });
+            toneVoice(context, { type: "sine", frequency: 660, endFrequency: 180, peak: 0.14, attack: 0.4, decay: 1.6, detune: 18 });
+        },
+    },
+
     "ui-error": {
         duration: 0.4,
         build: (context) => {

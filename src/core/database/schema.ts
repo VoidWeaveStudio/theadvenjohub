@@ -905,6 +905,26 @@ export const tournamentLikes = pgTable("tournament_likes", {
 ]);
 
 
+export const influenceEntries = pgTable("influence_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  wallet: varchar("wallet", { length: 44 }).notNull(),
+  factionId: uuid("faction_id").references(() => factions.id, { onDelete: "set null" }),
+  recipientWallet: varchar("recipient_wallet", { length: 44 }),
+  currency: varchar("currency", { length: 8 }).notNull(),
+  amount: numeric("amount", { precision: 20, scale: 6 }).default("0").notNull(),
+  tx: varchar("tx", { length: 88 }),
+  credited: boolean("credited").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_influence_entries_game_created").on(table.gameId, table.createdAt),
+  index("idx_influence_entries_faction").on(table.factionId),
+  index("idx_influence_entries_user").on(table.userId),
+  uniqueIndex("idx_influence_entries_tx").on(table.tx),
+]);
+
+
 export const usersRelations = relations(users, ({ many }) => ({
   licenses: many(gameLicenses),
   purchases: many(marketplacePurchases),
@@ -1293,3 +1313,6 @@ export type NewTournamentEntry = typeof tournamentEntries.$inferInsert;
 
 export type TournamentLike = typeof tournamentLikes.$inferSelect;
 export type NewTournamentLike = typeof tournamentLikes.$inferInsert;
+
+export type InfluenceEntry = typeof influenceEntries.$inferSelect;
+export type NewInfluenceEntry = typeof influenceEntries.$inferInsert;

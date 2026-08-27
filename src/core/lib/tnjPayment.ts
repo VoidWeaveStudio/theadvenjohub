@@ -22,6 +22,7 @@ export interface TnjPaymentVerifyParams {
 
 export interface TnjTransferVerifyParams extends TnjPaymentVerifyParams {
   expectedRecipient: string;
+  mint?: string;
 }
 
 export type TnjPaymentVerifyResult =
@@ -37,12 +38,13 @@ export async function verifyTnjTransfer(
     expectedAmountTnj,
     expectedSigner,
     expectedRecipient,
+    mint,
     maxAgeSeconds = DEFAULT_MAX_PAYMENT_AGE_SECONDS,
   } = params;
 
-  const tokenMint = process.env.TNJ_TOKEN_MINT_ADDRESS?.trim();
+  const tokenMint = mint?.trim() || process.env.TNJ_TOKEN_MINT_ADDRESS?.trim();
   const rpcUrl = process.env.SOLANA_RPC_PRIVATE?.trim();
-  const decimals = Number.parseInt(process.env.TNJ_DECIMALS || "6", 10);
+  const fallbackDecimals = Number.parseInt(process.env.TNJ_DECIMALS || "6", 10);
 
   if (!expectedRecipient || !tokenMint || !rpcUrl) {
     console.error("[tnjPayment] Missing config:", { expectedRecipient, tokenMint, hasRpcUrl: !!rpcUrl });
@@ -110,7 +112,7 @@ export async function verifyTnjTransfer(
     };
   }
 
-  const expectedAmount = BigInt(expectedAmountTnj) * (10n ** BigInt(decimals));
+  const expectedAmountFallback = BigInt(Math.round(expectedAmountTnj)) * (10n ** BigInt(fallbackDecimals));
   let transferFound = false;
 
   if (tx.meta?.postTokenBalances) {
@@ -119,6 +121,10 @@ export async function verifyTnjTransfer(
       const isRecipientOwner = tb.owner === expectedRecipient;
 
       if (isCorrectMint && isRecipientOwner) {
+        const decimals = typeof tb.uiTokenAmount?.decimals === "number"
+          ? tb.uiTokenAmount.decimals
+          : fallbackDecimals;
+        const expectedAmount = BigInt(Math.round(expectedAmountTnj)) * (10n ** BigInt(decimals));
         const postAmount = BigInt(tb.uiTokenAmount?.amount || "0");
         const preTB = tx.meta?.preTokenBalances?.find((p: any) =>
           p.mint === tokenMint && p.owner === expectedRecipient
@@ -147,7 +153,7 @@ export async function verifyTnjTransfer(
             const transferMint = parsed.info.mint;
             const destination = parsed.info.destination;
 
-            if (transferMint === tokenMint && transferAmount >= expectedAmount) {
+            if (transferMint === tokenMint && transferAmount >= expectedAmountFallback) {
               const expectedRecipientATA = await getAssociatedTokenAddress(
                 new PublicKey(tokenMint),
                 new PublicKey(expectedRecipient),
@@ -170,7 +176,7 @@ export async function verifyTnjTransfer(
   if (!transferFound) {
     return {
       ok: false, error: "transfer_verification_failed", status: 400,
-      details: { expected: expectedAmount.toString(), hint: "Send tokens to the recipient's ATA (not wallet directly). Check mint matches." },
+      details: { expected: expectedAmountFallback.toString(), hint: "Send tokens to the recipient's ATA (not wallet directly). Check mint matches." },
     };
   }
 

@@ -39,11 +39,14 @@ import { GateStewardPanel, GateFactionResult } from "./ui/GateStewardPanel";
 import { BubbleInfoPanel } from "./ui/BubbleInfoPanel";
 import { FactionBubblePanel } from "./ui/FactionBubblePanel";
 import { RoomPortalPanel } from "./ui/RoomPortalPanel";
+import { InfluenceGatePanel } from "./ui/InfluenceGatePanel";
+import { InfluenceCrystalPanel } from "./ui/InfluenceCrystalPanel";
+import { InfluenceHud } from "./ui/InfluenceHud";
 import { BuildEditorPanel } from "./ui/BuildEditorPanel";
 import type { BuildSessionState } from "./world/building/BuildSession";
 import { RoomConsolePanel } from "./ui/RoomConsolePanel";
 import { BubbleMapPanel } from "./ui/BubbleMapPanel";
-import type { FactionGateData, ShardStateData, DefusalStateData, DefusalQueueData, GrinderStateData } from "./network/NetworkManager";
+import type { FactionGateData, ShardStateData, DefusalStateData, DefusalQueueData, GrinderStateData, InfluenceGateData, InfluenceCrystalPanelData, InfluenceStateData, InfluenceCaptureData } from "./network/NetworkManager";
 import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
 import { gameFetch, keepSessionAlive } from "./utils/gameFetch";
 import { QuestTracker } from "./ui/QuestTracker";
@@ -220,6 +223,10 @@ export function GameClient({ slug }: GameClientProps) {
   const [factionGates, setFactionGates] = useState<FactionGateData[]>([]);
   const [factionBubbleId, setFactionBubbleId] = useState<string | null>(null);
   const [isRoomPortalOpen, setIsRoomPortalOpen] = useState(false);
+  const [influenceGate, setInfluenceGate] = useState<InfluenceGateData | null>(null);
+  const [influenceCrystal, setInfluenceCrystal] = useState<InfluenceCrystalPanelData | null>(null);
+  const [influenceState, setInfluenceState] = useState<InfluenceStateData | null>(null);
+  const [influenceCapture, setInfluenceCapture] = useState<InfluenceCaptureData | null>(null);
   const [buildEditorState, setBuildEditorState] = useState<BuildSessionState | null>(null);
   const [isPosterPaintOpen, setIsPosterPaintOpen] = useState(false);
   const [paintTarget, setPaintTarget] = useState<{ key: string; aspect: number; url: string | null } | null>(null);
@@ -661,6 +668,24 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           setIsRoomPortalOpen(true);
           document.exitPointerLock();
+        };
+        game.onOpenInfluenceGateUI = (data) => {
+          if (cancelled) return;
+          setInfluenceGate(data);
+          document.exitPointerLock();
+        };
+        game.onOpenInfluenceCrystalUI = (data) => {
+          if (cancelled) return;
+          setInfluenceCrystal(data);
+          document.exitPointerLock();
+        };
+        game.onInfluenceStateChange = (data) => {
+          if (cancelled) return;
+          setInfluenceState(data);
+        };
+        game.onInfluenceCaptureChange = (data) => {
+          if (cancelled) return;
+          setInfluenceCapture(data);
         };
         game.onOpenRoomConsoleUI = (consoleFactionId) => {
           if (cancelled) return;
@@ -1740,6 +1765,7 @@ export function GameClient({ slug }: GameClientProps) {
       />
 
       <FactionsWindow
+        influence={influenceState}
         isOpen={activeTopWindow === "factions"}
         onClose={() => setActiveTopWindow(null)}
         myWallet={gameRef.current?.session.wallet ?? ""}
@@ -2173,6 +2199,25 @@ export function GameClient({ slug }: GameClientProps) {
           else await session.paintSelection(image);
         }}
         onNotification={notifications.addNotification}
+      />
+
+      <InfluenceGatePanel
+        data={influenceGate}
+        onClose={() => setInfluenceGate(null)}
+        onEnter={(tx) => gameRef.current?.networkManager.enterInfluence(tx)}
+      />
+
+      <InfluenceCrystalPanel
+        data={influenceCrystal}
+        onClose={() => setInfluenceCrystal(null)}
+        onCapture={() => gameRef.current?.networkManager.startInfluenceCapture()}
+        onSetFee={(currency, amount) => gameRef.current?.networkManager.setInfluenceFee(currency, amount)}
+      />
+
+      <InfluenceHud
+        locationId={currentLocationId}
+        state={influenceState}
+        capture={influenceCapture}
       />
 
       <RoomPortalPanel
