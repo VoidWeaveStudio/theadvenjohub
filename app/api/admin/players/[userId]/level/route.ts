@@ -1,12 +1,9 @@
 // app/api/admin/players/[userId]/level/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
-import { db } from "@/core/database";
-import { gameCharacterProgression, gameProgress } from "@/core/database/schema";
-import { eq } from "drizzle-orm";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
+import { applyLiveOps } from "@/core/lib/adminLiveSync";
 import { MAX_LEVEL, skillPointsForLevel, totalXpForLevel } from "@/features/game/data/progression";
-import { queueAdminGameCommand } from "@/core/lib/adminGameCommands";
 
 export async function PATCH(
     req: NextRequest,
@@ -28,35 +25,11 @@ export async function PATCH(
         if (sigError) return sigError;
 
         const totalXp = totalXpForLevel(level);
-        const existing = await db.query.gameCharacterProgression.findFirst({
-            where: eq(gameCharacterProgression.userId, userId),
-        });
-
-        if (existing) {
-            await db
-                .update(gameCharacterProgression)
-                .set({ level, totalXp, updatedAt: new Date() })
-                .where(eq(gameCharacterProgression.id, existing.id));
-        } else {
-            const progress = await db.query.gameProgress.findFirst({
-                where: eq(gameProgress.userId, userId),
-            });
-            if (!progress) {
-                return NextResponse.json({ error: "no_progress" }, { status: 404 });
-            }
-
-            await db.insert(gameCharacterProgression).values({
-                userId,
-                gameId: progress.gameId,
-                level,
-                totalXp,
-            });
-        }
-
-        await queueAdminGameCommand({ type: "setLevel", userId, level, totalXp });
+        const { mode } = await applyLiveOps(userId, [{ kind: "progressionSet", level, totalXp }]);
 
         return NextResponse.json({
             success: true,
+            mode,
             level,
             totalXp,
             skillPoints: skillPointsForLevel(level),

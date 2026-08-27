@@ -2,6 +2,7 @@
 export { en } from "./en";
 export { ru } from "./ru";
 export { zh } from "./zh";
+export { zhTw } from "./zh-tw";
 export { ko } from "./ko";
 export { ja } from "./ja";
 export { es } from "./es";

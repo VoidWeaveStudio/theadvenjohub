@@ -1,11 +1,8 @@
 // app/api/admin/players/[userId]/inventory/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
-import { db } from "@/core/database";
-import { gameInventories } from "@/core/database/schema";
-import { and, eq } from "drizzle-orm";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
-import { queueAdminGameCommand } from "@/core/lib/adminGameCommands";
+import { applyLiveOps } from "@/core/lib/adminLiveSync";
 
 export async function PATCH(
     req: NextRequest,
@@ -19,25 +16,16 @@ export async function PATCH(
         const body = await req.json();
         const slot = Number(body.slot);
 
-        if (!Number.isInteger(slot)) {
+        if (!Number.isInteger(slot) || slot < 0) {
             return NextResponse.json({ error: "invalid_slot" }, { status: 400 });
         }
 
         const sigError = await verifyAdminAction(req, body, "removeInventoryItem", `${userId}:${slot}`);
         if (sigError) return sigError;
 
-        const [deleted] = await db
-            .delete(gameInventories)
-            .where(and(eq(gameInventories.userId, userId), eq(gameInventories.slot, slot)))
-            .returning();
+        const { mode } = await applyLiveOps(userId, [{ kind: "inventoryRemoveSlot", slot }]);
 
-        if (!deleted) {
-            return NextResponse.json({ error: "not_found" }, { status: 404 });
-        }
-
-        await queueAdminGameCommand({ type: "removeInventorySlot", userId, slot });
-
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, mode });
     } catch (error) {
         console.error("[admin/players/:userId/inventory] Error:", error);
         return NextResponse.json({ error: "update_failed" }, { status: 500 });

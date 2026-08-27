@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
 import { db } from "@/core/database";
 import { chatMessages, factions } from "@/core/database/schema";
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, isNotNull, isNull, or } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     const admin = requireAdmin(req);
@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const query = searchParams.get("q")?.trim();
+        const state = searchParams.get("state") || "all";
         const page = Math.max(1, Number(searchParams.get("page")) || 1);
         const limit = 100;
 
@@ -31,11 +32,15 @@ export async function GET(req: NextRequest) {
             })
             .from(chatMessages)
             .leftJoin(factions, eq(factions.id, chatMessages.factionId))
-            .where(query ? or(
-                ilike(chatMessages.senderNickname, `%${query}%`),
-                ilike(chatMessages.senderWallet, `%${query}%`),
-                ilike(chatMessages.message, `%${query}%`)
-            ) : undefined)
+            .where(and(
+                query ? or(
+                    ilike(chatMessages.senderNickname, `%${query}%`),
+                    ilike(chatMessages.senderWallet, `%${query}%`),
+                    ilike(chatMessages.message, `%${query}%`)
+                ) : undefined,
+                state === "deleted" ? isNotNull(chatMessages.deletedAt) : undefined,
+                state === "visible" ? isNull(chatMessages.deletedAt) : undefined
+            ))
             .orderBy(desc(chatMessages.createdAt))
             .limit(limit)
             .offset((page - 1) * limit);

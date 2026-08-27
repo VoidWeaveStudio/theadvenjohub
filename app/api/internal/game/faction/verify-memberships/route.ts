@@ -54,8 +54,11 @@ export async function POST(req: NextRequest) {
                 senderUserId: SYSTEM_USER_ID,
                 senderWallet: SYSTEM_SENDER_WALLET,
                 recipientUserId: userId,
-                subject: "Исключение из фракции",
-                body: `Вы были исключены из фракции «${faction.name}», так как больше не владеете токеном этой фракции и недостойны находиться в этом прекрасном сообществе.`,
+                subject: "Removed from faction",
+                body: `You were removed from the faction "${faction.name}" because you no longer hold the faction token. If this is a mistake, contact support.`,
+                subjectKey: "g.mail.factionKick.subject",
+                bodyKey: "g.mail.factionKick.body",
+                bodyVars: { name: faction.name },
             });
             kicked.push({ factionId: faction.id, factionName: faction.name });
         }

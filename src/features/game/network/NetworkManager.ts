@@ -806,6 +806,9 @@ export type MailEntry = {
   senderFactionNumber?: number | null;
   subject: string;
   body: string;
+  subjectKey?: string | null;
+  bodyKey?: string | null;
+  bodyVars?: Record<string, string | number> | null;
   isRead: boolean;
   createdAt: string;
 };

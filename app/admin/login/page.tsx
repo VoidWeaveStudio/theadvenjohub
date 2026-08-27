@@ -5,6 +5,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { ShieldCheck } from "lucide-react";
 import { buildSignInMessage } from "@/core/auth/lib/signMessage";
 
 const WalletMultiButton = dynamic(
@@ -70,30 +71,37 @@ export default function AdminLoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-black">
-            <div className="w-full max-w-sm space-y-6 p-8 rounded-xl bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)]">
-                <h1 className="text-white text-xl font-bold text-center">Admin Sign-In</h1>
-
-                <div className="flex justify-center">
-                    <WalletMultiButton />
-                </div>
-
-                {connected && (
-                    <button
-                        onClick={handleSignIn}
-                        disabled={loading}
-                        className="btn-primary w-full py-2.5 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? "Signing..." : "Sign message to continue"}
-                    </button>
-                )}
-
-                {error && (
-                    <p className="text-xs text-red-400 text-center" role="alert">
-                        {error}
+        <div style={{ display: "flex", justifyContent: "center", paddingTop: "6vh" }}>
+            <section className="a-panel" style={{ width: "100%", maxWidth: 380 }}>
+                <header className="a-panel-head">
+                    <span className="a-panel-title">
+                        <ShieldCheck className="w-3 h-3" style={{ display: "inline", marginRight: 6 }} />
+                        Admin sign-in
+                    </span>
+                </header>
+                <div className="a-panel-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <p className="a-hint">
+                        Connect the admin wallet and sign a one-time message. The same wallet then signs every destructive
+                        action inside the panel.
                     </p>
-                )}
-            </div>
+
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                        <WalletMultiButton />
+                    </div>
+
+                    {connected && (
+                        <button type="button" onClick={handleSignIn} disabled={loading} className="a-btn a-btn-primary" style={{ width: "100%" }}>
+                            {loading ? "Signing…" : "Sign message to continue"}
+                        </button>
+                    )}
+
+                    {error && (
+                        <div className="a-alert" data-tone="bad" role="alert">
+                            {error}
+                        </div>
+                    )}
+                </div>
+            </section>
         </div>
     );
 }

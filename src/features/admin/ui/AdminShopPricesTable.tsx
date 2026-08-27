@@ -1,10 +1,11 @@
 // src/features/admin/ui/AdminShopPricesTable.tsx
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { Save } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Badge, Chips, Empty, SearchInput } from "./AdminKit";
 
 interface ShopPriceRow {
     itemId: string;
@@ -49,6 +50,8 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [query, setQuery] = useState("");
+    const [kind, setKind] = useState("all");
     const { signedFetch } = useAdminSignature();
 
     const load = async () => {
@@ -117,27 +120,50 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
         }
     };
 
-    if (loading) return <div className="text-[#8B8F98] text-sm">Loading prices...</div>;
+    const kindOptions = useMemo(() => {
+        const kinds = Array.from(new Set(items.map((item) => item.kind)));
+        return [
+            { id: "all", label: "All items", count: items.length },
+            ...kinds.map((entry) => ({
+                id: entry,
+                label: KIND_LABEL[entry] || entry,
+                count: items.filter((item) => item.kind === entry).length,
+            })),
+        ];
+    }, [items]);
+
+    const visible = useMemo(() => {
+        const needle = query.trim().toLowerCase();
+        return items.filter((item) => {
+            if (kind !== "all" && item.kind !== kind) return false;
+            if (!needle) return true;
+            return `${item.name} ${item.itemId} ${item.description}`.toLowerCase().includes(needle);
+        });
+    }, [items, query, kind]);
+
+    if (loading) return <Empty>Loading prices…</Empty>;
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-                <span className="text-[#8B8F98]">
-                    Prices for <span className="text-[#E5E7EB] font-bold">{gameName ?? "—"}</span>
-                    {gameSlug ? <span className="text-[#6B7280] font-mono"> ({gameSlug})</span> : null}. They apply without a
-                    game rebuild, ash prices reach the game server within a minute.
-                </span>
-                <span className="text-white font-bold">
-                    TNJ: {tnjUsdPrice ? `$${tnjUsdPrice.toPrecision(4)}` : "price unavailable"}
-                </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="a-row">
+                <SearchInput value={query} onChange={setQuery} placeholder="Search item name or id…" />
+                <Badge tone="info">TNJ {tnjUsdPrice ? `$${tnjUsdPrice.toPrecision(4)}` : "rate unavailable"}</Badge>
             </div>
+            <Chips value={kind} options={kindOptions} onChange={setKind} />
 
-            {error && (
-                <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>
-            )}
+            <p className="a-hint">
+                Prices for <strong style={{ color: "var(--a-text)" }}>{gameName ?? "—"}</strong>
+                {gameSlug ? <span className="a-mono"> ({gameSlug})</span> : null}. They apply without a game rebuild; ash prices
+                reach the game server within a minute.
+            </p>
 
-            <div className="space-y-2">
-                {items.map((item) => {
+            {error && <Alert tone="bad">{error}</Alert>}
+
+            {visible.length === 0 ? (
+                <Empty>No items match.</Empty>
+            ) : (
+            <div className="a-list">
+                {visible.map((item) => {
                     const draft = drafts[item.itemId];
                     if (!draft) return null;
 
@@ -157,23 +183,20 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
                         setDrafts((prev) => ({ ...prev, [item.itemId]: { ...prev[item.itemId], ...patch } }));
 
                     return (
-                        <div key={item.itemId} className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                                <span className="text-white font-bold text-sm">{item.name}</span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-[#8B8F98]">
-                                    {KIND_LABEL[item.kind] || item.kind}
-                                </span>
-                                <span className="text-[#6B7280] text-xs font-mono">{item.itemId}</span>
-                                {item.maxOwned !== null && (
-                                    <span className="text-[#6B7280] text-xs">max {item.maxOwned}</span>
-                                )}
+                        <div key={item.itemId} className="a-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 8, padding: 11 }}>
+                            <div className="a-row">
+                                <span style={{ fontWeight: 700, fontSize: 13 }}>{item.name}</span>
+                                <Badge>{KIND_LABEL[item.kind] || item.kind}</Badge>
+                                <span className="a-hint a-mono">{item.itemId}</span>
+                                {item.maxOwned !== null && <span className="a-hint">max {item.maxOwned}</span>}
+                                {!draft.enabled && <Badge tone="bad">off sale</Badge>}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="a-row">
                                 <select
                                     value={draft.currency}
                                     onChange={(e) => update({ currency: e.target.value as "ash" | "tnj" | "usd" })}
-                                    className="bg-black/40 text-white px-2 py-1.5 rounded text-xs border border-white/10 outline-none"
+                                    
                                 >
                                     <option value="ash">Ash</option>
                                     <option value="tnj">TNJ (fixed)</option>
@@ -181,30 +204,30 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
                                 </select>
 
                                 {draft.currency === "ash" ? (
-                                    <label className="flex items-center gap-1.5 text-xs text-[#8B8F98]">
+                                    <label className="a-row" style={{ gap: 6, fontSize: 12, color: "var(--a-dim)" }}>
                                         Ash
                                         <input
                                             type="number"
                                             min={0}
                                             value={draft.ash}
                                             onChange={(e) => update({ ash: e.target.value })}
-                                            className="w-28 bg-black/40 text-white px-2 py-1.5 rounded border border-white/10 outline-none"
+                                            style={{ width: 112 }}
                                         />
                                     </label>
                                 ) : draft.currency === "tnj" ? (
-                                    <label className="flex items-center gap-1.5 text-xs text-[#8B8F98]">
+                                    <label className="a-row" style={{ gap: 6, fontSize: 12, color: "var(--a-dim)" }}>
                                         TNJ
                                         <input
                                             type="number"
                                             min={0}
                                             value={draft.tnj}
                                             onChange={(e) => update({ tnj: e.target.value })}
-                                            className="w-36 bg-black/40 text-white px-2 py-1.5 rounded border border-white/10 outline-none"
+                                            style={{ width: 144 }}
                                         />
                                     </label>
                                 ) : (
                                     <>
-                                        <label className="flex items-center gap-1.5 text-xs text-[#8B8F98]">
+                                        <label className="a-row" style={{ gap: 6, fontSize: 12, color: "var(--a-dim)" }}>
                                             USD $
                                             <input
                                                 type="number"
@@ -212,16 +235,16 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
                                                 step="0.01"
                                                 value={draft.usd}
                                                 onChange={(e) => update({ usd: e.target.value })}
-                                                className="w-28 bg-black/40 text-white px-2 py-1.5 rounded border border-white/10 outline-none"
+                                                style={{ width: 112 }}
                                             />
                                         </label>
-                                        <span className="text-xs text-cyan-400 font-bold">
+                                        <span style={{ fontSize: 12, color: "var(--a-accent)", fontWeight: 700 }}>
                                             ≈ {liveTnj !== null ? `${liveTnj.toLocaleString("en-US")} TNJ` : "—"}
                                         </span>
                                     </>
                                 )}
 
-                                <label className="flex items-center gap-1.5 text-xs text-[#8B8F98] ml-auto">
+                                <label className="a-row a-spacer" style={{ gap: 6, fontSize: 12, color: "var(--a-dim)" }}>
                                     <input
                                         type="checkbox"
                                         checked={draft.enabled}
@@ -233,9 +256,9 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
                                 <button
                                     onClick={() => save(item)}
                                     disabled={!dirty || busyId === item.itemId}
-                                    className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 text-xs font-bold px-2 py-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="a-btn a-btn-sm a-btn-primary"
                                 >
-                                    <Save className="w-3.5 h-3.5" />
+                                    <Save />
                                     {busyId === item.itemId ? "Saving..." : "Save"}
                                 </button>
                             </div>
@@ -243,6 +266,7 @@ export const AdminShopPricesTable = forwardRef<AdminTableRef>(function AdminShop
                     );
                 })}
             </div>
+            )}
         </div>
     );
 });

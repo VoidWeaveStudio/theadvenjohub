@@ -1,9 +1,10 @@
 // src/features/admin/ui/AdminEventsTable.tsx
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { CalendarClock, ChevronDown, ChevronRight, Eraser, Save } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
+import { Alert, Chips, Empty, SearchInput } from "./AdminKit";
 import { AdminTableRef } from "./AdminTableRef";
 import { EVENT_DOORS_BY_ID, eventWindow, type ResolvedEvent } from "@/features/game/data/eventDoors";
 import { useAdminLabel } from "../lib/useAdminLabel";
@@ -128,9 +129,8 @@ function describeWindow(draft: Draft): { label: string; tone: string } {
     return { label: `Window finished ${stamp(preview.closesAt)}`, tone: "#FF5757" };
 }
 
-const inputClass =
-    "w-full bg-black/40 text-white px-3 py-1.5 rounded text-xs border border-white/10 focus:border-cyan-500/50 outline-none";
-const labelClass = "block text-[#6B7280] text-[10px] font-bold tracking-wider uppercase mb-1";
+const inputClass = "a-field-full";
+const labelClass = "a-label";
 
 export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTable(_props, ref) {
     const [events, setEvents] = useState<AdminEvent[]>([]);
@@ -142,6 +142,8 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [query, setQuery] = useState("");
+    const [state, setState] = useState("all");
     const { signedFetch } = useAdminSignature();
 
     const load = async () => {
@@ -231,24 +233,47 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
         }
     };
 
-    if (loading) return <div className="text-[#8B8F98] text-sm">Loading events...</div>;
+    const visible = useMemo(() => {
+        const needle = query.trim().toLowerCase();
+        return events.filter((event) => {
+            const enabled = drafts[event.id]?.enabled ?? event.enabled;
+            if (state === "on" && !enabled) return false;
+            if (state === "off" && enabled) return false;
+            if (!needle) return true;
+            return `${event.title} ${event.id} ${event.locationId}`.toLowerCase().includes(needle);
+        });
+    }, [events, drafts, query, state]);
+
+    if (loading) return <Empty>Loading events…</Empty>;
 
     return (
-        <div className="space-y-3">
-            <div className="text-[#8B8F98] text-sm">
-                Doors in the Events Hall of{" "}
-                <span className="text-[#E5E7EB] font-bold">{gameName ?? "—"}</span>
-                {gameSlug ? <span className="text-[#6B7280] font-mono"> ({gameSlug})</span> : null}. A disabled event keeps its
-                door sealed — players see the panel and the leaderboard, but cannot walk in. The running game server picks
-                changes up within 30 seconds.
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="a-row">
+                <SearchInput value={query} onChange={setQuery} placeholder="Search event title, id or location…" />
+                <Chips
+                    value={state}
+                    options={[
+                        { id: "all", label: "All doors", count: events.length },
+                        { id: "on", label: "Open", count: events.filter((e) => drafts[e.id]?.enabled ?? e.enabled).length },
+                        { id: "off", label: "Sealed", count: events.filter((e) => !(drafts[e.id]?.enabled ?? e.enabled)).length },
+                    ]}
+                    onChange={setState}
+                />
             </div>
 
-            {error && (
-                <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>
-            )}
+            <p className="a-hint">
+                Doors in the Events Hall of <strong style={{ color: "var(--a-text)" }}>{gameName ?? "—"}</strong>
+                {gameSlug ? <span className="a-mono"> ({gameSlug})</span> : null}. A sealed event keeps its door shut — players
+                still see the panel and the leaderboard, but cannot walk in. The running game server picks changes up within
+                30 seconds.
+            </p>
 
-            <div className="space-y-2">
-                {events.map((event) => {
+            {error && <Alert tone="bad">{error}</Alert>}
+
+            {visible.length === 0 && <Empty>No events match.</Empty>}
+
+            <div className="a-list">
+                {visible.map((event) => {
                     const draft = drafts[event.id];
                     if (!draft) return null;
 
@@ -259,7 +284,7 @@ export const AdminEventsTable = forwardRef<AdminTableRef>(function AdminEventsTa
                     const windowInfo = describeWindow(draft);
 
                     return (
-                        <div key={event.id} className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
+                        <div key={event.id} className="a-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 0, padding: 0, overflow: "hidden" }}>
                             <div className="flex items-center gap-3 p-2.5">
                                 <button
                                     onClick={() => setExpanded(open ? null : event.id)}

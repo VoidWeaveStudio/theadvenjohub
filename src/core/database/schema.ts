@@ -773,6 +773,9 @@ export const mailMessages = pgTable("mail_messages", {
   recipientUserId: uuid("recipient_user_id").notNull().references(() => users.id),
   subject: varchar("subject", { length: 100 }).notNull(),
   body: text("body").notNull(),
+  subjectKey: varchar("subject_key", { length: 80 }),
+  bodyKey: varchar("body_key", { length: 80 }),
+  bodyVars: jsonb("body_vars"),
   isRead: boolean("is_read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [

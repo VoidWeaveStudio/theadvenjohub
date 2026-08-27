@@ -53,7 +53,7 @@ import { GrenadeSystem } from "../systems/GrenadeSystem";
 import { ARSENAL_BY_ID } from "../data/defusalArsenal";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
-import { PersonalRoom } from "../world/locations/tower/floors/PersonalRoom";
+import { PersonalRoom, PERSONAL_ROOM_PREFIX } from "../world/locations/tower/floors/PersonalRoom";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
 import { computeDayTime, DayNightConfig } from "../utils/dayNightCycle";
 import { applyLocationMovementConfig, configureLocationSpecifics, syncMainWorldEntry } from "./GameLocationTransition";
@@ -669,7 +669,8 @@ export class Game {
 
                 this.locationManager.onLocationChange = (id: string) => {
                     this.onNotification?.(` Entered: ${id}`, 2000);
-                    this.interactionSystem.isOwnRoom = id === `player-room-${this.session.userId}`;
+                    this.interactionSystem.isOwnRoom = id === `${PERSONAL_ROOM_PREFIX}${this.session.userId}`;
+                    this.interactionSystem.currentLocationId = id;
                     this.onLocationChange?.(id);
                     const loc = this.locationManager.getCurrentLocation();
                     if (loc) {
@@ -896,6 +897,10 @@ export class Game {
                 };
 
                 this.interactionSystem.onOpenRoomConsole = () => {
+                    if (!this.interactionSystem.canUseRoomConsole()) {
+                        this.onNotification?.(t("g.prompt.roomConsoleOwnerOnly"), 2500);
+                        return;
+                    }
                     const location = this.locationManager.getCurrentLocation();
                     const factionId = location instanceof FactionGateRoom ? location.factionId : null;
                     this.onOpenRoomConsoleUI?.(factionId);
@@ -1533,7 +1538,7 @@ export class Game {
         const finalEquipped = (currentLocation?.id === 'main-world' || this.isOwnFactionRoom(currentLocation)) ? equipped : false;
 
         if (finalEquipped && this.hudState.equippedTool !== 'blueprint') {
-            this.onNotification?.("📐 Press Q to choose what to place", 3000);
+            this.onNotification?.(t("g.notify.blueprintPick", { key: "Z" }), 3000);
         }
 
         if (finalEquipped && this.hudState.isWeaponEquipped) {

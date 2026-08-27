@@ -10,12 +10,5 @@ export default async function AdminPage() {
         redirect("/admin/login");
     }
 
-    return (
-        <div className="min-h-screen bg-black p-8">
-            <div className="max-w-5xl mx-auto space-y-6">
-                <h1 className="text-white text-2xl font-bold">Admin Panel</h1>
-                <AdminDashboard />
-            </div>
-        </div>
-    );
+    return <AdminDashboard />;
 }

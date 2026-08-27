@@ -1,10 +1,11 @@
 // src/features/admin/ui/AdminChatTable.tsx
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Badge, Chips, Empty, SearchInput, formatDate, truncateWallet } from "./AdminKit";
 
 interface ChatMessageRow {
     id: string;
@@ -20,115 +21,124 @@ interface ChatMessageRow {
     deletedByAdminWallet: string | null;
 }
 
-function truncateWallet(wallet: string): string {
-    if (wallet.length <= 10) return wallet;
-    return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
-}
+type StateFilter = "all" | "visible" | "deleted";
+
+const STATE_OPTIONS: { id: StateFilter; label: string }[] = [
+    { id: "all", label: "All messages" },
+    { id: "visible", label: "Visible" },
+    { id: "deleted", label: "Deleted" },
+];
 
 export const AdminChatTable = forwardRef<AdminTableRef>(function AdminChatTable(_props, ref) {
     const [messages, setMessages] = useState<ChatMessageRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
+    const [state, setState] = useState<StateFilter>("all");
+    const [page, setPage] = useState(1);
     const [error, setError] = useState<string | null>(null);
     const { signedFetch } = useAdminSignature();
 
-    const load = async (q?: string) => {
+    const load = useCallback(async () => {
         setLoading(true);
+        setError(null);
         try {
             const params = new URLSearchParams();
-            if (q) params.set("q", q);
+            if (query.trim()) params.set("q", query.trim());
+            if (state !== "all") params.set("state", state);
+            params.set("page", String(page));
+
             const res = await fetch(`/api/admin/chat?${params.toString()}`, { credentials: "include" });
-            if (res.ok) {
-                const data = await res.json();
-                setMessages(data.messages || []);
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setError(data?.error || `HTTP ${res.status}`);
+                return;
             }
+            setMessages(data.messages || []);
+        } catch {
+            setError("Failed to load chat");
         } finally {
             setLoading(false);
         }
-    };
+    }, [query, state, page]);
 
-    useImperativeHandle(ref, () => ({ refresh: () => load(query) }));
+    useImperativeHandle(ref, () => ({ refresh: load }));
 
     useEffect(() => {
-        load();
-    }, []);
+        const timer = setTimeout(load, query ? 300 : 0);
+        return () => clearTimeout(timer);
+    }, [load, query]);
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        load(query);
-    };
+    useEffect(() => {
+        setPage(1);
+    }, [query, state]);
 
     const handleDelete = async (messageId: string) => {
         if (!confirm("Delete this chat message?")) return;
         setError(null);
         try {
             const res = await signedFetch(`/api/admin/chat/${messageId}`, "deleteChatMessage", messageId);
-            if (res.ok) {
-                setMessages((prev) =>
-                    prev.map((m) => (m.id === messageId ? { ...m, deletedAt: new Date().toISOString() } : m))
-                );
-            } else {
+            if (!res.ok) {
                 setError("Failed to delete message");
+                return;
             }
-        } catch (err: any) {
-            setError(err.message || "Signature failed");
+            setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, deletedAt: new Date().toISOString() } : m)));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Signature failed");
         }
     };
 
     return (
-        <div className="space-y-4">
-            {error && (
-                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
-            )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="a-row">
+                <SearchInput value={query} onChange={setQuery} placeholder="Search nickname, wallet or message text…" />
+                <Chips value={state} options={STATE_OPTIONS} onChange={setState} />
+            </div>
 
-            <form onSubmit={handleSearch} className="flex gap-2">
-                <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search by nickname, wallet, or message text..."
-                    className="flex-1 bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none"
-                />
-                <button type="submit" className="btn-primary px-4 py-2 text-xs flex-shrink-0">
-                    Search
-                </button>
-            </form>
+            {error && <Alert tone="bad">{error}</Alert>}
 
-            {loading ? (
-                <p className="text-[#8B8F98] text-sm">Loading...</p>
+            {loading && messages.length === 0 ? (
+                <Empty>Loading…</Empty>
             ) : messages.length === 0 ? (
-                <p className="text-[#8B8F98] text-sm">No messages found.</p>
+                <Empty>No messages match.</Empty>
             ) : (
-                <div className="space-y-1.5">
-                    {messages.map((m) => (
+                <div className="a-list">
+                    {messages.map((message) => (
                         <div
-                            key={m.id}
-                            className={`flex items-start justify-between gap-3 rounded-lg px-3 py-2 border ${m.deletedAt ? "bg-red-500/5 border-red-500/20" : "bg-white/5 border-white/10"
-                                }`}
+                            key={message.id}
+                            className="a-item"
+                            style={{
+                                alignItems: "flex-start",
+                                background: message.deletedAt ? "rgba(255,107,107,0.06)" : undefined,
+                                borderColor: message.deletedAt ? "rgba(255,107,107,0.2)" : undefined,
+                            }}
                         >
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 mb-0.5">
-                                    <span className="text-white text-xs font-bold">{m.senderNickname}</span>
-                                    <span className="text-[#6B7280] text-[10px]">{truncateWallet(m.senderWallet)}</span>
-                                    {m.factionName && (
-                                        <span className="text-cyan-400 text-[10px] font-bold">${m.factionSymbol || m.factionName}</span>
-                                    )}
-                                    <span className="text-[#6B7280] text-[10px]">{new Date(m.createdAt).toLocaleString()}</span>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                                <div className="a-row" style={{ gap: 8 }}>
+                                    <span style={{ fontWeight: 700 }}>{message.senderNickname}</span>
+                                    <span className="a-hint a-mono">{truncateWallet(message.senderWallet)}</span>
+                                    {message.factionName && <Badge tone="info">${message.factionSymbol || message.factionName}</Badge>}
+                                    <span className="a-hint">{formatDate(message.createdAt)}</span>
                                 </div>
-                                <p className={`text-sm whitespace-pre-wrap break-words ${m.deletedAt ? "text-[#6B7280] line-through" : "text-[#E5E7EB]"}`}>
-                                    {m.message}
+                                <p
+                                    style={{
+                                        whiteSpace: "pre-wrap",
+                                        wordBreak: "break-word",
+                                        fontSize: 13,
+                                        marginTop: 3,
+                                        color: message.deletedAt ? "var(--a-mute)" : "var(--a-text)",
+                                        textDecoration: message.deletedAt ? "line-through" : "none",
+                                    }}
+                                >
+                                    {message.message}
                                 </p>
-                                {m.deletedAt && (
-                                    <p className="text-red-400 text-[10px] mt-0.5">
-                                        Deleted {new Date(m.deletedAt).toLocaleString()} by {truncateWallet(m.deletedByAdminWallet || "?")}
+                                {message.deletedAt && (
+                                    <p className="a-hint" style={{ color: "var(--a-bad)" }}>
+                                        Deleted {formatDate(message.deletedAt)} by {truncateWallet(message.deletedByAdminWallet)}
                                     </p>
                                 )}
                             </div>
-                            {!m.deletedAt && (
-                                <button
-                                    onClick={() => handleDelete(m.id)}
-                                    className="text-[#6B7280] hover:text-red-400 transition-colors flex-shrink-0"
-                                    title="Delete message"
-                                >
+                            {!message.deletedAt && (
+                                <button type="button" className="a-icon-btn" data-tone="bad" title="Delete message" onClick={() => handleDelete(message.id)}>
                                     <Trash2 className="w-4 h-4" />
                                 </button>
                             )}
@@ -136,6 +146,17 @@ export const AdminChatTable = forwardRef<AdminTableRef>(function AdminChatTable(
                     ))}
                 </div>
             )}
+
+            <div className="a-row">
+                <span className="a-hint">Page {page}</span>
+                <span className="a-spacer" />
+                <button type="button" className="a-btn a-btn-sm" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                    Previous
+                </button>
+                <button type="button" className="a-btn a-btn-sm" disabled={messages.length < 100} onClick={() => setPage((p) => p + 1)}>
+                    Next
+                </button>
+            </div>
         </div>
     );
 });

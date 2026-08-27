@@ -1,10 +1,11 @@
 // src/features/admin/ui/AdminTradeHistoryTable.tsx
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from "react";
+import { ArrowRight, ExternalLink } from "lucide-react";
 import { useAdminLabel } from "../lib/useAdminLabel";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Badge, Chips, Empty, SearchInput, formatDate, formatNumber, truncateWallet } from "./AdminKit";
 
 interface TradeRow {
     id: string;
@@ -23,105 +24,141 @@ interface TradeRow {
     createdAt: string;
 }
 
-function truncateWallet(wallet: string): string {
-    if (wallet.length <= 10) return wallet;
-    return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
-}
+type StatusFilter = "all" | "completed" | "failed";
+
+const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
+    { id: "all", label: "All trades" },
+    { id: "completed", label: "Successful" },
+    { id: "failed", label: "Failed" },
+];
 
 export const AdminTradeHistoryTable = forwardRef<AdminTableRef>(function AdminTradeHistoryTable(_props, ref) {
     const [trades, setTrades] = useState<TradeRow[]>([]);
-    const translateItem = useAdminLabel();
     const [loading, setLoading] = useState(true);
     const [query, setQuery] = useState("");
+    const [status, setStatus] = useState<StatusFilter>("all");
+    const [page, setPage] = useState(1);
+    const [error, setError] = useState<string | null>(null);
+    const translateItem = useAdminLabel();
 
-    const load = async (q?: string) => {
+    const load = useCallback(async () => {
         setLoading(true);
+        setError(null);
         try {
             const params = new URLSearchParams();
-            if (q) params.set("q", q);
+            if (query.trim()) params.set("q", query.trim());
+            if (status !== "all") params.set("status", status);
+            params.set("page", String(page));
+
             const res = await fetch(`/api/admin/trades?${params.toString()}`, { credentials: "include" });
-            if (res.ok) {
-                const data = await res.json();
-                setTrades(data.trades || []);
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setError(data?.error || `HTTP ${res.status}`);
+                return;
             }
+            setTrades(data.trades || []);
+        } catch {
+            setError("Failed to load trades");
         } finally {
             setLoading(false);
         }
-    };
+    }, [query, status, page]);
 
-    useImperativeHandle(ref, () => ({ refresh: () => load(query) }));
+    useImperativeHandle(ref, () => ({ refresh: load }));
 
     useEffect(() => {
-        load();
-    }, []);
+        const timer = setTimeout(load, query ? 300 : 0);
+        return () => clearTimeout(timer);
+    }, [load, query]);
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        load(query);
-    };
+    useEffect(() => {
+        setPage(1);
+    }, [query, status]);
+
+    const volume = trades.filter((t) => t.status === "completed").reduce((sum, t) => sum + (Number(t.priceTnj) || 0), 0);
 
     return (
-        <div className="space-y-4">
-            <form onSubmit={handleSearch} className="flex gap-2">
-                <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search by nickname, wallet, or item..."
-                    className="flex-1 bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none"
-                />
-                <button type="submit" className="btn-primary px-4 py-2 text-xs flex-shrink-0">
-                    Search
-                </button>
-            </form>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="a-row">
+                <SearchInput value={query} onChange={setQuery} placeholder="Search nickname, wallet, item or tx…" />
+                <Chips value={status} options={STATUS_OPTIONS} onChange={setStatus} />
+                <span className="a-hint a-spacer">{formatNumber(volume)} TNJ on this page</span>
+            </div>
 
-            {loading ? (
-                <p className="text-[#8B8F98] text-sm">Loading...</p>
+            {error && <Alert tone="bad">{error}</Alert>}
+
+            {loading && trades.length === 0 ? (
+                <Empty>Loading…</Empty>
             ) : trades.length === 0 ? (
-                <p className="text-[#8B8F98] text-sm">No trades found.</p>
+                <Empty>No trades match.</Empty>
             ) : (
-                <div className="space-y-1.5">
-                    {trades.map((t) => (
-                        <div key={t.id} className="rounded-lg px-3 py-2.5 border bg-white/5 border-white/10">
-                            <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-[#6B7280] text-[10px] font-mono">{t.id}</span>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[#6B7280] text-[10px]">{new Date(t.createdAt).toLocaleString()}</span>
-                                    <span
-                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.status === "completed" ? "bg-[rgba(74,222,128,0.15)] text-[#4ADE80]" : "bg-[rgba(248,113,113,0.15)] text-red-400"
-                                            }`}
-                                    >
-                                        {t.status === "completed" ? "Success" : "Failed"}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 text-sm mb-1">
-                                <span className="text-white font-bold truncate">
-                                    {t.sellerNickname || truncateWallet(t.sellerWallet)}
-                                </span>
-                                <span className="text-[#6B7280] text-[10px]">{truncateWallet(t.sellerWallet)}</span>
-                                <ArrowRight className="w-3.5 h-3.5 text-[#6B7280] flex-shrink-0" />
-                                <span className="text-white font-bold truncate">
-                                    {t.buyerNickname || truncateWallet(t.buyerWallet)}
-                                </span>
-                                <span className="text-[#6B7280] text-[10px]">{truncateWallet(t.buyerWallet)}</span>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <span className="text-[#E5E7EB] text-sm">
-                                    {translateItem(t.itemName)}{t.quantity > 1 ? ` x${t.quantity}` : ""}
-                                </span>
-                                <span className="text-[#FFD166] text-sm font-bold">{t.priceTnj.toLocaleString("en-US")} TNJ</span>
-                            </div>
-
-                            {t.status !== "completed" && t.failureReason && (
-                                <p className="text-red-400/80 text-[10px] mt-1">{t.failureReason}</p>
-                            )}
-                            <p className="text-[#6B7280] text-[9px] font-mono mt-1 truncate">{t.txSignature}</p>
-                        </div>
-                    ))}
+                <div className="a-table-wrap">
+                    <table className="a-table">
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>Seller</th>
+                                <th />
+                                <th>Buyer</th>
+                                <th>Item</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Tx</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {trades.map((trade) => (
+                                <tr key={trade.id}>
+                                    <td style={{ whiteSpace: "nowrap" }}>{formatDate(trade.createdAt)}</td>
+                                    <td>
+                                        <div style={{ fontWeight: 600 }}>{trade.sellerNickname || truncateWallet(trade.sellerWallet)}</div>
+                                        <div className="a-hint a-mono">{truncateWallet(trade.sellerWallet)}</div>
+                                    </td>
+                                    <td>
+                                        <ArrowRight className="w-3 h-3" style={{ color: "var(--a-mute)" }} />
+                                    </td>
+                                    <td>
+                                        <div style={{ fontWeight: 600 }}>{trade.buyerNickname || truncateWallet(trade.buyerWallet)}</div>
+                                        <div className="a-hint a-mono">{truncateWallet(trade.buyerWallet)}</div>
+                                    </td>
+                                    <td>
+                                        {translateItem(trade.itemName)}
+                                        {trade.quantity > 1 ? ` ×${trade.quantity}` : ""}
+                                    </td>
+                                    <td style={{ color: "var(--a-warn)", fontWeight: 700, whiteSpace: "nowrap" }}>{formatNumber(trade.priceTnj)} TNJ</td>
+                                    <td>
+                                        <Badge tone={trade.status === "completed" ? "good" : "bad"}>{trade.status === "completed" ? "Success" : "Failed"}</Badge>
+                                        {trade.status !== "completed" && trade.failureReason && <div className="a-hint">{trade.failureReason}</div>}
+                                    </td>
+                                    <td>
+                                        <a
+                                            href={`https://solscan.io/tx/${trade.txSignature}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="a-row"
+                                            style={{ gap: 5, color: "var(--a-accent)" }}
+                                        >
+                                            <span className="a-mono">{truncateWallet(trade.txSignature)}</span>
+                                            <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
+
+            <div className="a-row">
+                <span className="a-hint">Page {page}</span>
+                <span className="a-spacer" />
+                <button type="button" className="a-btn a-btn-sm" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                    Previous
+                </button>
+                <button type="button" className="a-btn a-btn-sm" disabled={trades.length < 100} onClick={() => setPage((p) => p + 1)}>
+                    Next
+                </button>
+            </div>
         </div>
     );
 });

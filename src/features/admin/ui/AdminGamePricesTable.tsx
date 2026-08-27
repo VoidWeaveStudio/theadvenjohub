@@ -5,6 +5,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { Save } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Badge, Empty, SearchInput } from "./AdminKit";
 import type { GamePriceCurrency } from "@/core/lib/gamePricing";
 
 interface GameRow {
@@ -40,6 +41,7 @@ export const AdminGamePricesTable = forwardRef<AdminTableRef>(function AdminGame
     const [loading, setLoading] = useState(true);
     const [busySlug, setBusySlug] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [query, setQuery] = useState("");
     const { signedFetch } = useAdminSignature();
 
     const load = async () => {
@@ -93,28 +95,29 @@ export const AdminGamePricesTable = forwardRef<AdminTableRef>(function AdminGame
         }
     };
 
-    if (loading) return <div className="text-[#8B8F98] text-sm">Loading games...</div>;
+    if (loading) return <Empty>Loading games…</Empty>;
+
+    const needle = query.trim().toLowerCase();
+    const visible = games.filter((game) => !needle || `${game.title} ${game.slug} ${game.status}`.toLowerCase().includes(needle));
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-                <span className="text-[#8B8F98]">
-                    Store price per game. Pick <span className="text-[#E5E7EB] font-bold">USDT → TNJ</span> and the buyer
-                    pays the TNJ that amount is worth at checkout, recalculated on every quote.
-                </span>
-                <span className="text-white font-bold">
-                    TNJ: {tnjUsdPrice ? `$${tnjUsdPrice.toPrecision(4)}` : "price unavailable"}
-                </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="a-row">
+                <SearchInput value={query} onChange={setQuery} placeholder="Search game title, slug or status…" />
+                <Badge tone="info">TNJ {tnjUsdPrice ? `$${tnjUsdPrice.toPrecision(4)}` : "rate unavailable"}</Badge>
             </div>
 
-            {error && (
-                <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>
-            )}
+            <p className="a-hint">
+                Store price per game. Pick <strong style={{ color: "var(--a-text)" }}>USDT → TNJ</strong> and the buyer pays the
+                TNJ that amount is worth at checkout, recalculated on every quote.
+            </p>
 
-            {games.length === 0 && <div className="text-[#6B7280] text-sm py-6 text-center">No games yet.</div>}
+            {error && <Alert tone="bad">{error}</Alert>}
 
-            <div className="space-y-2">
-                {games.map((game) => {
+            {visible.length === 0 && <Empty>No games match.</Empty>}
+
+            <div className="a-list">
+                {visible.map((game) => {
                     const draft = drafts[game.slug];
                     if (!draft) return null;
 
@@ -132,44 +135,38 @@ export const AdminGamePricesTable = forwardRef<AdminTableRef>(function AdminGame
                         setDrafts((prev) => ({ ...prev, [game.slug]: { ...prev[game.slug], ...patch } }));
 
                     return (
-                        <div key={game.id} className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                                <span className="text-white font-bold text-sm">{game.title}</span>
-                                <span className="text-[#6B7280] text-xs font-mono">{game.slug}</span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-[#8B8F98]">
-                                    {game.status}
-                                </span>
-                                {!game.isActive && (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">
-                                        hidden
-                                    </span>
-                                )}
+                        <div key={game.id} className="a-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 8, padding: 11 }}>
+                            <div className="a-row">
+                                <span style={{ fontWeight: 700, fontSize: 13 }}>{game.title}</span>
+                                <span className="a-hint a-mono">{game.slug}</span>
+                                <Badge>{game.status}</Badge>
+                                {!game.isActive && <Badge tone="bad">hidden</Badge>}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="a-row">
                                 <select
                                     value={draft.currency}
                                     onChange={(e) => update({ currency: e.target.value as GamePriceCurrency })}
-                                    className="bg-black/40 text-white px-2 py-1.5 rounded text-xs border border-white/10 outline-none"
+                                    
                                 >
                                     <option value="tnj">TNJ (fixed)</option>
                                     <option value="usdt">USDT → TNJ</option>
                                 </select>
 
                                 {draft.currency === "tnj" ? (
-                                    <label className="flex items-center gap-1.5 text-xs text-[#8B8F98]">
+                                    <label className="a-row" style={{ gap: 6, fontSize: 12, color: "var(--a-dim)" }}>
                                         TNJ
                                         <input
                                             type="number"
                                             min={0}
                                             value={draft.tnj}
                                             onChange={(e) => update({ tnj: e.target.value })}
-                                            className="w-40 bg-black/40 text-white px-2 py-1.5 rounded border border-white/10 outline-none"
+                                            style={{ width: 160 }}
                                         />
                                     </label>
                                 ) : (
                                     <>
-                                        <label className="flex items-center gap-1.5 text-xs text-[#8B8F98]">
+                                        <label className="a-row" style={{ gap: 6, fontSize: 12, color: "var(--a-dim)" }}>
                                             USDT
                                             <input
                                                 type="number"
@@ -177,10 +174,10 @@ export const AdminGamePricesTable = forwardRef<AdminTableRef>(function AdminGame
                                                 step="0.01"
                                                 value={draft.usdt}
                                                 onChange={(e) => update({ usdt: e.target.value })}
-                                                className="w-32 bg-black/40 text-white px-2 py-1.5 rounded border border-white/10 outline-none"
+                                                style={{ width: 128 }}
                                             />
                                         </label>
-                                        <span className="text-xs text-cyan-400 font-bold">
+                                        <span style={{ fontSize: 12, color: "var(--a-accent)", fontWeight: 700 }}>
                                             ≈ {liveTnj !== null ? `${liveTnj.toLocaleString("en-US")} TNJ` : "—"}
                                         </span>
                                     </>
@@ -189,17 +186,17 @@ export const AdminGamePricesTable = forwardRef<AdminTableRef>(function AdminGame
                                 <button
                                     onClick={() => save(game)}
                                     disabled={!dirty || busySlug === game.slug}
-                                    className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 text-xs font-bold px-2 py-1 ml-auto disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="a-btn a-btn-sm a-btn-primary a-spacer"
                                 >
-                                    <Save className="w-3.5 h-3.5" />
+                                    <Save />
                                     {busySlug === game.slug ? "Saving..." : "Save"}
                                 </button>
                             </div>
 
                             {game.priceCurrency === "usdt" && (
-                                <div className="text-[11px] text-[#6B7280]">
+                                <div className="a-hint">
                                     Live: buyers pay{" "}
-                                    <span className="text-[#C9CDD3] font-bold">
+                                    <span style={{ color: "var(--a-text)", fontWeight: 700 }}>
                                         {game.tnjEstimate !== null ? `${game.tnjEstimate.toLocaleString("en-US")} TNJ` : "—"}
                                     </span>{" "}
                                     for ${(game.priceUsdCents / 100).toFixed(2)}. The storefront listing is cached for up to

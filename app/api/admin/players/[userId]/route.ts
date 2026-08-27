@@ -16,14 +16,18 @@ import {
     games,
     gameCosmetics,
     gameCosmeticLoadouts,
+    shopPurchases,
+    trades,
+    gameBuildings,
 } from "@/core/database/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, count } from "drizzle-orm";
 import { ACHIEVEMENTS_BY_KEY } from "@/core/lib/achievements";
 import { COSMETICS_BY_ID, normalizeLoadout } from "@/features/game/data/cosmetics";
 import { EMPTY_COSMETIC_CRATE_STATE, readCosmeticCrateState } from "@/core/lib/cosmeticCrates";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 import { resolveGameId } from "@/core/lib/shopPricing";
 import { EMPTY_COMPANION_STATE, readCompanionState } from "@/core/lib/companionInventory";
+import { flushStaleCommands } from "@/core/lib/adminLiveSync";
 
 export async function GET(
     req: NextRequest,
@@ -34,6 +38,12 @@ export async function GET(
 
     try {
         const { userId } = await params;
+
+        // Keeps the panel honest: anything queued for a session that never picked
+        // it up is written to the row before the numbers below are read.
+        await flushStaleCommands(null).catch((error) => {
+            console.error("[admin/players/:userId GET] stale flush failed:", error);
+        });
 
         const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
         if (!user) {
@@ -69,6 +79,7 @@ export async function GET(
         let ash = 0;
         let skinTextureUrl: string | null = null;
         let placeables: Record<string, number> = {};
+        let storageCount = 0;
         if (progress?.data) {
             try {
                 const parsedProgress = JSON.parse(progress.data);
@@ -77,10 +88,57 @@ export async function GET(
                 if (parsedProgress?.placeables && typeof parsedProgress.placeables === "object") {
                     placeables = parsedProgress.placeables;
                 }
+                if (parsedProgress?.storage && typeof parsedProgress.storage === "object") {
+                    storageCount = Object.keys(parsedProgress.storage).length;
+                }
             } catch {
                 ash = 0;
             }
         }
+
+        const [shopHistory, tradeHistory, buildingCount] = await Promise.all([
+            db
+                .select({
+                    id: shopPurchases.id,
+                    itemId: shopPurchases.itemId,
+                    quantity: shopPurchases.quantity,
+                    priceTnj: shopPurchases.priceTnj,
+                    status: shopPurchases.status,
+                    txSignature: shopPurchases.txSignature,
+                    createdAt: shopPurchases.createdAt,
+                })
+                .from(shopPurchases)
+                .where(eq(shopPurchases.userId, userId))
+                .orderBy(desc(shopPurchases.createdAt))
+                .limit(50),
+            db
+                .select({
+                    id: trades.id,
+                    itemName: trades.itemName,
+                    quantity: trades.quantity,
+                    priceTnj: trades.priceTnj,
+                    status: trades.status,
+                    createdAt: trades.createdAt,
+                    buyerId: trades.buyerId,
+                    sellerId: trades.sellerId,
+                })
+                .from(trades)
+                .where(or(eq(trades.buyerId, userId), eq(trades.sellerId, userId)))
+                .orderBy(desc(trades.createdAt))
+                .limit(50),
+            db.select({ value: count() }).from(gameBuildings).where(eq(gameBuildings.userId, userId)),
+        ]);
+
+        const spend = {
+            gameTnj: licenses.filter((l) => l.txSignature).reduce((sum, l) => sum + (Number(l.price) || 0), 0),
+            shopTnj: shopHistory.filter((p) => p.status === "completed").reduce((sum, p) => sum + (Number(p.priceTnj) || 0), 0),
+            tradeSpentTnj: tradeHistory
+                .filter((t) => t.status === "completed" && t.buyerId === userId)
+                .reduce((sum, t) => sum + (Number(t.priceTnj) || 0), 0),
+            tradeEarnedTnj: tradeHistory
+                .filter((t) => t.status === "completed" && t.sellerId === userId)
+                .reduce((sum, t) => sum + (Number(t.priceTnj) || 0), 0),
+        };
 
         const factionsList = [];
         for (const membership of memberships) {
@@ -153,6 +211,7 @@ export async function GET(
         return NextResponse.json({
             player: {
                 id: user.id,
+                number: user.number,
                 wallet: user.wallet,
                 isBanned: user.isBanned,
                 banReason: user.banReason,
@@ -177,6 +236,11 @@ export async function GET(
                     branch: progression?.branch ?? null,
                     respecCount: progression?.respecCount ?? 0,
                 },
+                storageCount,
+                buildingCount: Number(buildingCount[0]?.value ?? 0) || 0,
+                spend,
+                shopHistory,
+                tradeHistory,
                 skinTextureUrl,
                 cosmetics,
                 cosmeticCrates,

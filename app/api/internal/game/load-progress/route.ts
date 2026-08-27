@@ -11,6 +11,7 @@ import {
     gameCharacterProgression,
 } from "@/core/database/schema";
 import { eq, and } from "drizzle-orm";
+import { flushPendingForUser } from "@/core/lib/adminLiveSync";
 
 function safeJsonParse(text: string | null): Record<string, unknown> {
     if (!text) return {};
@@ -36,6 +37,13 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
             );
         }
+
+        // Anything an admin queued while this player was between sessions has to
+        // land in the row before it is handed over, otherwise the session would
+        // load stale values and save them straight back over the change.
+        await flushPendingForUser(userId).catch((error) => {
+            console.error("[internal/load-progress] pending admin flush failed:", error);
+        });
 
         const [progress, nickname, buildings, inventory, statistics, progression] = await Promise.all([
             db.query.gameProgress.findFirst({

@@ -1,164 +1,262 @@
 // src/features/admin/ui/AdminPlayersTable.tsx
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from "react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { AdminPlayerDetailModal } from "./AdminPlayerDetailModal";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Badge, Chips, Empty, Panel, SearchInput, formatNumber, formatPlaytime, formatRelative, truncateWallet } from "./AdminKit";
 
 interface AdminPlayer {
     id: string;
+    number: number | null;
     wallet: string;
     nickname: string | null;
     isBanned: boolean;
     banReason: string | null;
     isOnline: boolean;
+    mutedUntil: string | null;
     lastSeenAt: string | null;
     createdAt: string;
     ownsGame: boolean;
     promoFactionName: string | null;
+    factionName: string | null;
+    level: number;
+    kills: number;
+    deaths: number;
+    playtimeSeconds: number;
+    ash: number;
+    spentTnj: number;
 }
 
-function truncateWallet(wallet: string): string {
-    if (wallet.length <= 10) return wallet;
-    return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
-}
+type OwnsFilter = "all" | "1" | "0";
+type StatusFilter = "all" | "online" | "banned" | "muted";
+type FactionFilter = "all" | "in" | "out";
+type SortKey = "created" | "lastSeen" | "level" | "playtime" | "kills";
 
-function formatLastSeen(iso: string | null): string {
-    if (!iso) return "never";
-    const date = new Date(iso);
-    const diffMin = Math.floor((Date.now() - date.getTime()) / 60000);
-    if (diffMin < 1) return "just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
-    const diffDay = Math.floor(diffHr / 24);
-    return `${diffDay}d ago`;
-}
+const OWNS_OPTIONS: { id: OwnsFilter; label: string }[] = [
+    { id: "all", label: "All accounts" },
+    { id: "1", label: "Owns the game" },
+    { id: "0", label: "Registered only" },
+];
+
+const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
+    { id: "all", label: "Any status" },
+    { id: "online", label: "Online" },
+    { id: "banned", label: "Banned" },
+    { id: "muted", label: "Muted" },
+];
+
+const FACTION_OPTIONS: { id: FactionFilter; label: string }[] = [
+    { id: "all", label: "Any faction" },
+    { id: "in", label: "In a faction" },
+    { id: "out", label: "No faction" },
+];
+
+const PAGE_SIZE = 50;
 
 export const AdminPlayersTable = forwardRef<AdminTableRef>(function AdminPlayersTable(_props, ref) {
     const [players, setPlayers] = useState<AdminPlayer[]>([]);
+    const [total, setTotal] = useState(0);
     const [query, setQuery] = useState("");
+    const [owns, setOwns] = useState<OwnsFilter>("all");
+    const [status, setStatus] = useState<StatusFilter>("all");
+    const [faction, setFaction] = useState<FactionFilter>("all");
+    const [sort, setSort] = useState<SortKey>("created");
+    const [dir, setDir] = useState<"asc" | "desc">("desc");
+    const [page, setPage] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-    const [tab, setTab] = useState<"players" | "registered">("players");
 
-    const loadPlayers = async (q: string, ownsFilter: "players" | "registered") => {
+    const load = useCallback(async () => {
         setLoading(true);
+        setError(null);
         try {
             const params = new URLSearchParams();
-            if (q) params.set("q", q);
-            params.set("owns", ownsFilter === "players" ? "1" : "0");
-            const res = await fetch(`/api/admin/players?${params.toString()}`, {
-                credentials: "include",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setPlayers(data.players || []);
+            if (query.trim()) params.set("q", query.trim());
+            if (owns !== "all") params.set("owns", owns);
+            if (status !== "all") params.set("status", status);
+            if (faction !== "all") params.set("faction", faction);
+            params.set("sort", sort);
+            params.set("dir", dir);
+            params.set("limit", String(PAGE_SIZE));
+            params.set("offset", String(page * PAGE_SIZE));
+
+            const res = await fetch(`/api/admin/players?${params.toString()}`, { credentials: "include" });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setError(data?.error || `HTTP ${res.status}`);
+                return;
             }
+            setPlayers(data.players || []);
+            setTotal(Number(data.total) || 0);
+        } catch {
+            setError("Failed to load players");
         } finally {
             setLoading(false);
         }
-    };
+    }, [query, owns, status, faction, sort, dir, page]);
 
-    useImperativeHandle(ref, () => ({ refresh: () => loadPlayers(query, tab) }));
+    useImperativeHandle(ref, () => ({ refresh: load }));
 
     useEffect(() => {
-        loadPlayers(query, tab);
-    }, [tab]);
+        const timer = setTimeout(load, query ? 300 : 0);
+        return () => clearTimeout(timer);
+    }, [load, query]);
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        loadPlayers(query, tab);
+    useEffect(() => {
+        setPage(0);
+    }, [query, owns, status, faction, sort, dir]);
+
+    const toggleSort = (key: SortKey) => {
+        if (sort === key) {
+            setDir((prev) => (prev === "desc" ? "asc" : "desc"));
+            return;
+        }
+        setSort(key);
+        setDir("desc");
     };
+
+    const sortIcon = (key: SortKey) =>
+        sort === key ? (dir === "desc" ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />) : null;
 
     const handleBanChanged = (userId: string, isBanned: boolean, banReason: string | null) => {
         setPlayers((prev) => prev.map((p) => (p.id === userId ? { ...p, isBanned, banReason } : p)));
     };
 
     const handleLicenseChanged = (userId: string, ownsGame: boolean) => {
-        setPlayers((prev) =>
-            tab === (ownsGame ? "players" : "registered")
-                ? prev.map((p) => (p.id === userId ? { ...p, ownsGame } : p))
-                : prev.filter((p) => p.id !== userId)
-        );
+        setPlayers((prev) => prev.map((p) => (p.id === userId ? { ...p, ownsGame } : p)));
     };
 
-    const visible = players;
-
     return (
-        <div className="space-y-4">
-            <div className="flex gap-2">
-                {([
-                    { id: "players" as const, label: "Players" },
-                    { id: "registered" as const, label: "Registered only" },
-                ]).map((entry) => (
-                    <button
-                        key={entry.id}
-                        onClick={() => setTab(entry.id)}
-                        className={`px-3 py-1.5 rounded text-sm border transition-colors ${tab === entry.id
-                            ? "border-cyan-500/60 bg-cyan-500/10 text-[#E5E7EB]"
-                            : "border-[rgba(255,255,255,0.08)] text-[#8B8F98] hover:text-[#E5E7EB]"
-                            }`}
-                    >
-                        {entry.label}
-                    </button>
-                ))}
+        <Panel
+            title="Players"
+            actions={<span className="a-hint">{formatNumber(total)} accounts match</span>}
+            flush
+        >
+            <div className="a-panel-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="a-row">
+                    <SearchInput value={query} onChange={setQuery} placeholder="Search by nickname or wallet…" />
+                    {(query || owns !== "all" || status !== "all" || faction !== "all") && (
+                        <button
+                            type="button"
+                            className="a-btn a-btn-ghost"
+                            onClick={() => {
+                                setQuery("");
+                                setOwns("all");
+                                setStatus("all");
+                                setFaction("all");
+                            }}
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+                <div className="a-row">
+                    <Chips value={owns} options={OWNS_OPTIONS} onChange={setOwns} />
+                    <Chips value={status} options={STATUS_OPTIONS} onChange={setStatus} />
+                    <Chips value={faction} options={FACTION_OPTIONS} onChange={setFaction} />
+                </div>
+                {error && <Alert tone="bad">{error}</Alert>}
             </div>
 
-            <form onSubmit={handleSearch} className="flex gap-2">
-                <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search by wallet or nickname..."
-                    className="flex-1 bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none"
-                />
-                <button type="submit" className="btn-secondary px-4 py-2 text-sm">Search</button>
-            </form>
-
-            {loading ? (
-                <p className="text-[#8B8F98] text-sm">Loading...</p>
+            {loading && players.length === 0 ? (
+                <Empty>Loading…</Empty>
+            ) : players.length === 0 ? (
+                <Empty>No players match these filters.</Empty>
             ) : (
-                <div className="overflow-x-auto rounded-lg border border-[rgba(255,255,255,0.08)]">
-                    <table className="w-full text-sm">
+                <div className="a-table-wrap">
+                    <table className="a-table">
                         <thead>
-                            <tr className="bg-[rgba(255,255,255,0.04)] text-[#8B8F98] text-xs">
-                                <th className="text-left px-3 py-2">Player</th>
-                                <th className="text-left px-3 py-2">Wallet</th>
-                                <th className="text-left px-3 py-2">Status</th>
-                                <th className="text-left px-3 py-2">Last Seen</th>
-                                <th className="text-left px-3 py-2">Joined</th>
+                            <tr>
+                                <th>Player</th>
+                                <th>Status</th>
+                                <th data-sortable="true" onClick={() => toggleSort("level")}>
+                                    <span className="a-row" style={{ gap: 4 }}>Level {sortIcon("level")}</span>
+                                </th>
+                                <th>Ash</th>
+                                <th>Spent</th>
+                                <th data-sortable="true" onClick={() => toggleSort("kills")}>
+                                    <span className="a-row" style={{ gap: 4 }}>K / D {sortIcon("kills")}</span>
+                                </th>
+                                <th data-sortable="true" onClick={() => toggleSort("playtime")}>
+                                    <span className="a-row" style={{ gap: 4 }}>Playtime {sortIcon("playtime")}</span>
+                                </th>
+                                <th>Faction</th>
+                                <th data-sortable="true" onClick={() => toggleSort("lastSeen")}>
+                                    <span className="a-row" style={{ gap: 4 }}>Last seen {sortIcon("lastSeen")}</span>
+                                </th>
+                                <th data-sortable="true" onClick={() => toggleSort("created")}>
+                                    <span className="a-row" style={{ gap: 4 }}>Joined {sortIcon("created")}</span>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {visible.map((p) => (
-                                <tr
-                                    key={p.id}
-                                    onClick={() => setSelectedUserId(p.id)}
-                                    className="border-t border-[rgba(255,255,255,0.06)] cursor-pointer hover:bg-[rgba(255,255,255,0.03)]"
-                                >
-                                    <td className="px-3 py-2 text-[#E5E7EB]">{p.nickname || "—"}</td>
-                                    <td className="px-3 py-2 text-[#8B8F98] font-mono text-xs">{truncateWallet(p.wallet)}</td>
-                                    <td className="px-3 py-2">
-                                        <span className={`inline-flex items-center gap-1.5 ${p.isOnline ? "text-green-400" : "text-[#6B7280]"}`}>
-                                            <span className={`w-2 h-2 rounded-full ${p.isOnline ? "bg-green-400" : "bg-[#6B7280]"}`} />
-                                            {p.isOnline ? "Online" : "Offline"}
-                                        </span>
-                                        {p.isBanned && (
-                                            <span className="ml-2 text-red-400 text-xs font-bold">BANNED{p.banReason ? `: ${p.banReason}` : ""}</span>
-                                        )}
-                                        {p.ownsGame && p.promoFactionName && (
-                                            <span className="ml-2 text-[#FFD166] text-xs font-bold">🎟 Promo: {p.promoFactionName}</span>
-                                        )}
-                                    </td>
-                                    <td className="px-3 py-2 text-[#8B8F98]">{formatLastSeen(p.lastSeenAt)}</td>
-                                    <td className="px-3 py-2 text-[#8B8F98]">{new Date(p.createdAt).toLocaleDateString()}</td>
-                                </tr>
-                            ))}
+                            {players.map((player) => {
+                                const muted = !!player.mutedUntil && new Date(player.mutedUntil).getTime() > Date.now();
+                                return (
+                                    <tr
+                                        key={player.id}
+                                        data-clickable="true"
+                                        data-flag={player.isBanned ? "banned" : player.isOnline ? "online" : undefined}
+                                        onClick={() => setSelectedUserId(player.id)}
+                                    >
+                                        <td>
+                                            <div style={{ fontWeight: 600 }}>{player.nickname || "—"}</div>
+                                            <div className="a-hint a-mono">{truncateWallet(player.wallet)}</div>
+                                        </td>
+                                        <td>
+                                            <div className="a-pills">
+                                                <Badge tone={player.isOnline ? "good" : "neutral"} dot>
+                                                    {player.isOnline ? "Online" : "Offline"}
+                                                </Badge>
+                                                {player.ownsGame ? (
+                                                    <Badge tone="violet">Owner</Badge>
+                                                ) : (
+                                                    <Badge>No licence</Badge>
+                                                )}
+                                                {player.isBanned && <Badge tone="bad">Banned</Badge>}
+                                                {muted && <Badge tone="warn">Muted</Badge>}
+                                                {player.promoFactionName && <Badge tone="warn">Promo</Badge>}
+                                            </div>
+                                            {player.isBanned && player.banReason && (
+                                                <div className="a-hint">{player.banReason}</div>
+                                            )}
+                                        </td>
+                                        <td style={{ fontWeight: 700, color: "var(--a-accent)" }}>{player.level || 1}</td>
+                                        <td style={{ color: "var(--a-warn)", fontWeight: 600 }}>{formatNumber(player.ash)}</td>
+                                        <td>{player.spentTnj ? `${formatNumber(player.spentTnj)} TNJ` : <span className="a-muted">—</span>}</td>
+                                        <td className="a-dim">{formatNumber(player.kills)} / {formatNumber(player.deaths)}</td>
+                                        <td className="a-dim">{formatPlaytime(player.playtimeSeconds)}</td>
+                                        <td className="a-dim">{player.factionName || <span className="a-muted">—</span>}</td>
+                                        <td className="a-dim">{formatRelative(player.lastSeenAt)}</td>
+                                        <td className="a-dim">{new Date(player.createdAt).toLocaleDateString()}</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
             )}
+
+            <div className="a-panel-body a-row">
+                <span className="a-hint">
+                    Showing {page * PAGE_SIZE + (players.length ? 1 : 0)}–{page * PAGE_SIZE + players.length} of {formatNumber(total)}
+                </span>
+                <span className="a-spacer" />
+                <button type="button" className="a-btn a-btn-sm" disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                    Previous
+                </button>
+                <button
+                    type="button"
+                    className="a-btn a-btn-sm"
+                    disabled={(page + 1) * PAGE_SIZE >= total}
+                    onClick={() => setPage((p) => p + 1)}
+                >
+                    Next
+                </button>
+            </div>
 
             <AdminPlayerDetailModal
                 userId={selectedUserId}
@@ -166,6 +264,6 @@ export const AdminPlayersTable = forwardRef<AdminTableRef>(function AdminPlayers
                 onBanChanged={handleBanChanged}
                 onLicenseChanged={handleLicenseChanged}
             />
-        </div>
+        </Panel>
     );
 });

@@ -1,10 +1,8 @@
 // app/api/admin/players/[userId]/skin/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
-import { db } from "@/core/database";
-import { gameProgress } from "@/core/database/schema";
-import { eq } from "drizzle-orm";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
+import { applyLiveOps } from "@/core/lib/adminLiveSync";
 
 export async function PATCH(
     req: NextRequest,
@@ -20,27 +18,9 @@ export async function PATCH(
         const sigError = await verifyAdminAction(req, body, "resetSkin", userId);
         if (sigError) return sigError;
 
-        const row = await db.query.gameProgress.findFirst({ where: eq(gameProgress.userId, userId) });
-        if (!row) {
-            return NextResponse.json({ success: true, skinTextureUrl: null });
-        }
+        const { mode } = await applyLiveOps(userId, [{ kind: "skinReset" }]);
 
-        let data: Record<string, unknown> = {};
-        if (row.data) {
-            try {
-                data = JSON.parse(row.data);
-            } catch {
-                data = {};
-            }
-        }
-        data.skinTextureUrl = null;
-
-        await db
-            .update(gameProgress)
-            .set({ data: JSON.stringify(data), updatedAt: new Date() })
-            .where(eq(gameProgress.id, row.id));
-
-        return NextResponse.json({ success: true, skinTextureUrl: null });
+        return NextResponse.json({ success: true, mode, skinTextureUrl: null });
     } catch (error) {
         console.error("[admin/players/:userId/skin] Error:", error);
         return NextResponse.json({ error: "reset_failed" }, { status: 500 });

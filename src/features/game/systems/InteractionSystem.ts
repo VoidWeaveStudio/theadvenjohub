@@ -9,6 +9,8 @@ import { SPAWN_BEACON_INTERACTION, STORAGE_INTERACTION } from "../world/building
 import { DEATH_CRATE_PREFIX } from "../entities/DeathCrate";
 import { ARENA_ALTAR_INTERACTION, EVENT_DOORS_BY_ID, EVENT_DOOR_PREFIX, EVENT_EXIT_INTERACTION } from "../data/eventDoors";
 import { TOURNAMENT_BOARD_INTERACTION } from "../world/locations/tower/floors/main-hall/layout";
+import { PERSONAL_ROOM_PREFIX } from "../world/locations/tower/floors/PersonalRoom";
+import { FACTION_ROOM_PREFIX } from "../world/locations/tower/floors/FactionGateRoom";
 import { t } from "@/core/i18n";
 
 const ARENA_REVIVE_PREFIX = "arena-revive:";
@@ -67,7 +69,20 @@ export class InteractionSystem extends System {
     public isOwnRoom: boolean = false;
     public localUserId: string = "";
     public myFactionIds: Set<string> = new Set();
+    public manageableFactionIds: Set<string> = new Set();
+    public currentLocationId: string = "";
     public isBlueprintActive: boolean = false;
+
+    public canUseRoomConsole(): boolean {
+        const id = this.currentLocationId;
+        if (id.startsWith(PERSONAL_ROOM_PREFIX)) {
+            return id === `${PERSONAL_ROOM_PREFIX}${this.localUserId}`;
+        }
+        if (id.startsWith(FACTION_ROOM_PREFIX)) {
+            return this.manageableFactionIds.has(id.slice(FACTION_ROOM_PREFIX.length));
+        }
+        return false;
+    }
 
     public setScene(scene: THREE.Scene) {
         this.scene = scene;
@@ -127,9 +142,13 @@ export class InteractionSystem extends System {
                     this.onOpenFactionBubble?.(factionId);
                 }
             } else if (id === "room-console") {
-                this.onPrompt?.(t("g.prompt.roomConsole"));
-                if (isEJustPressed === true) {
-                    this.onOpenRoomConsole?.();
+                if (this.canUseRoomConsole()) {
+                    this.onPrompt?.(t("g.prompt.roomConsole"));
+                    if (isEJustPressed === true) {
+                        this.onOpenRoomConsole?.();
+                    }
+                } else {
+                    this.onPrompt?.(t("g.prompt.roomConsoleOwnerOnly"));
                 }
             } else if (id === "room-portal") {
                 this.onPrompt?.(t("g.prompt.usePortal"));

@@ -108,7 +108,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className={`${inter.variable} ${oxanium.variable} text-foreground font-sans antialiased`}>
         <div className="site-background" aria-hidden="true" />
-        <LanguageProvider>
+        <LanguageProvider initialLanguage={language}>
           <SolanaProviders>
             <Header />
             <main className="relative z-10 min-h-screen pb-12 sm:pb-16">

@@ -4,6 +4,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Tile } from "./AdminKit";
 
 const TIERS = [
     { tier: 0, mc: 0, radius: 44 },
@@ -92,76 +93,71 @@ export const AdminWorldPanel = forwardRef<AdminTableRef>(function AdminWorldPane
     const portal = state?.portal;
 
     return (
-        <div className="rounded-lg p-4 border bg-white/5 border-white/10 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-                <div>
-                    <div className="text-white text-sm font-bold">🏯 World State</div>
-                    <div className="text-[#8B8F98] text-xs">
-                        MC {formatUsd(state?.mc ?? 0)} · peak {formatUsd(state?.mcPeak ?? 0)}
-                    </div>
-                </div>
-                <button onClick={() => load()} className="btn-secondary px-3 py-1.5 text-xs" disabled={busy}>
-                    Refresh
+        <section className="a-panel">
+            <header className="a-panel-head">
+                <span className="a-panel-title">World state</span>
+                <span className="a-hint">
+                    MC {formatUsd(state?.mc ?? 0)} · peak {formatUsd(state?.mcPeak ?? 0)}
+                </span>
+                <button type="button" onClick={() => load()} className="a-btn a-btn-sm a-spacer" disabled={busy}>
+                    Reload
                 </button>
-            </div>
+            </header>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-black/30 rounded p-3 border border-white/10">
-                    <div className="text-[#8B8F98]">Rampart</div>
-                    <div className="text-white font-bold mt-1">
-                        Tier {effectiveTier} · {active.radius === null ? "no wall" : `R ${active.radius}m`}
-                    </div>
-                    <div className="text-[#8B8F98] mt-1">
-                        {state?.adminTier !== null && state?.adminTier !== undefined
-                            ? `forced by admin (mc tier ${state.tier})`
-                            : "driven by market cap"}
-                    </div>
+            <div className="a-panel-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="a-grid a-grid-2">
+                    <Tile
+                        label="Rampart"
+                        value={
+                            <>
+                                Tier {effectiveTier} · {active.radius === null ? "no wall" : `R ${active.radius}m`}
+                                <div className="a-hint">
+                                    {state?.adminTier !== null && state?.adminTier !== undefined
+                                        ? `forced by admin (market-cap tier ${state.tier})`
+                                        : "driven by market cap"}
+                                </div>
+                            </>
+                        }
+                    />
+                    <Tile
+                        label="Rift"
+                        value={
+                            <>
+                                {portal?.status === "active" && `active at ${portal.x.toFixed(0)}, ${portal.z.toFixed(0)}`}
+                                {portal?.status === "cooldown" && `cooldown ${formatRemaining(portal.cooldownUntil)}`}
+                                {(!portal || portal.status === "locked") && "locked"}
+                                <div className="a-hint">unlocks at {formatUsd(500000)}</div>
+                            </>
+                        }
+                    />
                 </div>
 
-                <div className="bg-black/30 rounded p-3 border border-white/10">
-                    <div className="text-[#8B8F98]">Rift</div>
-                    <div className="text-white font-bold mt-1">
-                        {portal?.status === "active" && `active at ${portal.x.toFixed(0)}, ${portal.z.toFixed(0)}`}
-                        {portal?.status === "cooldown" && `cooldown ${formatRemaining(portal.cooldownUntil)}`}
-                        {(!portal || portal.status === "locked") && "locked"}
-                    </div>
-                    <div className="text-[#8B8F98] mt-1">unlocks at {formatUsd(500000)}</div>
+                <div className="a-row">
+                    <button type="button" onClick={() => send("force_portal")} className="a-btn a-btn-primary" disabled={busy}>
+                        Force rift near base
+                    </button>
+
+                    <select value={effectiveTier} onChange={(e) => send("set_tier", { tier: Number(e.target.value) })} disabled={busy}>
+                        {TIERS.map((entry) => (
+                            <option key={entry.tier} value={entry.tier}>
+                                Tier {entry.tier} · {entry.radius === null ? "no wall" : `${entry.radius}m`} · {formatUsd(entry.mc)}
+                            </option>
+                        ))}
+                    </select>
+
+                    <button
+                        type="button"
+                        onClick={() => send("clear_tier")}
+                        className="a-btn"
+                        disabled={busy || state?.adminTier === null || state?.adminTier === undefined}
+                    >
+                        Clear override
+                    </button>
                 </div>
+
+                {notice && <Alert tone="info">{notice}</Alert>}
+                {error && <Alert tone="bad">{error}</Alert>}
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-                <button
-                    onClick={() => send("force_portal")}
-                    className="btn-primary px-3 py-1.5 text-xs"
-                    disabled={busy}
-                >
-                    Force rift near base
-                </button>
-
-                <select
-                    value={effectiveTier}
-                    onChange={(e) => send("set_tier", { tier: Number(e.target.value) })}
-                    className="bg-zinc-900 text-white px-3 py-1.5 rounded text-xs border border-zinc-700 focus:border-cyan-500 outline-none"
-                    disabled={busy}
-                >
-                    {TIERS.map((entry) => (
-                        <option key={entry.tier} value={entry.tier}>
-                            Tier {entry.tier} · {entry.radius === null ? "no wall" : `${entry.radius}m`} · {formatUsd(entry.mc)}
-                        </option>
-                    ))}
-                </select>
-
-                <button
-                    onClick={() => send("clear_tier")}
-                    className="btn-secondary px-3 py-1.5 text-xs"
-                    disabled={busy || state?.adminTier === null || state?.adminTier === undefined}
-                >
-                    Clear override
-                </button>
-            </div>
-
-            {notice && <p className="text-cyan-400 text-xs">{notice}</p>}
-            {error && <p className="text-red-400 text-xs">{error}</p>}
-        </div>
+        </section>
     );
 });

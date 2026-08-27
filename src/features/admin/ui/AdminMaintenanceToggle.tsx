@@ -2,13 +2,16 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { Wrench } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Badge } from "./AdminKit";
 
 export const AdminMaintenanceToggle = forwardRef<AdminTableRef>(function AdminMaintenanceToggle(_props, ref) {
     const [enabled, setEnabled] = useState(false);
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(true);
+    const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { signedFetch } = useAdminSignature();
 
@@ -20,6 +23,7 @@ export const AdminMaintenanceToggle = forwardRef<AdminTableRef>(function AdminMa
                 setEnabled(!!data.enabled);
                 setMessage(data.message || "");
             })
+            .catch(() => setError("Failed to load maintenance status"))
             .finally(() => setLoading(false));
     };
 
@@ -31,47 +35,55 @@ export const AdminMaintenanceToggle = forwardRef<AdminTableRef>(function AdminMa
 
     const toggle = async (next: boolean) => {
         setError(null);
+        setBusy(true);
         try {
             const res = await signedFetch("/api/admin/maintenance", next ? "maintenance_on" : "maintenance_off", "global", {
                 enabled: next,
                 message: message.trim() || undefined,
             });
-            if (res.ok) {
-                setEnabled(next);
-            } else {
+            if (!res.ok) {
                 setError("Failed to update maintenance mode");
+                return;
             }
-        } catch (err: any) {
-            setError(err.message || "Signature failed");
+            setEnabled(next);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Signature failed");
+        } finally {
+            setBusy(false);
         }
     };
 
-    if (loading && !enabled && !message) return null;
-
     return (
-        <div className={`rounded-lg p-4 border ${enabled ? "bg-red-500/10 border-red-500/30" : "bg-white/5 border-white/10"}`}>
-            <div className="flex items-center justify-between gap-3">
-                <div>
-                    <div className="text-white text-sm font-bold">🛠️ Maintenance Mode</div>
-                    <div className="text-[#8B8F98] text-xs">
-                        {enabled ? "Game is currently unavailable to players." : "Game is live for all players."}
-                    </div>
+        <section className="a-panel" style={enabled ? { borderColor: "rgba(255,107,107,0.35)" } : undefined}>
+            <header className="a-panel-head">
+                <span className="a-panel-title">
+                    <Wrench className="w-3 h-3" style={{ display: "inline", marginRight: 6 }} />
+                    Maintenance mode
+                </span>
+                <div className="a-row a-spacer">
+                    <Badge tone={enabled ? "bad" : "good"} dot>
+                        {loading ? "checking…" : enabled ? "Game closed to players" : "Game is live"}
+                    </Badge>
+                    <button
+                        type="button"
+                        className={enabled ? "a-btn a-btn-good" : "a-btn a-btn-danger"}
+                        disabled={busy}
+                        onClick={() => toggle(!enabled)}
+                    >
+                        {enabled ? "Bring the game back" : "Close the game"}
+                    </button>
                 </div>
-                <button
-                    onClick={() => toggle(!enabled)}
-                    className={enabled ? "btn-secondary px-4 py-2 text-xs" : "btn-primary px-4 py-2 text-xs"}
-                >
-                    {enabled ? "Disable" : "Enable"}
-                </button>
+            </header>
+            <div className="a-panel-body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <input
+                    type="text"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Custom message shown to players (optional)"
+                />
+                <p className="a-hint">The message is saved together with the toggle, so set it before switching maintenance on.</p>
+                {error && <Alert tone="bad">{error}</Alert>}
             </div>
-            <input
-                type="text"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Custom message shown to players (optional)"
-                className="w-full mt-3 bg-zinc-900 text-white px-3 py-2 rounded text-xs border border-zinc-700 focus:border-cyan-500 outline-none"
-            />
-            {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
-        </div>
+        </section>
     );
 });

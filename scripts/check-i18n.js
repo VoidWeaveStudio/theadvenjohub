@@ -7,7 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "..");
 const LOCALES = path.join(ROOT, "src", "core", "i18n", "locales");
 const SOURCE_DIRS = [path.join(ROOT, "src"), path.join(ROOT, "app")];
-const ORDER = ["ru", "be", "es", "it", "zh", "ja", "ko", "vi", "id", "fil"];
+const ORDER = ["ru", "be", "es", "it", "zh", "zh-tw", "ja", "ko", "vi", "id", "fil"];
 
 const KEY_LINE = /^\s*"([^"]+)":\s/gm;
 const T_CALL = /\bt\(\s*"([^"\n]+)"|\bt\(\s*'([^'\n]+)'/g;

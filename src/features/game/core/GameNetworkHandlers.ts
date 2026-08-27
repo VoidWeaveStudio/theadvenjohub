@@ -1,7 +1,7 @@
 // src/features/game/core/GameNetworkHandlers.ts
 import * as THREE from "three";
 import type { Game, GameSession } from "./Game";
-import { PlayerNetData, type DeathLootInfo, type RespawnOptions } from "../network/NetworkManager";
+import { PlayerNetData, type DeathLootInfo, type FactionSummary, type RespawnOptions } from "../network/NetworkManager";
 import { MEME_ABILITIES_BY_ID } from "../data/progression";
 import { abilityById } from "../data/skills";
 import { OtherPlayer } from "../entities/OtherPlayer";
@@ -1498,20 +1498,29 @@ export function registerNetworkHandlers(game: Game) {
         }
     };
 
+    const managesFaction = (faction: FactionSummary) =>
+        faction.founderWallet === game.session.wallet
+        || faction.verifiedCreatorWallet === game.session.wallet;
+
     game.networkManager.onFactionJoined = (faction) => {
         game.interactionSystem.myFactionIds.add(faction.id);
+        if (managesFaction(faction)) game.interactionSystem.manageableFactionIds.add(faction.id);
         game.onFactionJoined?.(faction);
         game.onNotification?.(t("g.notify.factionJoined", { name: faction.name }), 2500);
     };
 
     game.networkManager.onFactionLeft = (factionId) => {
         game.interactionSystem.myFactionIds.delete(factionId);
+        game.interactionSystem.manageableFactionIds.delete(factionId);
         game.onFactionLeft?.(factionId);
         game.onNotification?.(t("g.notify.factionLeft"), 2000);
     };
 
     game.networkManager.onFactionMyListResult = (factions) => {
         game.interactionSystem.myFactionIds = new Set(factions.map((f) => f.id));
+        game.interactionSystem.manageableFactionIds = new Set(
+            factions.filter(managesFaction).map((f) => f.id)
+        );
         game.onFactionMyListResult?.(factions);
     };
 

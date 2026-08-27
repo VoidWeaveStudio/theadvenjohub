@@ -2,35 +2,98 @@
 import { randomUUID } from "crypto";
 import { db } from "@/core/database";
 import { appSettings } from "@/core/database/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const COMMANDS_KEY = "admin_game_commands";
-const MAX_COMMANDS = 200;
-const COMMAND_TTL_MS = 30 * 60 * 1000;
+const MAX_COMMANDS = 500;
+const COMMAND_TTL_MS = 6 * 60 * 60 * 1000;
 
-interface AdminCommandBase {
+export const ADMIN_COMMAND_PROTOCOL = 2;
+
+export type LiveOp =
+    | { kind: "ashDelta"; delta: number }
+    | { kind: "ashSet"; value: number }
+    | { kind: "placeableDelta"; itemId: string; delta: number }
+    | { kind: "placeablesSet"; placeables: Record<string, number> }
+    | { kind: "placeablesEnsure"; minimums: Record<string, number> }
+    | { kind: "storageClear" }
+    | { kind: "inventoryClear" }
+    | { kind: "inventoryRemoveSlot"; slot: number }
+    | { kind: "progressionSet"; level: number; totalXp: number }
+    | { kind: "progressionReset" }
+    | { kind: "statisticsReset" }
+    | { kind: "skinReset" };
+
+export interface AdminGameCommand {
     id: string;
     userId: string;
     createdAt: number;
+    deliveredAt: number | null;
+    op: LiveOp;
 }
 
-export interface AdminSetLevelCommand extends AdminCommandBase {
-    type: "setLevel";
-    level: number;
-    totalXp: number;
-}
+function normalizeOp(raw: unknown): LiveOp | null {
+    if (!raw || typeof raw !== "object") return null;
+    const source = raw as Record<string, unknown>;
+    const kind = source.kind;
 
-export interface AdminRemoveInventorySlotCommand extends AdminCommandBase {
-    type: "removeInventorySlot";
-    slot: number;
-}
+    const int = (value: unknown) => {
+        const parsed = Math.trunc(Number(value));
+        return Number.isFinite(parsed) ? parsed : null;
+    };
 
-export type AdminGameCommand = AdminSetLevelCommand | AdminRemoveInventorySlotCommand;
-
-function commandKey(command: AdminGameCommand): string {
-    return command.type === "setLevel"
-        ? `setLevel:${command.userId}`
-        : `removeInventorySlot:${command.userId}:${command.slot}`;
+    switch (kind) {
+        case "ashDelta": {
+            const delta = int(source.delta);
+            return delta === null || delta === 0 ? null : { kind, delta };
+        }
+        case "ashSet": {
+            const value = int(source.value);
+            return value === null ? null : { kind, value: Math.max(0, value) };
+        }
+        case "placeableDelta": {
+            const delta = int(source.delta);
+            const itemId = typeof source.itemId === "string" ? source.itemId : "";
+            return !itemId || delta === null || delta === 0 ? null : { kind, itemId, delta };
+        }
+        case "placeablesSet": {
+            const placeables = source.placeables;
+            if (!placeables || typeof placeables !== "object") return null;
+            const clean: Record<string, number> = {};
+            for (const [key, value] of Object.entries(placeables as Record<string, unknown>)) {
+                const amount = int(value);
+                if (amount !== null && amount > 0) clean[key] = amount;
+            }
+            return { kind, placeables: clean };
+        }
+        case "placeablesEnsure": {
+            const minimums = source.minimums;
+            if (!minimums || typeof minimums !== "object") return null;
+            const clean: Record<string, number> = {};
+            for (const [key, value] of Object.entries(minimums as Record<string, unknown>)) {
+                const amount = int(value);
+                if (amount !== null && amount > 0) clean[key] = amount;
+            }
+            return Object.keys(clean).length === 0 ? null : { kind, minimums: clean };
+        }
+        case "storageClear":
+        case "inventoryClear":
+        case "progressionReset":
+        case "statisticsReset":
+        case "skinReset":
+            return { kind };
+        case "inventoryRemoveSlot": {
+            const slot = int(source.slot);
+            return slot === null || slot < 0 ? null : { kind, slot };
+        }
+        case "progressionSet": {
+            const level = int(source.level);
+            const totalXp = int(source.totalXp);
+            return level === null || totalXp === null ? null : { kind, level, totalXp };
+        }
+        default:
+            return null;
+    }
 }
 
 function normalize(raw: unknown): AdminGameCommand | null {
@@ -39,31 +102,21 @@ function normalize(raw: unknown): AdminGameCommand | null {
     const source = raw as Record<string, unknown>;
     if (typeof source.id !== "string" || typeof source.userId !== "string") return null;
 
-    const base: AdminCommandBase = {
+    const op = normalizeOp(source.op);
+    if (!op) return null;
+
+    const deliveredAt = Number(source.deliveredAt);
+
+    return {
         id: source.id,
         userId: source.userId,
         createdAt: Number(source.createdAt) || 0,
+        deliveredAt: Number.isFinite(deliveredAt) && deliveredAt > 0 ? deliveredAt : null,
+        op,
     };
-
-    if (source.type === "setLevel") {
-        const level = Math.floor(Number(source.level));
-        const totalXp = Math.floor(Number(source.totalXp));
-        if (!Number.isFinite(level) || !Number.isFinite(totalXp)) return null;
-
-        return { ...base, type: "setLevel", level, totalXp };
-    }
-
-    if (source.type === "removeInventorySlot") {
-        const slot = Math.floor(Number(source.slot));
-        if (!Number.isInteger(slot) || slot < 0) return null;
-
-        return { ...base, type: "removeInventorySlot", slot };
-    }
-
-    return null;
 }
 
-async function readCommands(): Promise<AdminGameCommand[]> {
+export async function readAdminGameCommands(): Promise<AdminGameCommand[]> {
     const rows = await db
         .select({ value: appSettings.value })
         .from(appSettings)
@@ -81,8 +134,8 @@ async function readCommands(): Promise<AdminGameCommand[]> {
     }
 }
 
-async function writeCommands(commands: AdminGameCommand[]) {
-    const serialized = JSON.stringify(commands);
+async function writeAdminGameCommands(commands: AdminGameCommand[]) {
+    const serialized = JSON.stringify(commands.slice(-MAX_COMMANDS));
 
     await db
         .insert(appSettings)
@@ -93,24 +146,76 @@ async function writeCommands(commands: AdminGameCommand[]) {
         });
 }
 
-type QueuedCommand =
-    | Omit<AdminSetLevelCommand, "id" | "createdAt">
-    | Omit<AdminRemoveInventorySlotCommand, "id" | "createdAt">;
-
-export async function queueAdminGameCommand(command: QueuedCommand) {
+/**
+ * Appends in a single statement so two admin actions racing each other cannot
+ * lose one another's commands the way a read-modify-write would.
+ */
+export async function queueAdminGameCommands(userId: string, ops: LiveOp[]): Promise<AdminGameCommand[]> {
+    const queued: AdminGameCommand[] = [];
     const now = Date.now();
-    const pending = (await readCommands()).filter((c) => now - c.createdAt < COMMAND_TTL_MS);
 
-    const queued = { ...command, id: randomUUID(), createdAt: now } as AdminGameCommand;
-    const key = commandKey(queued);
+    for (const raw of ops) {
+        const op = normalizeOp(raw);
+        if (!op) continue;
+        queued.push({ id: randomUUID(), userId, createdAt: now, deliveredAt: null, op });
+    }
 
-    await writeCommands([...pending.filter((c) => commandKey(c) !== key), queued].slice(-MAX_COMMANDS));
+    if (queued.length === 0) return [];
+
+    const payload = JSON.stringify(queued);
+
+    try {
+        await appendAtomically(payload);
+    } catch (error) {
+        console.error("[adminGameCommands] atomic append failed, rewriting queue:", error);
+        await writeAdminGameCommands([...(await readAdminGameCommands()), ...queued]);
+    }
+
+    return queued;
 }
 
-export async function drainAdminGameCommands(): Promise<AdminGameCommand[]> {
-    const now = Date.now();
-    const commands = (await readCommands()).filter((c) => now - c.createdAt < COMMAND_TTL_MS);
-    if (commands.length > 0) await writeCommands([]);
+async function appendAtomically(payload: string): Promise<void> {
+    await db.execute(sql`
+        INSERT INTO app_settings (key, value, updated_at)
+        VALUES (${COMMANDS_KEY}, ${payload}, now())
+        ON CONFLICT (key) DO UPDATE SET
+            value = (
+                CASE
+                    WHEN jsonb_typeof(COALESCE(NULLIF(app_settings.value, '')::jsonb, '[]'::jsonb)) = 'array'
+                        THEN COALESCE(NULLIF(app_settings.value, '')::jsonb, '[]'::jsonb)
+                    ELSE '[]'::jsonb
+                END || ${payload}::jsonb
+            )::text,
+            updated_at = now()
+    `);
+}
 
-    return commands;
+export async function removeAdminGameCommands(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    const remaining = (await readAdminGameCommands()).filter((command) => !ids.includes(command.id));
+    await writeAdminGameCommands(remaining);
+}
+
+export async function markAdminGameCommandsDelivered(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    const now = Date.now();
+    const commands = (await readAdminGameCommands()).map((command) =>
+        ids.includes(command.id) ? { ...command, deliveredAt: now } : command
+    );
+    await writeAdminGameCommands(commands);
+}
+
+export async function clearAdminGameCommandDelivery(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    const commands = (await readAdminGameCommands()).map((command) =>
+        ids.includes(command.id) ? { ...command, deliveredAt: null } : command
+    );
+    await writeAdminGameCommands(commands);
+}
+
+export function isExpiredAdminGameCommand(command: AdminGameCommand, now = Date.now()): boolean {
+    return now - command.createdAt > COMMAND_TTL_MS;
 }

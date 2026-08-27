@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAdminSignature } from "../lib/useAdminSignature";
+import { Alert, Modal } from "./AdminKit";
 
 interface TokenPreview {
     name: string;
@@ -115,17 +116,13 @@ export function AdminCreateFactionModal({ isOpen, onClose, onCreated }: AdminCre
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-            <div
-                className="w-full max-w-md bg-[#0a0a0c] border border-[rgba(255,255,255,0.1)] rounded-xl p-6 space-y-4"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="flex items-center justify-between">
-                    <h2 className="text-white text-lg font-bold">Create Faction</h2>
-                    <button onClick={onClose} className="text-[#8B8F98] hover:text-white text-sm">✕</button>
-                </div>
-
-                <p className="text-[#8B8F98] text-sm">
+        <Modal onClose={onClose} size="sm">
+            <header className="a-modal-head">
+                <span className="a-top-title" style={{ flex: 1 }}>Create faction</span>
+                <button type="button" className="a-icon-btn" onClick={onClose} aria-label="Close">✕</button>
+            </header>
+            <div className="a-modal-body">
+                <p className="a-hint">
                     Creates an empty faction for free — no payment, no member yet. The real token creator can join it
                     in-game and use creator verification to take it over.
                 </p>
@@ -136,63 +133,55 @@ export function AdminCreateFactionModal({ isOpen, onClose, onCreated }: AdminCre
                     onChange={(e) => setCa(e.target.value.slice(0, 64))}
                     placeholder="Token contract address..."
                     autoFocus
-                    className="w-full bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 focus:border-cyan-500 outline-none font-mono"
+                    className="a-mono" style={{ width: "100%" }}
                 />
 
-                {previewStatus === "loading" && <p className="text-[#8B8F98] text-sm">Looking up token...</p>}
+                {previewStatus === "loading" && <p className="a-hint">Looking up token…</p>}
 
                 {tokenPreview ? (
-                    <div className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
+                    <div className="a-item">
                         {tokenPreview.image ? (
-                            <img src={tokenPreview.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                            <img src={tokenPreview.image} alt="" style={{ width: 36, height: 36, borderRadius: 999, objectFit: "cover", flexShrink: 0 }} />
                         ) : (
-                            <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
+                            <div style={{ width: 36, height: 36, borderRadius: 999, background: "var(--a-panel-3)", flexShrink: 0 }} />
                         )}
-                        <div className="text-[#E5E7EB] font-bold text-sm">
-                            {tokenPreview.name} {tokenPreview.symbol && <span className="text-[#8B8F98]">${tokenPreview.symbol}</span>}
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>
+                            {tokenPreview.name} {tokenPreview.symbol && <span className="a-hint">${tokenPreview.symbol}</span>}
                         </div>
                     </div>
                 ) : previewStatus === "not_found" && trimmedCa.length >= 32 ? (
-                    <div className="space-y-2 bg-white/5 rounded-lg p-3">
-                        <p className="text-[#FFD166] text-xs">Not found automatically — enter details manually:</p>
+                    <div className="a-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 8, padding: 11 }}>
+                        <p className="a-hint" style={{ color: "var(--a-warn)" }}>Not found automatically — enter details manually:</p>
                         <input
                             type="text"
                             value={manualName}
                             onChange={(e) => setManualName(e.target.value.slice(0, 50))}
                             placeholder="Faction name (required)"
-                            className="w-full bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 outline-none"
+                            style={{ width: "100%" }}
                         />
                         <input
                             type="text"
                             value={manualSymbol}
                             onChange={(e) => setManualSymbol(e.target.value.slice(0, 20))}
                             placeholder="Symbol (optional)"
-                            className="w-full bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 outline-none"
+                            style={{ width: "100%" }}
                         />
                         <input
                             type="text"
                             value={manualImage}
                             onChange={(e) => setManualImage(e.target.value.slice(0, 512))}
                             placeholder="Image URL (optional)"
-                            className="w-full bg-zinc-900 text-white px-3 py-2 rounded text-sm border border-zinc-700 outline-none"
+                            style={{ width: "100%" }}
                         />
                     </div>
                 ) : null}
 
-                {error && (
-                    <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                        {error}
-                    </p>
-                )}
+                {error && <Alert tone="bad">{error}</Alert>}
 
-                <button
-                    onClick={handleCreate}
-                    disabled={!canCreate || creating}
-                    className="btn-primary px-4 py-2 text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {creating ? "Creating..." : "Create Faction"}
+                <button type="button" onClick={handleCreate} disabled={!canCreate || creating} className="a-btn a-btn-primary" style={{ width: "100%" }}>
+                    {creating ? "Creating…" : "Create faction"}
                 </button>
             </div>
-        </div>
+        </Modal>
     );
 }

@@ -4,7 +4,7 @@ import { requireAdmin } from "@/core/admin/requireAdmin";
 import { db } from "@/core/database";
 import { trades, gameNicknames } from "@/core/database/schema";
 import { alias } from "drizzle-orm/pg-core";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, ne, or } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     const admin = requireAdmin(req);
@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const query = searchParams.get("q")?.trim();
+        const status = searchParams.get("status") || "all";
         const page = Math.max(1, Number(searchParams.get("page")) || 1);
         const limit = 100;
 
@@ -40,13 +41,18 @@ export async function GET(req: NextRequest) {
             .from(trades)
             .leftJoin(sellerNick, and(eq(sellerNick.userId, trades.sellerId), eq(sellerNick.gameId, trades.gameId)))
             .leftJoin(buyerNick, and(eq(buyerNick.userId, trades.buyerId), eq(buyerNick.gameId, trades.gameId)))
-            .where(query ? or(
-                ilike(sellerNick.nickname, `%${query}%`),
-                ilike(buyerNick.nickname, `%${query}%`),
-                ilike(trades.sellerWallet, `%${query}%`),
-                ilike(trades.buyerWallet, `%${query}%`),
-                ilike(trades.itemName, `%${query}%`)
-            ) : undefined)
+            .where(and(
+                query ? or(
+                    ilike(sellerNick.nickname, `%${query}%`),
+                    ilike(buyerNick.nickname, `%${query}%`),
+                    ilike(trades.sellerWallet, `%${query}%`),
+                    ilike(trades.buyerWallet, `%${query}%`),
+                    ilike(trades.itemName, `%${query}%`),
+                    ilike(trades.txSignature, `%${query}%`)
+                ) : undefined,
+                status === "completed" ? eq(trades.status, "completed") : undefined,
+                status === "failed" ? ne(trades.status, "completed") : undefined
+            ))
             .orderBy(desc(trades.createdAt))
             .limit(limit)
             .offset((page - 1) * limit);

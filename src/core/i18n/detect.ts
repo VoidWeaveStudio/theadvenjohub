@@ -8,7 +8,7 @@ export function normaliseTag(tag: string): Language | null {
     const lower = tag.trim().toLowerCase();
     if (!lower) return null;
     if (lower.startsWith("fil") || lower.startsWith("tl")) return "fil";
-    if (lower.startsWith("zh")) return "zh";
+    if (lower.startsWith("zh")) return /hant|-tw|-hk|-mo/.test(lower) ? "zh-tw" : "zh";
     if (lower.startsWith("in")) return "id";
 
     const base = lower.split("-")[0];

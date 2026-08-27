@@ -39,6 +39,17 @@ function resolveTarget(query: string): { wallet?: string; nickname?: string } {
 
 export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail, onMarkMailRead }: MailTabProps) {
     const { t } = useLanguage();
+
+    const localized = (
+        key: string | null | undefined,
+        fallback: string,
+        vars: Record<string, string | number> | null | undefined
+    ): string => {
+        if (!key) return fallback;
+        const text = t(key, vars ?? undefined);
+        return text === key ? fallback : text;
+    };
+
     const [isComposing, setIsComposing] = useState(false);
     const [composeTarget, setComposeTarget] = useState("");
     const [composeSubject, setComposeSubject] = useState("");
@@ -120,6 +131,8 @@ export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail,
                 ) : (
                     mail.map((m) => {
                         const isExpanded = expandedMailId === m.id;
+                        const subject = localized(m.subjectKey, m.subject, m.bodyVars);
+                        const body = localized(m.bodyKey, m.body, m.bodyVars);
                         return (
                             <div
                                 key={m.id}
@@ -133,7 +146,7 @@ export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail,
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 min-w-0">
                                         {!m.isRead && <span className="w-2 h-2 rounded-full bg-[#4FD1FF] flex-shrink-0" />}
-                                        <span className="text-[#E5E7EB] text-sm font-bold truncate">{m.subject}</span>
+                                        <span className="text-[#E5E7EB] text-sm font-bold truncate">{subject}</span>
                                     </div>
                                     <span className="text-[#6B7280] text-xs flex-shrink-0">{formatMailDate(m.createdAt)}</span>
                                 </div>
@@ -146,7 +159,7 @@ export function MailTab({ mail, unreadMailCount, onRequestMailInbox, onSendMail,
                                         layout="inline"
                                     />
                                 </p>
-                                {isExpanded && <p className="text-[#E5E7EB] text-sm mt-2 whitespace-pre-wrap">{m.body}</p>}
+                                {isExpanded && <p className="text-[#E5E7EB] text-sm mt-2 whitespace-pre-wrap">{body}</p>}
                             </div>
                         );
                     })

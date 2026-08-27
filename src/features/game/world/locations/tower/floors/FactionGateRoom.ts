@@ -6,6 +6,8 @@ import { createRoomConsole, type RoomConsole } from "./roomConsole";
 import { BuildPlot } from "../../../building/BuildPlot";
 import { FACTION_PLOT_SIZE } from "../../../building/BuildLayout";
 
+export const FACTION_ROOM_PREFIX = "faction-gate-";
+
 const CONSOLE_OFFSET = 6;
 
 export class FactionGateRoom extends TowerFloor {
@@ -17,7 +19,7 @@ export class FactionGateRoom extends TowerFloor {
     private console: RoomConsole | null = null;
 
     constructor(factionId: string) {
-        super(`faction-gate-${factionId}`, "Faction Lot");
+        super(`${FACTION_ROOM_PREFIX}${factionId}`, "Faction Lot");
         this.factionId = factionId;
         this.maxPlayerRadius = FACTION_PLOT_SIZE;
         this.plot = new BuildPlot(this.scene, FACTION_PLOT_SIZE);

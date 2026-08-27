@@ -4,6 +4,7 @@ import { languageFromCookieHeader, normaliseTag, resolveLanguage } from "./detec
 import { en } from "./locales/en";
 import { ru } from "./locales/ru";
 import { zh } from "./locales/zh";
+import { zhTw } from "./locales/zh-tw";
 import { ko } from "./locales/ko";
 import { ja } from "./locales/ja";
 import { es } from "./locales/es";
@@ -22,6 +23,7 @@ export const translations: AllTranslations = {
   en,
   ru,
   zh,
+  "zh-tw": zhTw,
   ko,
   ja,
   es,
@@ -39,6 +41,7 @@ export const languageNames: Record<Language, string> = {
   es: "Español",
   it: "Italiano",
   zh: "简体中文",
+  "zh-tw": "繁體中文",
   ja: "日本語",
   ko: "한국어",
   vi: "Tiếng Việt",
@@ -53,6 +56,7 @@ export const languageEnglishNames: Record<Language, string> = {
   es: "Spanish",
   it: "Italian",
   zh: "Chinese (Simplified)",
+  "zh-tw": "Chinese (Traditional)",
   ja: "Japanese",
   ko: "Korean",
   vi: "Vietnamese",
@@ -67,6 +71,7 @@ export const languageFlags: Record<Language, string> = {
   es: "🇪🇸",
   it: "🇮🇹",
   zh: "🇨🇳",
+  "zh-tw": "🇹🇼",
   ja: "🇯🇵",
   ko: "🇰🇷",
   vi: "🇻🇳",
@@ -79,7 +84,15 @@ export function getTranslation(key: string, lang: Language): string {
 }
 
 
-export function getLanguageFromCookie(): Language {
+export const LANGUAGE_STORAGE_KEY = "language";
+
+/**
+ * Only what the user actually chose — the query override or the cookie. The
+ * browser preference is deliberately not a fallback here: the server already
+ * applies it when there is no cookie, and repeating it on the client let a tab
+ * quietly overwrite another tab's choice.
+ */
+export function readStoredLanguage(): Language | null {
   if (typeof window !== "undefined") {
     const override = new URLSearchParams(window.location.search).get("lang");
     if (override) {
@@ -91,18 +104,22 @@ export function getLanguageFromCookie(): Language {
     const stored = languageFromCookieHeader(document.cookie);
     if (stored) return stored;
   }
-  if (typeof navigator !== "undefined") {
-    for (const tag of navigator.languages ?? [navigator.language]) {
-      const resolved = normaliseTag(tag);
-      if (resolved) return resolved;
-    }
-  }
-  return "en";
+  return null;
 }
 
 export function setLanguageCookie(lang: Language): void {
   if (typeof document !== "undefined") {
     document.cookie = `language=${lang}; path=/; max-age=31536000; SameSite=Lax`;
+  }
+}
+
+/** Writing the choice is what other tabs listen for through the storage event. */
+export function broadcastLanguage(lang: Language): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+  } catch {
+    // Private mode or blocked storage: the cookie still carries the choice.
   }
 }
 

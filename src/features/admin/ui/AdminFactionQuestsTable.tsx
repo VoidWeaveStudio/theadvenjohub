@@ -1,10 +1,11 @@
 // src/features/admin/ui/AdminFactionQuestsTable.tsx
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { ExternalLink, Trash2 } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Badge, Chips, Empty, SearchInput, Tile, formatDate, formatNumber, truncateWallet } from "./AdminKit";
 
 interface AdminFactionQuest {
     id: string;
@@ -29,16 +30,21 @@ interface AdminFactionQuest {
     completedAt: string | null;
 }
 
-function truncateWallet(wallet: string): string {
-    if (wallet.length <= 10) return wallet;
-    return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
-}
+type StatusFilter = "all" | "active" | "finished";
+
+const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
+    { id: "all", label: "All quests" },
+    { id: "active", label: "Active" },
+    { id: "finished", label: "Finished" },
+];
 
 export const AdminFactionQuestsTable = forwardRef<AdminTableRef>(function AdminFactionQuestsTable(_props, ref) {
     const [quests, setQuests] = useState<AdminFactionQuest[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const [query, setQuery] = useState("");
+    const [status, setStatus] = useState<StatusFilter>("all");
     const { signedFetch } = useAdminSignature();
 
     const load = async () => {
@@ -60,85 +66,85 @@ export const AdminFactionQuestsTable = forwardRef<AdminTableRef>(function AdminF
         load();
     }, []);
 
+    const visible = useMemo(() => {
+        const needle = query.trim().toLowerCase();
+        return quests.filter((quest) => {
+            if (status === "active" && quest.status !== "active") return false;
+            if (status === "finished" && quest.status === "active") return false;
+            if (!needle) return true;
+            return `${quest.factionName} ${quest.factionSymbol || ""} ${quest.createdByNickname || ""} ${quest.createdByWallet} ${quest.targetUrl}`
+                .toLowerCase()
+                .includes(needle);
+        });
+    }, [quests, query, status]);
+
     const remove = async (quest: AdminFactionQuest) => {
-        const remaining = quest.bankRemainingAsh;
         const confirmed = window.confirm(
             `Delete this quest from ${quest.factionName}?\n\n` +
             `${quest.slotsClaimed}/${quest.slotsTotal} players already rewarded.\n` +
-            `${remaining} Ash still sits in the quest bank and will NOT be refunded.`
+            `${quest.bankRemainingAsh} Ash still sits in the quest bank and will NOT be refunded.`
         );
         if (!confirmed) return;
 
         setError(null);
         setBusyId(quest.id);
         try {
-            const res = await signedFetch(
-                `/api/admin/faction-quests/${quest.id}`,
-                "faction_quest_delete",
-                quest.id,
-                {},
-                "DELETE"
-            );
-            if (res.ok) {
-                setQuests((prev) => prev.filter((q) => q.id !== quest.id));
-            } else {
+            const res = await signedFetch(`/api/admin/faction-quests/${quest.id}`, "faction_quest_delete", quest.id, {}, "DELETE");
+            if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
                 setError(data.error || "Delete failed");
+                return;
             }
-        } catch (err: any) {
-            setError(err.message || "Delete failed");
+            setQuests((prev) => prev.filter((q) => q.id !== quest.id));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Delete failed");
         } finally {
             setBusyId(null);
         }
     };
 
-    if (loading) return <div className="text-[#8B8F98] text-sm">Loading quests...</div>;
+    const activeCount = quests.filter((q) => q.status === "active").length;
+    const bankLeft = quests.reduce((sum, q) => sum + q.bankRemainingAsh, 0);
 
     return (
-        <div className="space-y-3">
-            {error && (
-                <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>
-            )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="a-row">
+                <SearchInput value={query} onChange={setQuery} placeholder="Search faction, author or target URL…" />
+                <Chips value={status} options={STATUS_OPTIONS} onChange={setStatus} />
+                <span className="a-hint a-spacer">
+                    {activeCount} active · {formatNumber(bankLeft)} Ash unspent
+                </span>
+            </div>
 
-            {quests.length === 0 ? (
-                <div className="text-[#8B8F98] text-sm">No faction quests have been published yet.</div>
+            {error && <Alert tone="bad">{error}</Alert>}
+
+            {loading && quests.length === 0 ? (
+                <Empty>Loading…</Empty>
+            ) : visible.length === 0 ? (
+                <Empty>No faction quests match.</Empty>
             ) : (
-                <div className="space-y-2">
-                    {quests.map((quest) => (
-                        <div key={quest.id} className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
-                            <div className="flex items-center gap-3">
+                <div className="a-list">
+                    {visible.map((quest) => (
+                        <article key={quest.id} className="a-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 9, padding: 12 }}>
+                            <div className="a-row" style={{ flexWrap: "nowrap" }}>
                                 {quest.factionImage ? (
-                                    <img src={quest.factionImage} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                                    <img src={quest.factionImage} alt="" style={{ width: 32, height: 32, borderRadius: 999, objectFit: "cover" }} />
                                 ) : (
-                                    <div className="w-9 h-9 rounded-full bg-white/10 flex-shrink-0" />
+                                    <div style={{ width: 32, height: 32, borderRadius: 999, background: "var(--a-panel-3)" }} />
                                 )}
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-white font-bold text-sm truncate">{quest.factionName}</span>
-                                        {quest.factionSymbol && (
-                                            <span className="text-[#8B8F98] text-xs">${quest.factionSymbol}</span>
-                                        )}
-                                        <span
-                                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${quest.status === "active"
-                                                ? "bg-green-500/15 text-green-400"
-                                                : "bg-white/10 text-[#8B8F98]"
-                                                }`}
-                                        >
-                                            {quest.status.toUpperCase()}
-                                        </span>
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                    <div className="a-row" style={{ gap: 7 }}>
+                                        <span style={{ fontWeight: 700 }}>{quest.factionName}</span>
+                                        {quest.factionSymbol && <span className="a-hint">${quest.factionSymbol}</span>}
+                                        <Badge tone={quest.status === "active" ? "good" : "neutral"}>{quest.status.toUpperCase()}</Badge>
                                     </div>
-                                    <div className="text-[#8B8F98] text-xs">
-                                        by {quest.createdByNickname || truncateWallet(quest.createdByWallet)} ·{" "}
-                                        {new Date(quest.createdAt).toLocaleString()}
+                                    <div className="a-hint">
+                                        by {quest.createdByNickname || truncateWallet(quest.createdByWallet)} · {formatDate(quest.createdAt)}
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => remove(quest)}
-                                    disabled={busyId === quest.id}
-                                    className="flex items-center gap-1.5 text-red-400 hover:text-red-300 text-xs font-bold px-2 py-1 disabled:opacity-50"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    {busyId === quest.id ? "Deleting..." : "Delete"}
+                                <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busyId === quest.id} onClick={() => remove(quest)}>
+                                    <Trash2 />
+                                    {busyId === quest.id ? "Deleting…" : "Delete"}
                                 </button>
                             </div>
 
@@ -146,39 +152,22 @@ export const AdminFactionQuestsTable = forwardRef<AdminTableRef>(function AdminF
                                 href={quest.targetUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 text-xs truncate"
+                                className="a-row"
+                                style={{ gap: 6, color: "var(--a-accent)", fontSize: 12, flexWrap: "nowrap", minWidth: 0 }}
                             >
-                                <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
-                                <span className="truncate">{quest.targetUrl}</span>
+                                <ExternalLink className="w-3 h-3" />
+                                <span className="a-item-title">{quest.targetUrl}</span>
                             </a>
 
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 text-xs">
-                                <div className="flex justify-between">
-                                    <span className="text-[#8B8F98]">Rewarded</span>
-                                    <span className="text-white font-bold">{quest.slotsClaimed} / {quest.slotsTotal}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8B8F98]">Slots left</span>
-                                    <span className="text-white font-bold">{quest.slotsRemaining}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8B8F98]">Reward each</span>
-                                    <span className="text-white font-bold">{quest.rewardAsh}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8B8F98]">Bank</span>
-                                    <span className="text-amber-400 font-bold">{quest.bankAsh}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8B8F98]">Paid out</span>
-                                    <span className="text-white font-bold">{quest.paidOutAsh}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-[#8B8F98]">Bank left</span>
-                                    <span className="text-white font-bold">{quest.bankRemainingAsh}</span>
-                                </div>
+                            <div className="a-grid a-grid-3">
+                                <Tile label="Rewarded" value={`${quest.slotsClaimed} / ${quest.slotsTotal}`} />
+                                <Tile label="Slots left" value={formatNumber(quest.slotsRemaining)} />
+                                <Tile label="Reward each" value={`${formatNumber(quest.rewardAsh)} Ash`} />
+                                <Tile label="Bank" value={`${formatNumber(quest.bankAsh)} Ash`} />
+                                <Tile label="Paid out" value={`${formatNumber(quest.paidOutAsh)} Ash`} />
+                                <Tile label="Bank left" value={`${formatNumber(quest.bankRemainingAsh)} Ash`} />
                             </div>
-                        </div>
+                        </article>
                     ))}
                 </div>
             )}

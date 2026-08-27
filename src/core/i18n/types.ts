@@ -3,6 +3,7 @@ export type Language =
     | "en"
     | "ru"
     | "zh"
+    | "zh-tw"
     | "ko"
     | "ja"
     | "es"
@@ -24,4 +25,4 @@ export type PartialTranslations = Partial<Translations>;
 
 export type AllTranslations = Record<Language, PartialTranslations> & { en: Translations };
 
-export const LANGUAGES: Language[] = ["en", "ru", "be", "es", "it", "zh", "ja", "ko", "vi", "id", "fil"];
+export const LANGUAGES: Language[] = ["en", "ru", "be", "es", "it", "zh", "zh-tw", "ja", "ko", "vi", "id", "fil"];

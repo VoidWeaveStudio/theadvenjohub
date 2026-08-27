@@ -1,16 +1,32 @@
 // src/features/admin/ui/AdminPlayerDetailModal.tsx
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ExternalLink, Minus, Plus, X } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
+import { useAdminLabel } from "../lib/useAdminLabel";
 import { PLACEABLE_ITEMS } from "../../game/data/placeableItems";
 import { COMPANIONS, COMPANIONS_BY_ID, FRAGMENTS_PER_CRATE } from "../../game/data/companions";
-import { COSMETICS, COSMETIC_FRAGMENTS_PER_CRATE } from "../../game/data/cosmetics";
-import { useAdminLabel } from "../lib/useAdminLabel";
+import { COSMETICS, COSMETICS_BY_ID, COSMETIC_FRAGMENTS_PER_CRATE } from "../../game/data/cosmetics";
 import { MAX_LEVEL, skillPointsForLevel } from "../../game/data/progression";
+import { SHOP_CATALOG } from "@/core/lib/shopCatalog";
+import { ACHIEVEMENTS } from "@/core/lib/achievements";
+import { GRANT_SCOPES, WIPE_SCOPES, SCOPE_LABELS } from "@/core/lib/adminScopes";
+import {
+    Alert,
+    Badge,
+    Empty,
+    Modal,
+    Tile,
+    formatDate,
+    formatNumber,
+    formatPlaytime,
+    truncateWallet,
+} from "./AdminKit";
 
 interface PlayerDetail {
     id: string;
+    number: number | null;
     wallet: string;
     isBanned: boolean;
     banReason: string | null;
@@ -29,33 +45,25 @@ interface PlayerDetail {
         lastPlayedAt: string | null;
     };
     ash: number;
-    progression: {
-        level: number;
-        totalXp: number;
-        branch: string | null;
-        respecCount: number;
-    };
+    progression: { level: number; totalXp: number; branch: string | null; respecCount: number };
     skinTextureUrl: string | null;
     cosmetics: {
         equippedSkin: { id: string; name: string } | null;
         equippedAccessory: { id: string; name: string } | null;
         owned: { id: string; name: string; slot: string; purchasedAt: string }[];
     } | null;
-    companions: {
-        owned: { itemId: string; quantity: number }[];
-        equipped: string | null;
-        fragments: number;
-        crates: number;
-    } | null;
+    cosmeticCrates?: { fragments: number; crates: number };
+    companions: { owned: { itemId: string; quantity: number }[]; equipped: string | null; fragments: number; crates: number } | null;
     placeables: Record<string, number>;
     locationId: string | null;
+    storageCount: number;
+    buildingCount: number;
     inventory: { slot: number; itemId: string; quantity: number }[];
     factions: {
         id: string;
         number: number;
         name: string;
         symbol: string | null;
-        image: string | null;
         level: number;
         role: string;
         isDisplayed: boolean;
@@ -64,18 +72,18 @@ interface PlayerDetail {
         joinedAt: string;
     }[];
     achievements: { key: string; label: string; description: string; unlockedAt: string }[];
-    cosmeticCrates?: { fragments: number; crates: number };
     licenses: {
         id: string;
-        gameId: string;
         gameTitle: string;
         isActive: boolean;
         purchasedAt: string;
         price: number;
         txSignature: string | null;
-        grantedViaPromoFactionId: string | null;
         promoFactionName: string | null;
     }[];
+    spend: { gameTnj: number; shopTnj: number; tradeSpentTnj: number; tradeEarnedTnj: number };
+    shopHistory: { id: string; itemId: string; quantity: number; priceTnj: number; status: string; txSignature: string; createdAt: string }[];
+    tradeHistory: { id: string; itemName: string; quantity: number; priceTnj: number; status: string; createdAt: string; buyerId: string; sellerId: string }[];
 }
 
 interface AdminPlayerDetailModalProps {
@@ -85,41 +93,67 @@ interface AdminPlayerDetailModalProps {
     onLicenseChanged?: (userId: string, ownsGame: boolean) => void;
 }
 
-const MUTE_DURATIONS: { label: string; minutes: number }[] = [
+interface FactionOption {
+    id: string;
+    name: string;
+    number: number;
+}
+
+type Tab = "overview" | "inventory" | "grants" | "purchases" | "moderation";
+
+const TABS: { id: Tab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "inventory", label: "Inventory" },
+    { id: "grants", label: "Grant & revoke" },
+    { id: "purchases", label: "Purchases" },
+    { id: "moderation", label: "Moderation" },
+];
+
+const MUTE_DURATIONS = [
     { label: "10m", minutes: 10 },
     { label: "1h", minutes: 60 },
     { label: "24h", minutes: 60 * 24 },
     { label: "7d", minutes: 60 * 24 * 7 },
 ];
 
-function formatDate(iso: string | null): string {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleString();
-}
-
-function formatPlaytime(seconds: number): string {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-}
+const KIND_LABEL: Record<string, string> = {
+    placeable: "Placeables",
+    consumable: "Consumables",
+    cosmetic: "Skins & accessories",
+    companion: "Companions",
+    lootbox: "Crates",
+    faction: "Faction perks",
+    weapon: "Weapons",
+    emote: "Emotes",
+};
 
 export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicenseChanged }: AdminPlayerDetailModalProps) {
     const [player, setPlayer] = useState<PlayerDetail | null>(null);
     const [loading, setLoading] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
-    const [banReasonInput, setBanReasonInput] = useState("");
     const [actionError, setActionError] = useState<string | null>(null);
-    const [ashAmountInput, setAshAmountInput] = useState("100");
+    const [notice, setNotice] = useState<string | null>(null);
+    const [tab, setTab] = useState<Tab>("overview");
+    const [busy, setBusy] = useState(false);
+
+    const [banReasonInput, setBanReasonInput] = useState("");
+    const [ashAmountInput, setAshAmountInput] = useState("1000");
     const [levelInput, setLevelInput] = useState("1");
-    const [cosmeticIdInput, setCosmeticIdInput] = useState<string>(COSMETICS[0]?.id ?? "");
-    const [cosmeticAmountInput, setCosmeticAmountInput] = useState("1");
-    const [itemToGrant, setItemToGrant] = useState(PLACEABLE_ITEMS[0]?.id || "");
-    const [companionToGrant, setCompanionToGrant] = useState<string>(COMPANIONS[0]?.id ?? "");
-    const [companionQuantityInput, setCompanionQuantityInput] = useState("1");
-    const [fragmentAmountInput, setFragmentAmountInput] = useState("100");
-    const [crateAmountInput, setCrateAmountInput] = useState("1");
-    const [itemQuantityInput, setItemQuantityInput] = useState("1");
+    const [catalogItem, setCatalogItem] = useState(SHOP_CATALOG[0]?.itemId ?? "");
+    const [catalogQuantity, setCatalogQuantity] = useState("1");
+    const [memeFragments, setMemeFragments] = useState("100");
+    const [memeCrates, setMemeCrates] = useState("1");
+    const [skinFragments, setSkinFragments] = useState("100");
+    const [skinCrates, setSkinCrates] = useState("1");
+    const [grantScopes, setGrantScopes] = useState<string[]>([...GRANT_SCOPES]);
+    const [wipeScopes, setWipeScopes] = useState<string[]>([...WIPE_SCOPES]);
+    const [grantAsh, setGrantAsh] = useState("1000000");
+    const [grantLevel, setGrantLevel] = useState(String(MAX_LEVEL));
+    const [grantCrateCount, setGrantCrateCount] = useState("25");
+    const [wipeConfirm, setWipeConfirm] = useState("");
+    const [factionOptions, setFactionOptions] = useState<FactionOption[]>([]);
+    const [factionToJoin, setFactionToJoin] = useState("");
+
     const { signedFetch } = useAdminSignature();
     const adminLabel = useAdminLabel();
 
@@ -134,6 +168,7 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicens
         }
         setLoadError(null);
         setPlayer(data.player);
+        setLevelInput(String(data.player.progression?.level ?? 1));
     }, [userId]);
 
     useEffect(() => {
@@ -141,86 +176,131 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicens
             setPlayer(null);
             return;
         }
+        setTab("overview");
+        setActionError(null);
+        setNotice(null);
+        setWipeConfirm("");
         setLoadError(null);
         setLoading(true);
         loadPlayer().finally(() => setLoading(false));
     }, [userId, loadPlayer]);
 
+    useEffect(() => {
+        if (!userId) return;
+        fetch("/api/admin/factions", { credentials: "include" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                const list: FactionOption[] = (data?.factions || []).map((f: FactionOption) => ({ id: f.id, name: f.name, number: f.number }));
+                setFactionOptions(list);
+                setFactionToJoin(list[0]?.id ?? "");
+            })
+            .catch(() => setFactionOptions([]));
+    }, [userId]);
+
+    const catalogByKind = useMemo(() => {
+        const groups: Record<string, { itemId: string; name: string; maxOwned: number | null }[]> = {};
+        const seen = new Set<string>();
+
+        for (const entry of SHOP_CATALOG) {
+            seen.add(entry.itemId);
+            (groups[entry.kind] ||= []).push({ itemId: entry.itemId, name: entry.name, maxOwned: entry.maxOwned });
+        }
+        for (const companion of COMPANIONS) {
+            if (seen.has(companion.id)) continue;
+            (groups.companion ||= []).push({ itemId: companion.id, name: adminLabel(companion.nameKey), maxOwned: null });
+        }
+        for (const cosmetic of COSMETICS) {
+            if (seen.has(cosmetic.id)) continue;
+            (groups.cosmetic ||= []).push({ itemId: cosmetic.id, name: adminLabel(cosmetic.name), maxOwned: 1 });
+        }
+
+        return groups;
+    }, [adminLabel]);
+
+    const run = useCallback(
+        async (
+            label: string,
+            url: string,
+            action: string,
+            target: string,
+            body: Record<string, unknown>,
+            method: string = "PATCH"
+        ): Promise<Record<string, unknown> | null> => {
+            setActionError(null);
+            setNotice(null);
+            setBusy(true);
+            try {
+                const res = await signedFetch(url, action, target, body, method);
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    setActionError(`${label} failed — ${data?.error || `HTTP ${res.status}`}`);
+                    return null;
+                }
+
+                if (data?.mode === "live") {
+                    setNotice(`${label} pushed to the live session — the numbers here refresh once the game server saves.`);
+                    window.setTimeout(() => {
+                        loadPlayer().catch(() => undefined);
+                    }, 6000);
+                } else {
+                    setNotice(`${label} done.`);
+                }
+
+                return data ?? {};
+            } catch (err) {
+                setActionError(err instanceof Error ? err.message : "Signature failed");
+                return null;
+            } finally {
+                setBusy(false);
+            }
+        },
+        [signedFetch, loadPlayer]
+    );
+
     if (!userId) return null;
 
-    const setMute = async (durationMinutes: number | null) => {
-        setActionError(null);
-        try {
-            const res = await signedFetch(
-                `/api/admin/players/${userId}/mute`,
-                durationMinutes === null ? "unmute" : "mute",
-                userId,
-                { durationMinutes }
-            );
-            if (res.ok) {
-                const data = await res.json();
-                setPlayer((prev) => (prev ? { ...prev, mutedUntil: data.mutedUntil } : prev));
-            } else {
-                setActionError("Failed to update mute status");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
-    };
+    const isMuted = !!player?.mutedUntil && new Date(player.mutedUntil).getTime() > Date.now();
+    const ownsGame = !!player?.licenses.some((l) => l.isActive);
 
     const setBan = async (isBanned: boolean) => {
-        setActionError(null);
-        try {
-            const res = await signedFetch(
-                `/api/admin/players/${userId}`,
-                isBanned ? "ban" : "unban",
-                userId,
-                { isBanned, banReason: banReasonInput.trim() || undefined }
-            );
-            if (res.ok) {
-                const reason = isBanned ? (banReasonInput.trim() || null) : null;
-                setPlayer((prev) => (prev ? { ...prev, isBanned, banReason: reason } : prev));
-                onBanChanged(userId, isBanned, reason);
-                setBanReasonInput("");
-            } else {
-                setActionError("Failed to update ban status");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
+        const reason = isBanned ? banReasonInput.trim() || null : null;
+        const ok = await run(isBanned ? "Ban" : "Unban", `/api/admin/players/${userId}`, isBanned ? "ban" : "unban", userId, {
+            isBanned,
+            banReason: reason || undefined,
+        });
+        if (!ok) return;
+        setPlayer((prev) => (prev ? { ...prev, isBanned, banReason: reason } : prev));
+        onBanChanged(userId, isBanned, reason);
+        setBanReasonInput("");
+    };
+
+    const setMute = async (durationMinutes: number | null) => {
+        const ok = await run(
+            durationMinutes === null ? "Unmute" : "Mute",
+            `/api/admin/players/${userId}/mute`,
+            durationMinutes === null ? "unmute" : "mute",
+            userId,
+            { durationMinutes }
+        );
+        if (ok) await loadPlayer();
     };
 
     const resetSkin = async () => {
-        setActionError(null);
-        try {
-            const res = await signedFetch(`/api/admin/players/${userId}/skin`, "resetSkin", userId, {});
-            if (res.ok) {
-                setPlayer((prev) => (prev ? { ...prev, skinTextureUrl: null } : prev));
-            } else {
-                setActionError("Failed to reset skin");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
+        const ok = await run("Skin reset", `/api/admin/players/${userId}/skin`, "resetSkin", userId, {});
+        if (ok) setPlayer((prev) => (prev ? { ...prev, skinTextureUrl: null } : prev));
     };
 
     const adjustAsh = async (sign: 1 | -1) => {
         const amount = Math.floor(Number(ashAmountInput));
         if (!Number.isFinite(amount) || amount <= 0) return;
-        const delta = amount * sign;
-
-        setActionError(null);
-        try {
-            const res = await signedFetch(`/api/admin/players/${userId}/ash`, sign > 0 ? "grantAsh" : "takeAsh", userId, { delta });
-            if (res.ok) {
-                const data = await res.json();
-                setPlayer((prev) => (prev ? { ...prev, ash: data.ash } : prev));
-            } else {
-                setActionError("Failed to update ash");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
+        const ok = await run(
+            sign > 0 ? "Ash grant" : "Ash removal",
+            `/api/admin/players/${userId}/ash`,
+            sign > 0 ? "grantAsh" : "takeAsh",
+            userId,
+            { delta: amount * sign }
+        );
+        if (ok) await loadPlayer();
     };
 
     const setLevel = async () => {
@@ -229,662 +309,876 @@ export function AdminPlayerDetailModal({ userId, onClose, onBanChanged, onLicens
             setActionError(`Level must be between 1 and ${MAX_LEVEL}`);
             return;
         }
-
-        setActionError(null);
-        try {
-            const res = await signedFetch(`/api/admin/players/${userId}/level`, "setLevel", userId, { level });
-            if (res.ok) {
-                const data = await res.json();
-                setPlayer((prev) =>
-                    prev ? { ...prev, progression: { ...prev.progression, level: data.level, totalXp: data.totalXp } } : prev
-                );
-            } else {
-                setActionError("Failed to set level");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
-    };
-
-    const adjustPlaceable = async (itemId: string, sign: 1 | -1) => {
-        const amount = Math.floor(Number(itemQuantityInput));
-        if (!itemId || !Number.isFinite(amount) || amount <= 0) return;
-        const delta = amount * sign;
-
-        setActionError(null);
-        try {
-            const res = await signedFetch(
-                `/api/admin/players/${userId}/placeables`,
-                sign > 0 ? "grantItem" : "takeItem",
-                `${userId}:${itemId}`,
-                { itemId, delta }
-            );
-            if (res.ok) {
-                const data = await res.json();
-                setPlayer((prev) => (prev ? { ...prev, placeables: data.placeables } : prev));
-            } else {
-                setActionError("Failed to update inventory");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
-    };
-
-    const adjustCompanionScope = async (
-        scope: "companion" | "fragments" | "crates",
-        itemId: string,
-        amount: number,
-        sign: 1 | -1
-    ) => {
-        if (!Number.isFinite(amount) || amount <= 0) return;
-        const delta = Math.floor(amount) * sign;
-        const action =
-            scope === "companion"
-                ? (sign > 0 ? "grantCompanion" : "takeCompanion")
-                : scope === "fragments"
-                    ? (sign > 0 ? "grantFragments" : "takeFragments")
-                    : (sign > 0 ? "grantCrates" : "takeCrates");
-
-        setActionError(null);
-        try {
-            const res = await signedFetch(
-                `/api/admin/players/${userId}/companions`,
-                action,
-                `${userId}:${scope}:${itemId}`,
-                { scope, itemId, delta }
-            );
-            if (res.ok) {
-                const data = await res.json();
-                setPlayer((prev) => (prev ? { ...prev, companions: data.companions } : prev));
-            } else {
-                const data = await res.json().catch(() => ({}));
-                setActionError(data?.error === "not_enough" ? "Player does not have that much" : "Failed to update companions");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
+        const ok = await run("Level change", `/api/admin/players/${userId}/level`, "setLevel", userId, { level });
+        if (ok) await loadPlayer();
     };
 
     const toggleLicense = async (grant: boolean) => {
-        if (!userId) return;
-        setActionError(null);
-        try {
-            const res = await signedFetch(
-                `/api/admin/players/${userId}/license`,
-                grant ? "grantLicense" : "revokeLicense",
-                userId,
-                { grant }
-            );
-            if (res.ok) {
-                const data = await res.json();
-                onLicenseChanged?.(userId, !!data.ownsGame);
-                await loadPlayer();
-            } else {
-                setActionError(grant ? "Failed to grant the game license" : "Failed to revoke the game license");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
+        const ok = await run(
+            grant ? "Licence grant" : "Licence revoke",
+            `/api/admin/players/${userId}/license`,
+            grant ? "grantLicense" : "revokeLicense",
+            userId,
+            { grant }
+        );
+        if (!ok) return;
+        onLicenseChanged?.(userId, grant);
+        await loadPlayer();
     };
 
-    const adjustCosmetics = async (scope: "cosmetic" | "fragments" | "crates", sign: 1 | -1) => {
-        if (!userId) return;
+    const adjustCatalog = async (itemId: string, sign: 1 | -1, quantity: number) => {
+        if (!itemId || !Number.isFinite(quantity) || quantity <= 0) return;
+        const ok = await run(
+            sign > 0 ? "Item grant" : "Item removal",
+            `/api/admin/players/${userId}/grant`,
+            sign > 0 ? "grantCatalogItem" : "takeCatalogItem",
+            `${userId}:${itemId}`,
+            { itemId, delta: Math.floor(quantity) * sign }
+        );
+        if (ok) await loadPlayer();
+    };
 
-        const itemId = scope === "cosmetic" ? cosmeticIdInput : "";
-        const amount = scope === "cosmetic" ? 1 : Math.floor(Number(cosmeticAmountInput));
+    const adjustPlaceable = async (itemId: string, sign: 1 | -1, quantity: number) => {
+        if (!itemId || !Number.isFinite(quantity) || quantity <= 0) return;
+        const ok = await run(
+            sign > 0 ? "Item grant" : "Item removal",
+            `/api/admin/players/${userId}/placeables`,
+            sign > 0 ? "grantItem" : "takeItem",
+            `${userId}:${itemId}`,
+            { itemId, delta: Math.floor(quantity) * sign }
+        );
+        if (ok) await loadPlayer();
+    };
+
+    const adjustCompanionWallet = async (scope: "fragments" | "crates", sign: 1 | -1, amount: number) => {
         if (!Number.isFinite(amount) || amount <= 0) return;
+        const action = scope === "fragments" ? (sign > 0 ? "grantFragments" : "takeFragments") : sign > 0 ? "grantCrates" : "takeCrates";
+        const ok = await run("Companion wallet", `/api/admin/players/${userId}/companions`, action, `${userId}:${scope}:`, {
+            scope,
+            itemId: "",
+            delta: Math.floor(amount) * sign,
+        });
+        if (ok) await loadPlayer();
+    };
 
-        const delta = amount * sign;
+    const adjustCosmeticWallet = async (scope: "fragments" | "crates", sign: 1 | -1, amount: number) => {
+        if (!Number.isFinite(amount) || amount <= 0) return;
         const action =
-            scope === "cosmetic"
-                ? (sign > 0 ? "grantCosmetic" : "takeCosmetic")
-                : scope === "fragments"
-                    ? (sign > 0 ? "grantCosmeticFragments" : "takeCosmeticFragments")
-                    : (sign > 0 ? "grantCosmeticCrates" : "takeCosmeticCrates");
-
-        setActionError(null);
-        try {
-            const res = await signedFetch(
-                `/api/admin/players/${userId}/cosmetics`,
-                action,
-                `${userId}:${scope}:${itemId}`,
-                { scope, itemId, delta }
-            );
-            if (res.ok) {
-                const data = await res.json();
-                setPlayer((prev) => (prev ? { ...prev, cosmeticCrates: data.cosmeticCrates } : prev));
-                if (scope === "cosmetic") await loadPlayer();
-            } else {
-                const data = await res.json().catch(() => ({}));
-                setActionError(data?.error === "not_applied" ? "Nothing changed — already in that state" : "Failed to update cosmetics");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
+            scope === "fragments"
+                ? sign > 0
+                    ? "grantCosmeticFragments"
+                    : "takeCosmeticFragments"
+                : sign > 0
+                    ? "grantCosmeticCrates"
+                    : "takeCosmeticCrates";
+        const ok = await run("Skin wallet", `/api/admin/players/${userId}/cosmetics`, action, `${userId}:${scope}:`, {
+            scope,
+            itemId: "",
+            delta: Math.floor(amount) * sign,
+        });
+        if (ok) await loadPlayer();
     };
 
     const setEquippedCompanion = async (itemId: string) => {
-        setActionError(null);
-        try {
-            const res = await signedFetch(
-                `/api/admin/players/${userId}/companions`,
-                "setCompanion",
-                `${userId}:equip:${itemId}`,
-                { scope: "equip", itemId }
-            );
-            if (res.ok) {
-                const data = await res.json();
-                setPlayer((prev) => (prev ? { ...prev, companions: data.companions } : prev));
-            } else {
-                setActionError("Failed to change the equipped companion");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        }
+        const ok = await run("Companion equip", `/api/admin/players/${userId}/companions`, "setCompanion", `${userId}:equip:${itemId}`, {
+            scope: "equip",
+            itemId,
+        });
+        if (ok) await loadPlayer();
     };
 
     const removeInventoryItem = async (slot: number) => {
-        if (!confirm("Remove this item from the player's inventory?")) return;
+        if (!confirm("Remove this stack from the player's inventory?")) return;
+        const ok = await run("Inventory removal", `/api/admin/players/${userId}/inventory`, "removeInventoryItem", `${userId}:${slot}`, { slot });
+        if (ok) setPlayer((prev) => (prev ? { ...prev, inventory: prev.inventory.filter((i) => i.slot !== slot) } : prev));
+    };
 
-        setActionError(null);
-        try {
-            const res = await signedFetch(`/api/admin/players/${userId}/inventory`, "removeInventoryItem", `${userId}:${slot}`, { slot });
-            if (res.ok) {
-                setPlayer((prev) => (prev ? { ...prev, inventory: prev.inventory.filter((i) => i.slot !== slot) } : prev));
-            } else {
-                setActionError("Failed to remove item");
+    const toggleAchievement = async (key: string, grant: boolean) => {
+        const ok = await run(
+            grant ? "Achievement grant" : "Achievement revoke",
+            `/api/admin/players/${userId}/achievements`,
+            grant ? "grantAchievement" : "revokeAchievement",
+            `${userId}:${key}`,
+            { key, grant }
+        );
+        if (ok) await loadPlayer();
+    };
+
+    const allAchievements = async (grant: boolean) => {
+        const ok = await run(
+            grant ? "All achievements" : "Achievement wipe",
+            `/api/admin/players/${userId}/achievements`,
+            grant ? "grantAchievement" : "revokeAchievement",
+            `${userId}:*`,
+            { all: true, grant }
+        );
+        if (ok) await loadPlayer();
+    };
+
+    const factionAction = async (action: "join" | "leave" | "setRole", factionId: string, role?: string) => {
+        const ok = await run(
+            action === "join" ? "Faction join" : action === "leave" ? "Faction leave" : "Role change",
+            `/api/admin/players/${userId}/faction`,
+            `faction_${action}`,
+            `${userId}:${factionId}`,
+            { action, factionId, role }
+        );
+        if (ok) await loadPlayer();
+    };
+
+    const runBulk = async (mode: "grant" | "wipe") => {
+        const scopes = mode === "grant" ? grantScopes : wipeScopes;
+        if (scopes.length === 0) {
+            setActionError("Pick at least one scope first.");
+            return;
+        }
+        if (mode === "wipe" && wipeConfirm.trim().toUpperCase() !== "WIPE") {
+            setActionError('Type WIPE in the confirmation box to strip this account.');
+            return;
+        }
+
+        const ok = await run(
+            mode === "grant" ? "Grant everything" : "Wipe everything",
+            `/api/admin/players/${userId}/bulk`,
+            mode === "grant" ? "bulkGrant" : "bulkWipe",
+            userId,
+            {
+                mode,
+                scopes,
+                ash: Math.max(0, Math.floor(Number(grantAsh) || 0)),
+                level: Math.max(1, Math.floor(Number(grantLevel) || MAX_LEVEL)),
+                crates: Math.max(0, Math.floor(Number(grantCrateCount) || 0)),
+                fragments: Math.max(0, Math.floor(Number(grantCrateCount) || 0)) * 10,
+                stackQuantity: 10,
             }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
+        );
+
+        if (ok) {
+            setWipeConfirm("");
+            await loadPlayer();
+            if (scopes.includes("license")) onLicenseChanged?.(userId, mode === "grant");
         }
     };
 
-    const isMuted = !!player?.mutedUntil && new Date(player.mutedUntil).getTime() > Date.now();
+    const toggleScope = (mode: "grant" | "wipe", scope: string) => {
+        const setter = mode === "grant" ? setGrantScopes : setWipeScopes;
+        setter((prev) => (prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]));
+    };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-            <div
-                className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-[#0a0a0c] border border-[rgba(255,255,255,0.1)] rounded-xl p-6 space-y-5"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {loading ? (
-                    <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
-                ) : !player ? (
-                    <div className="py-10 text-center space-y-3">
-                        <p className="text-red-400 text-sm">{loadError || "Failed to load player"}</p>
-                        <button onClick={onClose} className="btn-secondary px-3 py-1.5 text-xs">Close</button>
-                    </div>
-                ) : (
-                    <>
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <h2 className="text-white text-lg font-bold">{player.nicknames[0] || "Unnamed"}</h2>
-                                <p className="text-[#8B8F98] text-xs font-mono break-all mt-1">{player.wallet}</p>
+        <Modal onClose={onClose}>
+            {loading ? (
+                <div className="a-modal-body">
+                    <Empty>Loading player…</Empty>
+                </div>
+            ) : !player ? (
+                <div className="a-modal-body">
+                    <Alert tone="bad">{loadError || "Failed to load player"}</Alert>
+                    <button type="button" className="a-btn" onClick={onClose}>
+                        Close
+                    </button>
+                </div>
+            ) : (
+                <>
+                    <header className="a-modal-head">
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <div className="a-row" style={{ gap: 8 }}>
+                                <span className="a-top-title">{player.nicknames[0] || "Unnamed"}</span>
+                                {player.number !== null && <span className="a-hint">#{player.number}</span>}
                             </div>
-                            <button onClick={onClose} className="text-[#8B8F98] hover:text-white text-sm">✕</button>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 text-xs">
-                            <span className={`px-2 py-1 rounded-full font-bold ${player.isOnline ? "bg-green-500/15 text-green-400" : "bg-white/5 text-[#6B7280]"}`}>
-                                {player.isOnline ? "Online" : "Offline"}
-                            </span>
-                            {player.isBanned && (
-                                <span className="px-2 py-1 rounded-full font-bold bg-red-500/15 text-red-400">
-                                    Banned{player.banReason ? `: ${player.banReason}` : ""}
-                                </span>
-                            )}
-                            {isMuted && (
-                                <span className="px-2 py-1 rounded-full font-bold bg-orange-500/15 text-orange-400">
-                                    Muted until {formatDate(player.mutedUntil)}
-                                </span>
-                            )}
-                            {player.licenses.some((l) => l.isActive && l.promoFactionName) && (
-                                <span className="px-2 py-1 rounded-full font-bold bg-[rgba(255,209,102,0.15)] text-[#FFD166]">
-                                    🎟 Promo: {player.licenses.find((l) => l.isActive && l.promoFactionName)?.promoFactionName}
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div className="bg-white/5 rounded-lg p-2.5"><div className="text-[#8B8F98] text-xs">Kills</div><div className="text-white font-bold">{player.stats.kills}</div></div>
-                            <div className="bg-white/5 rounded-lg p-2.5"><div className="text-[#8B8F98] text-xs">Deaths</div><div className="text-white font-bold">{player.stats.deaths}</div></div>
-                            <div className="bg-white/5 rounded-lg p-2.5"><div className="text-[#8B8F98] text-xs">Shots Fired</div><div className="text-white font-bold">{player.stats.shotsFired}</div></div>
-                            <div className="bg-white/5 rounded-lg p-2.5"><div className="text-[#8B8F98] text-xs">Buildings</div><div className="text-white font-bold">{player.stats.buildingsPlaced}</div></div>
-                            <div className="bg-white/5 rounded-lg p-2.5"><div className="text-[#8B8F98] text-xs">Playtime</div><div className="text-white font-bold">{formatPlaytime(player.stats.playtimeSeconds)}</div></div>
-                            <div className="bg-white/5 rounded-lg p-2.5"><div className="text-[#8B8F98] text-xs">Ash</div><div className="text-[#FFD166] font-bold">{player.ash}</div></div>
-                        </div>
-
-                        <div className="text-xs text-[#8B8F98] space-y-1">
-                            <div>Joined: {formatDate(player.createdAt)}</div>
-                            <div>Last seen: {formatDate(player.lastSeenAt)}</div>
-                            <div>Location: {player.locationId || "—"}</div>
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">FACTIONS ({player.factions.length})</div>
-                            {player.factions.length === 0 ? (
-                                <p className="text-[#6B7280] text-xs">Not in any faction.</p>
-                            ) : (
-                                <div className="space-y-1.5">
-                                    {player.factions.map((f) => (
-                                        <div key={f.id} className="bg-white/5 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
-                                            <span className="text-white">{f.name} #{f.number} <span className="text-[#4FD1FF]">Lv.{f.level}</span> ({f.role})</span>
-                                            <span className="text-[#FFD166]">{f.contributionPoints} pts / {f.tasksContributed} tasks</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">ACHIEVEMENTS ({player.achievements.length})</div>
-                            {player.achievements.length === 0 ? (
-                                <p className="text-[#6B7280] text-xs">None unlocked.</p>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-1.5">
-                                    {player.achievements.map((a) => (
-                                        <div key={a.key} title={a.description} className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.2)] rounded-lg px-2 py-1.5 text-xs text-[#FFD166] font-bold truncate">
-                                            {a.label}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">GAME LICENSES ({player.licenses.length})</div>
-                            <div className="mb-2 flex items-center gap-2">
-                                <button onClick={() => toggleLicense(true)} className="btn-secondary px-3 py-1.5 text-xs">
-                                    Grant game access
-                                </button>
-                                <button onClick={() => toggleLicense(false)} className="btn-secondary px-3 py-1.5 text-xs">
-                                    Revoke access
-                                </button>
-                            </div>
-                            {player.licenses.length === 0 ? (
-                                <p className="text-[#6B7280] text-xs">No licenses.</p>
-                            ) : (
-                                <div className="space-y-1.5">
-                                    {player.licenses.map((l) => (
-                                        <div key={l.id} className="bg-white/5 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
-                                            <span className={l.isActive ? "text-white" : "text-[#6B7280] line-through"}>
-                                                {l.gameTitle} {l.promoFactionName ? `— 🎟 via ${l.promoFactionName}` : ""}
-                                            </span>
-                                            <span className="text-[#6B7280]">{formatDate(l.purchasedAt)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">INVENTORY ({player.inventory.length})</div>
-                            {player.inventory.length === 0 ? (
-                                <p className="text-[#6B7280] text-xs">Empty.</p>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-1.5">
-                                    {player.inventory.map((i) => (
-                                        <div key={i.slot} className="flex items-center justify-between gap-1.5 bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white">
-                                            <span className="truncate">{i.itemId} × {i.quantity}</span>
-                                            <button
-                                                onClick={() => removeInventoryItem(i.slot)}
-                                                className="text-[#6B7280] hover:text-red-400 transition-colors flex-shrink-0"
-                                                title="Remove"
-                                            >
-                                                ✕
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">SKINS &amp; ACCESSORIES</div>
-                            <div className="grid grid-cols-2 gap-1.5 mb-2">
-                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
-                                    <div className="text-[#6B7280]">Equipped skin</div>
-                                    <div className="text-white font-bold">{player.cosmetics?.equippedSkin ? adminLabel(player.cosmetics.equippedSkin.name) : "—"}</div>
-                                </div>
-                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
-                                    <div className="text-[#6B7280]">Equipped accessory</div>
-                                    <div className="text-white font-bold">{player.cosmetics?.equippedAccessory ? adminLabel(player.cosmetics.equippedAccessory.name) : "—"}</div>
-                                </div>
-                            </div>
-                            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                                <select
-                                    value={cosmeticIdInput}
-                                    onChange={(e) => setCosmeticIdInput(e.target.value)}
-                                    className="bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
-                                >
-                                    {COSMETICS.map((entry) => (
-                                        <option key={entry.id} value={entry.id}>
-                                            {adminLabel(entry.name)}
-                                        </option>
-                                    ))}
-                                </select>
-                                <button onClick={() => adjustCosmetics("cosmetic", 1)} className="btn-secondary px-3 py-1.5 text-xs">Grant</button>
-                                <button onClick={() => adjustCosmetics("cosmetic", -1)} className="btn-secondary px-3 py-1.5 text-xs">Take</button>
-                            </div>
-
-                            <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-[#8B8F98]">
-                                <span>Fragments {player.cosmeticCrates?.fragments ?? 0} / {COSMETIC_FRAGMENTS_PER_CRATE}</span>
-                                <span className="text-[#FFD166]">Crates {player.cosmeticCrates?.crates ?? 0}</span>
-                                <input
-                                    type="number"
-                                    value={cosmeticAmountInput}
-                                    onChange={(e) => setCosmeticAmountInput(e.target.value)}
-                                    className="w-16 bg-zinc-900 text-white px-2 py-1 rounded text-xs border border-zinc-700 outline-none"
-                                />
-                                <button onClick={() => adjustCosmetics("fragments", 1)} className="btn-secondary px-2 py-1 text-xs">+ frag</button>
-                                <button onClick={() => adjustCosmetics("fragments", -1)} className="btn-secondary px-2 py-1 text-xs">− frag</button>
-                                <button onClick={() => adjustCosmetics("crates", 1)} className="btn-secondary px-2 py-1 text-xs">+ crate</button>
-                                <button onClick={() => adjustCosmetics("crates", -1)} className="btn-secondary px-2 py-1 text-xs">− crate</button>
-                            </div>
-
-                            {!player.cosmetics || player.cosmetics.owned.length === 0 ? (
-                                <p className="text-[#6B7280] text-xs">None owned.</p>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-1.5">
-                                    {player.cosmetics.owned.map((item) => (
-                                        <div key={item.id} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white flex items-center justify-between gap-2">
-                                            <span className="truncate">{adminLabel(item.name)}</span>
-                                            <span className="text-[#6B7280] text-[10px] uppercase flex-shrink-0">{item.slot}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">COMPANIONS</div>
-                            <div className="grid grid-cols-3 gap-1.5 mb-2">
-                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
-                                    <div className="text-[#6B7280]">Equipped</div>
-                                    <div className="text-white font-bold truncate">
-                                        {player.companions?.equipped
-                                            ? adminLabel(COMPANIONS_BY_ID.get(player.companions.equipped as any)?.nameKey || player.companions.equipped)
-                                            : "—"}
-                                    </div>
-                                </div>
-                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
-                                    <div className="text-[#6B7280]">Fragments</div>
-                                    <div className="text-[#C084FC] font-bold">
-                                        {player.companions?.fragments ?? 0} / {FRAGMENTS_PER_CRATE}
-                                    </div>
-                                </div>
-                                <div className="bg-white/5 rounded-lg px-2 py-1.5 text-xs">
-                                    <div className="text-[#6B7280]">Crates</div>
-                                    <div className="text-[#FFD166] font-bold">{player.companions?.crates ?? 0}</div>
-                                </div>
-                            </div>
-                            {!player.companions || player.companions.owned.length === 0 ? (
-                                <p className="text-[#6B7280] text-xs">None owned.</p>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-1.5">
-                                    {player.companions.owned.map((entry) => {
-                                        const definition = COMPANIONS_BY_ID.get(entry.itemId as any);
-                                        return (
-                                            <div key={entry.itemId} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white flex items-center justify-between gap-2">
-                                                <span className="truncate">
-                                                    {definition?.icon || ""} {adminLabel(definition?.nameKey || entry.itemId)} × {entry.quantity}
-                                                </span>
-                                                <span className="text-[#6B7280] text-[10px] uppercase flex-shrink-0">{definition?.rarity || "?"}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">PLACEABLES</div>
-                            {Object.keys(player.placeables).length === 0 ? (
-                                <p className="text-[#6B7280] text-xs">None owned.</p>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-1.5">
-                                    {Object.entries(player.placeables).map(([itemId, qty]) => (
-                                        <div key={itemId} className="bg-white/5 rounded-lg px-2 py-1.5 text-xs text-white">
-                                            {adminLabel(PLACEABLE_ITEMS.find((p) => p.id === itemId)?.name || itemId)} × {qty}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="border-t border-white/10 pt-4 space-y-3">
-                            {actionError && (
-                                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                                    {actionError}
-                                </p>
-                            )}
-                            <p className="text-[#6B7280] text-[11px]">
-                                Actions below require signing with your admin wallet.
-                            </p>
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">MUTE (CHAT + VOICE)</div>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {MUTE_DURATIONS.map((d) => (
-                                        <button
-                                            key={d.minutes}
-                                            onClick={() => setMute(d.minutes)}
-                                            className="btn-secondary px-3 py-1.5 text-xs"
-                                        >
-                                            {d.label}
-                                        </button>
-                                    ))}
-                                    {isMuted && (
-                                        <button onClick={() => setMute(null)} className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80]">
-                                            Unmute
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">BAN</div>
-                                {player.isBanned ? (
-                                    <button onClick={() => setBan(false)} className="btn-secondary px-3 py-1.5 text-xs">
-                                        Unban
-                                    </button>
-                                ) : (
-                                    <div className="flex items-center gap-1.5">
-                                        <input
-                                            type="text"
-                                            value={banReasonInput}
-                                            onChange={(e) => setBanReasonInput(e.target.value)}
-                                            placeholder="Reason..."
-                                            className="flex-1 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
-                                        />
-                                        <button onClick={() => setBan(true)} className="btn-primary px-3 py-1.5 text-xs text-red-400 flex-shrink-0">
-                                            Ban
-                                        </button>
-                                    </div>
+                            <div className="a-hint a-mono" style={{ wordBreak: "break-all" }}>{player.wallet}</div>
+                            <div className="a-pills" style={{ marginTop: 6 }}>
+                                <Badge tone={player.isOnline ? "good" : "neutral"} dot>
+                                    {player.isOnline ? "Online" : "Offline"}
+                                </Badge>
+                                <Badge tone={ownsGame ? "violet" : "neutral"}>{ownsGame ? "Owns the game" : "No licence"}</Badge>
+                                {player.isBanned && <Badge tone="bad">Banned{player.banReason ? `: ${player.banReason}` : ""}</Badge>}
+                                {isMuted && <Badge tone="warn">Muted until {formatDate(player.mutedUntil)}</Badge>}
+                                {player.licenses.some((l) => l.isActive && l.promoFactionName) && (
+                                    <Badge tone="warn">
+                                        Promo via {player.licenses.find((l) => l.isActive && l.promoFactionName)?.promoFactionName}
+                                    </Badge>
                                 )}
                             </div>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">PERSONALIZATION</div>
-                                <button
-                                    onClick={resetSkin}
-                                    disabled={!player.skinTextureUrl}
-                                    className="btn-secondary px-3 py-1.5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Reset Skin
-                                </button>
-                            </div>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">ASH</div>
-                                <div className="flex items-center gap-1.5">
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        value={ashAmountInput}
-                                        onChange={(e) => setAshAmountInput(e.target.value)}
-                                        className="w-24 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
-                                    />
-                                    <button onClick={() => adjustAsh(1)} className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80]">
-                                        Grant
-                                    </button>
-                                    <button onClick={() => adjustAsh(-1)} className="btn-secondary px-3 py-1.5 text-xs text-red-400">
-                                        Take
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">
-                                    CHARACTER LEVEL — {player.progression.level} ({skillPointsForLevel(player.progression.level)} skill points)
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        max={MAX_LEVEL}
-                                        value={levelInput}
-                                        onChange={(e) => setLevelInput(e.target.value)}
-                                        className="w-24 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
-                                    />
-                                    <button onClick={setLevel} className="btn-secondary px-3 py-1.5 text-xs text-[#4FD1FF]">
-                                        Set Level
-                                    </button>
-                                    <span className="text-[#6B7280] text-[11px]">
-                                        {player.isOnline ? "applies in the running game within ~5s" : "applies on the player's next login"}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">GRANT / TAKE ITEM</div>
-                                <div className="flex items-center gap-1.5">
-                                    <select
-                                        value={itemToGrant}
-                                        onChange={(e) => setItemToGrant(e.target.value)}
-                                        className="flex-1 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
-                                    >
-                                        {PLACEABLE_ITEMS.map((item) => (
-                                            <option key={item.id} value={item.id}>{adminLabel(item.name)}</option>
-                                        ))}
-                                    </select>
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        value={itemQuantityInput}
-                                        onChange={(e) => setItemQuantityInput(e.target.value)}
-                                        className="w-16 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none flex-shrink-0"
-                                    />
-                                    <button onClick={() => adjustPlaceable(itemToGrant, 1)} className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] flex-shrink-0">
-                                        Grant
-                                    </button>
-                                    <button onClick={() => adjustPlaceable(itemToGrant, -1)} className="btn-secondary px-3 py-1.5 text-xs text-red-400 flex-shrink-0">
-                                        Take
-                                    </button>
-                                </div>
-                            </div>
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">GRANT / TAKE COMPANION</div>
-                                <div className="flex items-center gap-1.5">
-                                    <select
-                                        value={companionToGrant}
-                                        onChange={(e) => setCompanionToGrant(e.target.value)}
-                                        className="flex-1 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
-                                    >
-                                        {COMPANIONS.map((companion) => (
-                                            <option key={companion.id} value={companion.id}>
-                                                {adminLabel(companion.nameKey)} — {companion.rarity}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        value={companionQuantityInput}
-                                        onChange={(e) => setCompanionQuantityInput(e.target.value)}
-                                        className="w-16 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none flex-shrink-0"
-                                    />
-                                    <button
-                                        onClick={() => adjustCompanionScope("companion", companionToGrant, Number(companionQuantityInput), 1)}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] flex-shrink-0"
-                                    >
-                                        Grant
-                                    </button>
-                                    <button
-                                        onClick={() => adjustCompanionScope("companion", companionToGrant, Number(companionQuantityInput), -1)}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-red-400 flex-shrink-0"
-                                    >
-                                        Take
-                                    </button>
-                                </div>
-                                <div className="flex items-center gap-1.5 mt-1.5">
-                                    <button
-                                        onClick={() => setEquippedCompanion(companionToGrant)}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4FD1FF]"
-                                    >
-                                        Equip selected
-                                    </button>
-                                    <button
-                                        onClick={() => setEquippedCompanion("")}
-                                        className="btn-secondary px-3 py-1.5 text-xs"
-                                    >
-                                        Unequip
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">MEME FRAGMENTS</div>
-                                <div className="flex items-center gap-1.5">
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        value={fragmentAmountInput}
-                                        onChange={(e) => setFragmentAmountInput(e.target.value)}
-                                        className="w-24 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
-                                    />
-                                    <button
-                                        onClick={() => adjustCompanionScope("fragments", "", Number(fragmentAmountInput), 1)}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80]"
-                                    >
-                                        Grant
-                                    </button>
-                                    <button
-                                        onClick={() => adjustCompanionScope("fragments", "", Number(fragmentAmountInput), -1)}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-red-400"
-                                    >
-                                        Take
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">MEME CRATES</div>
-                                <div className="flex items-center gap-1.5">
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        value={crateAmountInput}
-                                        onChange={(e) => setCrateAmountInput(e.target.value)}
-                                        className="w-24 bg-zinc-900 text-white px-2 py-1.5 rounded text-xs border border-zinc-700 outline-none"
-                                    />
-                                    <button
-                                        onClick={() => adjustCompanionScope("crates", "", Number(crateAmountInput), 1)}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80]"
-                                    >
-                                        Grant
-                                    </button>
-                                    <button
-                                        onClick={() => adjustCompanionScope("crates", "", Number(crateAmountInput), -1)}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-red-400"
-                                    >
-                                        Take
-                                    </button>
-                                </div>
-                            </div>
                         </div>
-                    </>
-                )}
-            </div>
-        </div>
+                        <button type="button" className="a-icon-btn" onClick={onClose} aria-label="Close">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </header>
+
+                    <div className="a-tabs">
+                        {TABS.map((entry) => (
+                            <button key={entry.id} type="button" className="a-tab" data-active={tab === entry.id} onClick={() => setTab(entry.id)}>
+                                {entry.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="a-modal-body">
+                        {actionError && <Alert tone="bad">{actionError}</Alert>}
+                        {notice && !actionError && <Alert tone="good">{notice}</Alert>}
+
+                        {tab === "overview" && (
+                            <>
+                                <div className="a-grid a-grid-4">
+                                    <Tile label="Level" value={`${player.progression.level} · ${skillPointsForLevel(player.progression.level)} sp`} />
+                                    <Tile label="Total XP" value={formatNumber(player.progression.totalXp)} />
+                                    <Tile label="Ash" value={formatNumber(player.ash)} />
+                                    <Tile label="Branch" value={player.progression.branch || "—"} />
+                                    <Tile label="Kills / deaths" value={`${formatNumber(player.stats.kills)} / ${formatNumber(player.stats.deaths)}`} />
+                                    <Tile label="Shots fired" value={formatNumber(player.stats.shotsFired)} />
+                                    <Tile label="Buildings" value={`${formatNumber(player.stats.buildingsPlaced)} placed · ${player.buildingCount} live`} />
+                                    <Tile label="Playtime" value={formatPlaytime(player.stats.playtimeSeconds)} />
+                                    <Tile label="Joined" value={formatDate(player.createdAt)} />
+                                    <Tile label="Last seen" value={formatDate(player.lastSeenAt)} />
+                                    <Tile label="Location" value={player.locationId || "—"} />
+                                    <Tile label="Respecs" value={formatNumber(player.progression.respecCount)} />
+                                </div>
+
+                                <section>
+                                    <span className="a-label">Factions ({player.factions.length})</span>
+                                    {player.factions.length === 0 ? (
+                                        <p className="a-hint">Not in any faction.</p>
+                                    ) : (
+                                        <div className="a-list">
+                                            {player.factions.map((faction) => (
+                                                <div key={faction.id} className="a-item">
+                                                    <span className="a-item-title">
+                                                        {faction.name} #{faction.number}
+                                                    </span>
+                                                    <Badge tone="info">Lv.{faction.level}</Badge>
+                                                    <select
+                                                        value={faction.role}
+                                                        disabled={busy}
+                                                        onChange={(e) => factionAction("setRole", faction.id, e.target.value)}
+                                                    >
+                                                        <option value="member">member</option>
+                                                        <option value="officer">officer</option>
+                                                        <option value="founder">founder</option>
+                                                    </select>
+                                                    <span className="a-hint">
+                                                        {formatNumber(faction.contributionPoints)} pts · {faction.tasksContributed} tasks
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        className="a-btn a-btn-sm a-btn-danger a-spacer"
+                                                        disabled={busy}
+                                                        onClick={() => factionAction("leave", faction.id)}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="a-row" style={{ marginTop: 8 }}>
+                                        <select value={factionToJoin} onChange={(e) => setFactionToJoin(e.target.value)} style={{ flex: "1 1 220px" }}>
+                                            {factionOptions.length === 0 && <option value="">No factions</option>}
+                                            {factionOptions.map((faction) => (
+                                                <option key={faction.id} value={faction.id}>
+                                                    {faction.name} #{faction.number}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            className="a-btn a-btn-good"
+                                            disabled={busy || !factionToJoin}
+                                            onClick={() => factionAction("join", factionToJoin)}
+                                        >
+                                            Add to faction
+                                        </button>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <div className="a-row" style={{ marginBottom: 6 }}>
+                                        <span className="a-label" style={{ marginBottom: 0 }}>
+                                            Achievements ({player.achievements.length}/{ACHIEVEMENTS.length})
+                                        </span>
+                                        <span className="a-spacer" />
+                                        <button type="button" className="a-btn a-btn-sm a-btn-good" disabled={busy} onClick={() => allAchievements(true)}>
+                                            Unlock all
+                                        </button>
+                                        <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => allAchievements(false)}>
+                                            Clear all
+                                        </button>
+                                    </div>
+                                    <div className="a-grid a-grid-2">
+                                        {ACHIEVEMENTS.map((achievement) => {
+                                            const unlocked = player.achievements.some((a) => a.key === achievement.key);
+                                            return (
+                                                <div key={achievement.key} className="a-item">
+                                                    <span className="a-item-title" title={achievement.description}>
+                                                        {achievement.label}
+                                                    </span>
+                                                    <span className="a-spacer" />
+                                                    <button
+                                                        type="button"
+                                                        className={`a-btn a-btn-sm ${unlocked ? "a-btn-danger" : "a-btn-good"}`}
+                                                        disabled={busy}
+                                                        onClick={() => toggleAchievement(achievement.key, !unlocked)}
+                                                    >
+                                                        {unlocked ? "Revoke" : "Unlock"}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+                            </>
+                        )}
+
+                        {tab === "inventory" && (
+                            <>
+                                <section>
+                                    <div className="a-row" style={{ marginBottom: 6 }}>
+                                        <span className="a-label" style={{ marginBottom: 0 }}>Game licence</span>
+                                        <span className="a-spacer" />
+                                        <button type="button" className="a-btn a-btn-sm a-btn-good" disabled={busy} onClick={() => toggleLicense(true)}>
+                                            Grant access
+                                        </button>
+                                        <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => toggleLicense(false)}>
+                                            Revoke access
+                                        </button>
+                                    </div>
+                                    {player.licenses.length === 0 ? (
+                                        <p className="a-hint">No licences.</p>
+                                    ) : (
+                                        <div className="a-list">
+                                            {player.licenses.map((licence) => (
+                                                <div key={licence.id} className="a-item">
+                                                    <span className="a-item-title" style={{ textDecoration: licence.isActive ? "none" : "line-through" }}>
+                                                        {licence.gameTitle}
+                                                    </span>
+                                                    {licence.promoFactionName && <Badge tone="warn">promo · {licence.promoFactionName}</Badge>}
+                                                    <Badge tone={licence.txSignature ? "good" : "info"}>
+                                                        {licence.txSignature ? `${formatNumber(licence.price)} TNJ` : "granted"}
+                                                    </Badge>
+                                                    <span className="a-hint a-spacer">{formatDate(licence.purchasedAt)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Placeables & consumables</span>
+                                    {Object.keys(player.placeables).length === 0 ? (
+                                        <p className="a-hint">Nothing owned.</p>
+                                    ) : (
+                                        <div className="a-grid a-grid-3">
+                                            {Object.entries(player.placeables).map(([itemId, quantity]) => (
+                                                <div key={itemId} className="a-item">
+                                                    <span className="a-item-title">
+                                                        {adminLabel(PLACEABLE_ITEMS.find((p) => p.id === itemId)?.name || itemId)} × {quantity}
+                                                    </span>
+                                                    <span className="a-spacer" />
+                                                    <button
+                                                        type="button"
+                                                        className="a-icon-btn"
+                                                        data-tone="bad"
+                                                        disabled={busy}
+                                                        title="Take one"
+                                                        onClick={() => adjustPlaceable(itemId, -1, 1)}
+                                                    >
+                                                        <Minus className="w-3 h-3" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="a-icon-btn"
+                                                        disabled={busy}
+                                                        title="Give one"
+                                                        onClick={() => adjustPlaceable(itemId, 1, 1)}
+                                                    >
+                                                        <Plus className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Companions</span>
+                                    <div className="a-grid a-grid-3" style={{ marginBottom: 8 }}>
+                                        <Tile
+                                            label="Equipped"
+                                            value={
+                                                player.companions?.equipped
+                                                    ? adminLabel(COMPANIONS_BY_ID.get(player.companions.equipped as never)?.nameKey || player.companions.equipped)
+                                                    : "—"
+                                            }
+                                        />
+                                        <Tile label="Fragments" value={`${player.companions?.fragments ?? 0} / ${FRAGMENTS_PER_CRATE}`} />
+                                        <Tile label="Crates" value={formatNumber(player.companions?.crates ?? 0)} />
+                                    </div>
+                                    {!player.companions || player.companions.owned.length === 0 ? (
+                                        <p className="a-hint">None owned.</p>
+                                    ) : (
+                                        <div className="a-grid a-grid-2">
+                                            {player.companions.owned.map((entry) => {
+                                                const definition = COMPANIONS_BY_ID.get(entry.itemId as never);
+                                                const equipped = player.companions?.equipped === entry.itemId;
+                                                return (
+                                                    <div key={entry.itemId} className="a-item">
+                                                        <span className="a-item-title">
+                                                            {definition?.icon || ""} {adminLabel(definition?.nameKey || entry.itemId)} × {entry.quantity}
+                                                        </span>
+                                                        <Badge>{definition?.rarity || "?"}</Badge>
+                                                        <span className="a-spacer" />
+                                                        <button
+                                                            type="button"
+                                                            className="a-btn a-btn-sm"
+                                                            disabled={busy}
+                                                            onClick={() => setEquippedCompanion(equipped ? "" : entry.itemId)}
+                                                        >
+                                                            {equipped ? "Unequip" : "Equip"}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="a-icon-btn"
+                                                            data-tone="bad"
+                                                            disabled={busy}
+                                                            title="Take one"
+                                                            onClick={() => adjustCatalog(entry.itemId, -1, 1)}
+                                                        >
+                                                            <Minus className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Skins & accessories</span>
+                                    <div className="a-grid a-grid-4" style={{ marginBottom: 8 }}>
+                                        <Tile
+                                            label="Equipped skin"
+                                            value={player.cosmetics?.equippedSkin ? adminLabel(player.cosmetics.equippedSkin.name) : "—"}
+                                        />
+                                        <Tile
+                                            label="Equipped accessory"
+                                            value={player.cosmetics?.equippedAccessory ? adminLabel(player.cosmetics.equippedAccessory.name) : "—"}
+                                        />
+                                        <Tile label="Fragments" value={`${player.cosmeticCrates?.fragments ?? 0} / ${COSMETIC_FRAGMENTS_PER_CRATE}`} />
+                                        <Tile label="Crates" value={formatNumber(player.cosmeticCrates?.crates ?? 0)} />
+                                    </div>
+                                    {!player.cosmetics || player.cosmetics.owned.length === 0 ? (
+                                        <p className="a-hint">None owned.</p>
+                                    ) : (
+                                        <div className="a-grid a-grid-2">
+                                            {player.cosmetics.owned.map((item) => (
+                                                <div key={item.id} className="a-item">
+                                                    <span className="a-item-title">{adminLabel(item.name)}</span>
+                                                    <Badge>{COSMETICS_BY_ID.get(item.id as never)?.rarity || item.slot}</Badge>
+                                                    <span className="a-spacer" />
+                                                    <button
+                                                        type="button"
+                                                        className="a-btn a-btn-sm a-btn-danger"
+                                                        disabled={busy}
+                                                        onClick={() => adjustCatalog(item.id, -1, 1)}
+                                                    >
+                                                        Take
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">
+                                        Token inventory ({player.inventory.length}) · storage stacks {player.storageCount}
+                                    </span>
+                                    {player.inventory.length === 0 ? (
+                                        <p className="a-hint">Empty.</p>
+                                    ) : (
+                                        <div className="a-grid a-grid-2">
+                                            {player.inventory.map((item) => (
+                                                <div key={item.slot} className="a-item">
+                                                    <span className="a-item-title a-mono">{item.itemId}</span>
+                                                    <span className="a-hint">× {formatNumber(item.quantity)}</span>
+                                                    <span className="a-spacer" />
+                                                    <button
+                                                        type="button"
+                                                        className="a-icon-btn"
+                                                        data-tone="bad"
+                                                        disabled={busy}
+                                                        title="Remove stack"
+                                                        onClick={() => removeInventoryItem(item.slot)}
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+                            </>
+                        )}
+
+                        {tab === "grants" && (
+                            <>
+                                {player.isOnline && (
+                                    <Alert tone="info">
+                                        This player is in a live session. Ash, items, level and wipes are handed to the game server
+                                        as changes rather than written here, so they land in-game within about five seconds without
+                                        touching anything the player earned meanwhile. The figures on this page catch up once the
+                                        session saves.
+                                    </Alert>
+                                )}
+
+                                <section>
+                                    <span className="a-label">Give or take any item in the game</span>
+                                    <div className="a-row">
+                                        <select value={catalogItem} onChange={(e) => setCatalogItem(e.target.value)} style={{ flex: "1 1 260px" }}>
+                                            {Object.entries(catalogByKind).map(([kind, entries]) => (
+                                                <optgroup key={kind} label={KIND_LABEL[kind] || kind}>
+                                                    {entries.map((entry) => (
+                                                        <option key={entry.itemId} value={entry.itemId}>
+                                                            {entry.name}
+                                                            {entry.maxOwned !== null ? ` (max ${entry.maxOwned})` : ""}
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
+                                        </select>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={catalogQuantity}
+                                            onChange={(e) => setCatalogQuantity(e.target.value)}
+                                            style={{ width: 90 }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="a-btn a-btn-good"
+                                            disabled={busy}
+                                            onClick={() => adjustCatalog(catalogItem, 1, Number(catalogQuantity))}
+                                        >
+                                            <Plus />
+                                            Give
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="a-btn a-btn-danger"
+                                            disabled={busy}
+                                            onClick={() => adjustCatalog(catalogItem, -1, Number(catalogQuantity))}
+                                        >
+                                            <Minus />
+                                            Take
+                                        </button>
+                                    </div>
+                                    <p className="a-hint" style={{ marginTop: 6 }}>
+                                        Covers everything the in-game shop sells: placeables, consumables, pets, crates, skins and accessories.
+                                        Skins are owned once, so quantity is ignored for them.
+                                    </p>
+                                </section>
+
+                                <div className="a-grid a-grid-2">
+                                    <section>
+                                        <span className="a-label">Ash — currently {formatNumber(player.ash)}</span>
+                                        <div className="a-row">
+                                            <input type="number" min={1} value={ashAmountInput} onChange={(e) => setAshAmountInput(e.target.value)} style={{ width: 130 }} />
+                                            <button type="button" className="a-btn a-btn-good" disabled={busy} onClick={() => adjustAsh(1)}>
+                                                Give
+                                            </button>
+                                            <button type="button" className="a-btn a-btn-danger" disabled={busy} onClick={() => adjustAsh(-1)}>
+                                                Take
+                                            </button>
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <span className="a-label">
+                                            Character level — {player.progression.level} ({skillPointsForLevel(player.progression.level)} skill points)
+                                        </span>
+                                        <div className="a-row">
+                                            <input type="number" min={1} max={MAX_LEVEL} value={levelInput} onChange={(e) => setLevelInput(e.target.value)} style={{ width: 110 }} />
+                                            <button type="button" className="a-btn a-btn-primary" disabled={busy} onClick={setLevel}>
+                                                Set level
+                                            </button>
+                                            <span className="a-hint">
+                                                {player.isOnline ? "applies in-game within ~5s" : "applies on next login"}
+                                            </span>
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <span className="a-label">Meme fragments & crates</span>
+                                        <div className="a-row">
+                                            <input type="number" min={1} value={memeFragments} onChange={(e) => setMemeFragments(e.target.value)} style={{ width: 90 }} />
+                                            <button type="button" className="a-btn a-btn-sm a-btn-good" disabled={busy} onClick={() => adjustCompanionWallet("fragments", 1, Number(memeFragments))}>
+                                                + frags
+                                            </button>
+                                            <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => adjustCompanionWallet("fragments", -1, Number(memeFragments))}>
+                                                − frags
+                                            </button>
+                                            <input type="number" min={1} value={memeCrates} onChange={(e) => setMemeCrates(e.target.value)} style={{ width: 70 }} />
+                                            <button type="button" className="a-btn a-btn-sm a-btn-good" disabled={busy} onClick={() => adjustCompanionWallet("crates", 1, Number(memeCrates))}>
+                                                + crates
+                                            </button>
+                                            <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => adjustCompanionWallet("crates", -1, Number(memeCrates))}>
+                                                − crates
+                                            </button>
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <span className="a-label">Skin fragments & crates</span>
+                                        <div className="a-row">
+                                            <input type="number" min={1} value={skinFragments} onChange={(e) => setSkinFragments(e.target.value)} style={{ width: 90 }} />
+                                            <button type="button" className="a-btn a-btn-sm a-btn-good" disabled={busy} onClick={() => adjustCosmeticWallet("fragments", 1, Number(skinFragments))}>
+                                                + frags
+                                            </button>
+                                            <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => adjustCosmeticWallet("fragments", -1, Number(skinFragments))}>
+                                                − frags
+                                            </button>
+                                            <input type="number" min={1} value={skinCrates} onChange={(e) => setSkinCrates(e.target.value)} style={{ width: 70 }} />
+                                            <button type="button" className="a-btn a-btn-sm a-btn-good" disabled={busy} onClick={() => adjustCosmeticWallet("crates", 1, Number(skinCrates))}>
+                                                + crates
+                                            </button>
+                                            <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => adjustCosmeticWallet("crates", -1, Number(skinCrates))}>
+                                                − crates
+                                            </button>
+                                        </div>
+                                    </section>
+                                </div>
+
+                                <div className="a-sep" />
+
+                                <section>
+                                    <span className="a-label">Grant everything</span>
+                                    <div className="a-pills" style={{ marginBottom: 8 }}>
+                                        {GRANT_SCOPES.map((scope) => (
+                                            <label key={scope} className="a-item" style={{ cursor: "pointer" }}>
+                                                <input type="checkbox" checked={grantScopes.includes(scope)} onChange={() => toggleScope("grant", scope)} />
+                                                {SCOPE_LABELS[scope] || scope}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <div className="a-row">
+                                        <label className="a-row" style={{ gap: 6 }}>
+                                            <span className="a-hint">Ash</span>
+                                            <input type="number" min={0} value={grantAsh} onChange={(e) => setGrantAsh(e.target.value)} style={{ width: 130 }} />
+                                        </label>
+                                        <label className="a-row" style={{ gap: 6 }}>
+                                            <span className="a-hint">Level</span>
+                                            <input type="number" min={1} max={MAX_LEVEL} value={grantLevel} onChange={(e) => setGrantLevel(e.target.value)} style={{ width: 90 }} />
+                                        </label>
+                                        <label className="a-row" style={{ gap: 6 }}>
+                                            <span className="a-hint">Crates</span>
+                                            <input type="number" min={0} value={grantCrateCount} onChange={(e) => setGrantCrateCount(e.target.value)} style={{ width: 90 }} />
+                                        </label>
+                                        <button type="button" className="a-btn a-btn-primary a-spacer" disabled={busy} onClick={() => runBulk("grant")}>
+                                            Grant selected scopes
+                                        </button>
+                                    </div>
+                                    <p className="a-hint" style={{ marginTop: 6 }}>
+                                        Unlocks the licence, every placeable up to its cap, every pet, every skin, the chosen ash and level,
+                                        crates plus ten fragments each, and all achievements.
+                                    </p>
+                                </section>
+
+                                <section>
+                                    <span className="a-label" style={{ color: "var(--a-bad)" }}>Strip the account</span>
+                                    <div className="a-pills" style={{ marginBottom: 8 }}>
+                                        {WIPE_SCOPES.map((scope) => (
+                                            <label key={scope} className="a-item" style={{ cursor: "pointer" }}>
+                                                <input type="checkbox" checked={wipeScopes.includes(scope)} onChange={() => toggleScope("wipe", scope)} />
+                                                {SCOPE_LABELS[scope] || scope}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <div className="a-row">
+                                        <input
+                                            type="text"
+                                            value={wipeConfirm}
+                                            onChange={(e) => setWipeConfirm(e.target.value)}
+                                            placeholder="Type WIPE to confirm"
+                                            style={{ width: 200 }}
+                                        />
+                                        <button type="button" className="a-btn a-btn-danger" disabled={busy} onClick={() => runBulk("wipe")}>
+                                            Take everything selected
+                                        </button>
+                                        <span className="a-hint">This cannot be undone.</span>
+                                    </div>
+                                </section>
+                            </>
+                        )}
+
+                        {tab === "purchases" && (
+                            <>
+                                <div className="a-grid a-grid-4">
+                                    <Tile label="Spent on games" value={`${formatNumber(player.spend.gameTnj)} TNJ`} />
+                                    <Tile label="Spent in shop" value={`${formatNumber(player.spend.shopTnj)} TNJ`} />
+                                    <Tile label="Spent on trades" value={`${formatNumber(player.spend.tradeSpentTnj)} TNJ`} />
+                                    <Tile label="Earned from trades" value={`${formatNumber(player.spend.tradeEarnedTnj)} TNJ`} />
+                                </div>
+
+                                <section>
+                                    <span className="a-label">Game licences</span>
+                                    {player.licenses.length === 0 ? (
+                                        <p className="a-hint">Never bought or granted a licence.</p>
+                                    ) : (
+                                        <div className="a-list">
+                                            {player.licenses.map((licence) => (
+                                                <div key={licence.id} className="a-item">
+                                                    <span className="a-item-title">{licence.gameTitle}</span>
+                                                    <Badge tone={licence.isActive ? "good" : "neutral"}>{licence.isActive ? "active" : "revoked"}</Badge>
+                                                    <span className="a-hint">
+                                                        {licence.txSignature ? `${formatNumber(licence.price)} TNJ` : licence.promoFactionName ? `promo · ${licence.promoFactionName}` : "granted"}
+                                                    </span>
+                                                    <span className="a-hint a-spacer">{formatDate(licence.purchasedAt)}</span>
+                                                    {licence.txSignature && (
+                                                        <a
+                                                            href={`https://solscan.io/tx/${licence.txSignature}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{ color: "var(--a-accent)" }}
+                                                        >
+                                                            <ExternalLink className="w-3 h-3" />
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">In-game purchases ({player.shopHistory.length})</span>
+                                    {player.shopHistory.length === 0 ? (
+                                        <p className="a-hint">No shop purchases.</p>
+                                    ) : (
+                                        <div className="a-list a-scroll-sm">
+                                            {player.shopHistory.map((purchase) => (
+                                                <div key={purchase.id} className="a-item">
+                                                    <span className="a-item-title">
+                                                        {SHOP_CATALOG.find((e) => e.itemId === purchase.itemId)?.name || purchase.itemId}
+                                                        {purchase.quantity > 1 ? ` ×${purchase.quantity}` : ""}
+                                                    </span>
+                                                    <Badge tone={purchase.status === "completed" ? "good" : "bad"}>{purchase.status}</Badge>
+                                                    <span style={{ color: "var(--a-warn)", fontWeight: 700 }}>{formatNumber(purchase.priceTnj)} TNJ</span>
+                                                    <span className="a-hint a-spacer">{formatDate(purchase.createdAt)}</span>
+                                                    <a
+                                                        href={`https://solscan.io/tx/${purchase.txSignature}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{ color: "var(--a-accent)" }}
+                                                    >
+                                                        <ExternalLink className="w-3 h-3" />
+                                                    </a>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Trades ({player.tradeHistory.length})</span>
+                                    {player.tradeHistory.length === 0 ? (
+                                        <p className="a-hint">No trades.</p>
+                                    ) : (
+                                        <div className="a-list a-scroll-sm">
+                                            {player.tradeHistory.map((trade) => (
+                                                <div key={trade.id} className="a-item">
+                                                    <Badge tone={trade.buyerId === player.id ? "info" : "violet"}>
+                                                        {trade.buyerId === player.id ? "bought" : "sold"}
+                                                    </Badge>
+                                                    <span className="a-item-title">
+                                                        {adminLabel(trade.itemName)}
+                                                        {trade.quantity > 1 ? ` ×${trade.quantity}` : ""}
+                                                    </span>
+                                                    <Badge tone={trade.status === "completed" ? "good" : "bad"}>{trade.status}</Badge>
+                                                    <span style={{ color: "var(--a-warn)", fontWeight: 700 }}>{formatNumber(trade.priceTnj)} TNJ</span>
+                                                    <span className="a-hint a-spacer">{formatDate(trade.createdAt)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+                            </>
+                        )}
+
+                        {tab === "moderation" && (
+                            <>
+                                <p className="a-hint">Every action here is signed with your admin wallet.</p>
+
+                                <section>
+                                    <span className="a-label">Ban</span>
+                                    {player.isBanned ? (
+                                        <div className="a-row">
+                                            <Badge tone="bad">Banned {player.bannedAt ? formatDate(player.bannedAt) : ""}</Badge>
+                                            <button type="button" className="a-btn a-btn-good" disabled={busy} onClick={() => setBan(false)}>
+                                                Unban
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="a-row">
+                                            <input
+                                                type="text"
+                                                value={banReasonInput}
+                                                onChange={(e) => setBanReasonInput(e.target.value)}
+                                                placeholder="Reason shown to the player…"
+                                                style={{ flex: "1 1 240px" }}
+                                            />
+                                            <button type="button" className="a-btn a-btn-danger" disabled={busy} onClick={() => setBan(true)}>
+                                                Ban account
+                                            </button>
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Mute (chat + voice)</span>
+                                    <div className="a-row">
+                                        {MUTE_DURATIONS.map((duration) => (
+                                            <button key={duration.minutes} type="button" className="a-btn a-btn-sm" disabled={busy} onClick={() => setMute(duration.minutes)}>
+                                                {duration.label}
+                                            </button>
+                                        ))}
+                                        {isMuted && (
+                                            <button type="button" className="a-btn a-btn-sm a-btn-good" disabled={busy} onClick={() => setMute(null)}>
+                                                Unmute
+                                            </button>
+                                        )}
+                                        {isMuted && <span className="a-hint">until {formatDate(player.mutedUntil)}</span>}
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Personalisation</span>
+                                    <div className="a-row">
+                                        {player.skinTextureUrl ? (
+                                            <a href={player.skinTextureUrl} target="_blank" rel="noopener noreferrer" className="a-hint" style={{ color: "var(--a-accent)" }}>
+                                                View painted skin
+                                            </a>
+                                        ) : (
+                                            <span className="a-hint">No custom skin painted.</span>
+                                        )}
+                                        <button type="button" className="a-btn a-btn-danger" disabled={busy || !player.skinTextureUrl} onClick={resetSkin}>
+                                            Reset skin
+                                        </button>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Identity</span>
+                                    <div className="a-grid a-grid-2">
+                                        <Tile label="Nicknames" value={player.nicknames.join(", ") || "—"} />
+                                        <Tile label="Wallet" value={truncateWallet(player.wallet)} />
+                                    </div>
+                                </section>
+                            </>
+                        )}
+                    </div>
+                </>
+            )}
+        </Modal>
     );
 }

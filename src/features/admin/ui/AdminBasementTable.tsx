@@ -5,6 +5,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { Save, Trash2 } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
 import { AdminTableRef } from "./AdminTableRef";
+import { Alert, Empty } from "./AdminKit";
 
 interface BasementColumn {
     slot: number;
@@ -73,50 +74,48 @@ export const AdminBasementTable = forwardRef<AdminTableRef>(function AdminBaseme
         }
     };
 
-    if (loading) return <div className="text-[#8B8F98] text-sm">Loading basement columns...</div>;
+    if (loading) return <Empty>Loading basement columns…</Empty>;
 
     return (
-        <div className="space-y-3">
-            <div className="text-[#8B8F98] text-sm">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="a-hint">
                 Token shown on each Basement pedestal in{" "}
-                <span className="text-[#E5E7EB] font-bold">{gameName ?? "—"}</span>
-                {gameSlug ? <span className="text-[#6B7280] font-mono"> ({gameSlug})</span> : null}. Leave a field empty and
+                <strong style={{ color: "var(--a-text)" }}>{gameName ?? "—"}</strong>
+                {gameSlug ? <span className="a-mono"> ({gameSlug})</span> : null}. Leave a field empty and
                 save to make the pedestal empty. Players in the Basement pick the change up within 30 seconds.
             </div>
 
-            {error && (
-                <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>
-            )}
+            {error && <Alert tone="bad">{error}</Alert>}
 
-            <div className="space-y-2">
+            <div className="a-list">
                 {columns.map((col) => {
                     const draft = drafts[col.slot] ?? "";
                     const dirty = draft.trim() !== (col.tokenCa || "");
 
                     return (
-                        <div key={col.slot} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg p-2">
-                            <span className="w-16 text-[#8B8F98] text-xs font-bold flex-shrink-0">Column {col.slot + 1}</span>
+                        <div key={col.slot} className="a-item">
+                            <span className="a-label" style={{ width: 78, marginBottom: 0, flexShrink: 0 }}>Column {col.slot + 1}</span>
                             <input
                                 type="text"
                                 value={draft}
                                 onChange={(e) => setDrafts((prev) => ({ ...prev, [col.slot]: e.target.value }))}
                                 placeholder="Token contract address (empty = no token)"
-                                className="flex-1 bg-black/40 text-white px-3 py-1.5 rounded text-xs font-mono border border-white/10 focus:border-cyan-500/50 outline-none"
+                                className="a-mono" style={{ flex: 1, minWidth: 0 }}
                             />
                             <button
                                 onClick={() => save(col.slot, draft.trim())}
                                 disabled={!dirty || busySlot === col.slot}
-                                className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 text-xs font-bold px-2 py-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="a-btn a-btn-sm a-btn-primary"
                             >
-                                <Save className="w-3.5 h-3.5" />
+                                <Save />
                                 Save
                             </button>
                             <button
                                 onClick={() => save(col.slot, "")}
                                 disabled={!col.tokenCa || busySlot === col.slot}
-                                className="flex items-center gap-1.5 text-red-400 hover:text-red-300 text-xs font-bold px-2 py-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="a-btn a-btn-sm a-btn-danger"
                             >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 />
                                 Clear
                             </button>
                         </div>

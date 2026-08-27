@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/core/admin/requireAdmin";
 import { verifyAdminAction } from "@/core/admin/verifyAdminAction";
 import { db } from "@/core/database";
-import { factions, factionMembers, games, users } from "@/core/database/schema";
-import { desc, eq, ilike, or, sql } from "drizzle-orm";
+import { factions, factionMembers, factionGates, games, users } from "@/core/database/schema";
+import { and, asc, desc, eq, exists, ilike, isNotNull, isNull, not, or, sql } from "drizzle-orm";
 import { getTokenByCa } from "@/core/lib/dexscreener";
 import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
 
@@ -19,11 +19,43 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const query = searchParams.get("q")?.trim();
+        const perk = searchParams.get("perk") || "all";
+        const sort = searchParams.get("sort") || "level";
 
         const memberCountSubquery = db
-            .select({ count: sql<number>`count(*)` })
+            .select({ count: sql<number>`count(*)::int` })
             .from(factionMembers)
             .where(eq(factionMembers.factionId, factions.id));
+
+        const gateSubquery = db
+            .select({ one: sql`1` })
+            .from(factionGates)
+            .where(eq(factionGates.factionId, factions.id));
+
+        const where = and(
+            query
+                ? or(
+                    ilike(factions.name, `%${query}%`),
+                    ilike(factions.tokenCa, `%${query}%`),
+                    ilike(factions.symbol, `%${query}%`),
+                    ilike(factions.founderWallet, `%${query}%`),
+                    ilike(factions.promoCode, `%${query}%`)
+                )
+                : undefined,
+            perk === "gate" ? exists(gateSubquery) : undefined,
+            perk === "promo" ? isNotNull(factions.promoCode) : undefined,
+            perk === "none" ? and(not(exists(gateSubquery)), isNull(factions.promoCode)) : undefined,
+            perk === "paid" ? or(isNotNull(factions.creationTx), isNotNull(factions.promoCodePurchaseTx)) : undefined
+        );
+
+        const orderBy =
+            sort === "members"
+                ? [desc(sql`(${memberCountSubquery})`)]
+                : sort === "new"
+                    ? [desc(factions.createdAt)]
+                    : sort === "name"
+                        ? [asc(factions.name)]
+                        : [desc(factions.level), desc(factions.createdAt)];
 
         const rows = await db
             .select({
@@ -36,13 +68,19 @@ export async function GET(req: NextRequest) {
                 founderWallet: factions.founderWallet,
                 level: factions.level,
                 levelProgressAsh: factions.levelProgressAsh,
+                roomAccess: factions.roomAccess,
+                promoCode: factions.promoCode,
+                promoPaid: isNotNull(factions.promoCodePurchaseTx),
+                creationPaid: isNotNull(factions.creationTx),
                 createdAt: factions.createdAt,
                 memberCount: sql<number>`(${memberCountSubquery})`,
+                hasGate: exists(gateSubquery),
+                gatePaid: sql<boolean>`exists (select 1 from faction_gates g where g.faction_id = factions.id and g.purchase_tx is not null)`,
             })
             .from(factions)
-            .where(query ? or(ilike(factions.name, `%${query}%`), eq(factions.tokenCa, query)) : undefined)
-            .orderBy(desc(factions.level), desc(factions.createdAt))
-            .limit(200);
+            .where(where)
+            .orderBy(...orderBy)
+            .limit(300);
 
         return NextResponse.json({ factions: rows });
     } catch (error) {

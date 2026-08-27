@@ -1,8 +1,11 @@
 // src/features/admin/ui/AdminFactionDetailModal.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
+import { ROOM_ACCESS_VALUES } from "@/core/lib/roomAccess";
+import { Alert, Badge, Empty, Modal, Tile, formatDate, formatNumber, truncateWallet } from "./AdminKit";
 
 interface FactionDetail {
     id: string;
@@ -14,7 +17,10 @@ interface FactionDetail {
     tokenCa: string | null;
     founderWallet: string;
     verifiedCreatorWallet: string | null;
+    tokenCreatorWallet: string | null;
+    roomAccess: string;
     createdAt: string;
+    creationTx: string | null;
     promoCode: string | null;
     promoCodePurchaseTx: string | null;
     promoCodePurchasedAt: string | null;
@@ -55,259 +61,337 @@ interface AdminFactionDetailModalProps {
     factionId: string | null;
     onClose: () => void;
     onDeleted: (factionId: string) => void;
+    onChanged?: () => void;
 }
 
-function truncateWallet(wallet: string): string {
-    if (wallet.length <= 10) return wallet;
-    return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
-}
+type Tab = "overview" | "perks" | "roster";
 
-function formatDate(iso: string | null): string {
-    if (!iso) return "—";
-    return new Date(iso).toLocaleString();
-}
-
-export function AdminFactionDetailModal({ factionId, onClose, onDeleted }: AdminFactionDetailModalProps) {
+export function AdminFactionDetailModal({ factionId, onClose, onDeleted, onChanged }: AdminFactionDetailModalProps) {
     const [faction, setFaction] = useState<FactionDetail | null>(null);
     const [loading, setLoading] = useState(false);
-    const [actionError, setActionError] = useState<string | null>(null);
-    const [granting, setGranting] = useState(false);
-    const [grantingGate, setGrantingGate] = useState(false);
-    const [deleting, setDeleting] = useState(false);
+    const [tab, setTab] = useState<Tab>("overview");
+    const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [levelInput, setLevelInput] = useState("1");
+    const [progressInput, setProgressInput] = useState("0");
+    const [rosterQuery, setRosterQuery] = useState("");
     const { signedFetch } = useAdminSignature();
+
+    const load = useCallback(async () => {
+        if (!factionId) return;
+        const res = await fetch(`/api/admin/factions/${factionId}`, { credentials: "include" });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.faction) {
+            setFaction(null);
+            setError(data?.error || `HTTP ${res.status}`);
+            return;
+        }
+        setFaction(data.faction);
+        setLevelInput(String(data.faction.level ?? 1));
+        setProgressInput(String(data.faction.levelProgressAsh ?? 0));
+    }, [factionId]);
 
     useEffect(() => {
         if (!factionId) {
             setFaction(null);
             return;
         }
+        setTab("overview");
+        setError(null);
+        setNotice(null);
+        setRosterQuery("");
         setLoading(true);
-        setActionError(null);
-        fetch(`/api/admin/factions/${factionId}`, { credentials: "include" })
-            .then((r) => r.json())
-            .then((data) => setFaction(data.faction || null))
-            .finally(() => setLoading(false));
-    }, [factionId]);
+        load().finally(() => setLoading(false));
+    }, [factionId, load]);
 
     if (!factionId) return null;
 
-    const grantPromoCode = async () => {
-        setActionError(null);
-        setGranting(true);
+    const perk = async (action: string, body: Record<string, unknown> = {}, label = "Action") => {
+        setError(null);
+        setNotice(null);
+        setBusy(true);
         try {
-            const res = await signedFetch(`/api/admin/factions/${factionId}/promo-code`, "grantPromoCode", factionId, {});
-            const data = await res.json();
-            if (res.ok) {
-                setFaction((prev) => (prev ? { ...prev, promoCode: data.promoCode, promoCodePurchaseTx: null, promoCodePurchasedAt: new Date().toISOString() } : prev));
-            } else {
-                setActionError(data.error === "already_granted" ? "This faction already has a promo code" : "Failed to grant promo code");
+            const res = await signedFetch(`/api/admin/factions/${factionId}/perks`, `faction_${action}`, factionId, { action, ...body });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setError(`${label} failed — ${data?.error || `HTTP ${res.status}`}`);
+                return;
             }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
+            setNotice(`${label} done.`);
+            await load();
+            onChanged?.();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Signature failed");
         } finally {
-            setGranting(false);
-        }
-    };
-
-    const grantGate = async () => {
-        setActionError(null);
-        setGrantingGate(true);
-        try {
-            const res = await signedFetch(`/api/admin/factions/${factionId}/grant-gate`, "grantFactionGate", factionId, {});
-            const data = await res.json();
-            if (res.ok) {
-                setFaction((prev) => (prev ? { ...prev, hasGate: true, gatePurchaseTx: null, gatePurchasedAt: data.gate?.purchasedAt ?? new Date().toISOString() } : prev));
-            } else {
-                setActionError(data.error === "already_granted" ? "This faction already has a Token Gate" : "Failed to grant gate access");
-            }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
-        } finally {
-            setGrantingGate(false);
+            setBusy(false);
         }
     };
 
     const deleteFaction = async () => {
         if (!faction) return;
-        if (!confirm(`Delete faction "${faction.name}" #${faction.number} and remove all ${faction.roster.length} members? This cannot be undone.`)) return;
+        if (!confirm(`Delete "${faction.name}" #${faction.number} and remove all ${faction.roster.length} members? This cannot be undone.`)) return;
 
-        setActionError(null);
-        setDeleting(true);
+        setError(null);
+        setBusy(true);
         try {
             const res = await signedFetch(`/api/admin/factions/${factionId}`, "deleteFaction", factionId, {}, "DELETE");
-            if (res.ok) {
-                onDeleted(factionId);
-                onClose();
-            } else {
-                setActionError("Failed to delete faction");
+            if (!res.ok) {
+                setError("Failed to delete faction");
+                return;
             }
-        } catch (err: any) {
-            setActionError(err.message || "Signature failed");
+            onDeleted(factionId);
+            onClose();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Signature failed");
         } finally {
-            setDeleting(false);
+            setBusy(false);
         }
     };
 
+    const roster = faction
+        ? faction.roster.filter((member) => {
+            const needle = rosterQuery.trim().toLowerCase();
+            if (!needle) return true;
+            return `${member.nickname || ""} ${member.wallet} ${member.role}`.toLowerCase().includes(needle);
+        })
+        : [];
+
     return (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-            <div
-                className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-[#0a0a0c] border border-[rgba(255,255,255,0.1)] rounded-xl p-6 space-y-5"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {loading || !faction ? (
-                    <p className="text-[#8B8F98] text-sm text-center py-10">Loading...</p>
-                ) : (
-                    <>
-                        <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                                {faction.image ? (
-                                    <img src={faction.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                                ) : (
-                                    <div className="w-10 h-10 rounded-lg bg-white/5" />
-                                )}
-                                <div>
-                                    <h2 className="text-white text-lg font-bold">
-                                        {faction.name} #{faction.number}
-                                        {faction.symbol && <span className="text-[#8B8F98] text-sm ml-1">${faction.symbol}</span>}
-                                    </h2>
-                                    <span className="bg-[rgba(79,209,255,0.15)] text-[#4FD1FF] text-xs font-bold px-2 py-0.5 rounded-full">
-                                        Lv. {faction.level}
-                                    </span>
-                                </div>
+        <Modal onClose={onClose}>
+            {loading || !faction ? (
+                <div className="a-modal-body">
+                    {error ? <Alert tone="bad">{error}</Alert> : <Empty>Loading faction…</Empty>}
+                </div>
+            ) : (
+                <>
+                    <header className="a-modal-head">
+                        {faction.image ? (
+                            <img src={faction.image} alt="" style={{ width: 44, height: 44, borderRadius: 11, objectFit: "cover" }} />
+                        ) : (
+                            <div style={{ width: 44, height: 44, borderRadius: 11, background: "var(--a-panel-3)" }} />
+                        )}
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <div className="a-row" style={{ gap: 8 }}>
+                                <span className="a-top-title">
+                                    {faction.name} <span className="a-hint">#{faction.number}</span>
+                                </span>
+                                {faction.symbol && <Badge tone="info">${faction.symbol}</Badge>}
+                                <Badge tone="violet">Lv. {faction.level}</Badge>
                             </div>
-                            <button onClick={onClose} className="text-[#8B8F98] hover:text-white text-sm">✕</button>
+                            <div className="a-pills" style={{ marginTop: 6 }}>
+                                {faction.hasGate && <Badge tone={faction.gatePurchaseTx ? "good" : "info"}>Gate room</Badge>}
+                                {faction.promoCode && <Badge tone={faction.promoCodePurchaseTx ? "good" : "info"}>Promo {faction.promoCode}</Badge>}
+                                {faction.creationTx && <Badge tone="warn">Founded on-chain</Badge>}
+                                <Badge>Room: {faction.roomAccess}</Badge>
+                            </div>
                         </div>
+                        <button type="button" className="a-icon-btn" onClick={onClose} aria-label="Close">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </header>
 
-                        <div>
-                            <div className="flex items-center justify-between text-xs text-[#8B8F98] mb-1">
-                                <span>Level progress</span>
-                                <span>{faction.levelProgressAsh} / {faction.xpForNextLevel} Ash</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-[#4FD1FF] rounded-full"
-                                    style={{ width: `${Math.min(100, (faction.levelProgressAsh / faction.xpForNextLevel) * 100)}%` }}
+                    <div className="a-tabs">
+                        {(["overview", "perks", "roster"] as Tab[]).map((entry) => (
+                            <button key={entry} type="button" className="a-tab" data-active={tab === entry} onClick={() => setTab(entry)}>
+                                {entry === "overview" ? "Overview" : entry === "perks" ? "Paid perks" : `Roster (${faction.roster.length})`}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="a-modal-body">
+                        {error && <Alert tone="bad">{error}</Alert>}
+                        {notice && !error && <Alert tone="good">{notice}</Alert>}
+
+                        {tab === "overview" && (
+                            <>
+                                <section>
+                                    <div className="a-row" style={{ justifyContent: "space-between", marginBottom: 5 }}>
+                                        <span className="a-hint">Level progress</span>
+                                        <span className="a-hint">
+                                            {formatNumber(faction.levelProgressAsh)} / {formatNumber(faction.xpForNextLevel)} Ash
+                                        </span>
+                                    </div>
+                                    <div className="a-bar">
+                                        <span style={{ width: `${Math.min(100, (faction.levelProgressAsh / Math.max(1, faction.xpForNextLevel)) * 100)}%` }} />
+                                    </div>
+                                </section>
+
+                                <div className="a-grid a-grid-2">
+                                    <Tile label="Founder" value={truncateWallet(faction.founderWallet)} />
+                                    <Tile label="Verified creator" value={faction.verifiedCreatorWallet ? truncateWallet(faction.verifiedCreatorWallet) : "—"} />
+                                    <Tile label="Token CA" value={faction.tokenCa || "—"} />
+                                    <Tile label="Created" value={formatDate(faction.createdAt)} />
+                                </div>
+
+                                {faction.description && <p className="a-hint">{faction.description}</p>}
+
+                                <section>
+                                    <span className="a-label">Active task</span>
+                                    {!faction.activeTask ? (
+                                        <p className="a-hint">No active task.</p>
+                                    ) : (
+                                        <div className="a-item" style={{ alignItems: "flex-start", flexDirection: "column", gap: 4 }}>
+                                            <span style={{ fontWeight: 700 }}>{faction.activeTask.key}</span>
+                                            <span className="a-hint">
+                                                Progress {faction.activeTask.progress}/{faction.activeTask.target} · reward {formatNumber(faction.activeTask.rewardAsh)} Ash
+                                            </span>
+                                            <span className="a-hint">
+                                                Accepted by {faction.activeTask.acceptedByNickname || "—"} at {formatDate(faction.activeTask.acceptedAt)}
+                                            </span>
+                                            <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => perk("clearTask", {}, "Task reset")}>
+                                                Clear active task
+                                            </button>
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Recent task history ({faction.taskHistory.length})</span>
+                                    {faction.taskHistory.length === 0 ? (
+                                        <p className="a-hint">None yet.</p>
+                                    ) : (
+                                        <div className="a-list">
+                                            {faction.taskHistory.map((entry) => (
+                                                <div key={entry.id} className="a-item">
+                                                    <span className="a-item-title">{entry.taskKey}</span>
+                                                    <span className="a-hint a-spacer">{formatDate(entry.completedAt)}</span>
+                                                    <span style={{ color: "var(--a-warn)", fontWeight: 700 }}>
+                                                        +{formatNumber(entry.rewardAsh)} → {entry.rewardNickname || truncateWallet(entry.rewardWallet)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+                            </>
+                        )}
+
+                        {tab === "perks" && (
+                            <>
+                                <p className="a-hint">Every perk below is normally bought with TNJ. Granting one here hands it over for free.</p>
+
+                                <section>
+                                    <span className="a-label">Promo code — grants the game to whoever redeems it</span>
+                                    {faction.promoCode ? (
+                                        <div className="a-item">
+                                            <span style={{ color: "var(--a-warn)", fontWeight: 800, letterSpacing: "0.16em" }}>{faction.promoCode}</span>
+                                            <Badge tone={faction.promoCodePurchaseTx ? "good" : "info"}>
+                                                {faction.promoCodePurchaseTx ? "purchased" : "granted by admin"}
+                                            </Badge>
+                                            <span className="a-hint a-spacer">{formatDate(faction.promoCodePurchasedAt)}</span>
+                                            <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => perk("revokePromo", {}, "Promo revoke")}>
+                                                Revoke
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button type="button" className="a-btn a-btn-good" disabled={busy} onClick={() => perk("grantPromo", {}, "Promo grant")}>
+                                            Grant promo code
+                                        </button>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Token gate room — private room in Token Gates</span>
+                                    {faction.hasGate ? (
+                                        <div className="a-item">
+                                            <span className="a-item-title">Private room active</span>
+                                            <Badge tone={faction.gatePurchaseTx ? "good" : "info"}>
+                                                {faction.gatePurchaseTx ? "purchased" : "granted by admin"}
+                                            </Badge>
+                                            <span className="a-hint a-spacer">{formatDate(faction.gatePurchasedAt)}</span>
+                                            <button type="button" className="a-btn a-btn-sm a-btn-danger" disabled={busy} onClick={() => perk("revokeGate", {}, "Gate revoke")}>
+                                                Revoke
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button type="button" className="a-btn a-btn-good" disabled={busy} onClick={() => perk("grantGate", {}, "Gate grant")}>
+                                            Grant gate room
+                                        </button>
+                                    )}
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Room access</span>
+                                    <div className="a-row">
+                                        <select
+                                            value={faction.roomAccess}
+                                            disabled={busy}
+                                            onChange={(e) => perk("setRoomAccess", { roomAccess: e.target.value }, "Room access")}
+                                        >
+                                            {ROOM_ACCESS_VALUES.map((value) => (
+                                                <option key={value} value={value}>
+                                                    {value}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <span className="a-hint">Who may walk into the faction room.</span>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <span className="a-label">Faction level</span>
+                                    <div className="a-row">
+                                        <label className="a-row" style={{ gap: 6 }}>
+                                            <span className="a-hint">Level</span>
+                                            <input type="number" min={1} max={100} value={levelInput} onChange={(e) => setLevelInput(e.target.value)} style={{ width: 90 }} />
+                                        </label>
+                                        <label className="a-row" style={{ gap: 6 }}>
+                                            <span className="a-hint">Progress (Ash)</span>
+                                            <input type="number" min={0} value={progressInput} onChange={(e) => setProgressInput(e.target.value)} style={{ width: 120 }} />
+                                        </label>
+                                        <button
+                                            type="button"
+                                            className="a-btn a-btn-primary"
+                                            disabled={busy}
+                                            onClick={() => perk("setLevel", { level: Number(levelInput), levelProgressAsh: Number(progressInput) }, "Level change")}
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                </section>
+
+                                <div className="a-sep" />
+
+                                <section>
+                                    <span className="a-label" style={{ color: "var(--a-bad)" }}>Danger zone</span>
+                                    <button type="button" className="a-btn a-btn-danger" disabled={busy} onClick={deleteFaction}>
+                                        Delete faction
+                                    </button>
+                                </section>
+                            </>
+                        )}
+
+                        {tab === "roster" && (
+                            <>
+                                <input
+                                    type="text"
+                                    value={rosterQuery}
+                                    onChange={(e) => setRosterQuery(e.target.value)}
+                                    placeholder="Filter members by nickname, wallet or role…"
                                 />
-                            </div>
-                        </div>
-
-                        <div className="text-xs text-[#8B8F98] space-y-1">
-                            <div>Founder: <span className="font-mono">{truncateWallet(faction.founderWallet)}</span></div>
-                            {faction.verifiedCreatorWallet && (
-                                <div>Verified creator: <span className="font-mono">{truncateWallet(faction.verifiedCreatorWallet)}</span></div>
-                            )}
-                            {faction.tokenCa && <div>Token CA: <span className="font-mono break-all">{faction.tokenCa}</span></div>}
-                            <div>Created: {formatDate(faction.createdAt)}</div>
-                        </div>
-
-                        {faction.description && <p className="text-[#8B8F98] text-sm">{faction.description}</p>}
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">ACTIVE TASK</div>
-                            {!faction.activeTask ? (
-                                <p className="text-[#6B7280] text-xs">No active task.</p>
-                            ) : (
-                                <div className="bg-white/5 rounded-lg p-3 text-xs space-y-1">
-                                    <div className="text-white font-bold">{faction.activeTask.key}</div>
-                                    <div className="text-[#8B8F98]">Progress: {faction.activeTask.progress}/{faction.activeTask.target}</div>
-                                    <div className="text-[#FFD166]">Reward: {faction.activeTask.rewardAsh} Ash</div>
-                                    <div className="text-[#6B7280]">Accepted by {faction.activeTask.acceptedByNickname || "—"} at {formatDate(faction.activeTask.acceptedAt)}</div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">RECENT TASK HISTORY ({faction.taskHistory.length})</div>
-                            {faction.taskHistory.length === 0 ? (
-                                <p className="text-[#6B7280] text-xs">None yet.</p>
-                            ) : (
-                                <div className="space-y-1">
-                                    {faction.taskHistory.map((h) => (
-                                        <div key={h.id} className="flex items-center justify-between text-xs bg-white/5 rounded-lg px-3 py-1.5">
-                                            <span className="text-white">{h.taskKey}</span>
-                                            <span className="text-[#FFD166]">+{h.rewardAsh} → {h.rewardNickname || truncateWallet(h.rewardWallet)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">ROSTER ({faction.roster.length})</div>
-                            <div className="space-y-1 max-h-52 overflow-y-auto">
-                                {faction.roster.map((m) => (
-                                    <div key={m.userId} className="flex items-center justify-between text-xs bg-white/5 rounded-lg px-3 py-1.5">
-                                        <span className="text-white">{m.nickname || truncateWallet(m.wallet)} <span className="text-[#6B7280]">({m.role})</span></span>
-                                        <span className="text-[#FFD166]">{m.contributionPoints} pts / {m.tasksContributed} tasks</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="border-t border-white/10 pt-4 space-y-3">
-                            {actionError && (
-                                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                                    {actionError}
-                                </p>
-                            )}
-                            <p className="text-[#6B7280] text-[11px]">
-                                Actions below require signing with your admin wallet.
-                            </p>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">PROMO CODE UPGRADE</div>
-                                {faction.promoCode ? (
-                                    <div className="bg-[rgba(255,209,102,0.08)] border border-[rgba(255,209,102,0.25)] rounded-lg px-3 py-2 text-xs space-y-1">
-                                        <div className="text-[#FFD166] font-bold tracking-widest">{faction.promoCode}</div>
-                                        <div className="text-[#6B7280]">
-                                            {faction.promoCodePurchaseTx ? "Purchased" : "Granted by admin"} — {formatDate(faction.promoCodePurchasedAt)}
-                                        </div>
-                                    </div>
+                                {roster.length === 0 ? (
+                                    <Empty>No members match.</Empty>
                                 ) : (
-                                    <button
-                                        onClick={grantPromoCode}
-                                        disabled={granting}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {granting ? "Granting..." : "Grant Promo Code Upgrade"}
-                                    </button>
-                                )}
-                            </div>
-
-                            <div>
-                                <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-2">TOKEN GATE ACCESS</div>
-                                {faction.hasGate ? (
-                                    <div className="bg-[rgba(79,209,255,0.08)] border border-[rgba(79,209,255,0.25)] rounded-lg px-3 py-2 text-xs space-y-1">
-                                        <div className="text-[#4FD1FF] font-bold">Has private room</div>
-                                        <div className="text-[#6B7280]">
-                                            {faction.gatePurchaseTx ? "Purchased" : "Granted by admin"} — {formatDate(faction.gatePurchasedAt)}
-                                        </div>
+                                    <div className="a-list">
+                                        {roster.map((member) => (
+                                            <div key={member.userId} className="a-item">
+                                                <span className="a-item-title">{member.nickname || truncateWallet(member.wallet)}</span>
+                                                <Badge tone={member.role === "founder" ? "warn" : member.role === "officer" ? "info" : "neutral"}>{member.role}</Badge>
+                                                <span className="a-hint a-mono">{truncateWallet(member.wallet)}</span>
+                                                <span className="a-hint a-spacer">joined {formatDate(member.joinedAt)}</span>
+                                                <span style={{ color: "var(--a-warn)", fontWeight: 700 }}>
+                                                    {formatNumber(member.contributionPoints)} pts / {member.tasksContributed} tasks
+                                                </span>
+                                            </div>
+                                        ))}
                                     </div>
-                                ) : (
-                                    <button
-                                        onClick={grantGate}
-                                        disabled={grantingGate}
-                                        className="btn-secondary px-3 py-1.5 text-xs text-[#4ADE80] disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {grantingGate ? "Granting..." : "Grant Free Gate Access"}
-                                    </button>
                                 )}
-                            </div>
-
-                            <div>
-                                <div className="text-red-400 text-xs font-bold tracking-wider mb-2">DANGER ZONE</div>
-                                <button
-                                    onClick={deleteFaction}
-                                    disabled={deleting}
-                                    className="btn-secondary px-3 py-1.5 text-xs text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {deleting ? "Deleting..." : "Delete Faction"}
-                                </button>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
-        </div>
+                            </>
+                        )}
+                    </div>
+                </>
+            )}
+        </Modal>
     );
 }

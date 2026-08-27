@@ -28,6 +28,8 @@
     "check:protocol": "node scripts/check-protocol.js",
     "check:types": "tsc --noEmit -p tsconfig.check.json",
     "check:i18n": "node scripts/check-i18n.js",
+    "sync:zh-tw": "node scripts/gen-zh-tw.js",
+    "check:zh-tw": "node scripts/gen-zh-tw.js --check",
     "xp:curve": "node scripts/xp-curve.js",
     "balance:report": "node scripts/balance-report.js"
   },
@@ -76,6 +78,7 @@
   },
   "devDependencies": {
     "@gltf-transform/cli": "^4.4.2",
-    "glob": "^13.0.6"
+    "glob": "^13.0.6",
+    "opencc-js": "^1.4.2"
   }
 }

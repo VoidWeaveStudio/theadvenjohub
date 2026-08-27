@@ -1,7 +1,7 @@
 // src/features/game/GameClient.tsx
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { SoundManager } from "./core/SoundManager";
 import { Game } from "./core/Game";
 import { HUD } from "./ui/HUD";
@@ -86,7 +86,7 @@ import { TradeSessionData, type InventoryEntry } from "./network/NetworkManager"
 import { useHudState } from "./ui/hooks/useHudState";
 import { useProgressionState } from "./ui/hooks/useProgressionState";
 import { useAbilityState, rejectionMessage } from "./ui/hooks/useAbilityState";
-import { t } from "@/core/i18n";
+import { onLanguageChange, t } from "@/core/i18n";
 import { modeById } from "./data/skills";
 import { useQuestState, SOLA_NPC_ID } from "./ui/hooks/useQuestState";
 import { TouchControls } from "./ui/TouchControls";
@@ -154,6 +154,16 @@ interface HotbarSlot {
 export function GameClient({ slug }: GameClientProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
+
+  // The labels below come from the module level t rather than the context, so a
+  // language change has to force a repaint the same way the three.js systems do.
+  // The first bump catches the language the provider seeds before this runs.
+  const [, bumpLanguage] = useReducer((tick: number) => tick + 1, 0);
+  useEffect(() => {
+    const unsubscribe = onLanguageChange(bumpLanguage);
+    bumpLanguage();
+    return unsubscribe;
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Initializing game...");
@@ -1253,7 +1263,7 @@ export function GameClient({ slug }: GameClientProps) {
 
           // Wheels, hotbar, tools and the whole skill tree are shelved inside a
           // match — the arsenal decides everything.
-          if (["KeyX", "KeyC", "KeyV", "KeyQ", "KeyF", "KeyI", "KeyL", "KeyM"].includes(e.code)) return;
+          if (["KeyX", "KeyC", "KeyV", "KeyZ", "KeyQ", "KeyF", "KeyI", "KeyL", "KeyM"].includes(e.code)) return;
           if (ABILITY_KEY_MAP[e.code]) return;
         }
 
@@ -1268,6 +1278,16 @@ export function GameClient({ slug }: GameClientProps) {
 
         if (e.code === "KeyX" && !e.repeat) {
           openWheel("tools");
+          return;
+        }
+
+        if (e.code === "KeyZ" && !e.repeat) {
+          if (isBlueprintEquipped) {
+            setIsPlaceableMenuOpen(true);
+            document.exitPointerLock();
+          } else {
+            gameRef.current?.setBlueprintEquipped(true);
+          }
           return;
         }
 

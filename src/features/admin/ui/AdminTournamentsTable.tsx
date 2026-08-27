@@ -1,9 +1,10 @@
 // src/features/admin/ui/AdminTournamentsTable.tsx
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Save, Trash2, Trophy } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
+import { Alert, Chips, Empty, SearchInput } from "./AdminKit";
 import { AdminTableRef } from "./AdminTableRef";
 import { AdminTournamentEntries } from "./AdminTournamentEntries";
 import {
@@ -143,6 +144,8 @@ export const AdminTournamentsTable = forwardRef<AdminTableRef>(function AdminTou
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [query, setQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all");
     const { signedFetch } = useAdminSignature();
 
     const load = async () => {
@@ -415,59 +418,70 @@ export const AdminTournamentsTable = forwardRef<AdminTableRef>(function AdminTou
         </div>
     );
 
-    if (loading) return <div className="text-[#8B8F98] text-sm">Loading tournaments...</div>;
+    const visible = useMemo(() => {
+        const needle = query.trim().toLowerCase();
+        return tournaments.filter((tournament) => {
+            if (statusFilter !== "all" && tournament.status !== statusFilter) return false;
+            if (!needle) return true;
+            return `${tournament.title} ${tournament.kind} ${tournament.status} ${tournament.phase}`.toLowerCase().includes(needle);
+        });
+    }, [tournaments, query, statusFilter]);
+
+    if (loading) return <Empty>Loading tournaments…</Empty>;
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
-                <span className="text-[#8B8F98]">
-                    Billboard contests in the main hall of{" "}
-                    <span className="text-[#E5E7EB] font-bold">{gameName ?? "—"}</span>
-                    {gameSlug ? <span className="text-[#6B7280] font-mono"> ({gameSlug})</span> : null}. Published ones
-                    appear on the board within a minute; drafts stay here.
-                </span>
-                <button
-                    onClick={() => setNewDraft((prev) => (prev ? null : blankDraft()))}
-                    className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 text-sm font-bold px-2 py-1"
-                >
-                    <Plus className="w-4 h-4" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="a-row">
+                <SearchInput value={query} onChange={setQuery} placeholder="Search title, kind or phase…" />
+                <Chips
+                    value={statusFilter}
+                    options={[
+                        { id: "all", label: "All", count: tournaments.length },
+                        { id: "published", label: "Published", count: tournaments.filter((t) => t.status === "published").length },
+                        { id: "draft", label: "Drafts", count: tournaments.filter((t) => t.status === "draft").length },
+                        { id: "archived", label: "Archived", count: tournaments.filter((t) => t.status === "archived").length },
+                    ]}
+                    onChange={setStatusFilter}
+                />
+                <button type="button" onClick={() => setNewDraft((prev) => (prev ? null : blankDraft()))} className="a-btn a-btn-primary a-spacer">
+                    <Plus />
                     New tournament
                 </button>
             </div>
 
-            {error && (
-                <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>
-            )}
+            <p className="a-hint">
+                Billboard contests in the main hall of <strong style={{ color: "var(--a-text)" }}>{gameName ?? "—"}</strong>
+                {gameSlug ? <span className="a-mono"> ({gameSlug})</span> : null}. Published ones appear on the board within a
+                minute; drafts stay here.
+            </p>
+
+            {error && <Alert tone="bad">{error}</Alert>}
 
             {newDraft && (
-                <div className="bg-cyan-500/5 border border-cyan-500/25 rounded-lg p-3 space-y-2">
-                    <div className="text-white font-bold text-sm">New tournament</div>
+                <div className="a-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 8, padding: 12, borderColor: "rgba(79,209,255,0.3)", background: "rgba(79,209,255,0.05)" }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>New tournament</div>
                     {renderForm(newDraft, (changes) => setNewDraft((prev) => ({ ...prev!, ...changes })), false)}
                     <div className="flex items-center gap-3">
                         <button
+                            type="button"
                             onClick={create}
                             disabled={newDraft.title.trim().length === 0 || busyId === "new"}
-                            className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 text-xs font-bold px-2 py-1 disabled:opacity-30"
+                            className="a-btn a-btn-sm a-btn-primary"
                         >
-                            <Save className="w-3.5 h-3.5" />
-                            {busyId === "new" ? "Creating..." : "Create"}
+                            <Save />
+                            {busyId === "new" ? "Creating…" : "Create"}
                         </button>
-                        <button
-                            onClick={() => setNewDraft(null)}
-                            className="text-[#8B8F98] hover:text-white text-xs px-2 py-1"
-                        >
+                        <button type="button" onClick={() => setNewDraft(null)} className="a-btn a-btn-sm a-btn-ghost">
                             Cancel
                         </button>
                     </div>
                 </div>
             )}
 
-            <div className="space-y-2">
-                {tournaments.length === 0 && !newDraft && (
-                    <div className="text-[#6B7280] text-sm py-6 text-center">No tournaments yet.</div>
-                )}
+            <div className="a-list">
+                {visible.length === 0 && !newDraft && <Empty>No tournaments match.</Empty>}
 
-                {tournaments.map((tournament) => {
+                {visible.map((tournament) => {
                     const draft = drafts[tournament.id];
                     if (!draft) return null;
 
@@ -475,7 +489,7 @@ export const AdminTournamentsTable = forwardRef<AdminTableRef>(function AdminTou
                     const dirty = isDirty(draft, tournament);
 
                     return (
-                        <div key={tournament.id} className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
+                        <div key={tournament.id} className="a-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 8, padding: 12 }}>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setExpanded(open ? null : tournament.id)}
