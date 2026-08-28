@@ -403,6 +403,12 @@ export const factions = pgTable("factions", {
   level: integer("level").default(1).notNull(),
   levelProgressAsh: integer("level_progress_ash").default(0).notNull(),
   roomAccess: varchar("room_access", { length: 12 }).default("members").notNull(),
+  treasuryAsh: integer("treasury_ash").default(0).notNull(),
+  treasuryCompanionFragments: integer("treasury_companion_fragments").default(0).notNull(),
+  treasuryCosmeticFragments: integer("treasury_cosmetic_fragments").default(0).notNull(),
+  warCooldownUntil: timestamp("war_cooldown_until"),
+  marketCap: bigint("market_cap", { mode: "number" }).default(0).notNull(),
+  marketCapAt: timestamp("market_cap_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   promoCode: varchar("promo_code", { length: 20 }).unique(),
   promoCodePurchaseTx: varchar("promo_code_purchase_tx", { length: 88 }).unique(),
@@ -421,6 +427,8 @@ export const factionMembers = pgTable("faction_members", {
   gameId: uuid("game_id").notNull().references(() => games.id),
   wallet: varchar("wallet", { length: 44 }).notNull(),
   role: varchar("role", { length: 20 }).default("member").notNull(),
+  permissions: integer("permissions").default(0).notNull(),
+  roleTitle: varchar("role_title", { length: 24 }),
   isDisplayed: boolean("is_displayed").default(false).notNull(),
   contributionPoints: integer("contribution_points").default(0).notNull(),
   tasksContributed: integer("tasks_contributed").default(0).notNull(),
@@ -905,6 +913,72 @@ export const tournamentLikes = pgTable("tournament_likes", {
 ]);
 
 
+export const factionLedger = pgTable("faction_ledger", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  factionId: uuid("faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  kind: varchar("kind", { length: 24 }).notNull(),
+  ash: integer("ash").default(0).notNull(),
+  companionFragments: integer("companion_fragments").default(0).notNull(),
+  cosmeticFragments: integer("cosmetic_fragments").default(0).notNull(),
+  userId: uuid("user_id").references(() => users.id),
+  note: varchar("note", { length: 120 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_faction_ledger_faction_created").on(table.factionId, table.createdAt),
+  index("idx_faction_ledger_user").on(table.userId),
+]);
+
+
+export const factionWars = pgTable("faction_wars", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  declarerFactionId: uuid("declarer_faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  defenderFactionId: uuid("defender_faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 16 }).default("active").notNull(),
+  stakeAsh: integer("stake_ash").default(0).notNull(),
+  declarerHeartHp: integer("declarer_heart_hp").default(0).notNull(),
+  defenderHeartHp: integer("defender_heart_hp").default(0).notNull(),
+  heartMaxHp: integer("heart_max_hp").default(0).notNull(),
+  winnerFactionId: uuid("winner_faction_id").references(() => factions.id),
+  endedBy: varchar("ended_by", { length: 16 }),
+  declaredByUserId: uuid("declared_by_user_id").references(() => users.id),
+  declaredAt: timestamp("declared_at").defaultNow().notNull(),
+  endedAt: timestamp("ended_at"),
+}, (table) => [
+  index("idx_faction_wars_declarer").on(table.declarerFactionId, table.status),
+  index("idx_faction_wars_defender").on(table.defenderFactionId, table.status),
+  index("idx_faction_wars_game_status").on(table.gameId, table.status),
+]);
+
+
+export const factionWarSides = pgTable("faction_war_sides", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  warId: uuid("war_id").notNull().references(() => factionWars.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  sideFactionId: uuid("side_faction_id").references(() => factions.id),
+  paidAsh: integer("paid_ash").default(0).notNull(),
+  chosenAt: timestamp("chosen_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_faction_war_sides_war_user").on(table.warId, table.userId),
+  index("idx_faction_war_sides_user").on(table.userId),
+]);
+
+
+export const factionBoosts = pgTable("faction_boosts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  factionId: uuid("faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  gameId: uuid("game_id").notNull().references(() => games.id),
+  boostId: varchar("boost_id", { length: 32 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  purchasedByUserId: uuid("purchased_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("idx_faction_boosts_faction_boost").on(table.factionId, table.boostId),
+  index("idx_faction_boosts_expires").on(table.expiresAt),
+]);
+
+
 export const influenceEntries = pgTable("influence_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
   gameId: uuid("game_id").notNull().references(() => games.id),
@@ -1316,3 +1390,6 @@ export type NewTournamentLike = typeof tournamentLikes.$inferInsert;
 
 export type InfluenceEntry = typeof influenceEntries.$inferSelect;
 export type NewInfluenceEntry = typeof influenceEntries.$inferInsert;
+
+export type FactionLedgerEntry = typeof factionLedger.$inferSelect;
+export type NewFactionLedgerEntry = typeof factionLedger.$inferInsert;

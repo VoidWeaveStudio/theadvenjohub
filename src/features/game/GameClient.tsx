@@ -46,7 +46,7 @@ import { BuildEditorPanel } from "./ui/BuildEditorPanel";
 import type { BuildSessionState } from "./world/building/BuildSession";
 import { RoomConsolePanel } from "./ui/RoomConsolePanel";
 import { BubbleMapPanel } from "./ui/BubbleMapPanel";
-import type { FactionGateData, ShardStateData, DefusalStateData, DefusalQueueData, GrinderStateData, InfluenceGateData, InfluenceCrystalPanelData, InfluenceStateData, InfluenceCaptureData } from "./network/NetworkManager";
+import type { FactionGateData, ShardStateData, DefusalStateData, DefusalQueueData, GrinderStateData, InfluenceGateData, InfluenceCrystalPanelData, InfluenceStateData, InfluenceCaptureData, FactionLedgerEntry, FactionActiveBoost, FactionWarSummary, FactionWarSideChoice } from "./network/NetworkManager";
 import { PersonalizationEditor } from "./ui/personalization/PersonalizationEditor";
 import { gameFetch, keepSessionAlive } from "./utils/gameFetch";
 import { QuestTracker } from "./ui/QuestTracker";
@@ -66,6 +66,7 @@ import { MEME_ABILITIES, MEME_ABILITIES_BY_ID, TIERS } from "./data/progression"
 import { COSMETICS_BY_ID, CosmeticId } from "./data/cosmetics";
 import { useCosmeticState } from "./ui/hooks/useCosmeticState";
 import { FactionsWindow } from "./ui/FactionsWindow";
+import { WarSideModal } from "./ui/WarSideModal";
 import { QuestsWindow } from "./ui/QuestsWindow";
 import { SocialWindow, SocialTab } from "./ui/SocialWindow";
 import { ShopWindow } from "./ui/ShopWindow";
@@ -227,6 +228,10 @@ export function GameClient({ slug }: GameClientProps) {
   const [influenceCrystal, setInfluenceCrystal] = useState<InfluenceCrystalPanelData | null>(null);
   const [influenceState, setInfluenceState] = useState<InfluenceStateData | null>(null);
   const [influenceCapture, setInfluenceCapture] = useState<InfluenceCaptureData | null>(null);
+  const [factionLedger, setFactionLedger] = useState<FactionLedgerEntry[]>([]);
+  const [factionBoosts, setFactionBoosts] = useState<FactionActiveBoost[]>([]);
+  const [factionWars, setFactionWars] = useState<FactionWarSummary[]>([]);
+  const [warSideChoices, setWarSideChoices] = useState<FactionWarSideChoice[]>([]);
   const [buildEditorState, setBuildEditorState] = useState<BuildSessionState | null>(null);
   const [isPosterPaintOpen, setIsPosterPaintOpen] = useState(false);
   const [paintTarget, setPaintTarget] = useState<{ key: string; aspect: number; url: string | null } | null>(null);
@@ -682,6 +687,56 @@ export function GameClient({ slug }: GameClientProps) {
         game.onInfluenceStateChange = (data) => {
           if (cancelled) return;
           setInfluenceState(data);
+        };
+        game.onFactionLedger = (entries) => {
+          if (cancelled) return;
+          setFactionLedger(entries);
+        };
+        game.onFactionBoosts = (data) => {
+          if (cancelled) return;
+          setFactionBoosts(data.active);
+        };
+        game.onFactionWarRelations = (wars) => {
+          if (cancelled) return;
+          setFactionWars(wars);
+        };
+        game.onFactionWarSidePrompt = (choices) => {
+          if (cancelled) return;
+          setWarSideChoices(choices);
+        };
+        game.onFactionWarSideChosen = (data) => {
+          if (cancelled) return;
+          setWarSideChoices((prev) => prev.filter((choice) => choice.warId !== data.warId));
+        };
+        game.onFactionWarDeclared = (war) => {
+          if (cancelled) return;
+          setFactionWars((prev) => [...prev.filter((entry) => entry.id !== war.id), war]);
+        };
+        game.onFactionWarEnded = (data) => {
+          if (cancelled) return;
+          setFactionWars((prev) => prev.filter((entry) => entry.id !== data.warId));
+
+          const mine = gameRef.current?.interactionSystem.myFactionIds;
+          if (!data.winnerFactionId) {
+            game.onNotification?.(t("g.war.settledNotice"), 4000);
+          } else if (mine?.has(data.winnerFactionId)) {
+            game.onNotification?.(t("g.war.wonNotice", { n: data.spoilsAsh.toLocaleString() }), 6000);
+          } else if (data.loserFactionId && mine?.has(data.loserFactionId)) {
+            game.onNotification?.(t("g.war.lostNotice"), 6000);
+          }
+        };
+        game.onFactionHeartState = (data) => {
+          if (cancelled) return;
+          setFactionWars((prev) => prev.map((entry) => {
+            if (entry.id !== data.warId) return entry;
+            return data.factionId === entry.declarerFactionId
+              ? { ...entry, declarerHeartHp: data.hp, heartMaxHp: data.maxHp }
+              : { ...entry, defenderHeartHp: data.hp, heartMaxHp: data.maxHp };
+          }));
+        };
+        game.onFactionTreasury = (data) => {
+          if (cancelled) return;
+          factionState.handleFactionTreasury(data);
         };
         game.onInfluenceCaptureChange = (data) => {
           if (cancelled) return;
@@ -1764,8 +1819,36 @@ export function GameClient({ slug }: GameClientProps) {
         onCreated={() => gameRef.current?.requestMyFactions()}
       />
 
+      {warSideChoices.length > 0 && (
+        <WarSideModal
+          choices={warSideChoices}
+          myAsh={inventory.ash}
+          onChoose={(warId, sideFactionId) =>
+            gameRef.current?.networkManager.chooseFactionWarSide(warId, sideFactionId)}
+        />
+      )}
+
       <FactionsWindow
         influence={influenceState}
+        myUserId={gameRef.current?.session.userId ?? ""}
+        onSetPermissions={(factionId, targetUserId, permissions, roleTitle) =>
+          gameRef.current?.networkManager.setFactionPermissions(factionId, targetUserId, permissions, roleTitle)}
+        ledger={factionLedger}
+        boosts={factionBoosts}
+        wars={factionWars}
+        onRequestWars={() => gameRef.current?.networkManager.requestFactionWars()}
+        onDeclareWar={(factionId, targetFactionId) =>
+          gameRef.current?.networkManager.declareFactionWar(factionId, targetFactionId)}
+        onCapitulate={(factionId, warId) =>
+          gameRef.current?.networkManager.capitulateFactionWar(factionId, warId)}
+        onSettleWar={(factionId, warId) =>
+          gameRef.current?.networkManager.settleFactionWar(factionId, warId)}
+        onRequestLedger={(factionId) => gameRef.current?.networkManager.requestFactionLedger(factionId)}
+        onRequestBoosts={(factionId) => gameRef.current?.networkManager.requestFactionBoosts(factionId)}
+        onBuyBoost={(factionId, boostId, duration) =>
+          gameRef.current?.networkManager.buyFactionBoost(factionId, boostId, duration)}
+        onGrantFragments={(factionId, targetUserId, companionFragments, cosmeticFragments) =>
+          gameRef.current?.networkManager.grantFactionFragments(factionId, targetUserId, companionFragments, cosmeticFragments)}
         isOpen={activeTopWindow === "factions"}
         onClose={() => setActiveTopWindow(null)}
         myWallet={gameRef.current?.session.wallet ?? ""}

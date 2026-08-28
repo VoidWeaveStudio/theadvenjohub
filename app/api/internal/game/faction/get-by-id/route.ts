@@ -31,7 +31,10 @@ export async function POST(req: NextRequest) {
         const roster = await db
             .select({
                 wallet: factionMembers.wallet,
+                userId: factionMembers.userId,
                 role: factionMembers.role,
+                roleTitle: factionMembers.roleTitle,
+                permissions: factionMembers.permissions,
                 joinedAt: factionMembers.joinedAt,
                 contributionPoints: factionMembers.contributionPoints,
                 nickname: gameNicknames.nickname,
@@ -73,7 +76,10 @@ export async function POST(req: NextRequest) {
                 promoCode,
                 roster: roster.map((r) => ({
                     wallet: r.wallet,
+                    userId: r.userId,
                     role: r.role,
+                    roleTitle: r.roleTitle,
+                    permissions: r.permissions,
                     nickname: r.nickname || null,
                     contributionPoints: r.contributionPoints,
                 })),

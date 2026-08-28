@@ -5,7 +5,33 @@ const TILE_LAYERS: BuildLayer[] = ["stairs", "floor", "ground", "ceiling", "roof
 
 export const MAX_LEVELS = 6;
 export const PERSONAL_PLOT_SIZE = 100;
+
 export const FACTION_PLOT_SIZE = 500;
+
+const FACTION_EXTENT_BY_LEVEL: Array<{ level: number; extent: number }> = [
+    { level: 20, extent: 2000 },
+    { level: 15, extent: 1500 },
+    { level: 10, extent: 1000 },
+];
+
+export const FACTION_MAX_EXTENT = 2000;
+
+export function factionPlotExtent(level: number): number {
+    for (const step of FACTION_EXTENT_BY_LEVEL) {
+        if (level >= step.level) return step.extent;
+    }
+    return FACTION_PLOT_SIZE;
+}
+
+export interface CellBounds {
+    min: number;
+    max: number;
+}
+
+export function cellBounds(plotSize: number, extent: number = plotSize): CellBounds {
+    const grow = Math.max(0, Math.floor((extent - plotSize) / 2 / CELL_SIZE));
+    return { min: grow === 0 ? 0 : -grow, max: cellsAcross(plotSize) - 1 + grow };
+}
 
 export interface BuildPiece {
     t: string;
@@ -66,17 +92,17 @@ export function pieceKey(piece: BuildPiece): string {
     return `t:${entry.layer}:${piece.l}:${piece.x}:${piece.z}`;
 }
 
-export function isPieceInBounds(piece: BuildPiece, plotSize: number): boolean {
-    const across = cellsAcross(plotSize);
+export function isPieceInBounds(piece: BuildPiece, plotSize: number, extent: number = plotSize): boolean {
+    const bounds = cellBounds(plotSize, extent);
     return (
         Number.isInteger(piece.x) && Number.isInteger(piece.z) && Number.isInteger(piece.l) &&
-        piece.x >= 0 && piece.x < across &&
-        piece.z >= 0 && piece.z < across &&
+        piece.x >= bounds.min && piece.x <= bounds.max &&
+        piece.z >= bounds.min && piece.z <= bounds.max &&
         piece.l >= 0 && piece.l < MAX_LEVELS
     );
 }
 
-export function sanitizePiece(raw: unknown, plotSize: number): BuildPiece | null {
+export function sanitizePiece(raw: unknown, plotSize: number, extent: number = plotSize): BuildPiece | null {
     if (!raw || typeof raw !== "object") return null;
     const source = raw as Record<string, unknown>;
 
@@ -92,7 +118,7 @@ export function sanitizePiece(raw: unknown, plotSize: number): BuildPiece | null
     };
 
     if (!Number.isFinite(piece.x) || !Number.isFinite(piece.z) || !Number.isFinite(piece.l)) return null;
-    if (!isPieceInBounds(piece, plotSize)) return null;
+    if (!isPieceInBounds(piece, plotSize, extent)) return null;
 
     if (typeof source.d === "string" && source.d.length <= MAX_PAINT_URL && /^https?:\/\//.test(source.d)) {
         piece.d = source.d;
@@ -103,10 +129,17 @@ export function sanitizePiece(raw: unknown, plotSize: number): BuildPiece | null
 
 export class BuildLayout {
     public environment: BuildEnvironment = { ...DEFAULT_ENVIRONMENT };
+    public extent: number;
 
     private pieces = new Map<string, BuildPiece>();
 
-    constructor(public readonly plotSize: number) { }
+    constructor(public readonly plotSize: number) {
+        this.extent = plotSize;
+    }
+
+    public get bounds(): CellBounds {
+        return cellBounds(this.plotSize, this.extent);
+    }
 
     public get size(): number {
         return this.pieces.size;

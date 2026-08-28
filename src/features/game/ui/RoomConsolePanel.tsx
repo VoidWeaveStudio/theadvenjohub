@@ -9,7 +9,6 @@ import { ROOM_ACCESS_LABELS, type RoomAccess } from "@/core/lib/roomAccess";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 const PERSONAL_ACCESS: RoomAccess[] = ["public", "invite", "closed"];
-const FACTION_ACCESS: RoomAccess[] = ["public", "members", "closed"];
 
 interface RoomInvite {
     id: string;
@@ -161,7 +160,7 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
 
     if (!isOpen) return null;
 
-    const options = isFactionRoom ? FACTION_ACCESS : PERSONAL_ACCESS;
+    const options = PERSONAL_ACCESS;
 
     return (
         <div
@@ -200,28 +199,32 @@ export function RoomConsolePanel({ isOpen, factionId, canBuild, onClose, onNotif
                     </p>
                 ) : (
                     <>
-                        <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">{t("g.roomConsole.whoMayEnter")}</div>
-                        <div className="grid grid-cols-1 gap-1.5 mb-5">
-                            {options.map((access) => (
-                                <button
-                                    key={access}
-                                    onClick={() => saveAccess(access)}
-                                    disabled={busy}
-                                    className={`px-3 py-2 rounded-md text-xs font-bold text-left transition-colors disabled:opacity-50 ${currentAccess === access
-                                        ? "bg-[#66CCFF]/20 text-[#66CCFF] border border-[#66CCFF]/40"
-                                        : "bg-white/5 text-[#8B8F98] border border-white/10 hover:text-[#E5E7EB]"
-                                        }`}
-                                >
-                                    {t(ROOM_ACCESS_LABELS[access])}
-                                </button>
-                            ))}
-                        </div>
-
                         {isFactionRoom ? (
                             <p className="text-[#8B8F98] text-sm">
-                                {t("g.roomConsole.factionNoInvites")}
+                                {t("g.roomConsole.factionAlwaysOpen")}
                             </p>
                         ) : (
+                            <>
+                                <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">{t("g.roomConsole.whoMayEnter")}</div>
+                                <div className="grid grid-cols-1 gap-1.5 mb-5">
+                                    {options.map((access) => (
+                                        <button
+                                            key={access}
+                                            onClick={() => saveAccess(access)}
+                                            disabled={busy}
+                                            className={`px-3 py-2 rounded-md text-xs font-bold text-left transition-colors disabled:opacity-50 ${currentAccess === access
+                                                ? "bg-[#66CCFF]/20 text-[#66CCFF] border border-[#66CCFF]/40"
+                                                : "bg-white/5 text-[#8B8F98] border border-white/10 hover:text-[#E5E7EB]"
+                                                }`}
+                                        >
+                                            {t(ROOM_ACCESS_LABELS[access])}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        {isFactionRoom ? null : (
                             <>
                                 <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">{t("g.roomConsole.invitations")}</div>
 

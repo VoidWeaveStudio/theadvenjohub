@@ -4,6 +4,9 @@ export const LEVEL_HEIGHT = 3;
 
 export const SPAWN_BEACON_PIECE = "spawn-beacon";
 export const STORAGE_CRATE_PIECE = "storage-crate";
+export const FACTION_TURRET_PIECE = "faction-turret";
+export const FACTION_TURRET_COST_ASH = 4000;
+export const FACTION_TURRET_MAX = 12;
 
 const BEACON_STAND_DISTANCE = 1.4;
 

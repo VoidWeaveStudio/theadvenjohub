@@ -519,6 +519,32 @@ export function registerNetworkHandlers(game: Game) {
         game.voiceChat.handleIceCandidate(data.fromId, data.candidate);
     };
 
+    game.networkManager.onFactionPermissions = (data) => {
+        game.onFactionPermissions?.(data);
+    };
+
+    game.networkManager.onFactionTreasury = (data) => {
+        game.factionTreasuryAsh.set(data.factionId, data.ash);
+        game.buildSession.factionAsh = data.ash;
+        game.onFactionTreasury?.(data);
+    };
+
+    game.networkManager.onFactionLedger = (data) => {
+        game.onFactionLedger?.(data.entries);
+    };
+
+    game.networkManager.onFactionBoosts = (data) => {
+        game.onFactionBoosts?.(data);
+    };
+
+    game.networkManager.onFactionGrantResult = (data) => {
+        game.onFactionGrantResult?.(data);
+    };
+
+    game.networkManager.onFactionGrantReceived = (data) => {
+        game.onFactionGrantReceived?.(data);
+    };
+
     game.networkManager.onInfluenceState = (state) => {
         game.applyInfluenceState(state);
     };
@@ -1351,6 +1377,55 @@ export function registerNetworkHandlers(game: Game) {
     game.networkManager.onPlayerFactionIdentity = (data) => {
         const op = game.otherPlayers.get(data.id);
         op?.setFactionIdentity(data.factionSymbol, data.factionImage, data.isFactionCreator);
+
+        game.warState.setPlayerFactions(data.id, data.factionIds);
+        op?.setHostility(game.warState.hostilityOf(data.id));
+    };
+
+    game.networkManager.onFactionWarRelations = (wars) => {
+        game.warState.setWars(wars);
+        game.warState.refresh(game.otherPlayers);
+        game.syncFactionHeart();
+        game.onFactionWarRelations?.(wars);
+    };
+
+    game.networkManager.onFactionWarDeclared = (war) => {
+        game.warState.setWars([...game.warState.allWars().filter((w) => w.id !== war.id), war]);
+        game.warState.refresh(game.otherPlayers);
+        game.syncFactionHeart();
+        game.onFactionWarDeclared?.(war);
+    };
+
+    game.networkManager.onFactionWarEnded = (data) => {
+        game.warState.setWars(game.warState.allWars().filter((w) => w.id !== data.warId));
+        game.warState.refresh(game.otherPlayers);
+        game.syncFactionHeart();
+        game.onFactionWarEnded?.(data);
+    };
+
+    game.networkManager.onTurretFire = (data) => {
+        game.shootingSystem.spawnTurretShot(data.from, data.to);
+    };
+
+    game.networkManager.onPlayerWarSide = (data) => {
+        game.warState.setPlayerSide(data.id, data.warId, data.sideFactionId);
+        game.otherPlayers.get(data.id)?.setHostility(game.warState.hostilityOf(data.id));
+    };
+
+    game.networkManager.onFactionWarSidePrompt = (choices) => {
+        game.onFactionWarSidePrompt?.(choices);
+    };
+
+    game.networkManager.onFactionWarSideChosen = (data) => {
+        game.warState.setMySide(data.warId, data.sideFactionId);
+        game.warState.refresh(game.otherPlayers);
+        game.onFactionWarSideChosen?.(data);
+    };
+
+    game.networkManager.onFactionHeartState = (data) => {
+        game.warState.setHeart(data.factionId, data.hp, data.maxHp);
+        game.syncFactionHeart();
+        game.onFactionHeartState?.(data);
     };
 
     game.networkManager.onPlayerCompanion = (data) => {
@@ -1604,6 +1679,9 @@ export function registerNetworkHandlers(game: Game) {
     };
 
     game.networkManager.onFactionLeft = (factionId) => {
+        game.warState.setMyFactionIds(
+            Array.from(game.interactionSystem.myFactionIds).filter((id) => id !== factionId)
+        );
         game.interactionSystem.myFactionIds.delete(factionId);
         game.interactionSystem.manageableFactionIds.delete(factionId);
         game.onFactionLeft?.(factionId);
@@ -1615,6 +1693,8 @@ export function registerNetworkHandlers(game: Game) {
         game.interactionSystem.manageableFactionIds = new Set(
             factions.filter(managesFaction).map((f) => f.id)
         );
+        game.warState.setMyFactionIds(game.interactionSystem.myFactionIds);
+        game.warState.refresh(game.otherPlayers);
         game.onFactionMyListResult?.(factions);
     };
 

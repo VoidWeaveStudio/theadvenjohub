@@ -7,14 +7,23 @@ import { and, eq } from "drizzle-orm";
 import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { canEditLot } from "@/core/lib/roomLayoutAccess";
 import { resolveGameId } from "@/core/lib/shopPricing";
-import { SPAWN_BEACON_PIECE, STORAGE_CRATE_PIECE, countPieces } from "@/core/lib/roomLayoutGrid";
+import {
+    SPAWN_BEACON_PIECE,
+    STORAGE_CRATE_PIECE,
+    FACTION_TURRET_PIECE,
+    FACTION_TURRET_COST_ASH,
+    FACTION_TURRET_MAX,
+    countPieces,
+} from "@/core/lib/roomLayoutGrid";
+import { moveTreasury } from "@/core/lib/factionTreasury";
+import { factionPlotBounds } from "@/core/lib/roomLayoutBounds";
 
 const MAX_PIECES = 20000;
 
 const pieceSchema = z.object({
     t: z.string().max(40),
-    x: z.number().int().min(0).max(1024),
-    z: z.number().int().min(0).max(1024),
+    x: z.number().int().min(-1024).max(2048),
+    z: z.number().int().min(-1024).max(2048),
     l: z.number().int().min(0).max(15),
     r: z.number().int().min(0).max(3),
     d: z.string().url().max(300).optional(),
@@ -36,6 +45,14 @@ const saveSchema = z.object({
     data: layoutSchema,
     slug: z.string().max(80).optional(),
 });
+
+const TURRET_REFUND_RATIO = 0.5;
+
+function storedTurretCount(data: unknown): number {
+    const pieces = (data as { pieces?: Array<{ t?: string }> } | null)?.pieces;
+    if (!Array.isArray(pieces)) return 0;
+    return pieces.filter((piece) => piece?.t === FACTION_TURRET_PIECE).length;
+}
 
 async function ownedStorageCrates(userId: string): Promise<number> {
     const [row] = await db
@@ -125,6 +142,17 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "not_authorized" }, { status: 403 });
         }
 
+        const bounds = await factionPlotBounds(payload.ownerType, payload.ownerId, payload.data.plot);
+        const outOfBounds = payload.data.pieces.some(
+            (piece) =>
+                piece.x < bounds.min || piece.x > bounds.max ||
+                piece.z < bounds.min || piece.z > bounds.max
+        );
+
+        if (outOfBounds) {
+            return NextResponse.json({ error: "piece_out_of_bounds" }, { status: 400 });
+        }
+
         const beacons = countPieces(payload.data.pieces, SPAWN_BEACON_PIECE);
         const crates = countPieces(payload.data.pieces, STORAGE_CRATE_PIECE);
 
@@ -141,7 +169,7 @@ export async function POST(req: NextRequest) {
         }
 
         const [existing] = await db
-            .select({ id: roomLayouts.id, revision: roomLayouts.revision })
+            .select({ id: roomLayouts.id, revision: roomLayouts.revision, data: roomLayouts.data })
             .from(roomLayouts)
             .where(and(
                 eq(roomLayouts.gameId, gameId),
@@ -149,6 +177,47 @@ export async function POST(req: NextRequest) {
                 eq(roomLayouts.ownerId, payload.ownerId)
             ))
             .limit(1);
+
+        const turrets = countPieces(payload.data.pieces, FACTION_TURRET_PIECE);
+
+        if (turrets > 0 && payload.ownerType !== "faction") {
+            return NextResponse.json({ error: "faction_lot_only" }, { status: 400 });
+        }
+
+        if (turrets > FACTION_TURRET_MAX) {
+            return NextResponse.json({ error: "too_many_turrets" }, { status: 400 });
+        }
+
+        if (payload.ownerType === "faction") {
+            const before = storedTurretCount(existing?.data ?? null);
+            const delta = turrets - before;
+
+            if (delta > 0) {
+                const charge = await moveTreasury(
+                    payload.ownerId,
+                    gameId,
+                    "turret",
+                    { ash: -delta * FACTION_TURRET_COST_ASH },
+                    { userId: user.userId, note: `build:${delta}` }
+                );
+
+                if (!charge.ok) {
+                    return NextResponse.json(
+                        { error: charge.error === "not_found" ? "faction_not_found" : "treasury_short" },
+                        { status: charge.error === "not_found" ? 404 : 409 }
+                    );
+                }
+            } else if (delta < 0) {
+                const refund = Math.round(-delta * FACTION_TURRET_COST_ASH * TURRET_REFUND_RATIO);
+                await moveTreasury(
+                    payload.ownerId,
+                    gameId,
+                    "turret",
+                    { ash: refund },
+                    { userId: user.userId, note: `salvage:${-delta}` }
+                );
+            }
+        }
 
         if (existing) {
             const revision = existing.revision + 1;

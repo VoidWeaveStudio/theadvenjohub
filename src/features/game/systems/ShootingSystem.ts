@@ -60,6 +60,7 @@ export class ShootingSystem extends System {
     private raycaster: THREE.Raycaster = new THREE.Raycaster();
     private otherPlayerHitboxes: Map<string, THREE.Mesh> = new Map();
     private enemyHitboxes: Map<string, THREE.Mesh> = new Map();
+    private heartHitbox: THREE.Mesh | null = null;
     private otherPlayersRef: Map<string, OtherPlayer> | null = null;
     private location: Location | null = null;
     private collisionGrid: CollisionGrid | null = null;
@@ -146,6 +147,38 @@ export class ShootingSystem extends System {
 
     registerEnemyHitbox(id: string, hitbox: THREE.Mesh) {
         this.enemyHitboxes.set(id, hitbox);
+    }
+
+    setHeartHitbox(hitbox: THREE.Mesh | null) {
+        this.heartHitbox = hitbox;
+    }
+
+    spawnTurretShot(from: number[], to: number[]) {
+        if (!this.resourceManager) return;
+
+        const origin = new THREE.Vector3().fromArray(from);
+        const impact = new THREE.Vector3().fromArray(to);
+        const direction = impact.clone().sub(origin);
+
+        if (direction.lengthSq() < 1e-6) return;
+        direction.normalize();
+
+        this.effects.muzzleFlash(origin);
+        this.effects.spawnBullet(this.resourceManager, origin, direction, impact);
+        this.effects.spawnImpactEffect(impact);
+    }
+
+    private raycastHeart(origin: THREE.Vector3): THREE.Vector3 | null {
+        if (!this.heartHitbox) return null;
+
+        const box = new THREE.Box3().setFromObject(this.heartHitbox);
+        const point = new THREE.Vector3();
+        if (!this.raycaster.ray.intersectBox(box, point)) return null;
+
+        const dist = origin.distanceTo(point);
+        if (dist > this.raycaster.far) return null;
+
+        return point;
     }
 
     unregisterEnemyHitbox(id: string) {
@@ -542,7 +575,7 @@ export class ShootingSystem extends System {
 
         let hitPoint: THREE.Vector3 | null = null;
         let targetId: string | null = null;
-        let targetType: "player" | "enemy" | null = null;
+        let targetType: "player" | "enemy" | "heart" | null = null;
         let minDistance = Infinity;
 
         const playerHit = this.raycastHitboxes(this.otherPlayerHitboxes, cameraPos, this.isLivingOtherPlayer);
@@ -559,6 +592,17 @@ export class ShootingSystem extends System {
             hitPoint = enemyHit.point;
             targetId = enemyHit.id;
             targetType = "enemy";
+        }
+
+        const heartPoint = this.raycastHeart(cameraPos);
+        if (heartPoint) {
+            const heartDistance = cameraPos.distanceTo(heartPoint);
+            if (heartDistance < minDistance) {
+                minDistance = heartDistance;
+                hitPoint = heartPoint;
+                targetId = null;
+                targetType = "heart";
+            }
         }
 
         const staticHit = this.raycastBoxes(this.staticBoxesAlong(cameraPos, cameraDir, HITSCAN_RANGE), cameraPos);
@@ -619,6 +663,10 @@ export class ShootingSystem extends System {
                     target: targetId!,
                     point: hitPoint.toArray(),
                 });
+            } else if (targetType === "heart") {
+                this.effects.spawnImpactEffect(hitPoint);
+                SoundManager.getInstance().play("hitmarker");
+                this.network.reportFactionHeartHit(hitPoint.toArray());
             } else {
                 this.effects.spawnImpactEffect(hitPoint);
                 this.network.sendHit({

@@ -41,6 +41,9 @@ export async function buildFactionTaskExtras(faction: FactionRow, gameId: string
         level: faction.level,
         levelProgressAsh: faction.levelProgressAsh,
         xpForNextLevel: xpForLevel(faction.level),
+        treasuryAsh: faction.treasuryAsh,
+        treasuryCompanionFragments: faction.treasuryCompanionFragments,
+        treasuryCosmeticFragments: faction.treasuryCosmeticFragments,
         activeTask: faction.activeTaskKey
             ? {
                 key: faction.activeTaskKey,
@@ -136,6 +139,8 @@ export async function getMyFactionsList(userId: string, gameId: string) {
             memberCount,
             rank,
             role: membership.role,
+            roleTitle: membership.roleTitle,
+            permissions: membership.permissions,
             isDisplayed: membership.isDisplayed,
             ...taskExtras,
         };

@@ -1,6 +1,6 @@
 // src/features/game/ui/hooks/useFactionState.ts
 import { useCallback, useState } from "react";
-import { FactionSummary, FactionDetail, FactionTaskDefinition } from "../../network/NetworkManager";
+import { FactionSummary, FactionDetail, FactionTaskDefinition, FactionTreasuryData } from "../../network/NetworkManager";
 
 export function useFactionState() {
     const [myFactions, setMyFactions] = useState<FactionSummary[]>([]);
@@ -26,6 +26,22 @@ export function useFactionState() {
 
     const handleFactionDisplayedSet = useCallback((faction: FactionSummary) => {
         setMyFactions((prev) => prev.map((f) => ({ ...f, isDisplayed: f.id === faction.id })));
+    }, []);
+
+    const handleFactionTreasury = useCallback((data: FactionTreasuryData) => {
+        const apply = <T extends FactionSummary>(faction: T): T => (
+            faction.id === data.factionId
+                ? {
+                    ...faction,
+                    treasuryAsh: data.ash,
+                    treasuryCompanionFragments: data.companionFragments,
+                    treasuryCosmeticFragments: data.cosmeticFragments,
+                }
+                : faction
+        );
+
+        setMyFactions((prev) => prev.map(apply));
+        setViewedFaction((prev) => (prev ? apply(prev) : prev));
     }, []);
 
     const handleFactionSearchResult = useCallback((results: FactionSummary[]) => {
@@ -82,6 +98,7 @@ export function useFactionState() {
         handleFactionJoined,
         handleFactionLeft,
         handleFactionDisplayedSet,
+        handleFactionTreasury,
         handleFactionSearchResult,
         handleFactionListResult,
         handleFactionInfo,

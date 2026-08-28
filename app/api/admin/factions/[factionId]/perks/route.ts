@@ -6,7 +6,6 @@ import { db } from "@/core/database";
 import { factions, factionGates } from "@/core/database/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { generatePromoCode } from "@/core/lib/promoCode";
-import { isRoomAccess } from "@/core/lib/roomAccess";
 import { xpForLevel } from "@/core/lib/factionLeveling";
 
 const ACTIONS = ["grantPromo", "revokePromo", "grantGate", "revokeGate", "setLevel", "setRoomAccess", "clearTask"] as const;
@@ -110,16 +109,6 @@ export async function PATCH(
                 .where(eq(factions.id, factionId));
 
             return NextResponse.json({ success: true, level, levelProgressAsh: progress, xpForNextLevel: xpForLevel(level) });
-        }
-
-        if (action === "setRoomAccess") {
-            const access = typeof body.roomAccess === "string" ? body.roomAccess : "";
-            if (!isRoomAccess(access)) {
-                return NextResponse.json({ error: "invalid_access" }, { status: 400 });
-            }
-
-            await db.update(factions).set({ roomAccess: access }).where(eq(factions.id, factionId));
-            return NextResponse.json({ success: true, roomAccess: access });
         }
 
         await db

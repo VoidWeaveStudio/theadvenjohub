@@ -56,6 +56,14 @@ import {
     InfluenceCrystalPanelData,
     InfluenceCaptureData,
     InfluenceLootResultData,
+    FactionLedgerEntry,
+    FactionActiveBoost,
+    FactionWarSummary,
+    FactionWarEnded,
+    FactionHeartState,
+    FactionWarSideChoice,
+    FactionGrantResult,
+    FactionTreasuryData,
 } from "../network/NetworkManager";
 import type { HUDState, DamageEvent } from "./Game";
 import type { BranchId } from "../data/progression";
@@ -111,6 +119,18 @@ export interface GameCallbacks {
     onOpenInfluenceCrystalUI?: (data: InfluenceCrystalPanelData) => void;
     onInfluenceCaptureChange?: (data: InfluenceCaptureData | null) => void;
     onInfluenceLootResult?: (data: InfluenceLootResultData) => void;
+    onFactionLedger?: (entries: FactionLedgerEntry[]) => void;
+    onFactionBoosts?: (data: { factionId: string; active: FactionActiveBoost[] }) => void;
+    onFactionWarRelations?: (wars: FactionWarSummary[]) => void;
+    onFactionWarDeclared?: (war: FactionWarSummary) => void;
+    onFactionWarEnded?: (data: FactionWarEnded) => void;
+    onFactionHeartState?: (data: FactionHeartState) => void;
+    onFactionWarSidePrompt?: (choices: FactionWarSideChoice[]) => void;
+    onFactionWarSideChosen?: (data: { warId: string; sideFactionId: string | null; paidAsh: number }) => void;
+    onFactionGrantResult?: (data: FactionGrantResult) => void;
+    onFactionGrantReceived?: (data: { factionId: string; companionFragments: number; cosmeticFragments: number }) => void;
+    onFactionTreasury?: (data: FactionTreasuryData) => void;
+    onFactionPermissions?: (data: { factionId: string; targetUserId: string; permissions: number; roleTitle: string | null }) => void;
     onOpenTournamentBoardUI?: () => void;
     onOpenPlayerBubbleUI?: (bubbleIndex: number) => void;
     onOpenFactionBubbleUI?: (factionId: string) => void;

@@ -348,6 +348,8 @@ export type FactionGateData = {
   image: string | null;
   tokenCa: string | null;
   roomAccess?: string | null;
+  level?: number;
+  mcTier?: number;
   isAdmin?: boolean;
 };
 
@@ -706,13 +708,97 @@ export type FactionSummary = {
   levelProgressAsh: number;
   xpForNextLevel: number;
   promoCode?: string | null;
+  treasuryAsh?: number;
+  treasuryCompanionFragments?: number;
+  treasuryCosmeticFragments?: number;
+  roleTitle?: string | null;
+  permissions?: number;
+  founderUserId?: string | null;
 };
 
 export type FactionRosterEntry = {
   wallet: string;
+  userId?: string;
   role: string;
+  roleTitle?: string | null;
+  permissions?: number;
   nickname: string | null;
   contributionPoints: number;
+};
+
+export type FactionLedgerEntry = {
+  id: string;
+  kind: string;
+  ash: number;
+  companionFragments: number;
+  cosmeticFragments: number;
+  note: string | null;
+  nickname: string | null;
+  createdAt: string;
+};
+
+export type FactionWarSummary = {
+  id: string;
+  declarerFactionId: string;
+  defenderFactionId: string;
+  declarerName: string | null;
+  defenderName: string | null;
+  declarerHeartHp: number;
+  defenderHeartHp: number;
+  heartMaxHp: number;
+  stakeAsh: number;
+  declaredAt: number;
+};
+
+export type FactionWarEnded = {
+  warId: string;
+  winnerFactionId: string | null;
+  loserFactionId: string | null;
+  endedBy: string | null;
+  spoilsAsh: number;
+  spoilsCompanionFragments: number;
+  spoilsCosmeticFragments: number;
+};
+
+export type FactionWarSideChoice = {
+  warId: string;
+  declarerFactionId: string;
+  defenderFactionId: string;
+  declarerName: string | null;
+  defenderName: string | null;
+  neutralityAsh: number;
+};
+
+export type PlayerWarSide = {
+  id: string;
+  warId: string;
+  sideFactionId: string | null;
+};
+
+export type FactionHeartState = {
+  warId: string;
+  factionId: string;
+  hp: number;
+  maxHp: number;
+};
+
+export type FactionActiveBoost = {
+  boostId: string;
+  expiresAt: number;
+};
+
+export type FactionGrantResult = {
+  factionId: string;
+  targetUserId: string;
+  companionFragments: number;
+  cosmeticFragments: number;
+};
+
+export type FactionTreasuryData = {
+  factionId: string;
+  ash: number;
+  companionFragments: number;
+  cosmeticFragments: number;
 };
 
 export type FactionDetail = FactionSummary & {
@@ -1149,6 +1235,20 @@ export class NetworkManager {
   public onFactionSearchResult?: (results: FactionSummary[]) => void;
   public onFactionListResult?: (data: { results: FactionSummary[]; page: number }) => void;
   public onFactionInfo?: (faction: FactionDetail | null) => void;
+  public onFactionTreasury?: (data: FactionTreasuryData) => void;
+  public onFactionPermissions?: (data: { factionId: string; targetUserId: string; permissions: number; roleTitle: string | null }) => void;
+  public onFactionLedger?: (data: { factionId: string; entries: FactionLedgerEntry[] }) => void;
+  public onFactionBoosts?: (data: { factionId: string; active: FactionActiveBoost[] }) => void;
+  public onFactionWarRelations?: (wars: FactionWarSummary[]) => void;
+  public onFactionWarDeclared?: (war: FactionWarSummary) => void;
+  public onFactionWarEnded?: (data: FactionWarEnded) => void;
+  public onFactionHeartState?: (data: FactionHeartState) => void;
+  public onFactionWarSidePrompt?: (choices: FactionWarSideChoice[]) => void;
+  public onFactionWarSideChosen?: (data: { warId: string; sideFactionId: string | null; paidAsh: number }) => void;
+  public onPlayerWarSide?: (data: PlayerWarSide) => void;
+  public onTurretFire?: (data: { turretId: string; from: number[]; to: number[] }) => void;
+  public onFactionGrantResult?: (data: FactionGrantResult) => void;
+  public onFactionGrantReceived?: (data: { factionId: string; companionFragments: number; cosmeticFragments: number }) => void;
   public onFactionMyListResult?: (factions: FactionSummary[]) => void;
   public onFactionDisplayedSet?: (faction: FactionSummary) => void;
   public onPlayerProfile?: (profile: PlayerProfileData | null) => void;
@@ -1194,6 +1294,7 @@ export class NetworkManager {
     factionSymbol: string | null;
     factionImage: string | null;
     isFactionCreator: boolean;
+    factionIds: string[];
   }) => void;
   public onFactionRosterChanged?: (data: { factionId: string; mine: boolean }) => void;
 
@@ -1265,6 +1366,55 @@ export class NetworkManager {
     }
   }
 
+
+  public setFactionPermissions(factionId: string, targetUserId: string, permissions: number, roleTitle: string | null) {
+    this.send({ type: "factionSetPermissions", factionId, targetUserId, permissions, roleTitle });
+  }
+
+  public requestFactionBoosts(factionId: string) {
+    this.send({ type: "factionBoostListRequest", factionId });
+  }
+
+  public requestFactionWars() {
+    this.send({ type: "factionWarListRequest" });
+  }
+
+  public chooseFactionWarSide(warId: string, sideFactionId: string | null) {
+    this.send({ type: "factionChooseWarSide", warId, sideFactionId });
+  }
+
+  public declareFactionWar(factionId: string, targetFactionId: string) {
+    this.send({ type: "factionDeclareWar", factionId, targetFactionId });
+  }
+
+  public capitulateFactionWar(factionId: string, warId: string) {
+    this.send({ type: "factionCapitulate", factionId, warId });
+  }
+
+  public settleFactionWar(factionId: string, warId: string) {
+    this.send({ type: "factionSettleWar", factionId, warId });
+  }
+
+  public reportFactionHeartHit(point: number[]) {
+    this.send({ type: "factionHeartHit", point });
+  }
+
+  public buyFactionBoost(factionId: string, boostId: string, duration: string) {
+    this.send({ type: "factionBuyBoost", factionId, boostId, duration });
+  }
+
+  public grantFactionFragments(
+    factionId: string,
+    targetUserId: string,
+    companionFragments: number,
+    cosmeticFragments: number
+  ) {
+    this.send({ type: "factionGrantFragments", factionId, targetUserId, companionFragments, cosmeticFragments });
+  }
+
+  public requestFactionLedger(factionId: string) {
+    this.send({ type: "factionLedgerRequest", factionId });
+  }
 
   public queryInfluenceGate() {
     this.send({ type: "influenceGateQuery" });
@@ -2112,6 +2262,7 @@ export class NetworkManager {
           factionSymbol: data.factionSymbol ?? null,
           factionImage: data.factionImage ?? null,
           isFactionCreator: !!data.isFactionCreator,
+          factionIds: Array.isArray(data.factionIds) ? data.factionIds : [],
         });
         break;
       case "factionRosterChanged":
@@ -2143,6 +2294,99 @@ export class NetworkManager {
         this.onFactionListResult?.({
           results: Array.isArray(data.results) ? data.results : [],
           page: data.page ?? 1,
+        });
+        break;
+      case "factionPermissions":
+        this.onFactionPermissions?.({
+          factionId: data.factionId,
+          targetUserId: data.targetUserId,
+          permissions: typeof data.permissions === "number" ? data.permissions : 0,
+          roleTitle: typeof data.roleTitle === "string" ? data.roleTitle : null,
+        });
+        break;
+      case "factionTreasury":
+        this.onFactionTreasury?.({
+          factionId: data.factionId,
+          ash: typeof data.ash === "number" ? data.ash : 0,
+          companionFragments: typeof data.companionFragments === "number" ? data.companionFragments : 0,
+          cosmeticFragments: typeof data.cosmeticFragments === "number" ? data.cosmeticFragments : 0,
+        });
+        break;
+      case "factionLedger":
+        this.onFactionLedger?.({
+          factionId: data.factionId,
+          entries: Array.isArray(data.entries) ? data.entries : [],
+        });
+        break;
+      case "factionBoosts":
+        this.onFactionBoosts?.({
+          factionId: data.factionId,
+          active: Array.isArray(data.active) ? data.active : [],
+        });
+        break;
+      case "factionWarRelations":
+        this.onFactionWarRelations?.(Array.isArray(data.wars) ? data.wars : []);
+        if (Array.isArray(data.playerSides)) {
+          for (const side of data.playerSides) this.onPlayerWarSide?.(side);
+        }
+        break;
+      case "factionWarSidePrompt":
+        this.onFactionWarSidePrompt?.(Array.isArray(data.choices) ? data.choices : []);
+        break;
+      case "factionWarSideChosen":
+        this.onFactionWarSideChosen?.({
+          warId: data.warId,
+          sideFactionId: data.sideFactionId ?? null,
+          paidAsh: typeof data.paidAsh === "number" ? data.paidAsh : 0,
+        });
+        break;
+      case "turretFire":
+        if (Array.isArray(data.from) && Array.isArray(data.to)) {
+          this.onTurretFire?.({ turretId: data.turretId, from: data.from, to: data.to });
+        }
+        break;
+      case "playerWarSide":
+        this.onPlayerWarSide?.({
+          id: data.id,
+          warId: data.warId,
+          sideFactionId: data.sideFactionId ?? null,
+        });
+        break;
+      case "factionWarDeclared":
+        if (data.war) this.onFactionWarDeclared?.(data.war);
+        break;
+      case "factionWarEnded":
+        this.onFactionWarEnded?.({
+          warId: data.warId,
+          winnerFactionId: data.winnerFactionId ?? null,
+          loserFactionId: data.loserFactionId ?? null,
+          endedBy: data.endedBy ?? null,
+          spoilsAsh: typeof data.spoilsAsh === "number" ? data.spoilsAsh : 0,
+          spoilsCompanionFragments: typeof data.spoilsCompanionFragments === "number" ? data.spoilsCompanionFragments : 0,
+          spoilsCosmeticFragments: typeof data.spoilsCosmeticFragments === "number" ? data.spoilsCosmeticFragments : 0,
+        });
+        break;
+      case "factionHeartState":
+        this.onFactionHeartState?.({
+          warId: data.warId,
+          factionId: data.factionId,
+          hp: typeof data.hp === "number" ? data.hp : 0,
+          maxHp: typeof data.maxHp === "number" ? data.maxHp : 0,
+        });
+        break;
+      case "factionGrantResult":
+        this.onFactionGrantResult?.({
+          factionId: data.factionId,
+          targetUserId: data.targetUserId,
+          companionFragments: typeof data.companionFragments === "number" ? data.companionFragments : 0,
+          cosmeticFragments: typeof data.cosmeticFragments === "number" ? data.cosmeticFragments : 0,
+        });
+        break;
+      case "factionGrantReceived":
+        this.onFactionGrantReceived?.({
+          factionId: data.factionId,
+          companionFragments: typeof data.companionFragments === "number" ? data.companionFragments : 0,
+          cosmeticFragments: typeof data.cosmeticFragments === "number" ? data.cosmeticFragments : 0,
         });
         break;
       case "factionInfo":

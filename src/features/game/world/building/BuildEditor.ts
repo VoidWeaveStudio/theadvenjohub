@@ -6,8 +6,8 @@ import { getBuildEntry, getBuildParts, CELL_SIZE, LEVEL_HEIGHT } from "./BuildCa
 import {
     BuildLayout,
     MAX_LEVELS,
+    cellBounds,
     cellToWorld,
-    cellsAcross,
     levelBaseY,
     pieceKey,
     worldToCell,
@@ -217,7 +217,7 @@ export class BuildEditor {
         this.camera.setBounds(layout.plotSize);
         this.camera.reset(0);
 
-        this.buildGrid(layout.plotSize);
+        this.buildGrid(layout.plotSize, layout.extent);
         this.buildHighlight();
         scene.add(this.ghost);
         this.refreshGhost();
@@ -372,15 +372,16 @@ export class BuildEditor {
         this.grid = null;
     }
 
-    private buildGrid(plotSize: number) {
+    private buildGrid(plotSize: number, extent: number) {
         this.disposeGrid();
 
-        const across = cellsAcross(plotSize);
-        const half = plotSize / 2;
+        const bounds = cellBounds(plotSize, extent);
+        const half = extent / 2;
         const points: number[] = [];
 
-        for (let i = 0; i <= across; i++) {
-            const offset = -half + i * CELL_SIZE;
+        for (let cell = bounds.min; cell <= bounds.max + 1; cell++) {
+            const offset = cellToWorld(cell, plotSize) - CELL_SIZE / 2;
+            if (offset < -half - 0.01 || offset > half + 0.01) continue;
             points.push(offset, 0, -half, offset, 0, half);
             points.push(-half, 0, offset, half, 0, offset);
         }
@@ -549,11 +550,13 @@ export class BuildEditor {
             return;
         }
 
-        const across = cellsAcross(this.layout.plotSize);
+        const bounds = cellBounds(this.layout.plotSize, this.layout.extent);
         const cellX = worldToCell(this.hit.x, this.layout.plotSize);
         const cellZ = worldToCell(this.hit.z, this.layout.plotSize);
 
-        this.hasCursor = cellX >= 0 && cellX < across && cellZ >= 0 && cellZ < across;
+        this.hasCursor =
+            cellX >= bounds.min && cellX <= bounds.max &&
+            cellZ >= bounds.min && cellZ <= bounds.max;
         this.cursorCell.x = cellX;
         this.cursorCell.z = cellZ;
 

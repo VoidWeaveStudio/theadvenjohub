@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useAdminSignature } from "../lib/useAdminSignature";
-import { ROOM_ACCESS_VALUES } from "@/core/lib/roomAccess";
 import { Alert, Badge, Empty, Modal, Tile, formatDate, formatNumber, truncateWallet } from "./AdminKit";
 
 interface FactionDetail {
@@ -183,7 +182,6 @@ export function AdminFactionDetailModal({ factionId, onClose, onDeleted, onChang
                                 {faction.hasGate && <Badge tone={faction.gatePurchaseTx ? "good" : "info"}>Gate room</Badge>}
                                 {faction.promoCode && <Badge tone={faction.promoCodePurchaseTx ? "good" : "info"}>Promo {faction.promoCode}</Badge>}
                                 {faction.creationTx && <Badge tone="warn">Founded on-chain</Badge>}
-                                <Badge>Room: {faction.roomAccess}</Badge>
                             </div>
                         </div>
                         <button type="button" className="a-icon-btn" onClick={onClose} aria-label="Close">
@@ -311,23 +309,6 @@ export function AdminFactionDetailModal({ factionId, onClose, onDeleted, onChang
                                     )}
                                 </section>
 
-                                <section>
-                                    <span className="a-label">Room access</span>
-                                    <div className="a-row">
-                                        <select
-                                            value={faction.roomAccess}
-                                            disabled={busy}
-                                            onChange={(e) => perk("setRoomAccess", { roomAccess: e.target.value }, "Room access")}
-                                        >
-                                            {ROOM_ACCESS_VALUES.map((value) => (
-                                                <option key={value} value={value}>
-                                                    {value}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <span className="a-hint">Who may walk into the faction room.</span>
-                                    </div>
-                                </section>
 
                                 <section>
                                     <span className="a-label">Faction level</span>

@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FactionDetail, FactionSummary } from "../../network/NetworkManager";
 
-export type FactionsTab = "my" | "members" | "upgrades" | "tasks" | "quests" | "search" | "leaderboard" | "create";
-export const FACTION_DETAIL_TABS: FactionsTab[] = ["members", "upgrades", "tasks", "quests"];
+export type FactionsTab = "my" | "members" | "treasury" | "upgrades" | "tasks" | "quests" | "war" | "search" | "leaderboard" | "create";
+export const FACTION_DETAIL_TABS: FactionsTab[] = ["members", "treasury", "upgrades", "tasks", "quests", "war"];
 
 interface UseFactionsViewStateArgs {
     isOpen: boolean;

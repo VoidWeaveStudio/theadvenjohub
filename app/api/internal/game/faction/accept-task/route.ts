@@ -7,6 +7,7 @@ import { eq, and, count, isNull } from "drizzle-orm";
 import { getFactionRank } from "@/core/lib/factionRank";
 import { buildFactionTaskExtras } from "@/core/lib/factionDetail";
 import { taskRewardBonusMultiplier } from "@/core/lib/factionLeveling";
+import { FACTION_PERM_TASKS, hasFactionPermission } from "@/core/lib/factionPermissions";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -33,7 +34,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "faction_not_found" }, { status: 404 });
         }
 
-        const canManage = userId === faction.founderUserId || (!!faction.verifiedCreatorUserId && userId === faction.verifiedCreatorUserId);
+        const membership = await db.query.factionMembers.findFirst({
+            where: and(eq(factionMembers.factionId, factionId), eq(factionMembers.userId, userId)),
+        });
+
+        const canManage = hasFactionPermission(faction, userId, membership?.permissions ?? 0, FACTION_PERM_TASKS);
         if (!canManage) {
             return NextResponse.json({ error: "not_authorized" }, { status: 403 });
         }

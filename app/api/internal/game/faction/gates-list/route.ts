@@ -5,6 +5,7 @@ import { db } from "@/core/database";
 import { factionGates, factions, users } from "@/core/database/schema";
 import { eq, sql } from "drizzle-orm";
 import { isAdminFaction } from "@/core/lib/adminFaction";
+import { refreshStaleMarketCaps, mcFrameTier } from "@/core/lib/factionMarketCap";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -21,18 +22,34 @@ export async function POST(req: NextRequest) {
                     symbol: factions.symbol,
                     image: factions.image,
                     tokenCa: factions.tokenCa,
-                    roomAccess: factions.roomAccess,
+                    level: factions.level,
                     founderWallet: factions.founderWallet,
+                    marketCap: factions.marketCap,
+                    marketCapAt: factions.marketCapAt,
                 })
                 .from(factionGates)
                 .innerJoin(factions, eq(factions.id, factionGates.factionId)),
             db.select({ value: sql<number>`count(*)::int` }).from(users),
         ]);
 
-        const gates = rows.map(({ founderWallet, ...gate }) => ({
-            ...gate,
-            isAdmin: isAdminFaction(founderWallet, gate.tokenCa),
-        }));
+        const fresh = await refreshStaleMarketCaps(rows.map((row) => ({
+            factionId: row.factionId,
+            tokenCa: row.tokenCa,
+            marketCap: row.marketCap,
+            marketCapAt: row.marketCapAt,
+        })));
+
+        const gates = rows.map(({ founderWallet, marketCap, marketCapAt, ...gate }) => {
+            void marketCapAt;
+            const mc = fresh.get(gate.factionId) ?? marketCap;
+
+            return {
+                ...gate,
+                isAdmin: isAdminFaction(founderWallet, gate.tokenCa),
+                marketCap: mc,
+                mcTier: mcFrameTier(mc),
+            };
+        });
 
         return NextResponse.json({
             success: true,

@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { tokenTextureCache } from "../../../../../../utils/TokenTextureCache";
 import type { FactionGateData } from "../../../../../../network/NetworkManager";
 import { GALAXY, factionBubbleOrbit, orbitPosition, hashString, type BubbleOrbit } from "./GalaxyLayout";
+import { buildMcFrame, disposeMcFrame } from "@/features/game/utils/mcFrame";
 import { AdminCoreBubble } from "./AdminCoreBubble";
 
 const MC_REFRESH_MS = 30000;
@@ -16,6 +17,7 @@ interface FactionBubble {
     planet: THREE.Mesh | null;
     core: AdminCoreBubble | null;
     logo: THREE.Sprite;
+    frame: THREE.Sprite | null;
     nameSprite: THREE.Sprite;
     mcSprite: THREE.Sprite | null;
     spin: number;
@@ -213,6 +215,12 @@ export class FactionBubbleSystem {
         logo.visible = false;
         group.add(logo);
 
+        const frame = buildMcFrame(data.mcTier ?? 0, radius * 1.62);
+        if (frame) {
+            frame.position.y = logo.position.y;
+            group.add(frame);
+        }
+
         const nameSprite = createTextSprite(
             data.factionName,
             asCore ? "#FFD27A" : "#E5E7EB",
@@ -233,6 +241,7 @@ export class FactionBubbleSystem {
             planet,
             core,
             logo,
+            frame,
             nameSprite,
             mcSprite: null,
             spin: 0,
@@ -273,6 +282,7 @@ export class FactionBubbleSystem {
             }
         });
         bubble.logo.material.dispose();
+        disposeMcFrame(bubble.frame);
         disposeSprite(bubble.nameSprite);
         if (bubble.mcSprite) disposeSprite(bubble.mcSprite);
 
@@ -322,6 +332,10 @@ export class FactionBubbleSystem {
             bubble.spin += delta;
             bubble.core?.update(delta);
             if (bubble.planet) bubble.planet.rotation.y += delta * 0.14;
+
+            if (bubble.frame) {
+                bubble.frame.material.rotation += delta * (bubble.frame.userData.spin as number);
+            }
         }
     }
 

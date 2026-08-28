@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
             factions: managed.map((f) => ({
                 id: f.id,
                 name: f.name,
-                access: f.roomAccess,
+                access: "public" as const,
                 canManage: canManageFaction(f, user.userId),
             })),
         });
@@ -99,25 +99,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: true, access });
         }
 
-        if (!factionId) return NextResponse.json({ error: "faction_required" }, { status: 400 });
-
-        const [faction] = await db
-            .select({
-                id: factions.id,
-                founderUserId: factions.founderUserId,
-                verifiedCreatorUserId: factions.verifiedCreatorUserId,
-            })
-            .from(factions)
-            .where(eq(factions.id, factionId))
-            .limit(1);
-
-        if (!faction) return NextResponse.json({ error: "faction_not_found" }, { status: 404 });
-        if (!canManageFaction(faction, user.userId)) {
-            return NextResponse.json({ error: "not_authorized" }, { status: 403 });
-        }
-
-        await db.update(factions).set({ roomAccess: access }).where(eq(factions.id, factionId));
-        return NextResponse.json({ success: true, access });
+        void factionId;
+        return NextResponse.json({ error: "faction_bubbles_are_public" }, { status: 400 });
     } catch (error) {
         console.error("[game/room-access] POST error:", error);
         return NextResponse.json({ error: "update_failed" }, { status: 500 });

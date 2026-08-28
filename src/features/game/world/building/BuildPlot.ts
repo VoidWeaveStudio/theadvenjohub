@@ -15,6 +15,7 @@ export class BuildPlot {
     private environment: BuildEnvironmentRig | null = null;
     private viewerOverride: THREE.Vector3 | null = null;
     private ground: THREE.Mesh | null = null;
+    private created = false;
     private border: THREE.LineSegments | null = null;
     private groundMaterial: THREE.MeshStandardMaterial | null = null;
 
@@ -24,13 +25,49 @@ export class BuildPlot {
         this.renderer = new BuildRenderer(this.layout, this.collisionGrid);
     }
 
+    public setExtent(extent: number) {
+        const next = Math.max(this.plotSize, Math.round(extent));
+        if (next === this.layout.extent) return;
+
+        this.layout.extent = next;
+        if (this.created) this.rebuildBounds();
+    }
+
+    private rebuildBounds() {
+        const extent = this.layout.extent;
+
+        if (this.ground) {
+            this.ground.geometry.dispose();
+            this.ground.geometry = new THREE.PlaneGeometry(extent, extent);
+        }
+
+        if (this.groundMaterial) {
+            const repeats = Math.max(4, Math.round(extent * getSurfaceUvScale("grass")));
+            for (const slot of ["map", "normalMap"] as const) {
+                const texture = this.groundMaterial[slot];
+                if (!texture) continue;
+                texture.repeat.set(repeats, repeats);
+                texture.needsUpdate = true;
+            }
+        }
+
+        if (this.border) {
+            this.scene.remove(this.border);
+            this.border.geometry.dispose();
+            (this.border.material as THREE.Material).dispose();
+            this.border = null;
+        }
+
+        this.buildBorder();
+    }
+
     public create() {
         this.environment = new BuildEnvironmentRig(this.scene, Math.max(this.plotSize * 1.6, 400));
         this.applyEnvironment();
 
         this.groundMaterial = getSurfaceMaterial("grass").clone();
 
-        const repeats = Math.max(4, Math.round(this.plotSize * getSurfaceUvScale("grass")));
+        const repeats = Math.max(4, Math.round(this.layout.extent * getSurfaceUvScale("grass")));
         for (const slot of ["map", "normalMap"] as const) {
             const texture = this.groundMaterial[slot];
             if (!texture) continue;
@@ -44,7 +81,7 @@ export class BuildPlot {
         }
 
         this.ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(this.plotSize, this.plotSize),
+            new THREE.PlaneGeometry(this.layout.extent, this.layout.extent),
             this.groundMaterial
         );
         this.ground.rotation.x = -Math.PI / 2;
@@ -53,10 +90,11 @@ export class BuildPlot {
 
         this.buildBorder();
         this.scene.add(this.renderer.group);
+        this.created = true;
     }
 
     private buildBorder() {
-        const half = this.plotSize / 2;
+        const half = this.layout.extent / 2;
         const height = 2.4;
         const points: number[] = [];
         const corners: Array<[number, number]> = [
@@ -148,7 +186,7 @@ export class BuildPlot {
     }
 
     public placePiece(piece: BuildPiece): boolean {
-        const sanitized = sanitizePiece(piece, this.plotSize);
+        const sanitized = sanitizePiece(piece, this.plotSize, this.layout.extent);
         if (!sanitized) return false;
 
         const previous = this.layout.at(pieceKey(sanitized));

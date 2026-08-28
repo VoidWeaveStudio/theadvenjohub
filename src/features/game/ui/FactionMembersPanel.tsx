@@ -5,22 +5,31 @@ import { Gem, LogOut } from "lucide-react";
 import { FactionDetail } from "../network/NetworkManager";
 import { FactionHeader } from "./FactionHeader";
 import { FactionRosterList } from "./FactionRosterList";
+import { FactionPermissionsPanel } from "./FactionPermissionsPanel";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface FactionMembersPanelProps {
     faction: FactionDetail;
+    myUserId: string;
     onClaimCreator: () => void;
     onLeaveFaction: () => void;
+    onSetPermissions: (targetUserId: string, permissions: number, roleTitle: string | null) => void;
     getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
 }
 
-export function FactionMembersPanel({ faction, onClaimCreator, onLeaveFaction, getNicknameMenuActions }: FactionMembersPanelProps) {
+export function FactionMembersPanel({ faction, myUserId, onClaimCreator, onLeaveFaction, onSetPermissions, getNicknameMenuActions }: FactionMembersPanelProps) {
     const { t } = useLanguage();
     return (
         <div className="space-y-4">
             <FactionHeader faction={faction} />
             <FactionRosterList faction={faction} getNicknameMenuActions={getNicknameMenuActions} />
+
+            <FactionPermissionsPanel
+                faction={faction}
+                myUserId={myUserId}
+                onSetPermissions={onSetPermissions}
+            />
 
             {!faction.verifiedCreatorWallet && (
                 <div className="bg-[rgba(192,132,252,0.06)] border border-[rgba(192,132,252,0.2)] rounded-lg p-3 space-y-2">

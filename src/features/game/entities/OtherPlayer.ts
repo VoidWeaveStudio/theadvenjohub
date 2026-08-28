@@ -35,6 +35,18 @@ const HEAD_MAX_YAW = Math.PI * 0.5;
 const HEAD_MAX_PITCH = Math.PI * 0.4;
 const NECK_PITCH_SHARE = 0.6;
 
+export type Hostility = "none" | "enemy" | "neutral";
+
+const HOSTILITY_HEX: Record<Exclude<Hostility, "none">, number> = {
+    enemy: 0xff3b30,
+    neutral: 0xffc94a,
+};
+
+const HOSTILITY_CSS: Record<Exclude<Hostility, "none">, string> = {
+    enemy: "#ff5a48",
+    neutral: "#ffd166",
+};
+
 export class OtherPlayer extends Entity {
     public nickname: string;
     private isAdmin: boolean;
@@ -53,6 +65,10 @@ export class OtherPlayer extends Entity {
     private targetHeadYaw: number = 0;
     private targetState: 'idle' | 'walk' | 'sprint' | 'jump' = 'idle';
     private nameSprite: THREE.Sprite | null = null;
+    private hostility: Hostility = "none";
+    private hostilityRing: THREE.Mesh | null = null;
+    private hostilityMaterial: THREE.MeshBasicMaterial | null = null;
+    private hostilityGeometry: THREE.RingGeometry | null = null;
     private headBone: THREE.Object3D | null = null;
     private neckBone: THREE.Object3D | null = null;
     private companion: CompanionInstance | null = null;
@@ -171,6 +187,7 @@ export class OtherPlayer extends Entity {
 
         this.nameSprite = this.createNameTag(this.nickname);
         this.mesh.add(this.nameSprite);
+        if (this.hostility !== "none") this.buildHostilityRing();
         this.companionScene = scene;
         this.spawnCompanion();
 
@@ -227,9 +244,65 @@ export class OtherPlayer extends Entity {
     }
 
     private nicknameColor(): string {
+        if (this.hostility === "enemy") return HOSTILITY_CSS.enemy;
+        if (this.hostility === "neutral") return HOSTILITY_CSS.neutral;
         if (this.isAdmin) return "#FFD700";
         if (this.isFactionCreator) return "#EF4444";
         return "#ffffff";
+    }
+
+    public setHostility(hostility: Hostility) {
+        if (this.hostility === hostility) return;
+        this.hostility = hostility;
+
+        if (this.created && this.nameCanvas) {
+            this.drawNameTag(this.nicknameOverride ?? this.nickname);
+            if (this.nameTexture) this.nameTexture.needsUpdate = true;
+        }
+
+        if (hostility === "none") {
+            this.disposeHostilityRing();
+            return;
+        }
+
+        if (!this.created) return;
+
+        if (!this.hostilityRing) this.buildHostilityRing();
+        this.hostilityMaterial?.color.setHex(HOSTILITY_HEX[hostility]);
+    }
+
+    private buildHostilityRing() {
+        if (this.hostilityRing || this.hostility === "none") return;
+
+        this.hostilityGeometry = new THREE.RingGeometry(0.42, 0.58, 28);
+        this.hostilityMaterial = new THREE.MeshBasicMaterial({
+            color: HOSTILITY_HEX[this.hostility],
+            transparent: true,
+            opacity: 0.75,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            fog: false,
+            toneMapped: false,
+        });
+
+        this.hostilityRing = new THREE.Mesh(this.hostilityGeometry, this.hostilityMaterial);
+        this.hostilityRing.rotation.x = -Math.PI / 2;
+        this.hostilityRing.position.y = 0.04;
+        this.hostilityRing.renderOrder = 3;
+        this.mesh.add(this.hostilityRing);
+    }
+
+    private disposeHostilityRing() {
+        if (!this.hostilityRing) return;
+
+        this.mesh.remove(this.hostilityRing);
+        this.hostilityGeometry?.dispose();
+        this.hostilityMaterial?.dispose();
+
+        this.hostilityRing = null;
+        this.hostilityGeometry = null;
+        this.hostilityMaterial = null;
     }
 
     private displayName(name: string): string {
@@ -789,6 +862,7 @@ export class OtherPlayer extends Entity {
 
     dispose(scene: THREE.Scene) {
         this.despawnCompanion();
+        this.disposeHostilityRing();
         this.cosmeticRig?.dispose();
         this.setShielded(false);
         super.dispose(scene);

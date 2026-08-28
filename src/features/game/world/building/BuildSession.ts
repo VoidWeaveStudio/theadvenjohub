@@ -4,6 +4,7 @@ import { BuildEditor, type EditorTool } from "./BuildEditor";
 import type { BuildPlot } from "./BuildPlot";
 import { pieceKey, type BuildPiece } from "./BuildLayout";
 import { LIMITED_BUILD_PIECES, getBuildEntry } from "./BuildCatalog";
+import { FACTION_TURRET_COST_ASH, FACTION_TURRET_MAX } from "@/core/lib/roomLayoutGrid";
 import { gameFetch } from "../../utils/gameFetch";
 import { t } from "@/core/i18n";
 
@@ -35,6 +36,7 @@ export interface BuildSessionState {
 export class BuildSession {
     public readonly editor: BuildEditor;
     public ownedCrates = 0;
+    public factionAsh = 0;
     public filledStorageKeys = new Set<string>();
 
     private plot: BuildPlot | null = null;
@@ -190,6 +192,17 @@ export class BuildSession {
         const personalOnly = piece.t === LIMITED_BUILD_PIECES.beacon || piece.t === LIMITED_BUILD_PIECES.storage;
         if (personalOnly && this.identity?.ownerType !== "personal") {
             return "🏠 This only works in your own room";
+        }
+
+        if (piece.t === LIMITED_BUILD_PIECES.turret) {
+            if (this.identity?.ownerType !== "faction") return t("g.lot.turretFactionOnly");
+
+            const placed = this.plot.layout.list().filter((other) => other.t === piece.t && pieceKey(other) !== key).length;
+            if (placed >= FACTION_TURRET_MAX) return t("g.lot.turretLimit", { count: FACTION_TURRET_MAX });
+
+            if (this.factionAsh < FACTION_TURRET_COST_ASH) {
+                return t("g.lot.turretCost", { amount: FACTION_TURRET_COST_ASH });
+            }
         }
 
         if (piece.t === LIMITED_BUILD_PIECES.beacon) {

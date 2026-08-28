@@ -2,10 +2,13 @@
 "use client";
 
 import Image from "next/image";
-import { Search, Trophy, Plus, Users, Sparkles, ClipboardList, Star, ChevronLeft, ScrollText, Flag } from "lucide-react";
+import { Search, Trophy, Plus, Users, Sparkles, ClipboardList, Star, ChevronLeft, ScrollText, Flag, Coins, Swords } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FactionDetailView } from "./FactionDetailView";
-import type { InfluenceStateData } from "../network/NetworkManager";
+import { FactionTreasuryPanel } from "./FactionTreasuryPanel";
+import { FactionWarPanel } from "./FactionWarPanel";
+import type { InfluenceStateData, FactionLedgerEntry, FactionActiveBoost, FactionWarSummary } from "../network/NetworkManager";
+import type { BoostDuration } from "@/core/lib/factionBoosts";
 import { FactionMembersPanel } from "./FactionMembersPanel";
 import { FactionUpgradesPanel } from "./FactionUpgradesPanel";
 import { FactionTasksPanel } from "./FactionTasksPanel";
@@ -47,6 +50,24 @@ interface FactionsWindowProps {
     onCreateQuest: (factionId: string, targetUrl: string, slotsTotal: number, rewardAsh: number) => void;
     getNicknameMenuActions?: (wallet: string, nickname: string) => NicknameMenuActions;
     influence?: InfluenceStateData | null;
+    ledger: FactionLedgerEntry[];
+    boosts: FactionActiveBoost[];
+    wars: FactionWarSummary[];
+    onRequestWars: () => void;
+    onDeclareWar: (factionId: string, targetFactionId: string) => void;
+    onCapitulate: (factionId: string, warId: string) => void;
+    onSettleWar: (factionId: string, warId: string) => void;
+    onRequestLedger: (factionId: string) => void;
+    onRequestBoosts: (factionId: string) => void;
+    onBuyBoost: (factionId: string, boostId: string, duration: BoostDuration) => void;
+    onGrantFragments: (
+        factionId: string,
+        targetUserId: string,
+        companionFragments: number,
+        cosmeticFragments: number
+    ) => void;
+    myUserId: string;
+    onSetPermissions: (factionId: string, targetUserId: string, permissions: number, roleTitle: string | null) => void;
 }
 
 export function FactionsWindow({
@@ -79,6 +100,19 @@ export function FactionsWindow({
     onCreateQuest,
     getNicknameMenuActions,
     influence,
+    ledger,
+    boosts,
+    wars,
+    onRequestWars,
+    onDeclareWar,
+    onCapitulate,
+    onSettleWar,
+    onRequestLedger,
+    onRequestBoosts,
+    onBuyBoost,
+    onGrantFragments,
+    myUserId,
+    onSetPermissions,
 }: FactionsWindowProps) {
     const view = useFactionsViewState({
         isOpen,
@@ -108,9 +142,11 @@ export function FactionsWindow({
 
     const detailTabs = [
         { id: "members", label: t("g.faction.members"), icon: <Users className="w-3.5 h-3.5" /> },
+        { id: "treasury", label: t("g.faction.treasury"), icon: <Coins className="w-3.5 h-3.5" /> },
         { id: "upgrades", label: t("g.faction.upgrades"), icon: <Sparkles className="w-3.5 h-3.5" /> },
         { id: "tasks", label: t("g.faction.tasks"), icon: <ClipboardList className="w-3.5 h-3.5" /> },
         { id: "quests", label: t("g.menu.quests"), icon: <ScrollText className="w-3.5 h-3.5" /> },
+        { id: "war", label: t("g.faction.war"), icon: <Swords className="w-3.5 h-3.5" /> },
     ];
 
     const backToMyFactions = (
@@ -197,8 +233,11 @@ export function FactionsWindow({
                     viewedFaction && (
                         <FactionMembersPanel
                             faction={viewedFaction}
+                            myUserId={myUserId}
                             onClaimCreator={() => onClaimCreator(viewedFaction.id)}
                             onLeaveFaction={() => onLeaveFaction(viewedFaction.id)}
+                            onSetPermissions={(targetUserId, permissions, roleTitle) =>
+                                onSetPermissions(viewedFaction.id, targetUserId, permissions, roleTitle)}
                             getNicknameMenuActions={getNicknameMenuActions}
                         />
                     )
@@ -211,6 +250,39 @@ export function FactionsWindow({
                             faction={viewedFaction}
                             myWallet={myWallet}
                             onPurchased={() => onViewFaction(viewedFaction.id)}
+                        />
+                    )
+                )}
+
+            {view.activeTab === "war" &&
+                renderDetailTab(
+                    viewedFaction && (
+                        <FactionWarPanel
+                            faction={viewedFaction}
+                            myUserId={myUserId}
+                            wars={wars}
+                            searchResults={searchResults}
+                            onRequestWars={onRequestWars}
+                            onSearchFactions={onSearchFactions}
+                            onDeclareWar={onDeclareWar}
+                            onCapitulate={onCapitulate}
+                            onSettle={onSettleWar}
+                        />
+                    )
+                )}
+
+            {view.activeTab === "treasury" &&
+                renderDetailTab(
+                    viewedFaction && (
+                        <FactionTreasuryPanel
+                            faction={viewedFaction}
+                            myUserId={myUserId}
+                            ledger={ledger}
+                            boosts={boosts}
+                            onRequestLedger={onRequestLedger}
+                            onRequestBoosts={onRequestBoosts}
+                            onBuyBoost={onBuyBoost}
+                            onGrantFragments={onGrantFragments}
                         />
                     )
                 )}

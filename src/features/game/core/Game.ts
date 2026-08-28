@@ -13,6 +13,7 @@ import { SafeZone } from "../world/SafeZone";
 import { ShootingSystem } from "../systems/ShootingSystem";
 import { SafeZoneSystem } from "../systems/SafeZoneSystem";
 import { InteractionSystem } from "../systems/InteractionSystem";
+import { FactionWarState } from "./FactionWarState";
 import { NetworkSystem } from "../systems/NetworkSystem";
 import { EnemySystem } from "../systems/EnemySystem";
 import { BossProjectiles } from "../entities/bossProjectiles";
@@ -156,6 +157,8 @@ export class Game {
     public readonly memeSystem: MemeSystem = new MemeSystem();
     private memeMovementUntil: number = 0;
     public readonly interactionSystem: InteractionSystem;
+    public readonly warState = new FactionWarState();
+    public readonly factionTreasuryAsh = new Map<string, number>();
     private readonly questMarkers = new Map<string, THREE.Sprite>();
     private questMarkerRequest: Record<string, QuestMarkerKind> = {};
     private questMarkerTime = 0;
@@ -1251,6 +1254,7 @@ export class Game {
                     ownerType: "faction",
                     ownerId: newLocation.factionId,
                 });
+                this.buildSession.factionAsh = this.factionTreasuryAsh.get(newLocation.factionId) ?? 0;
             } else {
                 this.buildSession.unbindLot();
             }
@@ -1260,14 +1264,33 @@ export class Game {
             }
 
             if (newLocation instanceof FactionGateRoom) {
-               if (options?.factionName !== undefined) {
-                    newLocation.setFactionInfo(options.factionName, options.factionImage ?? null, options.factionSymbol ?? null);
-                } else {
-                    const info = previousLocation instanceof Basement
+                const gate = this.factionGates.find((entry) => entry.factionId === newLocation.factionId)
+                    ?? (previousLocation instanceof Basement
                         ? previousLocation.getFactionGateInfo(newLocation.factionId)
-                        : undefined;
-                    newLocation.setFactionInfo(info?.factionName ?? "Faction", info?.image ?? null, info?.symbol ?? null);
+                        : undefined);
+
+                if (options?.factionName !== undefined) {
+                    newLocation.setFactionInfo(
+                        options.factionName,
+                        options.factionImage ?? null,
+                        options.factionSymbol ?? null,
+                        gate?.level ?? 1,
+                        gate?.mcTier ?? 0
+                    );
+                } else {
+                    newLocation.setFactionInfo(
+                        gate?.factionName ?? "Faction",
+                        gate?.image ?? null,
+                        gate?.symbol ?? null,
+                        gate?.level ?? 1,
+                        gate?.mcTier ?? 0
+                    );
                 }
+
+                this.player.setMaxRadius(newLocation.maxPlayerRadius ?? 9999);
+                this.syncFactionHeart(newLocation);
+            } else {
+                this.shootingSystem.setHeartHitbox(null);
             }
 
             if (!options?.silent) {
@@ -1647,6 +1670,26 @@ export class Game {
 
     private isOwnFactionRoom(location: { id: string } | null | undefined): boolean {
         return location instanceof FactionGateRoom && this.interactionSystem.myFactionIds.has(location.factionId);
+    }
+
+    public syncFactionHeart(location?: unknown) {
+        const room = (location ?? this.locationManager.getCurrentLocation()) as FactionGateRoom | null;
+        if (!(room instanceof FactionGateRoom)) {
+            this.shootingSystem.setHeartHitbox(null);
+            return;
+        }
+
+        const heart = this.warState.heartOf(room.factionId);
+        if (!heart) {
+            room.heart.clearHealth();
+            this.shootingSystem.setHeartHitbox(null);
+            return;
+        }
+
+        room.heart.setHealth(heart.hp, heart.maxHp);
+
+        const mine = this.interactionSystem.myFactionIds.has(room.factionId);
+        this.shootingSystem.setHeartHitbox(mine ? null : room.heart.hitbox);
     }
 
     setBlueprintEquipped(equipped: boolean) {

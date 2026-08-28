@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
-import { factions, factionTaskLog, gameNicknames, factionMembers } from "@/core/database/schema";
+import { factions, factionTaskLog, factionMembers } from "@/core/database/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { grantAsh } from "@/core/lib/economy";
 import { applyFactionXp } from "@/core/lib/factionLeveling";
+import { moveTreasury } from "@/core/lib/factionTreasury";
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
@@ -20,8 +20,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
         }
 
-        const contributionsList: { userId: string; amount: number }[] = Array.isArray(contributions) ? contributions : [];
+        const companionFragments = Math.max(0, Math.trunc(Number(body.companionFragments) || 0));
+        const cosmeticFragments = Math.max(0, Math.trunc(Number(body.cosmeticFragments) || 0));
 
+        const contributionsList: { userId: string; amount: number }[] = Array.isArray(contributions) ? contributions : [];
 
         const [claimed] = await db
             .update(factions)
@@ -40,17 +42,21 @@ export async function POST(req: NextRequest) {
         }
 
         const rewardAsh = claimed.activeTaskRewardAsh ?? 0;
-        const rewardUserId = claimed.verifiedCreatorUserId ?? claimed.founderUserId;
-        const rewardWallet = claimed.verifiedCreatorUserId ? claimed.verifiedCreatorWallet! : claimed.founderWallet;
 
-        await grantAsh(rewardUserId, claimed.gameId, rewardAsh);
+        const moved = await moveTreasury(
+            factionId,
+            claimed.gameId,
+            "task",
+            { ash: rewardAsh, companionFragments, cosmeticFragments },
+            { note: taskKey }
+        );
 
         await db.insert(factionTaskLog).values({
             factionId,
             taskKey,
             rewardAsh,
-            rewardUserId,
-            rewardWallet,
+            rewardUserId: claimed.verifiedCreatorUserId ?? claimed.founderUserId,
+            rewardWallet: claimed.verifiedCreatorUserId ? claimed.verifiedCreatorWallet! : claimed.founderWallet,
         });
 
         const totalContributed = contributionsList.reduce((sum, c) => sum + (c.amount || 0), 0);
@@ -70,16 +76,13 @@ export async function POST(req: NextRequest) {
         const { level, progress } = applyFactionXp(claimed.level, claimed.levelProgressAsh, rewardAsh);
         await db.update(factions).set({ level, levelProgressAsh: progress }).where(eq(factions.id, factionId));
 
-        const rewardNick = await db.query.gameNicknames.findFirst({
-            where: and(eq(gameNicknames.userId, rewardUserId), eq(gameNicknames.gameId, claimed.gameId)),
-        });
-
         return NextResponse.json({
             success: true,
             rewardAsh,
-            rewardUserId,
-            rewardWallet,
-            rewardNickname: rewardNick?.nickname || null,
+            companionFragments,
+            cosmeticFragments,
+            level,
+            treasury: moved.ok ? moved.balance : null,
         });
     } catch (error) {
         console.error("[internal/faction/complete-task] Error:", error);

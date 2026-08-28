@@ -4,7 +4,6 @@
 import { useEffect, useState } from "react";
 import { Globe2 } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
-import { ROOM_ACCESS_LABELS, canEnterRoom, isRoomAccess, roomAccessDenialReason, type RoomAccess } from "@/core/lib/roomAccess";
 import type { FactionGateData } from "../network/NetworkManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
@@ -51,9 +50,6 @@ export function FactionBubblePanel({ faction, isMember, onClose, onEnter }: Fact
 
     if (!faction) return null;
 
-    const access: RoomAccess = isRoomAccess(faction.roomAccess ?? "") ? (faction.roomAccess as RoomAccess) : "members";
-    const allowed = canEnterRoom({ access, isOwner: false, isMember, isInvited: false });
-
     return (
         <div
             className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
@@ -92,30 +88,20 @@ export function FactionBubblePanel({ faction, isMember, onClose, onEnter }: Fact
                         </div>
                     )}
                     <div className="flex justify-between">
-                        <span className="text-[#8B8F98]">{t("g.bubble.access")}</span>
-                        <span className="text-[#E5E7EB]">{t(ROOM_ACCESS_LABELS[access])}</span>
-                    </div>
-                    <div className="flex justify-between">
                         <span className="text-[#8B8F98]">{t("g.bubble.you")}</span>
                         <span className="text-[#E5E7EB]">{isMember ? t("g.bubble.member") : t("g.bubble.notMember")}</span>
                     </div>
                 </div>
 
-                {allowed ? (
-                    <button
-                        onClick={() => {
-                            onEnter(faction.factionId);
-                            onClose();
-                        }}
-                        className="btn-primary px-4 py-2 text-sm w-full"
-                    >
-                        {t("g.bubble.enterGate")}
-                    </button>
-                ) : (
-                    <p className="text-[#FFD166] text-sm bg-[#FFD166]/10 border border-[#FFD166]/20 rounded-lg px-3 py-2">
-                        {t(roomAccessDenialReason(access))}
-                    </p>
-                )}
+                <button
+                    onClick={() => {
+                        onEnter(faction.factionId);
+                        onClose();
+                    }}
+                    className="btn-primary px-4 py-2 text-sm w-full"
+                >
+                    {t("g.bubble.enterGate")}
+                </button>
             </div>
         </div>
     );

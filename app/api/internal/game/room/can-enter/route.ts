@@ -67,42 +67,14 @@ export async function POST(req: NextRequest) {
             const factionId = locationId.slice(FACTION_PREFIX.length);
 
             const [faction] = await db
-                .select({
-                    roomAccess: factions.roomAccess,
-                    founderUserId: factions.founderUserId,
-                    verifiedCreatorUserId: factions.verifiedCreatorUserId,
-                })
+                .select({ id: factions.id })
                 .from(factions)
                 .where(eq(factions.id, factionId))
                 .limit(1);
 
             if (!faction) return NextResponse.json({ allowed: false, reason: "That gate does not exist." });
 
-            const isOwner = faction.founderUserId === userId || faction.verifiedCreatorUserId === userId;
-            const access: RoomAccess = isRoomAccess(faction.roomAccess) ? (faction.roomAccess as RoomAccess) : "members";
-
-            const [membership] = await db
-                .select({ id: factionMembers.id })
-                .from(factionMembers)
-                .where(and(eq(factionMembers.factionId, factionId), eq(factionMembers.userId, userId)))
-                .limit(1);
-
-            let isInvited = false;
-            if (access === "invite") {
-                const [invite] = await db
-                    .select({ id: roomInvites.id })
-                    .from(roomInvites)
-                    .where(and(
-                        eq(roomInvites.ownerType, "faction"),
-                        eq(roomInvites.ownerId, factionId),
-                        eq(roomInvites.invitedUserId, userId)
-                    ))
-                    .limit(1);
-                isInvited = !!invite;
-            }
-
-            const allowed = canEnterRoom({ access, isOwner, isMember: !!membership, isInvited });
-            return NextResponse.json({ allowed, reason: allowed ? null : roomAccessDenialReason(access) });
+            return NextResponse.json({ allowed: true, reason: null });
         }
 
         return NextResponse.json({ allowed: true });
