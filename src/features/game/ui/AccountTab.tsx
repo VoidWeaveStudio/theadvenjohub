@@ -8,6 +8,7 @@ import { PlayerTag } from "./shell/PlayerTag";
 import { PlayerProfileData, QuestInfoData } from "../network/NetworkManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import type { Translate } from "@/core/i18n/types";
+import { questDescription, questGiverName, questRewardLabel, questTitle } from "./questText";
 
 type AccountSubTab = "about" | "quests" | "achievements";
 
@@ -17,7 +18,7 @@ interface AccountTabProps {
     selfProfile: PlayerProfileData | null;
     onRequestSelfProfile: () => void;
     onNicknameChange: (nickname: string) => void;
-    quest: QuestInfoData | null;
+    quests: QuestInfoData[];
 }
 
 function formatPlaytime(seconds: number, t: Translate): string {
@@ -27,7 +28,7 @@ function formatPlaytime(seconds: number, t: Translate): string {
     return t("g.time.m", { minutes });
 }
 
-export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile, onNicknameChange, quest }: AccountTabProps) {
+export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile, onNicknameChange, quests }: AccountTabProps) {
     const { t } = useLanguage();
     const displayedFaction = selfProfile?.factions?.find((f) => f.isDisplayed) ?? selfProfile?.factions?.[0] ?? null;
     const isFactionCreator = !!selfProfile && selfProfile.factions.some((f) => f.verifiedCreatorWallet === wallet);
@@ -167,36 +168,51 @@ export function AccountTab({ nickname, wallet, selfProfile, onRequestSelfProfile
 
             {accountSubTab === "quests" && (
                 <div className="space-y-3">
-                    {!quest ? (
+                    {quests.length === 0 ? (
                         <div className="text-center py-10">
                             <ScrollText className="w-8 h-8 text-[#6B7280] mx-auto mb-2" />
                             <p className="text-[#8B8F98] text-sm">{t("g.acct.noQuests")}</p>
                         </div>
                     ) : (
-                        <div className="bg-[rgba(255,255,255,0.04)] rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-1">
-                                <h3 className="text-[#E5E7EB] font-bold">{quest.title}</h3>
-                                <span
-                                    className={`text-xs font-bold px-2 py-0.5 rounded-full ${quest.status === "completed"
-                                        ? "bg-[rgba(74,222,128,0.15)] text-[#4ADE80]"
-                                        : quest.status === "ready_to_turn_in"
-                                            ? "bg-[rgba(255,209,102,0.15)] text-[#FFD166]"
-                                            : "bg-[rgba(79,209,255,0.15)] text-[#4FD1FF]"
-                                        }`}
-                                >
-                                    {quest.status === "completed" ? t("g.acct.questCompleted") : quest.status === "ready_to_turn_in" ? t("g.acct.questReady") : t("g.acct.questActive")}
-                                </span>
-                            </div>
-                            <p className="text-[#8B8F98] text-sm mb-3">{quest.description}</p>
-                            <div className="flex items-center justify-between text-sm">
-                                <span className="text-[#E5E7EB]">
-                                    {t("g.acct.progress", { done: quest.progress, total: quest.targetCount })}
-                                </span>
-                                <span className="text-[#FFD166] font-bold">{t("g.acct.rewardAsh", { amount: quest.rewardAsh })}</span>
-                            </div>
-                        </div>
+                        quests.map((quest) => {
+                            const reward = questRewardLabel(quest, t);
+                            return (
+                                <div key={quest.questId} className="bg-[rgba(255,255,255,0.04)] rounded-lg p-4">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h3 className="text-[#E5E7EB] font-bold">{questTitle(quest, t)}</h3>
+                                        <span
+                                            className={`text-xs font-bold px-2 py-0.5 rounded-full ${quest.status === "completed"
+                                                ? "bg-[rgba(74,222,128,0.15)] text-[#4ADE80]"
+                                                : quest.status === "ready_to_turn_in"
+                                                    ? "bg-[rgba(255,209,102,0.15)] text-[#FFD166]"
+                                                    : quest.status === "not_started"
+                                                        ? "bg-[rgba(255,255,255,0.08)] text-[#8B8F98]"
+                                                        : "bg-[rgba(79,209,255,0.15)] text-[#4FD1FF]"
+                                                }`}
+                                        >
+                                            {quest.status === "completed"
+                                                ? t("g.acct.questCompleted")
+                                                : quest.status === "ready_to_turn_in"
+                                                    ? t("g.acct.questReady")
+                                                    : quest.status === "not_started"
+                                                        ? t("g.acct.questOffered")
+                                                        : t("g.acct.questActive")}
+                                        </span>
+                                    </div>
+                                    <p className="text-[#8B8F98] text-sm mb-3">{questDescription(quest, t)}</p>
+                                    <div className="flex items-center justify-between gap-3 text-sm">
+                                        <span className="text-[#E5E7EB]">
+                                            {t("g.acct.progress", { done: quest.progress, total: quest.targetCount })}
+                                        </span>
+                                        {reward && <span className="text-[#FFD166] font-bold text-right">{reward}</span>}
+                                    </div>
+                                    <p className="text-[#6B7280] text-xs mt-2">
+                                        {t("g.quest.givenBy", { giver: questGiverName(quest.npc, t) })}
+                                    </p>
+                                </div>
+                            );
+                        })
                     )}
-                    <p className="text-[#6B7280] text-xs text-center pt-2">{t("g.acct.factionQuestsSoon")}</p>
                 </div>
             )}
 

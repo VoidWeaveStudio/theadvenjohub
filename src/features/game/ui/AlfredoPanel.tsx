@@ -5,15 +5,19 @@ import { useEffect, useRef, useState } from "react";
 import { X, Palette, Shirt, Gem, ArrowLeft, Boxes, Puzzle } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
 import { COSMETICS, COSMETIC_FRAGMENTS_PER_CRATE, CosmeticId } from "../data/cosmetics";
-import { CosmeticCrateStateData, CosmeticStateData } from "../network/NetworkManager";
+import { CosmeticCrateStateData, CosmeticStateData, QuestInfoData } from "../network/NetworkManager";
 import { CosmeticCard } from "./CosmeticCard";
 import { PreviewModal } from "./preview/PreviewModal";
 import type { PreviewSubject } from "./preview/PreviewScene";
 import { useShopPrices } from "./hooks/useShopPrices";
+import { NpcQuestSection } from "./NpcQuestCard";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface AlfredoPanelProps {
     isOpen: boolean;
+    quest: QuestInfoData | null;
+    onAcceptQuest: (questId: string) => void;
+    onTurnInQuest: (questId: string) => void;
     onClose: () => void;
     onOpenPersonalization: () => void;
     gameSlug: string;
@@ -29,6 +33,9 @@ interface AlfredoPanelProps {
 
 export function AlfredoPanel({
     isOpen,
+    quest,
+    onAcceptQuest,
+    onTurnInQuest,
     onClose,
     onOpenPersonalization,
     gameSlug,
@@ -137,6 +144,13 @@ export function AlfredoPanel({
                 {view === "menu" && (
                     <>
                         <p className="text-[#8B8F98] text-sm mb-5">{t("g.alfredo.greeting")}</p>
+
+                        <NpcQuestSection
+                            quest={quest}
+                            accent="#4FC3FF"
+                            onAccept={onAcceptQuest}
+                            onTurnIn={onTurnInQuest}
+                        />
 
                         <div className="space-y-3">
                             <button

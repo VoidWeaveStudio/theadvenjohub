@@ -11,6 +11,10 @@ const clientPath = path.join(scriptDir, "..", "src", "features", "game", "networ
 const NOT_MESSAGES = new Set([
     "visit_npcs",
     "kill_enemies",
+    "paint_skin",
+    "sell_tokens",
+    "found_faction",
+    "canyon_segments",
     "husk",
     "voidling",
     "slime_warden",

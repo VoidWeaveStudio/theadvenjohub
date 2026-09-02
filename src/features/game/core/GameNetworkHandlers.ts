@@ -22,6 +22,7 @@ import {
 import { DEFAULT_SPAWN_LOCATION_ID, applyPositionCorrection, applyStuckTeleport, beginTeleportGrace, moveToServerPlacement, placeAtPoint } from "./GameLocationOrchestration";
 import { applyWorldStatus } from "./GameWorldState";
 import { t } from "@/core/i18n";
+import { questGiverName } from "../ui/questText";
 import { isBodyEmote } from "../data/emotes";
 import { STORAGE_CRATE_PIECE } from "@/core/lib/roomLayoutGrid";
 
@@ -1597,20 +1598,35 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onQuestUpdate = (data) => {
         game.onQuestUpdate?.(data);
+        const title = data.titleKey ? t(data.titleKey) : (data.title ?? "");
+
         if (data.visitedName) {
             game.onNotification?.(t("g.notify.metNpc", { name: data.visitedName, done: data.progress, total: data.targetCount }), 2500);
         } else if (data.status === "active" && data.progress === 0) {
             SoundManager.getInstance().play("quest-accept", { volume: 0.5 });
-            game.onNotification?.(t("g.notify.questAcceptedSlimes", { count: data.targetCount }), 3000);
+            game.onNotification?.(t("g.notify.questAccepted", { title }), 3000);
         }
 
         if (data.status === "ready_to_turn_in") {
             SoundManager.getInstance().play("quest-complete", { volume: 0.6 });
-            game.onNotification?.(t("g.notify.questComplete"), 3000);
+            game.onNotification?.(t("g.notify.questReady", { giver: questGiverName(data.npc ?? "", t) }), 3000);
         } else if (data.status === "completed") {
             const xp = data.rewardXp ? t("g.notify.andXp", { xp: data.rewardXp }) : "";
-            game.onNotification?.(t("g.notify.questTurnedIn", { amount: data.rewardAsh ?? 0, xp }), 3000);
+            game.onNotification?.(
+                (data.rewardAsh ?? 0) > 0
+                    ? t("g.notify.questTurnedIn", { amount: data.rewardAsh ?? 0, xp })
+                    : t("g.notify.questDone", { title, xp }),
+                3000
+            );
         }
+    };
+
+    game.networkManager.onQuestRewardGranted = (data) => {
+        if (data.kind !== "factionTreasuryAsh" || data.amount <= 0) return;
+        game.onNotification?.(
+            t("g.notify.questTreasuryAsh", { amount: data.amount, faction: data.factionName ?? "" }),
+            4000
+        );
     };
 
     game.networkManager.onCanyonSegment = (data) => {
@@ -1627,6 +1643,7 @@ export function registerNetworkHandlers(game: Game) {
                 rotation: game.player.mesh.rotation.y,
                 pitch: game.cameraController.getPitch(),
                 headYaw: 0,
+                headPitch: 0,
                 state: 'idle', jumping: false, velocityY: 0,
                 weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
             });
@@ -1661,6 +1678,7 @@ export function registerNetworkHandlers(game: Game) {
                 rotation: game.player.mesh.rotation.y,
                 pitch: game.cameraController.getPitch(),
                 headYaw: 0,
+                headPitch: 0,
                 state: 'idle', jumping: false, velocityY: 0,
                 weaponEquipped: game.hudState.isWeaponEquipped, isShooting: false,
             });

@@ -9,6 +9,10 @@ let lastFailureAt = 0;
 
 const FAILURE_COOLDOWN_MS = 30_000;
 
+// Every refresh in the app funnels through here. The server rotates the refresh
+// token on each call, so a second concurrent call would present a spent token
+// and lose the whole session — sharing the in-flight promise is what stops the
+// burst of requests a phone wake-up produces from logging the player out.
 export async function refreshSession(): Promise<boolean> {
     if (Date.now() - lastFailureAt < FAILURE_COOLDOWN_MS) return false;
 
@@ -33,7 +37,9 @@ export async function refreshSession(): Promise<boolean> {
                 return ok;
             })
             .catch(() => {
-                lastFailureAt = Date.now();
+                // A thrown fetch is the network being gone, not the session
+                // being bad. Cooling down here would keep a phone that just
+                // reconnected locked out for another half minute.
                 return false;
             })
             .finally(() => {

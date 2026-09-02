@@ -20,6 +20,7 @@ export type PlayerState = 'idle' | 'walk' | 'sprint' | 'jump';
 
 const HEAD_MAX_YAW = Math.PI * 0.5;
 const HEAD_MAX_PITCH = Math.PI * 0.4;
+const HEAD_RELEASE_FROM = Math.PI * 0.6;
 // Radians-per-second style damping: the head reaches ~95% of the target in
 // about a quarter second, and the rate no longer depends on the frame rate.
 const HEAD_TRACK_SPEED = 12;
@@ -906,8 +907,18 @@ export class Player extends Entity {
         while (headYaw > Math.PI) headYaw -= Math.PI * 2;
         while (headYaw < -Math.PI) headYaw += Math.PI * 2;
 
-        const clampedYaw = Math.max(-HEAD_MAX_YAW, Math.min(HEAD_MAX_YAW, headYaw));
-        const clampedPitch = Math.max(-HEAD_MAX_PITCH, Math.min(HEAD_MAX_PITCH, -this.camera.getPitch()));
+        // Past the tracking limit the camera has swung round towards the face,
+        // so pinning the head at the clamp would leave it craning over its own
+        // shoulder at a camera that is now in front of it. Instead the target
+        // eases back to neutral, which is where the face meets a camera looking
+        // straight at it; nudge the camera off the front and tracking resumes.
+        const offAxis = Math.abs(headYaw);
+        const release = offAxis <= HEAD_RELEASE_FROM
+            ? 0
+            : (offAxis - HEAD_RELEASE_FROM) / (Math.PI - HEAD_RELEASE_FROM);
+
+        const clampedYaw = Math.max(-HEAD_MAX_YAW, Math.min(HEAD_MAX_YAW, headYaw)) * (1 - release);
+        const clampedPitch = Math.max(-HEAD_MAX_PITCH, Math.min(HEAD_MAX_PITCH, -this.camera.getPitch())) * (1 - 2 * release);
 
         // Smoothing lives in these two fields, not in the bone. Reading the angle
         // back off the bone would read the pose the mixer just wrote, and an
@@ -928,6 +939,10 @@ export class Player extends Entity {
 
     public getHeadYaw(): number {
         return this.headYaw;
+    }
+
+    public getHeadPitch(): number {
+        return this.headPitch;
     }
 
     getWeapon(): Weapon {

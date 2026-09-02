@@ -129,7 +129,7 @@ export function Hotbar({ slots, onSlotClick, onOpenTools, onOpenEmotes, onOpenDe
 
             <button
                 onClick={onOpenDegen}
-                title={`Degen abilities — [${DEGEN_KEY}]`}
+                title={t("g.hotbar.degenTitle", { key: DEGEN_KEY })}
                 className="relative w-16 h-16 p-0 rounded-[10px] border-2 border-[rgba(255,255,255,0.2)] bg-[rgba(12,12,14,0.6)] hover:border-[#A855F7] hover:bg-[rgba(12,12,14,0.75)] flex flex-col items-center justify-center gap-0.5 transition-colors"
             >
                 <span className="absolute top-1.5 left-2 text-[10px] font-bold text-[#8B8F98]">{DEGEN_KEY}</span>

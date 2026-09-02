@@ -414,10 +414,10 @@ export function SkillTreeWindow({ isOpen, onClose, progression, onLearn, onBind,
                                                                 onClick={() => onBind(slot, bound ? null : selected.ability!.id)}
                                                                 title={
                                                                     bound
-                                                                        ? `Unbind from key ${ABILITY_SLOT_KEYS[slot]}`
+                                                                        ? t("g.skill.unbindKey", { key: ABILITY_SLOT_KEYS[slot] })
                                                                         : occupiedBy
-                                                                            ? `Replace what is on key ${ABILITY_SLOT_KEYS[slot]}`
-                                                                            : `Bind to key ${ABILITY_SLOT_KEYS[slot]}`
+                                                                            ? t("g.skill.replaceKey", { key: ABILITY_SLOT_KEYS[slot] })
+                                                                            : t("g.skill.bindKey", { key: ABILITY_SLOT_KEYS[slot] })
                                                                 }
                                                                 className="h-8 rounded-[6px] text-[12px] font-black border-0 transition-colors"
                                                                 style={{

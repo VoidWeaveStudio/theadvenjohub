@@ -1,7 +1,7 @@
 // src/features/game/GameClient.tsx
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { SoundManager } from "./core/SoundManager";
 import { Game } from "./core/Game";
 import { HUD } from "./ui/HUD";
@@ -92,7 +92,7 @@ import { useProgressionState } from "./ui/hooks/useProgressionState";
 import { useAbilityState, rejectionMessage } from "./ui/hooks/useAbilityState";
 import { onLanguageChange, t } from "@/core/i18n";
 import { modeById } from "./data/skills";
-import { useQuestState, SOLA_NPC_ID } from "./ui/hooks/useQuestState";
+import { useQuestState, SOLA_NPC_ID, QUEST_INTERACTION_BY_NPC } from "./ui/hooks/useQuestState";
 import { TouchControls } from "./ui/TouchControls";
 import { TouchOnboarding } from "./ui/TouchOnboarding";
 import { TouchLandscapeGate } from "./ui/TouchLandscapeGate";
@@ -131,7 +131,6 @@ const HOTBAR_KEYS = ["KeyQ", "KeyF"];
 
 type WheelMode = "tools" | "emotes" | "degen" | "touch" | null;
 
-const SOLA_INTERACTION_ID = "quest-giver-sola";
 
 function fireModeLabel(mode: string): string {
   return mode === "single" ? t("g.fireMode.single") : modeById(mode)?.name ?? mode;
@@ -281,6 +280,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [isArenaPanelOpen, setIsArenaPanelOpen] = useState(false);
   const [arenaBestWave, setArenaBestWave] = useState(0);
   const quest = useQuestState();
+  const questLog = useMemo(() => Object.values(quest.questsByNpc), [quest.questsByNpc]);
   const npcDialogue = useNpcDialogue(useCallback((npcId: NpcId) => {
     gameRef.current?.markNpcMet(npcId);
   }, []));
@@ -362,24 +362,24 @@ export function GameClient({ slug }: GameClientProps) {
 
   useEffect(() => {
     const markers: Record<string, QuestMarkerKind> = {};
-    const tracker = quest.questTracker;
 
-    if (tracker) {
-      if (tracker.status === "not_started") {
-        markers[SOLA_INTERACTION_ID] = "available";
-      } else if (tracker.status === "ready_to_turn_in") {
-        markers[SOLA_INTERACTION_ID] = "turnin";
-      } else if (tracker.status === "active") {
-        const targets = quest.questInfo?.targets ?? [];
-        const visited = tracker.visited ?? [];
-        for (const target of targets) {
+    for (const entry of Object.values(quest.questsByNpc)) {
+      const interactionId = QUEST_INTERACTION_BY_NPC[entry.npc];
+
+      if (entry.status === "not_started" && interactionId) {
+        markers[interactionId] = "available";
+      } else if (entry.status === "ready_to_turn_in" && interactionId) {
+        markers[interactionId] = "turnin";
+      } else if (entry.status === "active" && entry.questType === "visit_npcs") {
+        const visited = entry.visited ?? [];
+        for (const target of entry.targets ?? []) {
           if (!visited.includes(target.id)) markers[target.id] = "target";
         }
       }
     }
 
     gameRef.current?.setQuestMarkers(markers);
-  }, [quest.questTracker, quest.questInfo, currentLocationId]);
+  }, [quest.questsByNpc, currentLocationId]);
 
   const isWeaponEquipped = hud.hudState.equippedTool === "weapon";
   const isArcanist = progressionState.progression?.branch === "arcanist";
@@ -515,12 +515,22 @@ export function GameClient({ slug }: GameClientProps) {
   useEffect(() => {
     void keepSessionAlive();
     const timer = setInterval(() => { void keepSessionAlive(); }, SESSION_KEEPALIVE_MS);
-    const onWake = () => { if (document.visibilityState === "visible") void keepSessionAlive(); };
+
+    // A locked phone freezes this interval, so the tab can come back with an
+    // expired session and a socket the OS dropped without ever firing onclose.
+    // Waking is the moment to redo both, not to wait for the next tick.
+    const onWake = () => {
+      if (document.visibilityState !== "visible") return;
+      void keepSessionAlive();
+      gameRef.current?.networkManager.resumeFromBackground();
+    };
 
     document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("online", onWake);
     return () => {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("online", onWake);
     };
   }, []);
 
@@ -623,13 +633,13 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           npcDialogue.greet("token-vendor", () => {
             setIsVendorOpen(true);
+            gameRef.current?.talkToQuestGiver("tony");
             document.exitPointerLock();
           });
         };
         game.onOpenSolaUI = () => {
           if (cancelled) return;
           npcDialogue.greet("quest-giver-sola", () => {
-            quest.resetQuestInfo();
             setIsSolaOpen(true);
             gameRef.current?.talkToQuestGiver(SOLA_NPC_ID);
             document.exitPointerLock();
@@ -639,6 +649,7 @@ export function GameClient({ slug }: GameClientProps) {
           if (cancelled) return;
           npcDialogue.greet("npc-alfredo", () => {
             setIsAlfredoOpen(true);
+            gameRef.current?.talkToQuestGiver("alfredo");
             document.exitPointerLock();
           });
         };
@@ -861,6 +872,7 @@ export function GameClient({ slug }: GameClientProps) {
           npcDialogue.greet("canyon-dispatcher", () => {
             canyonMap.openWithReset();
             gameRef.current?.talkToDispatcher();
+            gameRef.current?.talkToQuestGiver("dispatcher");
             document.exitPointerLock();
           });
         };
@@ -870,6 +882,7 @@ export function GameClient({ slug }: GameClientProps) {
           npcDialogue.greet("faction-broker", () => {
             setFactionPanelSkipIntro(false);
             setIsCreateFactionModalOpen(true);
+            gameRef.current?.talkToQuestGiver("alaric");
             document.exitPointerLock();
           });
         };
@@ -1666,7 +1679,7 @@ export function GameClient({ slug }: GameClientProps) {
           setIsSkillTreeOpen(true);
           document.exitPointerLock();
         }}
-        rightRail={inDust2Match ? null : <QuestTracker quest={quest.questTracker} />}
+        rightRail={inDust2Match ? null : <QuestTracker quests={quest.trackedQuests} />}
         topCenter={
           <>
             <ArenaHUD
@@ -1812,6 +1825,9 @@ export function GameClient({ slug }: GameClientProps) {
 
       <AlaricPanel
         isOpen={isCreateFactionModalOpen}
+        quest={quest.questForNpc("alaric")}
+        onAcceptQuest={(questId) => gameRef.current?.acceptQuest(questId)}
+        onTurnInQuest={(questId) => gameRef.current?.turnInQuest(questId)}
         onClose={() => setIsCreateFactionModalOpen(false)}
         myFactions={factionState.myFactions}
         skipIntro={factionPanelSkipIntro}
@@ -2002,7 +2018,7 @@ export function GameClient({ slug }: GameClientProps) {
           if (wallet) gameRef.current?.requestPlayerProfile(wallet);
         }}
         onNicknameChange={handleNicknameChange}
-        quest={quest.questInfo}
+        quests={questLog}
         friends={socialState.friends}
         incomingRequests={socialState.incomingRequests}
         outgoingRequests={socialState.outgoingRequests}
@@ -2152,6 +2168,9 @@ export function GameClient({ slug }: GameClientProps) {
 
       <VendorPanel
         isOpen={isVendorOpen}
+        quest={quest.questForNpc("tony")}
+        onAcceptQuest={(questId) => gameRef.current?.acceptQuest(questId)}
+        onTurnInQuest={(questId) => gameRef.current?.turnInQuest(questId)}
         inventory={inventory.inventory}
         lastSellResult={lastSellResult}
         gameSlug={slug}
@@ -2164,7 +2183,7 @@ export function GameClient({ slug }: GameClientProps) {
 
       <SolaPanel
         isOpen={isSolaOpen}
-        quest={quest.questInfo}
+        quest={quest.questForNpc(SOLA_NPC_ID)}
         onClose={() => setIsSolaOpen(false)}
         onAccept={(questId) => gameRef.current?.acceptQuest(questId)}
         onTurnIn={(questId) => gameRef.current?.turnInQuest(questId)}
@@ -2182,6 +2201,9 @@ export function GameClient({ slug }: GameClientProps) {
 
       <AlfredoPanel
         isOpen={isAlfredoOpen}
+        quest={quest.questForNpc("alfredo")}
+        onAcceptQuest={(questId) => gameRef.current?.acceptQuest(questId)}
+        onTurnInQuest={(questId) => gameRef.current?.turnInQuest(questId)}
         onClose={() => setIsAlfredoOpen(false)}
         onOpenPersonalization={() => {
           setIsAlfredoOpen(false);
@@ -2336,6 +2358,9 @@ export function GameClient({ slug }: GameClientProps) {
 
       <CanyonMapPanel
         isOpen={canyonMap.isCanyonMapOpen}
+        quest={quest.questForNpc("dispatcher")}
+        onAcceptQuest={(questId) => gameRef.current?.acceptQuest(questId)}
+        onTurnInQuest={(questId) => gameRef.current?.turnInQuest(questId)}
         data={canyonMap.canyonMapData}
         onClose={() => canyonMap.setIsCanyonMapOpen(false)}
         onWarp={(segment) => {

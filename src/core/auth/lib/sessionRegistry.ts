@@ -5,9 +5,17 @@ import { Redis } from "@upstash/redis";
 export const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60;
 export const ABSOLUTE_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 
+// How long the token a rotation just replaced still opens the session. A phone
+// coming back from sleep fires several requests at once and the tab that loses
+// the race is holding the previous token through no fault of its own; without
+// this window that tab's 401 tears down a session that is perfectly valid.
+export const ROTATION_GRACE_MS = 60_000;
+
 export interface SessionRecord {
   sid: string;
   jti: string;
+  prevJti?: string;
+  rotatedAt?: number;
   createdAt: number;
   lastSeenAt: number;
   device: string;
@@ -110,10 +118,21 @@ export async function rotateSession(
   await registerSession(userId, {
     sid,
     jti: nextJti,
+    prevJti: existing.jti,
+    rotatedAt: Date.now(),
     createdAt: existing.createdAt,
     device: existing.device,
     lastSeenAt: Date.now(),
   });
+}
+
+// True for the token this session is on, and for the one it just rotated away
+// from while the grace window is open.
+export function acceptsTokenId(session: SessionRecord, jti: string | undefined): boolean {
+  if (!jti) return false;
+  if (session.jti === jti) return true;
+  if (session.prevJti !== jti) return false;
+  return Date.now() - (session.rotatedAt ?? 0) <= ROTATION_GRACE_MS;
 }
 
 export async function revokeSession(userId: string, sid: string): Promise<void> {

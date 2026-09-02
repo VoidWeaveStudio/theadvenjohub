@@ -23,6 +23,12 @@ export function verifyAdminToken(token: string): AdminPayload | null {
 
         if (decoded.role !== "admin") return null;
 
+        // The wallet is re-checked here, not only in verifyAdminAction: rotating
+        // ADMIN_WALLET has to invalidate tokens already issued to the old one,
+        // including on the read-only endpoints that never sign an action.
+        const adminWallet = process.env.ADMIN_WALLET;
+        if (!adminWallet || decoded.wallet !== adminWallet) return null;
+
         return decoded;
     } catch (error) {
         console.error("Invalid admin token:", error);

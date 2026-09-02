@@ -2,11 +2,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Sparkles, ScrollText, Swords, Coins, Check, Circle, RotateCcw } from "lucide-react";
+import { X, ScrollText, Coins, RotateCcw } from "lucide-react";
 import { QuestInfoData, ProgressionStateData } from "../network/NetworkManager";
 import { SoundManager } from "../core/SoundManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
-import { NPC_DIALOGUES_BY_ID, type NpcId } from "../data/npcDialogues";
+import { NpcQuestCard } from "./NpcQuestCard";
 
 type SolaTab = "quests" | "tokenInfo" | "respec";
 
@@ -24,13 +24,6 @@ interface SolaPanelProps {
 
 export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose, onAccept, onTurnIn, onRequestTokenInfo, onRespec }: SolaPanelProps) {
     const { t } = useLanguage();
-
-    // The server sends English name/role for the orientation targets, but the
-    // ids match our own catalogue, so prefer the translated entry.
-    const npcLabel = (id: string, field: "name" | "role", fallback: string) => {
-        const entry = NPC_DIALOGUES_BY_ID.get(id as NpcId);
-        return entry ? t(entry[field]) : fallback;
-    };
     const [tab, setTab] = useState<SolaTab>("quests");
     const [tokenCa, setTokenCa] = useState("");
     const [justSentCa, setJustSentCa] = useState(false);
@@ -73,85 +66,14 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
                     {tab === "quests" ? (
                         !quest ? (
                             <div className="text-[#8B8F98] text-xs text-center py-10">{t("g.sola.loading")}</div>
-                        ) : quest.status === "completed" ? (
-                            <div className="text-[#8B8F98] text-sm text-center py-10">
-                                {t("g.sola.noQuests")}
-                            </div>
                         ) : (
-                            <>
-                                <h3 className="text-[#4ADE80] text-sm font-bold tracking-wide mb-2">{quest.title}</h3>
-                                <p className="text-[#8B8F98] text-sm mb-4">{quest.description}</p>
-
-                                <div className="flex items-center gap-1.5 text-[#FFD166] font-bold text-sm mb-5">
-                                    <Sparkles className="w-4 h-4" />
-                                    {t("g.sola.reward", { amount: quest.rewardAsh })}
-                                    {quest.rewardXp ? <span className="text-[#7FE6CF]">+ {quest.rewardXp} XP</span> : null}
-                                </div>
-
-                                {quest.status === "not_started" && (
-                                    <button
-                                        onClick={() => onAccept(quest.questId)}
-                                        className="w-full bg-gradient-to-r from-[#4ADE80] to-[#22c55e] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all"
-                                    >
-                                        {t("g.sola.acceptQuest")}
-                                    </button>
-                                )}
-
-                                {quest.status === "active" && quest.questType === "visit_npcs" && quest.targets && (
-                                    <div className="space-y-1.5">
-                                        {quest.targets.map((target) => {
-                                            const done = (quest.visited ?? []).includes(target.id);
-                                            return (
-                                                <div
-                                                    key={target.id}
-                                                    className={`flex items-center gap-2 px-3 py-2 rounded-[8px] border ${done
-                                                        ? "border-[#4ADE80]/40 bg-[#4ADE80]/10"
-                                                        : "border-white/10 bg-black/20"
-                                                        }`}
-                                                >
-                                                    {done ? (
-                                                        <Check className="w-4 h-4 text-[#4ADE80] flex-shrink-0" />
-                                                    ) : (
-                                                        <Circle className="w-4 h-4 text-[#6B7280] flex-shrink-0" />
-                                                    )}
-                                                    <span className={`text-sm font-bold ${done ? "text-[#4ADE80]" : "text-[#E5E7EB]"}`}>
-                                                        {npcLabel(target.id, "name", target.name)}
-                                                    </span>
-                                                    <span className="text-[#6B7280] text-[11px] ml-auto">{npcLabel(target.id, "role", target.role)}</span>
-                                                </div>
-                                            );
-                                        })}
-                                        <p className="text-[#8B8F98] text-xs pt-1">
-                                            {t("g.sola.stewardsMet", { done: quest.progress, total: quest.targetCount })}
-                                        </p>
-                                    </div>
-                                )}
-
-                                {quest.status === "active" && quest.questType !== "visit_npcs" && (
-                                    <div>
-                                        <div className="flex items-center gap-2 text-[#E5E7EB] text-sm font-bold mb-2">
-                                            <Swords className="w-4 h-4 text-[#4ADE80]" />
-                                            {t("g.acct.progress", { done: quest.progress, total: quest.targetCount })}
-                                        </div>
-                                        <div className="w-full h-2 bg-[rgba(255,255,255,0.08)] rounded-full overflow-hidden mb-3">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-[#4ADE80] to-[#22c55e] transition-all duration-300 ease-out"
-                                                style={{ width: `${Math.min(100, (quest.progress / quest.targetCount) * 100)}%` }}
-                                            />
-                                        </div>
-                                        <p className="text-[#8B8F98] text-xs">{t("g.sola.comeBackCleared")}</p>
-                                    </div>
-                                )}
-
-                                {quest.status === "ready_to_turn_in" && (
-                                    <button
-                                        onClick={() => onTurnIn(quest.questId)}
-                                        className="w-full bg-gradient-to-r from-[#FFD166] to-[#FFB347] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all"
-                                    >
-                                        {t("g.sola.claimAsh", { amount: quest.rewardAsh })}
-                                    </button>
-                                )}
-                            </>
+                            <NpcQuestCard
+                                quest={quest}
+                                accent="#4ADE80"
+                                onAccept={onAccept}
+                                onTurnIn={onTurnIn}
+                                emptyLabel={t("g.sola.noQuests")}
+                            />
                         )
                     ) : tab === "respec" ? (
                         <div>

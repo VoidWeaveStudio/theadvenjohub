@@ -3,19 +3,23 @@
 
 import { useEffect, useRef } from "react";
 import { X, MapPinned, CheckCircle2, Lock, MapPin } from "lucide-react";
-import { CanyonMapData } from "../network/NetworkManager";
+import { CanyonMapData, QuestInfoData } from "../network/NetworkManager";
 import { SoundManager } from "../core/SoundManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { CANYON_BIOMES } from "../world/locations/tower/floors/first-floor/utils/canyonBiomes";
+import { NpcQuestSection } from "./NpcQuestCard";
 
 interface CanyonMapPanelProps {
     isOpen: boolean;
     data: CanyonMapData | null;
+    quest: QuestInfoData | null;
+    onAcceptQuest: (questId: string) => void;
+    onTurnInQuest: (questId: string) => void;
     onClose: () => void;
     onWarp: (segment: number) => void;
 }
 
-export function CanyonMapPanel({ isOpen, data, onClose, onWarp }: CanyonMapPanelProps) {
+export function CanyonMapPanel({ isOpen, data, quest, onAcceptQuest, onTurnInQuest, onClose, onWarp }: CanyonMapPanelProps) {
     const { t } = useLanguage();
     const segmentName = (segment: number) =>
         segment <= CANYON_BIOMES.length
@@ -46,6 +50,13 @@ export function CanyonMapPanel({ isOpen, data, onClose, onWarp }: CanyonMapPanel
                         <X className="w-5 h-5" />
                     </button>
                 </div>
+
+                <NpcQuestSection
+                    quest={quest}
+                    accent="#4FD1FF"
+                    onAccept={onAcceptQuest}
+                    onTurnIn={onTurnInQuest}
+                />
 
                 {!data ? (
                     <div className="text-[#8B8F98] text-xs text-center py-10">{t("g.common.loading")}</div>

@@ -23,6 +23,9 @@ const ALLOWED_METHODS = new Set([
 
 const MAX_BATCH_SIZE = 10;
 const MAX_BODY_BYTES = 256 * 1024;
+// Node's fetch waits forever by default, so an upstream that stops answering
+// would hold this request open; with 240/min allowed per IP those pile up.
+const UPSTREAM_TIMEOUT_MS = 15_000;
 
 function isAllowedPayload(payload: unknown): boolean {
   const calls = Array.isArray(payload) ? payload : [payload];
@@ -81,6 +84,7 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: raw,
       cache: "no-store",
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
 
     const body = await upstreamRes.text();

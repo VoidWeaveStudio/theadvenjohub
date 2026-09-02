@@ -146,8 +146,11 @@ function hasLineOfSight(ax, ay, az, bx, by, bz) {
 module.exports = { BLOCKERS, segmentHitsBox, contains, hasLineOfSight };
 `;
 
+// See sync-arsenal: a CRLF checkout is not drift.
+const normalise = (text) => text.replace(/\r\n/g, "\n");
+
 if (process.argv.includes("--check")) {
-    if (readFileSync(TARGET, "utf8") !== generated) {
+    if (normalise(readFileSync(TARGET, "utf8")) !== normalise(generated)) {
         console.error("[dust2] game-server/dust2Geometry.js is out of date — run npm run sync:dust2");
         process.exit(1);
     }

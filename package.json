@@ -31,6 +31,7 @@
     "check:protocol": "node scripts/check-protocol.js",
     "check:types": "tsc --noEmit -p tsconfig.check.json",
     "check:i18n": "node scripts/check-i18n.js",
+    "check:i18n:unused": "node scripts/check-i18n-unused.js",
     "sync:zh-tw": "node scripts/gen-zh-tw.js",
     "check:zh-tw": "node scripts/gen-zh-tw.js --check",
     "xp:curve": "node scripts/xp-curve.js",

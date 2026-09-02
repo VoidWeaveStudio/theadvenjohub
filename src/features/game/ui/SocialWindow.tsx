@@ -31,7 +31,7 @@ interface SocialWindowProps {
     selfProfile: PlayerProfileData | null;
     onRequestSelfProfile: () => void;
     onNicknameChange: (nickname: string) => void;
-    quest: QuestInfoData | null;
+    quests: QuestInfoData[];
 
     friends: FriendEntry[];
     incomingRequests: FriendRequestEntry[];
@@ -82,7 +82,7 @@ export function SocialWindow({
     selfProfile,
     onRequestSelfProfile,
     onNicknameChange,
-    quest,
+    quests,
     friends,
     incomingRequests,
     outgoingRequests,
@@ -229,7 +229,7 @@ export function SocialWindow({
                     selfProfile={selfProfile}
                     onRequestSelfProfile={onRequestSelfProfile}
                     onNicknameChange={onNicknameChange}
-                    quest={quest}
+                    quests={quests}
                 />
             )}
         </WindowFrame>

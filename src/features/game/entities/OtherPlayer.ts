@@ -816,7 +816,10 @@ export class OtherPlayer extends Entity {
         }
 
         this.targetRotation = data.rotation;
-        this.targetPitch = Math.max(-HEAD_MAX_PITCH, Math.min(HEAD_MAX_PITCH, -(data.pitch || 0)));
+        // headPitch is the sender's own blended head angle; data.pitch is the
+        // raw camera, kept as the fallback for a client that omits the field.
+        const headPitch = typeof data.headPitch === "number" ? data.headPitch : -(data.pitch || 0);
+        this.targetPitch = Math.max(-HEAD_MAX_PITCH, Math.min(HEAD_MAX_PITCH, headPitch));
         this.targetHeadYaw = Math.max(-HEAD_MAX_YAW, Math.min(HEAD_MAX_YAW, data.headYaw || 0));
         this.targetState = (data.state as any) || 'idle';
         this.firing = data.isShooting === true;

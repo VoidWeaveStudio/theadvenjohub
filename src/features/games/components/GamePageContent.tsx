@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+import { useAuth } from "@/core/auth/AuthProvider";
 import { apiGet } from "@/core/api/client";
 import { PurchaseButton } from "@/features/shared/PurchaseButton";
 import { PromoCodeRedeem } from "@/features/shared/PromoCodeRedeem";
@@ -61,6 +62,7 @@ export default function GamePageContent() {
     const params = useParams();
     const slug = params.slug as string;
     const { t, language } = useLanguage();
+    const { isAuthorized, userWallet } = useAuth();
 
     const [game, setGame] = useState<GameData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -84,7 +86,10 @@ export default function GamePageContent() {
         if (slug) {
             loadGame();
         }
-    }, [slug, language]);
+        // isOwned is derived from the session cookie, so a login that happens
+        // without a navigation has to re-ask — otherwise the page keeps showing
+        // the purchase button to someone who already owns the game.
+    }, [slug, language, isAuthorized, userWallet]);
 
     if (loading) {
         return (

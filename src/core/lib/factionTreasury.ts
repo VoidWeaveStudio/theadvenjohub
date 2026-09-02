@@ -9,6 +9,7 @@ export const LEDGER_KINDS = [
     "entry_toll",
     "boost",
     "grant",
+    "quest",
     "turret",
     "war_stake",
     "war_indemnity",

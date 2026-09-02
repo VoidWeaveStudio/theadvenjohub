@@ -10,11 +10,16 @@ import { useVendorCart } from "./useVendorCart";
 import { VendorQuantityDialog } from "./VendorQuantityDialog";
 import { SoundManager } from "../core/SoundManager";
 import { AshStore } from "./AshStore";
+import { QuestInfoData } from "../network/NetworkManager";
 import { useShopPrices } from "./hooks/useShopPrices";
+import { NpcQuestSection } from "./NpcQuestCard";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 interface VendorPanelProps {
     isOpen: boolean;
+    quest: QuestInfoData | null;
+    onAcceptQuest: (questId: string) => void;
+    onTurnInQuest: (questId: string) => void;
     inventory: InventoryGridItem[];
     lastSellResult?: { address: string; at: number } | null;
     gameSlug: string;
@@ -30,7 +35,7 @@ type VendorTab = "buy" | "sell";
 const PENDING_TIMEOUT = 12000;
 const SELL_SEND_SPACING = 70;
 
-export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, placeables, onClose, onSell, onBuyItem }: VendorPanelProps) {
+export function VendorPanel({ isOpen, quest, onAcceptQuest, onTurnInQuest, inventory, lastSellResult, gameSlug, ash, placeables, onClose, onSell, onBuyItem }: VendorPanelProps) {
     const { t } = useLanguage();
     const [tab, setTab] = useState<VendorTab>("buy");
     const { prices: shopPrices } = useShopPrices(gameSlug, isOpen);
@@ -182,6 +187,15 @@ export function VendorPanel({ isOpen, inventory, lastSellResult, gameSlug, ash, 
                 <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
                     <X className="w-5 h-5" />
                 </button>
+            </div>
+
+            <div className="w-full max-w-3xl empty:hidden">
+                <NpcQuestSection
+                    quest={quest}
+                    accent="#FFD166"
+                    onAccept={onAcceptQuest}
+                    onTurnIn={onTurnInQuest}
+                />
             </div>
 
             {tab === "buy" && (

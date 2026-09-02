@@ -1,10 +1,13 @@
 // app/api/new-tokens/route.ts
 import { NextResponse } from "next/server";
 
+const FETCH_TIMEOUT_MS = 6000;
+
 export async function GET() {
     try {
         const res = await fetch("https://api.dexscreener.com/token-profiles/latest/v1", {
-            cache: "no-store"
+            cache: "no-store",
+            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
 
         if (!res.ok) {

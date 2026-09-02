@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { adjustCosmeticWallet, readCosmeticCrateState } from "@/core/lib/cosmeticCrates";
 
-const MAX_GRANT = 50;
+const MAX_GRANT = 100;
 
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {

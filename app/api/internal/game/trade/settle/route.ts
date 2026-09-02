@@ -4,8 +4,8 @@ import { z } from "zod";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { db } from "@/core/database";
 import { trades } from "@/core/database/schema";
-import { eq } from "drizzle-orm";
-import { verifyTnjTransfer, findExistingSignatureUse } from "@/core/lib/tnjPayment";
+import { and, eq } from "drizzle-orm";
+import { verifyTnjTransfer, findExistingSignatureUse, TnjPaymentVerifyResult } from "@/core/lib/tnjPayment";
 
 
 const settleSchema = z.object({
@@ -22,6 +22,82 @@ const settleSchema = z.object({
     priceTnj: z.number().int().positive(),
 });
 
+type Deal = z.infer<typeof settleSchema>;
+type TradeRow = typeof trades.$inferSelect;
+
+// A signature pays for exactly the deal it was recorded against. Every path that
+// answers from an existing row goes through this check first: without it, a buyer
+// could replay the signature of one completed trade in every later trade and be
+// handed the item each time for a single payment.
+function isSameDeal(row: TradeRow, deal: Deal): boolean {
+    return (
+        row.gameId === deal.gameId &&
+        row.sellerId === deal.sellerId &&
+        row.buyerId === deal.buyerId &&
+        row.itemId === deal.itemId &&
+        row.quantity === deal.quantity &&
+        row.priceTnj === deal.priceTnj
+    );
+}
+
+function signatureTaken() {
+    return NextResponse.json({ success: false, error: "signature_already_used" }, { status: 409 });
+}
+
+function verifyPayment(deal: Deal): Promise<TnjPaymentVerifyResult> {
+    return verifyTnjTransfer({
+        signature: deal.signature,
+        expectedAmountTnj: deal.priceTnj,
+        expectedSigner: deal.buyerWallet,
+        expectedRecipient: deal.sellerWallet,
+    });
+}
+
+// Answers a settle request that found the signature already recorded. A row for
+// another deal is refused; a completed row for this deal is idempotent; a failed
+// row is re-verified, because verification can come back negative on an RPC
+// answer that omits the balances for a payment that did land, and writing that
+// off would leave the buyer paid with no item and no way to retry.
+async function respondForExistingTrade(row: TradeRow, deal: Deal): Promise<NextResponse> {
+    if (!isSameDeal(row, deal)) return signatureTaken();
+
+    if (row.status === "completed") {
+        return NextResponse.json({ success: true, tradeId: row.id, alreadyProcessed: true });
+    }
+
+    const recheck = await verifyPayment(deal);
+
+    if (!recheck.ok) {
+        return NextResponse.json(
+            {
+                success: false,
+                tradeId: row.id,
+                error: recheck.error,
+                ...(recheck.retryable ? { retryable: true } : {}),
+                alreadyProcessed: true,
+            },
+            { status: recheck.retryable ? 503 : recheck.status }
+        );
+    }
+
+    await db
+        .update(trades)
+        .set({ status: "completed", failureReason: null })
+        .where(and(eq(trades.id, row.id), eq(trades.status, "failed")));
+
+    console.warn("[trade/settle] recovered a trade previously recorded as failed:", {
+        tradeId: row.id, signature: deal.signature, previousReason: row.failureReason,
+    });
+
+    return NextResponse.json({ success: true, tradeId: row.id, recovered: true });
+}
+
+async function respondForConflict(deal: Deal): Promise<NextResponse | null> {
+    const row = await db.query.trades.findFirst({ where: eq(trades.txSignature, deal.signature) });
+    if (!row) return null;
+    return respondForExistingTrade(row, deal);
+}
+
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {
         return unauthorizedResponse();
@@ -36,37 +112,29 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
             );
         }
-        const { tradeId, gameId, signature, sellerId, sellerWallet, buyerId, buyerWallet, itemId, itemName, quantity, priceTnj } = validation.data;
+        const deal = validation.data;
 
-   
-        const existingUse = await findExistingSignatureUse(signature);
+        const existingUse = await findExistingSignatureUse(deal.signature);
         if (existingUse?.kind === "trade") {
             const existing = await db.query.trades.findFirst({ where: eq(trades.id, existingUse.id) });
-            if (existing) {
-                return NextResponse.json({
-                    success: existing.status === "completed",
-                    tradeId: existing.id,
-                    error: existing.status === "completed" ? undefined : existing.failureReason,
-                    alreadyProcessed: true,
-                });
-            }
+            if (existing) return respondForExistingTrade(existing, deal);
         } else if (existingUse) {
-            return NextResponse.json(
-                { success: false, error: "signature_already_used" },
-                { status: 409 }
-            );
+            return signatureTaken();
         }
 
-        const verifyResult = await verifyTnjTransfer({
-            signature,
-            expectedAmountTnj: priceTnj,
-            expectedSigner: buyerWallet,
-            expectedRecipient: sellerWallet,
-        });
+        const verifyResult = await verifyPayment(deal);
 
         const baseRow = {
-            gameId, sellerId, sellerWallet, buyerId, buyerWallet,
-            itemId, itemName, quantity, priceTnj, txSignature: signature,
+            gameId: deal.gameId,
+            sellerId: deal.sellerId,
+            sellerWallet: deal.sellerWallet,
+            buyerId: deal.buyerId,
+            buyerWallet: deal.buyerWallet,
+            itemId: deal.itemId,
+            itemName: deal.itemName,
+            quantity: deal.quantity,
+            priceTnj: deal.priceTnj,
+            txSignature: deal.signature,
         };
 
         if (!verifyResult.ok && verifyResult.retryable) {
@@ -89,20 +157,12 @@ export async function POST(req: NextRequest) {
                 );
             } catch (insertError: any) {
                 if (insertError?.code === "23505") {
-                    const existing = await db.query.trades.findFirst({ where: eq(trades.txSignature, signature) });
-                    if (existing) {
-                        return NextResponse.json({
-                            success: existing.status === "completed",
-                            tradeId: existing.id,
-                            error: existing.status === "completed" ? undefined : existing.failureReason,
-                            alreadyProcessed: true,
-                        });
-                    }
+                    const conflict = await respondForConflict(deal);
+                    if (conflict) return conflict;
                 }
                 throw insertError;
             }
         }
-
 
         for (let attempt = 0; attempt < 2; attempt++) {
             try {
@@ -113,19 +173,17 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ success: true, tradeId: row.id });
             } catch (insertError: any) {
                 if (insertError?.code === "23505") {
-                    const existing = await db.query.trades.findFirst({ where: eq(trades.txSignature, signature) });
-                    if (existing) {
-                        return NextResponse.json({
-                            success: existing.status === "completed",
-                            tradeId: existing.id,
-                            error: existing.status === "completed" ? undefined : existing.failureReason,
-                            alreadyProcessed: true,
-                        });
-                    }
+                    const conflict = await respondForConflict(deal);
+                    if (conflict) return conflict;
                 }
                 if (attempt === 1) {
                     console.error("[trade/settle] CRITICAL: payment verified on-chain but could not be recorded:", {
-                        tradeId, signature, sellerWallet, buyerWallet, priceTnj, error: insertError?.message,
+                        tradeId: deal.tradeId,
+                        signature: deal.signature,
+                        sellerWallet: deal.sellerWallet,
+                        buyerWallet: deal.buyerWallet,
+                        priceTnj: deal.priceTnj,
+                        error: insertError?.message,
                     });
                     return NextResponse.json(
                         { success: false, error: "settlement_record_failed", hint: "Payment confirmed on-chain but recording failed. Contact support with your transaction signature." },

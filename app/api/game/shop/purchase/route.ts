@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/core/database";
 import { gameProgress, shopPurchases, gameCompanions, gameCosmetics, gameMemeWallet, gameCosmeticWallet } from "@/core/database/schema";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, gt } from "drizzle-orm";
 import { adjustCompanion, adjustWallet, seedLegacyDog } from "@/core/lib/companionInventory";
 import { adjustCosmeticWallet } from "@/core/lib/cosmeticCrates";
 import { DEFAULT_COMPANION_ID } from "@/features/game/data/companions";
@@ -14,6 +14,7 @@ import { verifyTnjTransferToTreasury, findExistingSignatureUse } from "@/core/li
 import { claimSignature } from "@/core/lib/paymentLock";
 import { SHOP_CATALOG_BY_ID } from "@/core/lib/shopCatalog";
 import { requiredTnjForItem, resolveGameId } from "@/core/lib/shopPricing";
+import { applyLiveOps } from "@/core/lib/adminLiveSync";
 
 const purchaseSchema = z.object({
     signature: z.string().min(80).max(100),
@@ -139,7 +140,23 @@ export async function POST(req: NextRequest) {
             });
             owned = cosmetic ? 1 : 0;
         } else {
-            owned = Math.max(0, Math.floor(Number(placeables[itemId]) || 0));
+            // The blob is only as fresh as the game server's last save, and while
+            // the player is in a session that can be a while. Purchases recorded
+            // since then have not reached it yet, so they are added on top —
+            // otherwise a second purchase made inside the same save window reads
+            // the same `owned` as the first and slips past maxOwned.
+            const [pending] = await db
+                .select({ count: count() })
+                .from(shopPurchases)
+                .where(and(
+                    eq(shopPurchases.userId, user.userId),
+                    eq(shopPurchases.gameId, gameId),
+                    eq(shopPurchases.itemId, itemId),
+                    eq(shopPurchases.status, "completed"),
+                    gt(shopPurchases.createdAt, progress.updatedAt)
+                ));
+
+            owned = Math.max(0, Math.floor(Number(placeables[itemId]) || 0)) + (pending?.count ?? 0);
         }
 
         if (entry.maxOwned !== null && owned >= entry.maxOwned) {
@@ -241,12 +258,13 @@ export async function POST(req: NextRequest) {
                     .values({ userId: user.userId, gameId, itemId, pricePaidAsh: 0 })
                     .onConflictDoNothing();
             } else {
-                placeables[itemId] = owned + 1;
-                data.placeables = placeables;
-                await db
-                    .update(gameProgress)
-                    .set({ data: JSON.stringify(data), updatedAt: new Date() })
-                    .where(eq(gameProgress.id, progress.id));
+                // Placeables live in the progress blob the game server owns while
+                // the player is in a session — writing it from here would be
+                // overwritten by the next autosave (losing a paid item) and would
+                // roll back whatever the server had saved since this request read
+                // the row. The delta goes to the session instead, exactly like an
+                // admin grant, and falls through to the database when offline.
+                await applyLiveOps(user.userId, [{ kind: "placeableDelta", itemId, delta: 1 }]);
             }
         } catch (grantError: any) {
             console.error("[game/shop/purchase] CRITICAL: purchase recorded but item not granted:", {

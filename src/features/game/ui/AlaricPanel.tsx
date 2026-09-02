@@ -4,14 +4,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Flag } from "lucide-react";
 import { SoundManager } from "../core/SoundManager";
-import { FactionSummary } from "../network/NetworkManager";
+import { FactionSummary, QuestInfoData } from "../network/NetworkManager";
 import { FactionCreateForm } from "./FactionCreateForm";
+import { NpcQuestSection } from "./NpcQuestCard";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
 type Stage = "already-founder" | "intro" | "responsibility" | "create" | "success";
 
 interface AlaricPanelProps {
     isOpen: boolean;
+    quest: QuestInfoData | null;
+    onAcceptQuest: (questId: string) => void;
+    onTurnInQuest: (questId: string) => void;
     onClose: () => void;
     myFactions: FactionSummary[];
     skipIntro: boolean;
@@ -19,7 +23,7 @@ interface AlaricPanelProps {
     onCreated: () => void;
 }
 
-export function AlaricPanel({ isOpen, onClose, myFactions, skipIntro, gameSlug, onCreated }: AlaricPanelProps) {
+export function AlaricPanel({ isOpen, quest, onAcceptQuest, onTurnInQuest, onClose, myFactions, skipIntro, gameSlug, onCreated }: AlaricPanelProps) {
     const { t } = useLanguage();
     const [stage, setStage] = useState<Stage>("intro");
     const [createdFactionName, setCreatedFactionName] = useState<string | null>(null);
@@ -66,6 +70,13 @@ export function AlaricPanel({ isOpen, onClose, myFactions, skipIntro, gameSlug, 
                         ✕
                     </button>
                 </div>
+
+                <NpcQuestSection
+                    quest={quest}
+                    accent="#a855f7"
+                    onAccept={onAcceptQuest}
+                    onTurnIn={onTurnInQuest}
+                />
 
                 {stage === "already-founder" && (
                     <div className="space-y-5">

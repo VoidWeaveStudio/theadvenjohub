@@ -26,6 +26,7 @@ export type PlayerNetData = {
   rotation: number;
   pitch: number;
   headYaw?: number;
+  headPitch?: number;
   companionId?: string | null;
   state: 'idle' | 'walk' | 'sprint' | 'jump';
   jumping: boolean;
@@ -369,15 +370,32 @@ export type QuestTarget = {
   locationId: string;
 };
 
+export type QuestType =
+  | "kill_enemies"
+  | "visit_npcs"
+  | "paint_skin"
+  | "sell_tokens"
+  | "found_faction"
+  | "canyon_segments";
+
+export type QuestReward =
+  | { kind: "cosmetic"; itemId: string }
+  | { kind: "companionFragments"; amount: number }
+  | { kind: "cosmeticFragments"; amount: number }
+  | { kind: "factionTreasuryAsh"; amount: number };
+
 export type QuestInfoData = {
   questId: string;
   npc: string;
-  questType?: "kill_enemies" | "visit_npcs";
+  questType?: QuestType;
   title: string;
+  titleKey?: string | null;
   description: string;
+  descriptionKey?: string | null;
   targetCount: number;
   rewardAsh: number;
   rewardXp?: number;
+  reward?: QuestReward | null;
   status: QuestStatus;
   progress: number;
   targets?: QuestTarget[] | null;
@@ -386,13 +404,24 @@ export type QuestInfoData = {
 
 export type QuestUpdateData = {
   questId: string;
+  npc?: string;
+  title?: string;
+  titleKey?: string | null;
   status: QuestStatus;
   progress: number;
   targetCount: number;
   rewardAsh?: number;
   rewardXp?: number;
+  reward?: QuestReward | null;
   visited?: string[];
   visitedName?: string;
+};
+
+export type QuestRewardGrantedData = {
+  kind: "factionTreasuryAsh";
+  amount: number;
+  factionId: string;
+  factionName: string | null;
 };
 
 export type InventoryEntry = {
@@ -988,7 +1017,7 @@ export class NetworkManager {
   private lastUpdateSent: number = 0;
   private lastUpdateForced: number = 0;
   private lastUpdateState: {
-    position: number[]; rotation: number; pitch: number; headYaw: number; state: string;
+    position: number[]; rotation: number; pitch: number; headYaw: number; headPitch: number; state: string;
     jumping: boolean; weaponEquipped: boolean; isShooting: boolean;
   } | null = null;
   private updateThrottleMs: number = 50;
@@ -1267,6 +1296,7 @@ export class NetworkManager {
   public onTournamentEntriesResult?: (data: { tournamentId: string; kind: string | null; entries: TournamentEntryView[] }) => void;
   public onTournamentActionResult?: (data: { action: string; tournamentId: string }) => void;
   public onFragmentsGranted?: (data: { amount: number; source: string }) => void;
+  public onQuestRewardGranted?: (data: QuestRewardGrantedData) => void;
 
   public onMailReceived?: (data: { mailId: string; senderNickname: string; subject: string }) => void;
   public onFriendRequestReceived?: (friend: FriendRequestEntry) => void;
@@ -1533,6 +1563,7 @@ export class NetworkManager {
               rotation: p.rotation,
               pitch: p.pitch || 0,
               headYaw: p.headYaw || 0,
+              headPitch: p.headPitch,
               companionId: p.companionId ?? null,
               state: p.state || 'idle',
               jumping: !!p.jumping,
@@ -2447,6 +2478,14 @@ export class NetworkManager {
       case "tournamentActionResult":
         this.onTournamentActionResult?.({ action: data.action, tournamentId: data.tournamentId });
         break;
+      case "questRewardGranted":
+        this.onQuestRewardGranted?.({
+          kind: data.kind,
+          amount: Math.max(0, Math.floor(Number(data.amount) || 0)),
+          factionId: typeof data.factionId === "string" ? data.factionId : "",
+          factionName: typeof data.factionName === "string" ? data.factionName : null,
+        });
+        break;
       case "fragmentsGranted":
         this.onFragmentsGranted?.({
           amount: Math.max(0, Math.floor(Number(data.amount) || 0)),
@@ -2574,6 +2613,7 @@ export class NetworkManager {
     rotation: number;
     pitch: number;
     headYaw: number;
+    headPitch: number;
     state: string;
     jumping: boolean;
     velocityY: number;
@@ -2593,6 +2633,7 @@ export class NetworkManager {
       && Math.abs(previous.rotation - data.rotation) < 0.01
       && Math.abs(previous.pitch - data.pitch) < 0.01
       && Math.abs(previous.headYaw - data.headYaw) < 0.01
+      && Math.abs(previous.headPitch - data.headPitch) < 0.01
       && previous.state === data.state
       && previous.jumping === data.jumping
       && previous.weaponEquipped === data.weaponEquipped
@@ -3229,5 +3270,33 @@ export class NetworkManager {
       this.ws = null;
     }
     this.authenticated = false;
+  }
+
+  // A phone that sleeps takes the socket with it and freezes the timers that
+  // would notice, so the backoff can burn through every attempt against a
+  // network that is not back yet and then give up for good. Coming back to the
+  // foreground is a fresh signal, not another failure: the counter resets and
+  // one attempt goes out immediately.
+  public resumeFromBackground() {
+    if (!this.session) return;
+    if (this.authenticated && this.ws?.readyState === WebSocket.OPEN) return;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempts = 0;
+
+    if (this.ws) {
+      this.ws.onclose = null;
+      try {
+        this.ws.close(4000, "Resuming from background");
+      } catch {
+        // A socket the OS already tore down throws here; nothing to salvage.
+      }
+      this.ws = null;
+    }
+
+    this.connect(this.session);
   }
 }

@@ -389,9 +389,26 @@ async function myEntry(tournamentId: string, userId: string): Promise<Entry | nu
 // The painted texture lives in the player's own skins folder, which is pruned to
 // the last few uploads. Copying it into a per-entry blob makes the submission
 // survive the next repaint.
-async function snapshotSkin(tournamentId: string, userId: string, sourceUrl: string): Promise<string | null> {
+// The stored URL is written by the game server, which only accepts blob-store
+// hosts — re-checked here anyway so this never becomes a way to make the server
+// fetch an arbitrary address if that validation is ever loosened upstream.
+function isBlobStoreUrl(raw: string): boolean {
     try {
-        const response = await fetch(sourceUrl);
+        const parsed = new URL(raw);
+        return parsed.protocol === "https:" && parsed.hostname.endsWith(".public.blob.vercel-storage.com");
+    } catch {
+        return false;
+    }
+}
+
+async function snapshotSkin(tournamentId: string, userId: string, sourceUrl: string): Promise<string | null> {
+    if (!isBlobStoreUrl(sourceUrl)) {
+        console.warn("[tournamentStore] refusing to snapshot a skin from an unexpected host");
+        return null;
+    }
+
+    try {
+        const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(10_000) });
         if (!response.ok) return null;
         const buffer = Buffer.from(await response.arrayBuffer());
         if (buffer.length === 0 || buffer.length > 4 * 1024 * 1024) return null;

@@ -5,6 +5,7 @@ import { generateCSRFToken } from "@/core/auth/lib/csrf";
 import { isSessionRevoked } from "@/core/auth/lib/revocation";
 import { baseCookieOptions, clearLegacyDomainCookies, clearSessionCookies } from "@/core/auth/lib/cookieOptions";
 import {
+  acceptsTokenId,
   describeDevice,
   isBeyondAbsoluteLifetime,
   newSessionId,
@@ -68,12 +69,16 @@ export async function POST(req: NextRequest) {
 
     let sessionId = decoded.sid;
     let sessionCreatedAt = Date.now();
+    // Set when the caller presented the token a very recent rotation replaced:
+    // it is handed the session's current token instead of starting a second
+    // rotation chain, so a racing tab converges rather than being logged out.
+    let replayJti: string | null = null;
 
     if (sessionId) {
       const session = await readSession(decoded.userId, sessionId);
 
       if (session) {
-        if (session.jti !== decoded.jti || isBeyondAbsoluteLifetime(session.createdAt)) {
+        if (!acceptsTokenId(session, decoded.jti) || isBeyondAbsoluteLifetime(session.createdAt)) {
           const stale = NextResponse.json(
             { error: "session_expired" },
             { status: 401, headers: formatRateLimitHeaders(rl) }
@@ -82,6 +87,7 @@ export async function POST(req: NextRequest) {
           return stale;
         }
         sessionCreatedAt = session.createdAt;
+        if (session.jti !== decoded.jti) replayJti = session.jti;
       }
     }
 
@@ -115,7 +121,7 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    const nextTokenId = newTokenId();
+    const nextTokenId = replayJti ?? newTokenId();
     const isNewSession = !sessionId;
     if (!sessionId) sessionId = newSessionId();
 
@@ -137,7 +143,7 @@ export async function POST(req: NextRequest) {
         createdAt: sessionCreatedAt,
         device: describeDevice(req.headers.get("user-agent")),
       });
-    } else {
+    } else if (!replayJti) {
       await rotateSession(decoded.userId, sessionId, nextTokenId);
     }
 

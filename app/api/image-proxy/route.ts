@@ -8,6 +8,10 @@ import zlib from "node:zlib";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// node:http has no default timeout, so a host that accepts the connection and
+// then goes quiet would hold a request open indefinitely — 120 of those per
+// minute per IP is enough to tie the server in knots.
+const UPSTREAM_TIMEOUT_MS = 15_000;
 const ALLOWED_CONTENT_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"];
 
 function isPrivateIp(ip: string): boolean {
@@ -88,6 +92,7 @@ function fetchViaPinnedLookup(url: URL): Promise<IncomingMessage> {
             url,
             {
                 lookup: pinnedPublicLookup as unknown as typeof dns.lookup,
+                timeout: UPSTREAM_TIMEOUT_MS,
                 headers: {
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                     "Accept-Encoding": "gzip, deflate, br"
@@ -95,6 +100,9 @@ function fetchViaPinnedLookup(url: URL): Promise<IncomingMessage> {
             },
             (res) => resolve(res)
         );
+        // `timeout` only fires the event; the socket has to be torn down here or
+        // it stays open and the promise never settles.
+        req.on("timeout", () => req.destroy(new Error("upstream_timeout")));
         req.on("error", reject);
     });
 }

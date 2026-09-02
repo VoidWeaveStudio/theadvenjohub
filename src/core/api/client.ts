@@ -1,5 +1,6 @@
 // src/core/api/client.ts
 import { getCsrfToken } from "@/core/lib/clientUtils";
+import { refreshSession } from "@/core/api/session";
 
 export interface FetchOptions extends Omit<RequestInit, "headers"> {
   headers?: Record<string, string>;
@@ -93,30 +94,12 @@ function sanitizeError(raw: unknown): ApiErrorResponse {
 
 type TranslateFn = (key: string, params?: Record<string, unknown>) => string;
 
+// Deliberately the same refresh as session.ts rather than a second copy: the
+// server rotates the refresh token, so two concurrent refreshes would have the
+// loser present a spent token and get the whole session cleared. Sharing the
+// in-flight promise collapses the burst a phone wake-up produces into one call.
 async function attemptTokenRefresh(): Promise<boolean> {
-  try {
-    const res = await fetch('/api/auth/refresh', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!res.ok) {
-      if (process.env.NODE_ENV === "development") {
-        console.warn('[api] Refresh endpoint returned:', res.status);
-      }
-      return false;
-    }
-
-    const data = await res.json().catch(() => null);
-    return data?.success === true;
-    
-  } catch {
-    if (process.env.NODE_ENV === "development") {
-      console.warn('[api] Token refresh failed');
-    }
-    return false;
-  }
+  return refreshSession();
 }
 
 export async function apiGet<T = unknown>(

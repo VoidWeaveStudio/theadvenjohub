@@ -67,7 +67,7 @@ export function GameDetailModal({
     if (isOpen && slug) {
       loadGame();
     }
-  }, [isOpen, slug, loadGame]);
+  }, [isOpen, slug, loadGame, isAuthorized]);
 
   useEffect(() => {
     if (isOpen) {

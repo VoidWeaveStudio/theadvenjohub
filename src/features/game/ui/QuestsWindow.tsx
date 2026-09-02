@@ -65,10 +65,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
             icon={<ScrollText className="w-7 h-7" />}
         >
             <div className="flex items-center justify-between mb-4">
-                <p className="text-[#8B8F98] text-xs">
-                    Paid quests published by factions. Complete one and the reward is paid straight from that faction&apos;s
-                    quest bank.
-                </p>
+                <p className="text-[#8B8F98] text-xs">{t("g.quests.intro")}</p>
                 <div className="flex items-center gap-1.5 text-[#FFD166] text-sm font-bold flex-shrink-0 ml-4">
                     <Gem className="w-4 h-4" />
                     {ash} Ash
@@ -118,7 +115,7 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
                                 <div className="flex items-center justify-between gap-3 text-xs">
                                     <span className="text-[#E5E7EB] font-bold">{t("g.quest.viewPost")}</span>
                                     <span className="text-[#8B8F98]">
-                                        {quest.slotsClaimed} / {quest.slotsTotal} rewarded
+                                        {t("g.quests.rewardedCount", { claimed: quest.slotsClaimed, total: quest.slotsTotal })}
                                     </span>
                                 </div>
 
@@ -158,8 +155,8 @@ export function QuestsWindow({ isOpen, onClose, quests, ash, onRequestQuests, on
                                             {!opened
                                                 ? t("g.quest.openFirst")
                                                 : remainingSeconds > 0
-                                                    ? `Confirming... ${remainingSeconds}s`
-                                                    : `Claim +${quest.rewardAsh} Ash`}
+                                                    ? t("g.quests.confirming", { seconds: remainingSeconds })
+                                                    : t("g.quests.claimAsh", { amount: quest.rewardAsh })}
                                         </button>
                                     </div>
                                 )}

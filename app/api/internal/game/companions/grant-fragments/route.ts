@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyInternalRequest, unauthorizedResponse } from "@/core/lib/internalAuth";
 import { adjustWallet, readCompanionState } from "@/core/lib/companionInventory";
 
-const MAX_GRANT = 50;
+const MAX_GRANT = 100;
 
-// Fragment payouts the game server hands out for world content — currently the
-// canyon bosses. Credit-only: a negative amount is rejected rather than clamped
+// Fragment payouts the game server hands out for world content — canyon bosses
+// and quest rewards. Credit-only: a negative amount is rejected rather than clamped
 // so a bug upstream can never quietly drain a wallet through this route.
 export async function POST(req: NextRequest) {
     if (!verifyInternalRequest(req)) {

@@ -39,9 +39,14 @@ const header = "// game-server/defusalArsenal.js\n";
 
 const generated = `${header}${transpile(readFileSync(SOURCE, "utf8"))}\nmodule.exports = { ${EXPORTS.join(", ")} };\n`;
 
+// Line endings differ between a CRLF checkout and what this script writes, and
+// that is not drift — compare the content, the way sync-cave and sync-influence
+// already do, or the check goes permanently red on Windows.
+const normalise = (text) => text.replace(/\r\n/g, "\n");
+
 if (process.argv.includes("--check")) {
     const current = readFileSync(TARGET, "utf8");
-    if (current !== generated) {
+    if (normalise(current) !== normalise(generated)) {
         console.error("[arsenal] game-server/defusalArsenal.js is out of date — run npm run sync:arsenal");
         process.exit(1);
     }
