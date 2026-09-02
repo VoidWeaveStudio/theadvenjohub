@@ -1590,6 +1590,7 @@ export const en: Translations = {
   "g.invitePicker.noFactions": "You are not a member of any faction.",
   "g.factions.none": "You haven't founded or joined a faction yet.",
   "g.npcDialogue.next": "Next",
+  "g.npcDialogue.skip": "Skip",
   "g.party.inviteHint": "Click a player's name anywhere in the interface and pick {action}. A party holds four.",
   "g.party.inviteAction": " Invite to party",
   "g.quest.stewardsMet": "stewards met",

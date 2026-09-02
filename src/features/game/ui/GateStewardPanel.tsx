@@ -7,7 +7,7 @@ import { DoorOpen, Loader2 } from "lucide-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { gameFetch } from "../utils/gameFetch";
-import { SoundManager } from "../core/SoundManager";
+import { NpcPanelFrame } from "./shell/NpcPanelFrame";
 import { payTnj, PayTnjError, type PayStage } from "@/core/blockchain/payTnj";
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/core/blockchain/pendingPayment";
 import { fetchPayableTnj } from "../utils/shopQuote";
@@ -47,6 +47,14 @@ interface GateStewardPanelProps {
 
 type PayState = false | "connecting" | "signing" | "confirming";
 type StewardTab = "rooms" | "purchase" | "find";
+
+const ACCENT = "#E8A33D";
+
+const STEWARD_TABS: { id: StewardTab; labelKey: string }[] = [
+    { id: "rooms", labelKey: "g.gate.tab.rooms" },
+    { id: "purchase", labelKey: "g.gate.tab.buy" },
+    { id: "find", labelKey: "g.gate.tab.find" },
+];
 
 function mapPurchaseError(code: string): string {
     switch (code) {
@@ -93,15 +101,7 @@ export function GateStewardPanel({
     const [findResult, setFindResult] = useState<LookupResult | null>(null);
     const [findError, setFindError] = useState<string | null>(null);
 
-    const wasOpenRef = useRef(false);
     const isProcessingRef = useRef(false);
-
-    useEffect(() => {
-        if (isOpen && !wasOpenRef.current) {
-            SoundManager.getInstance().play('modal-open');
-        }
-        wasOpenRef.current = isOpen;
-    }, [isOpen]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -223,8 +223,6 @@ export function GateStewardPanel({
         }
     }, [result, publicKey, connected, wallet, isAuthorized, onPurchased]);
 
-    if (!isOpen) return null;
-
     const payButtonLabel =
         payState === "connecting" ? t("g.pay.preparing") :
             payState === "signing" ? t("g.pay.confirmInWallet") :
@@ -232,225 +230,209 @@ export function GateStewardPanel({
                     t("g.gate.buyPrice", { amount: (gateQuote?.payableTnj ?? 0).toLocaleString("en-US") });
 
     return (
-        <div
-            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
-            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-        >
-            <div className="w-full max-w-md bg-[rgba(20,16,8,0.95)] border-2 border-[#E8A33D]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(232,163,61,0.15)]">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <DoorOpen className="w-5 h-5 text-[#E8A33D]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.gate.title")}</h2>
-                    </div>
-                    <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
-                        ✕
-                    </button>
-                </div>
-
-                <div className="flex gap-1 mb-4 bg-black/30 rounded-lg p-1">
-                    <button
-                        onClick={() => setActiveTab("rooms")}
-                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "rooms" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
-                    >
-                        {t("g.gate.tab.rooms")}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("purchase")}
-                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "purchase" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
-                    >
-                        {t("g.gate.tab.buy")}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("find")}
-                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === "find" ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
-                    >
-                        {t("g.gate.tab.find")}
-                    </button>
-                </div>
-
-                {activeTab === "rooms" && (
-                    <>
-                        <p className="text-[#8B8F98] text-sm mb-4">
-                            {t("g.gate.rooms.intro")}
-                        </p>
-
+        <NpcPanelFrame
+            isOpen={isOpen}
+            onClose={onClose}
+            title={t("g.gate.title")}
+            accent={ACCENT}
+            background="rgba(20,16,8,0.95)"
+            icon={<DoorOpen className="w-5 h-5" />}
+            subheader={
+                <div className="flex gap-1 bg-black/30 rounded-lg p-1">
+                    {STEWARD_TABS.map(({ id, labelKey }) => (
                         <button
-                            onClick={() => { onEnterPersonalRoom(); onClose(); }}
-                            className="btn-primary px-4 py-2 text-sm w-full mb-4"
+                            key={id}
+                            onClick={() => setActiveTab(id)}
+                            className={`flex-1 game-tap py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === id ? "bg-[#E8A33D]/20 text-[#E8A33D]" : "text-[#8B8F98] hover:text-[#E5E7EB]"}`}
                         >
-                            {t("g.gate.rooms.enterMine")}
+                            {t(labelKey)}
                         </button>
+                    ))}
+                </div>
+            }
+        >
+            {activeTab === "rooms" && (
+                <>
+                    <p className="text-[#8B8F98] text-sm mb-4">
+                        {t("g.gate.rooms.intro")}
+                    </p>
 
-                        <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">{t("g.gate.rooms.factionRooms")}</div>
+                    <button
+                        onClick={() => { onEnterPersonalRoom(); onClose(); }}
+                        className="btn-primary px-4 py-2 text-sm w-full mb-4"
+                    >
+                        {t("g.gate.rooms.enterMine")}
+                    </button>
 
-                        {myFactions.length === 0 ? (
-                            <p className="text-[#8B8F98] text-sm">{t("g.gate.rooms.noFactions")}</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {myFactions.map((faction) => {
-                                    const hasRoom = gateFactionIds.includes(faction.id);
-                                    return (
-                                        <div key={faction.id} className="flex items-center gap-3 bg-white/5 rounded-lg p-2.5">
-                                            {faction.image ? (
-                                                <img src={faction.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                                            ) : (
-                                                <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-[#E5E7EB] font-bold text-sm truncate">{faction.name}</div>
-                                                {!hasRoom && <div className="text-[#8B8F98] text-xs">{t("g.gate.rooms.noRoom")}</div>}
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    onTeleport({
-                                                        id: faction.id,
-                                                        name: faction.name,
-                                                        symbol: faction.symbol,
-                                                        image: faction.image,
-                                                        tokenCa: faction.tokenCa ?? null,
-                                                    });
-                                                    onClose();
-                                                }}
-                                                disabled={!hasRoom}
-                                                className="btn-secondary px-3 py-1.5 text-xs flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                                            >
-                                                {t("g.gate.rooms.enter")}
-                                            </button>
+                    <div className="text-[#8B8F98] text-xs uppercase tracking-wide mb-2">{t("g.gate.rooms.factionRooms")}</div>
+
+                    {myFactions.length === 0 ? (
+                        <p className="text-[#8B8F98] text-sm">{t("g.gate.rooms.noFactions")}</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {myFactions.map((faction) => {
+                                const hasRoom = gateFactionIds.includes(faction.id);
+                                return (
+                                    <div key={faction.id} className="flex items-center gap-3 bg-white/5 rounded-lg p-2.5">
+                                        {faction.image ? (
+                                            <img src={faction.image} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                                        ) : (
+                                            <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-[#E5E7EB] font-bold text-sm truncate">{faction.name}</div>
+                                            {!hasRoom && <div className="text-[#8B8F98] text-xs">{t("g.gate.rooms.noRoom")}</div>}
                                         </div>
-                                    );
-                                })}
+                                        <button
+                                            onClick={() => {
+                                                onTeleport({
+                                                    id: faction.id,
+                                                    name: faction.name,
+                                                    symbol: faction.symbol,
+                                                    image: faction.image,
+                                                    tokenCa: faction.tokenCa ?? null,
+                                                });
+                                                onClose();
+                                            }}
+                                            disabled={!hasRoom}
+                                            className="btn-secondary px-3 py-1.5 text-xs flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            {t("g.gate.rooms.enter")}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {activeTab === "purchase" && (
+                <>
+                    <p className="text-[#8B8F98] text-sm mb-4">
+                        {t("g.gate.buy.intro")}
+                    </p>
+
+                    <div className="flex gap-2 mb-3">
+                        <input
+                            type="text"
+                            value={ca}
+                            onChange={(e) => setCa(e.target.value.slice(0, 64))}
+                            placeholder={t("g.gate.ca.placeholder")}
+                            autoFocus
+                            className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
+                        />
+                        <button
+                            onClick={handleLookup}
+                            disabled={ca.trim().length < 32 || searching}
+                            className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {searching ? "..." : t("g.gate.buy.lookUp")}
+                        </button>
+                    </div>
+
+                    {result && (
+                        result.faction ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
+                                    {result.faction.image ? (
+                                        <img src={result.faction.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
+                                    )}
+                                    <div className="text-[#E5E7EB] font-bold text-sm">
+                                        {result.faction.name} {result.faction.symbol && <span className="text-[#8B8F98]">${result.faction.symbol}</span>}
+                                    </div>
+                                </div>
+
+                                {result.hasGate ? (
+                                    <p className="text-[#4ADE80] text-sm">{t("g.gate.buy.hasGate")}</p>
+                                ) : result.canPurchase ? (
+                                    <button
+                                        onClick={handlePurchase}
+                                        disabled={!!payState}
+                                        className="btn-primary px-4 py-2 text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {payState && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {payButtonLabel}
+                                    </button>
+                                ) : (
+                                    <p className="text-[#FFD166] text-sm">{t("g.gate.buy.cannotBuy")}</p>
+                                )}
                             </div>
-                        )}
-                    </>
-                )}
+                        ) : (
+                            <p className="text-[#8B8F98] text-sm">{t("g.gate.noFactionForToken")}</p>
+                        )
+                    )}
 
-                {activeTab === "purchase" && (
-                    <>
-                        <p className="text-[#8B8F98] text-sm mb-4">
-                            {t("g.gate.buy.intro")}
+                    {error && (
+                        <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
+                            {t(error)}
                         </p>
+                    )}
+                </>
+            )}
 
-                        <div className="flex gap-2 mb-3">
-                            <input
-                                type="text"
-                                value={ca}
-                                onChange={(e) => setCa(e.target.value.slice(0, 64))}
-                                placeholder={t("g.gate.ca.placeholder")}
-                                autoFocus
-                                className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
-                            />
-                            <button
-                                onClick={handleLookup}
-                                disabled={ca.trim().length < 32 || searching}
-                                className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {searching ? "..." : t("g.gate.buy.lookUp")}
-                            </button>
-                        </div>
+            {activeTab === "find" && (
+                <>
+                    <p className="text-[#8B8F98] text-sm mb-4">
+                        {t("g.gate.find.intro")}
+                    </p>
 
-                        {result && (
-                            result.faction ? (
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
-                                        {result.faction.image ? (
-                                            <img src={result.faction.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                                        ) : (
-                                            <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
-                                        )}
-                                        <div className="text-[#E5E7EB] font-bold text-sm">
-                                            {result.faction.name} {result.faction.symbol && <span className="text-[#8B8F98]">${result.faction.symbol}</span>}
-                                        </div>
-                                    </div>
+                    <div className="flex gap-2 mb-3">
+                        <input
+                            type="text"
+                            value={findCa}
+                            onChange={(e) => setFindCa(e.target.value.slice(0, 64))}
+                            placeholder={t("g.gate.ca.placeholder")}
+                            className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
+                        />
+                        <button
+                            onClick={handleFindLookup}
+                            disabled={findCa.trim().length < 32 || findSearching}
+                            className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {findSearching ? "..." : t("g.gate.find.search")}
+                        </button>
+                    </div>
 
-                                    {result.hasGate ? (
-                                        <p className="text-[#4ADE80] text-sm">{t("g.gate.buy.hasGate")}</p>
-                                    ) : result.canPurchase ? (
-                                        <button
-                                            onClick={handlePurchase}
-                                            disabled={!!payState}
-                                            className="btn-primary px-4 py-2 text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                        >
-                                            {payState && <Loader2 className="w-4 h-4 animate-spin" />}
-                                            {payButtonLabel}
-                                        </button>
+                    {findResult && (
+                        findResult.faction ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
+                                    {findResult.faction.image ? (
+                                        <img src={findResult.faction.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                                     ) : (
-                                        <p className="text-[#FFD166] text-sm">{t("g.gate.buy.cannotBuy")}</p>
+                                        <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
                                     )}
+                                    <div className="text-[#E5E7EB] font-bold text-sm">
+                                        {findResult.faction.name} {findResult.faction.symbol && <span className="text-[#8B8F98]">${findResult.faction.symbol}</span>}
+                                    </div>
                                 </div>
-                            ) : (
-                                <p className="text-[#8B8F98] text-sm">{t("g.gate.noFactionForToken")}</p>
-                            )
-                        )}
 
-                        {error && (
-                            <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
-                                {t(error)}
-                            </p>
-                        )}
-                    </>
-                )}
+                                {findResult.hasGate ? (
+                                    <button
+                                        onClick={handleTeleport}
+                                        className="btn-primary px-4 py-2 text-sm w-full"
+                                    >
+                                        {t("g.gate.find.teleport")}
+                                    </button>
+                                ) : (
+                                    <p className="text-[#FFD166] text-sm">{t("g.gate.find.noGate")}</p>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-[#8B8F98] text-sm">{t("g.gate.noFactionForToken")}</p>
+                        )
+                    )}
 
-                {activeTab === "find" && (
-                    <>
-                        <p className="text-[#8B8F98] text-sm mb-4">
-                            {t("g.gate.find.intro")}
+                    {findError && (
+                        <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
+                            {t(findError)}
                         </p>
-
-                        <div className="flex gap-2 mb-3">
-                            <input
-                                type="text"
-                                value={findCa}
-                                onChange={(e) => setFindCa(e.target.value.slice(0, 64))}
-                                placeholder={t("g.gate.ca.placeholder")}
-                                className="flex-1 min-w-0 bg-[rgba(255,255,255,0.04)] text-[#E5E7EB] px-3 py-2 rounded-lg text-sm border border-white/10 focus:border-[#E8A33D]/50 outline-none font-mono"
-                            />
-                            <button
-                                onClick={handleFindLookup}
-                                disabled={findCa.trim().length < 32 || findSearching}
-                                className="btn-secondary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {findSearching ? "..." : t("g.gate.find.search")}
-                            </button>
-                        </div>
-
-                        {findResult && (
-                            findResult.faction ? (
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-3 bg-white/5 rounded-lg p-3">
-                                        {findResult.faction.image ? (
-                                            <img src={findResult.faction.image} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                                        ) : (
-                                            <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
-                                        )}
-                                        <div className="text-[#E5E7EB] font-bold text-sm">
-                                            {findResult.faction.name} {findResult.faction.symbol && <span className="text-[#8B8F98]">${findResult.faction.symbol}</span>}
-                                        </div>
-                                    </div>
-
-                                    {findResult.hasGate ? (
-                                        <button
-                                            onClick={handleTeleport}
-                                            className="btn-primary px-4 py-2 text-sm w-full"
-                                        >
-                                            {t("g.gate.find.teleport")}
-                                        </button>
-                                    ) : (
-                                        <p className="text-[#FFD166] text-sm">{t("g.gate.find.noGate")}</p>
-                                    )}
-                                </div>
-                            ) : (
-                                <p className="text-[#8B8F98] text-sm">{t("g.gate.noFactionForToken")}</p>
-                            )
-                        )}
-
-                        {findError && (
-                            <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mt-3">
-                                {t(findError)}
-                            </p>
-                        )}
-                    </>
-                )}
-            </div>
-        </div>
+                    )}
+                </>
+            )}
+        </NpcPanelFrame>
     );
 }

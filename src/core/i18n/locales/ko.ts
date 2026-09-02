@@ -1591,6 +1591,7 @@ export const ko: Translations = {
   "g.invitePicker.noFactions": "어떤 팩션에도 속해 있지 않습니다.",
   "g.factions.none": "아직 팩션을 창설하거나 가입하지 않았습니다.",
   "g.npcDialogue.next": "다음",
+  "g.npcDialogue.skip": "건너뛰기",
   "g.party.inviteHint": "인터페이스 어디에서든 플레이어 이름을 클릭하고 {action}을(를) 선택하세요. 파티는 네 명까지입니다.",
   "g.party.inviteAction": " 파티에 초대",
   "g.quest.stewardsMet": "명의 관리인을 만남",

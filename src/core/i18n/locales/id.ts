@@ -1591,6 +1591,7 @@ export const id: PartialTranslations = {
   "g.invitePicker.noFactions": "Kamu bukan anggota faksi mana pun.",
   "g.factions.none": "Kamu belum mendirikan atau bergabung dengan faksi.",
   "g.npcDialogue.next": "Berikutnya",
+  "g.npcDialogue.skip": "Lewati",
   "g.party.inviteHint": "Klik nama pemain di mana pun di antarmuka lalu pilih {action}. Satu grup memuat empat orang.",
   "g.party.inviteAction": " Undang ke grup",
   "g.quest.stewardsMet": "penjaga yang ditemui",

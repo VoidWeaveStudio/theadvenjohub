@@ -1708,7 +1708,7 @@ export function GameClient({ slug }: GameClientProps) {
         <TopMenu
           active={activeTopWindow}
           onSelect={handleTopMenuSelect}
-          badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests || companionState.companions.crates > 0, shop: companionState.companions.crates > 0 }}
+          badges={{ social: socialState.hasUnreadMail || socialState.hasIncomingRequests || companionState.companions.crates > 0 || (progressionState.progression?.skillPoints ?? 0) > 0, shop: companionState.companions.crates > 0 }}
         />
       )}
       {dust2Me ? (
@@ -1747,7 +1747,7 @@ export function GameClient({ slug }: GameClientProps) {
         rotated={rotated}
         canBuy={grinderMatch ? grinderMatch.phase === "live" : defusalMatch?.phase === "freeze" || defusalMatch?.phase === "warmup"}
         showSlots={!dust2Me}
-        visible={touchMode && !loading && !chatExpanded && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null}
+        visible={touchMode && !loading && !chatExpanded && activeTopWindow === null && wheelMode === null && !inventory.isInventoryOpen && !isBuyMenuOpen && tradeSession === null && npcDialogue.dialogue === null && !isVendorOpen && !isSolaOpen && !isAlfredoOpen && !isGateStewardOpen && !canyonMap.isCanyonMapOpen && !isSkillTreeOpen && !isSpecializationOpen && !isCreateFactionModalOpen}
         onOpenWheel={() => openWheel("touch")}
       />
       <RadialWheel
@@ -2019,6 +2019,13 @@ export function GameClient({ slug }: GameClientProps) {
         }}
         onNicknameChange={handleNicknameChange}
         quests={questLog}
+        progression={progressionState.progression}
+        onLearnSkill={(nodeId) => gameRef.current?.learnSkill(nodeId)}
+        onBindAbility={(slot, abilityId) => gameRef.current?.bindAbility(slot, abilityId)}
+        onOpenSpecialization={() => {
+          setActiveTopWindow(null);
+          setIsSpecializationOpen(true);
+        }}
         friends={socialState.friends}
         incomingRequests={socialState.incomingRequests}
         outgoingRequests={socialState.outgoingRequests}

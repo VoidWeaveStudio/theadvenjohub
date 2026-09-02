@@ -26,7 +26,7 @@ export function AshStore({ ash, placeables, prices, onBuyItem }: AshStoreProps) 
     });
 
     return (
-        <div className="flex flex-col h-full min-h-0">
+        <div className="flex flex-col h-full min-h-0 flex-1">
             <div className="flex items-center justify-between mb-3">
                 <div className="text-[#8B8F98] text-xs font-bold tracking-wider">{t("g.shop.goods")}</div>
                 <div className="flex items-center gap-1.5 text-[#FFD166] text-sm font-bold">

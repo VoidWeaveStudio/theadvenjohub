@@ -1591,6 +1591,7 @@ export const vi: PartialTranslations = {
   "g.invitePicker.noFactions": "Bạn không phải thành viên của phe nào.",
   "g.factions.none": "Bạn chưa lập hay gia nhập phe nào.",
   "g.npcDialogue.next": "Tiếp",
+  "g.npcDialogue.skip": "Bỏ qua",
   "g.party.inviteHint": "Bấm vào tên người chơi ở bất kỳ đâu trong giao diện rồi chọn {action}. Một nhóm chứa được bốn người.",
   "g.party.inviteAction": " Mời vào nhóm",
   "g.quest.stewardsMet": "người quản đã gặp",

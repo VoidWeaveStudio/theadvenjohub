@@ -46,10 +46,10 @@ export function InventoryGrid({
 
     return (
         <div
-            className="grid gap-1.5 overflow-auto overscroll-contain pr-1"
+            className="grid gap-1.5 overflow-auto overscroll-contain pr-1 min-h-0"
             style={{
                 gridTemplateColumns: `repeat(${columns}, minmax(40px, 1fr))`,
-                maxHeight: "min(480px, 52dvh)",
+                maxHeight: "min(480px, calc(52 * var(--game-vh)))",
             }}
             onMouseLeave={() => onHoverChange?.(null)}
         >

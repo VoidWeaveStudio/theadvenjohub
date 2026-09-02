@@ -1591,6 +1591,7 @@ export const be: PartialTranslations = {
   "g.invitePicker.noFactions": "Вы не ўдзельнік ніводнай фракцыі.",
   "g.factions.none": "Вы яшчэ не заснавалі і не далучыліся да фракцыі.",
   "g.npcDialogue.next": "Далей",
+  "g.npcDialogue.skip": "Прапусціць",
   "g.party.inviteHint": "Націсніце імя гульца ў любым месцы інтэрфейсу і выберыце {action}. У групе чацвёра.",
   "g.party.inviteAction": " Запрасіць у групу",
   "g.quest.stewardsMet": "сустрэта наглядчыкаў",

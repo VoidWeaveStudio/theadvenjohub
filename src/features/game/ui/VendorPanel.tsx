@@ -160,10 +160,10 @@ export function VendorPanel({ isOpen, quest, onAcceptQuest, onTurnInQuest, inven
 
     return (
         <div
-            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-2 sm:p-4"
+            className="game-vendor-frame absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex flex-col items-center justify-center z-50 pointer-events-auto font-oxanium gap-4 p-2 sm:p-4 overflow-hidden"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="flex items-center justify-between w-full max-w-6xl">
+            <div className="flex items-center justify-between w-full max-w-6xl flex-shrink-0">
                 <div className="flex items-center gap-2">
                     <Store className="w-5 h-5 text-[#FFD166]" />
                     <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.npc.tony")}</h2>
@@ -174,7 +174,7 @@ export function VendorPanel({ isOpen, quest, onAcceptQuest, onTurnInQuest, inven
                         <button
                             key={id}
                             onClick={() => setTab(id)}
-                            className={`px-4 py-1.5 rounded-[7px] text-xs font-bold transition-colors ${tab === id
+                            className={`game-tap px-4 py-1.5 rounded-[7px] text-xs font-bold transition-colors ${tab === id
                                 ? "bg-[rgba(255,209,102,0.16)] text-[#FFD166]"
                                 : "bg-transparent text-[#8B8F98] hover:text-[#E5E7EB]"
                                 }`}
@@ -184,12 +184,15 @@ export function VendorPanel({ isOpen, quest, onAcceptQuest, onTurnInQuest, inven
                     ))}
                 </div>
 
-                <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
+                <button
+                    onClick={onClose}
+                    className="game-npc-close w-9 h-9 p-0 border-0 rounded-full flex items-center justify-center bg-[rgba(255,255,255,0.06)] text-[#8B8F98] hover:text-[#E5E7EB] hover:bg-[rgba(255,255,255,0.12)] transition-colors"
+                >
                     <X className="w-5 h-5" />
                 </button>
             </div>
 
-            <div className="w-full max-w-3xl empty:hidden">
+            <div className="w-full max-w-3xl empty:hidden flex-shrink-0 max-h-[calc(38*var(--game-vh))] overflow-y-auto overscroll-contain">
                 <NpcQuestSection
                     quest={quest}
                     accent="#FFD166"
@@ -199,14 +202,14 @@ export function VendorPanel({ isOpen, quest, onAcceptQuest, onTurnInQuest, inven
             </div>
 
             {tab === "buy" && (
-                <div className="w-full max-w-3xl h-[calc(60*var(--game-vh))] bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
+                <div className="w-full max-w-3xl min-h-0 h-[calc(60*var(--game-vh))] flex flex-col overflow-hidden bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-4 sm:p-5 shadow-2xl">
                     <AshStore ash={ash} placeables={placeables} prices={shopPrices} onBuyItem={onBuyItem} />
                 </div>
             )}
 
-            <div className={`gap-4 w-full max-w-4xl items-stretch ${tab === "sell" ? "flex" : "hidden"}`}>
-                <div className="flex-1 bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-5 shadow-2xl">
-                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3">{t("g.vendor.yourInventory")}</div>
+            <div className={`gap-4 w-full max-w-4xl items-stretch min-h-0 max-h-[calc(70*var(--game-vh))] ${tab === "sell" ? "flex" : "hidden"}`}>
+                <div className="flex-1 min-w-0 flex flex-col bg-[rgba(12,12,14,0.92)] border border-[rgba(255,255,255,0.1)] rounded-[16px] p-4 sm:p-5 shadow-2xl overflow-y-auto overscroll-contain">
+                    <div className="text-[#8B8F98] text-xs font-bold tracking-wider mb-3 flex-shrink-0">{t("g.vendor.yourInventory")}</div>
                     <InventoryGrid
                         items={availableInventory}
                         columns={6}
@@ -222,7 +225,7 @@ export function VendorPanel({ isOpen, quest, onAcceptQuest, onTurnInQuest, inven
                     />
                 </div>
 
-                <div className="w-full max-w-[260px] flex-shrink-0 bg-[rgba(20,16,8,0.92)] border-2 border-[#FFD166]/50 rounded-[16px] p-5 shadow-[0_0_35px_rgba(255,209,102,0.15)] flex flex-col">
+                <div className="w-full max-w-[260px] flex-shrink-0 bg-[rgba(20,16,8,0.92)] border-2 border-[#FFD166]/50 rounded-[16px] p-4 sm:p-5 shadow-[0_0_35px_rgba(255,209,102,0.15)] flex flex-col overflow-y-auto overscroll-contain">
                     <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                             <ArrowLeftRight className="w-4 h-4 text-[#FFD166]" />

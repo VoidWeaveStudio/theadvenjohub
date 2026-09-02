@@ -35,7 +35,7 @@ export function PreviewModal({
                 if (e.target === e.currentTarget) onClose();
             }}
         >
-            <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-white/10 bg-[rgba(13,17,23,0.98)] shadow-[0_12px_48px_rgba(0,0,0,0.65)]">
+            <div className="flex w-full max-w-md max-h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-[rgba(13,17,23,0.98)] shadow-[0_12px_48px_rgba(0,0,0,0.65)]">
                 <div className="flex items-start justify-between gap-3 px-5 py-4">
                     <div className="min-w-0">
                         <h2 className="truncate text-base font-black tracking-wide text-[#E5E7EB]">{title}</h2>
@@ -57,7 +57,7 @@ export function PreviewModal({
                 </div>
 
                 <div
-                    className="mx-5 h-[320px] overflow-hidden rounded-xl border border-white/10"
+                    className="mx-5 h-[clamp(140px,calc(42*var(--game-vh)),320px)] flex-shrink-0 overflow-hidden rounded-xl border border-white/10"
                     style={{ background: `radial-gradient(circle at 50% 15%, ${accent}22 -10%, rgba(0,0,0,0.45) 70%)` }}
                 >
                     <ModelPreview subject={subject} />

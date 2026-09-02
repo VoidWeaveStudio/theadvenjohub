@@ -1591,6 +1591,7 @@ export const fil: PartialTranslations = {
   "g.invitePicker.noFactions": "Hindi ka miyembro ng kahit anong faction.",
   "g.factions.none": "Wala ka pang naitatag o nasasaliang faction.",
   "g.npcDialogue.next": "Susunod",
+  "g.npcDialogue.skip": "Laktawan",
   "g.party.inviteHint": "I-click ang pangalan ng manlalaro kahit saan sa interface at piliin ang {action}. Apat ang kasya sa isang party.",
   "g.party.inviteAction": " Imbitahan sa party",
   "g.quest.stewardsMet": "mga steward na nakausap",

@@ -253,6 +253,68 @@ html[data-game-immersive="true"] main > div {
   padding: 0.5rem 1rem;
 }
 
+[data-touch="true"] .game-tap {
+  min-height: var(--tap-target);
+}
+
+[data-touch="true"] .game-npc-frame {
+  padding: 6px calc(6px + var(--safe-right)) 6px calc(6px + var(--safe-left));
+}
+
+[data-touch="true"] .game-npc-panel {
+  max-width: 560px;
+  border-radius: 14px;
+}
+
+[data-touch="true"] .game-npc-head {
+  padding: 0.55rem 0.85rem 0.45rem;
+}
+
+[data-touch="true"] .game-npc-title {
+  font-size: 1rem;
+}
+
+[data-touch="true"] .game-npc-close {
+  width: var(--tap-target);
+  height: var(--tap-target);
+}
+
+[data-touch="true"] .game-npc-sub {
+  padding: 0 0.85rem 0.5rem;
+}
+
+[data-touch="true"] .game-npc-body {
+  padding: 0 0.85rem 0.7rem;
+}
+
+[data-touch="true"] .game-npc-foot {
+  padding: 0.45rem 0.85rem;
+}
+
+[data-touch="true"] .game-npc-dialogue {
+  padding-bottom: calc(10px + var(--safe-bottom));
+  padding-left: calc(8px + var(--safe-left));
+  padding-right: calc(8px + var(--safe-right));
+}
+
+[data-touch="true"] .game-vendor-frame {
+  padding: 6px calc(6px + var(--safe-right)) 6px calc(6px + var(--safe-left));
+  gap: 0.5rem;
+}
+
+[data-touch="true"] .game-skill-column {
+  min-width: 132px;
+}
+
+[data-touch="true"] .game-skill-detail {
+  max-width: 240px;
+}
+
+[data-touch="true"] .game-skill-degen {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
 [data-touch="true"] .game-death-panel {
   gap: 0.6rem;
 }

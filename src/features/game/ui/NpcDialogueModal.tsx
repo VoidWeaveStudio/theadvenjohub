@@ -52,13 +52,13 @@ export function NpcDialogueModal({ dialogue, onFinish, onSkip }: NpcDialogueModa
     }
 
     return (
-        <div className="absolute inset-0 z-50 flex items-end justify-center pb-24 pointer-events-auto font-oxanium bg-[rgba(6,8,12,0.35)] backdrop-blur-[1px]">
+        <div className="game-npc-dialogue absolute inset-0 z-50 flex items-end justify-center pb-24 pointer-events-auto font-oxanium bg-[rgba(6,8,12,0.35)] backdrop-blur-[1px]">
             <div
-                className="w-full max-w-2xl mx-4 rounded-2xl border bg-[rgba(13,17,23,0.97)] overflow-hidden"
+                className="w-full max-w-2xl max-h-full mx-4 flex flex-col rounded-2xl border bg-[rgba(13,17,23,0.97)] overflow-hidden"
                 style={{ borderColor: `${dialogue.accent}55`, boxShadow: `0 0 40px ${dialogue.accent}22` }}
             >
                 <div
-                    className="flex items-center gap-3 px-5 py-3 border-b"
+                    className="flex items-center gap-3 px-5 py-3 border-b flex-shrink-0"
                     style={{ borderColor: `${dialogue.accent}22`, background: `${dialogue.accent}14` }}
                 >
                     <span
@@ -75,11 +75,13 @@ export function NpcDialogueModal({ dialogue, onFinish, onSkip }: NpcDialogueModa
                     </div>
                 </div>
 
-                <div className="px-5 py-5 min-h-[92px] flex items-center">
-                    <p className="text-[#E5E7EB] text-sm leading-relaxed">{t(dialogue.lines[lineIndex])}</p>
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                    <div className="px-5 py-5 min-h-[92px] flex items-center">
+                        <p className="text-[#E5E7EB] text-sm leading-relaxed">{t(dialogue.lines[lineIndex])}</p>
+                    </div>
                 </div>
 
-                <div className="flex items-center justify-between px-5 py-3 border-t border-white/8">
+                <div className="flex items-center justify-between px-5 py-3 border-t border-white/8 flex-shrink-0">
                     <div className="flex items-center gap-1.5">
                         {dialogue.lines.map((_, i) => (
                             <span
@@ -93,13 +95,13 @@ export function NpcDialogueModal({ dialogue, onFinish, onSkip }: NpcDialogueModa
                     <div className="flex items-center gap-2">
                         <button
                             onClick={onSkip}
-                            className="text-[#6B7280] hover:text-[#9CA3AF] text-xs font-bold px-3 py-2 bg-transparent border-0"
+                            className="text-[#6B7280] hover:text-[#9CA3AF] text-xs font-bold game-tap px-3 py-2 bg-transparent border-0"
                         >
-                            Skip
+                            {t("g.npcDialogue.skip")}
                         </button>
                         <button
                             onClick={advance}
-                            className="flex items-center gap-1.5 text-xs font-black px-4 py-2 rounded-[8px] border-0"
+                            className="flex items-center gap-1.5 text-xs font-black game-tap px-4 py-2 rounded-[8px] border-0"
                             style={{ background: dialogue.accent, color: "#0C0C0E" }}
                         >
                             {isLast ? t(dialogue.action) : t("g.npcDialogue.next")}

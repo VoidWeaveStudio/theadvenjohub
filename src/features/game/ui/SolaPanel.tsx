@@ -1,14 +1,16 @@
 // src/features/game/ui/SolaPanel.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { X, ScrollText, Coins, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { ScrollText, Coins, RotateCcw } from "lucide-react";
 import { QuestInfoData, ProgressionStateData } from "../network/NetworkManager";
-import { SoundManager } from "../core/SoundManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { NpcQuestCard } from "./NpcQuestCard";
+import { NpcPanelFrame } from "./shell/NpcPanelFrame";
 
 type SolaTab = "quests" | "tokenInfo" | "respec";
+
+const ACCENT = "#4ADE80";
 
 interface SolaPanelProps {
     isOpen: boolean;
@@ -28,16 +30,6 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
     const [tokenCa, setTokenCa] = useState("");
     const [justSentCa, setJustSentCa] = useState(false);
 
-    const wasOpenRef = useRef(false);
-    useEffect(() => {
-        if (isOpen && !wasOpenRef.current) {
-            SoundManager.getInstance().play('modal-open');
-        }
-        wasOpenRef.current = isOpen;
-    }, [isOpen]);
-
-    if (!isOpen) return null;
-
     const handleRequestTokenInfo = () => {
         if (!tokenCa.trim()) return;
         onRequestTokenInfo(tokenCa.trim());
@@ -46,124 +38,105 @@ export function SolaPanel({ isOpen, quest, progression = null, ash = 0, onClose,
         setTimeout(() => setJustSentCa(false), 4000);
     };
 
-    return (
-        <div
-            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
-            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    const tabButton = (id: SolaTab, label: string, icon: React.ReactNode, grow: boolean) => (
+        <button
+            onClick={() => setTab(id)}
+            className={`${grow ? "flex-1" : ""} flex items-center justify-center gap-1.5 game-tap px-3 py-2 rounded-[8px] text-xs font-bold transition-all ${tab === id ? "bg-[#4ADE80]/15 text-[#4ADE80]" : "text-[#8B8F98] hover:text-[#E5E7EB]"
+                }`}
         >
-            <div className="w-full max-w-md bg-[rgba(12,16,14,0.95)] border-2 border-[#4ADE80]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(74,222,128,0.15)]">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <ScrollText className="w-5 h-5 text-[#4ADE80]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.npc.sola")}</h2>
-                    </div>
-                    <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
+            {icon}
+            {label}
+        </button>
+    );
 
-                <div className="min-h-[140px]">
-                    {tab === "quests" ? (
-                        !quest ? (
-                            <div className="text-[#8B8F98] text-xs text-center py-10">{t("g.sola.loading")}</div>
-                        ) : (
-                            <NpcQuestCard
-                                quest={quest}
-                                accent="#4ADE80"
-                                onAccept={onAccept}
-                                onTurnIn={onTurnIn}
-                                emptyLabel={t("g.sola.noQuests")}
-                            />
-                        )
-                    ) : tab === "respec" ? (
-                        <div>
-                            {!progression || progression.branch === null ? (
-                                <p className="text-[#8B8F98] text-sm text-center py-10">
-                                    {t("g.sola.noSpecialisation")}
-                                </p>
-                            ) : (
-                                <>
-                                    <p className="text-[#8B8F98] text-sm mb-4">
-                                        {t("g.sola.respecIntro")}
-                                    </p>
-                                    <div className="flex items-center justify-between text-sm mb-4">
-                                        <span className="text-[#8B8F98]">{t("g.sola.cost")}</span>
-                                        <span className="text-[#FFD166] font-bold">
-                                            {progression.respecCostAsh === 0 ? t("g.sola.free") : t("g.ash.amount", { amount: progression.respecCostAsh })}
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={() => onRespec?.()}
-                                        disabled={ash < progression.respecCostAsh}
-                                        className="w-full bg-gradient-to-r from-[#C79AE0] to-[#9F6FD0] text-[rgba(12,12,14,0.9)] font-bold px-6 py-2.5 rounded-[8px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {t("g.sola.resetSpecialisation")}
-                                    </button>
-                                    {ash < progression.respecCostAsh && (
-                                        <p className="text-[#FF5757] text-xs mt-3 text-center">
-                                            {t("g.sola.needMoreAsh", { amount: progression.respecCostAsh - ash })}
-                                        </p>
-                                    )}
-                                </>
-                            )}
-                        </div>
+    return (
+        <NpcPanelFrame
+            isOpen={isOpen}
+            onClose={onClose}
+            title={t("g.npc.sola")}
+            accent={ACCENT}
+            background="rgba(12,16,14,0.95)"
+            icon={<ScrollText className="w-5 h-5" />}
+            footer={
+                <div className="flex gap-2">
+                    {tabButton("quests", t("g.sola.tabQuests"), <ScrollText className="w-3.5 h-3.5" />, true)}
+                    {tabButton("tokenInfo", t("g.sola.tabTokenInfo"), <Coins className="w-3.5 h-3.5" />, true)}
+                    {tabButton("respec", t("g.sola.tabRespec"), <RotateCcw className="w-3.5 h-3.5" />, false)}
+                </div>
+            }
+        >
+            {tab === "quests" ? (
+                !quest ? (
+                    <div className="text-[#8B8F98] text-xs text-center py-10">{t("g.sola.loading")}</div>
+                ) : (
+                    <NpcQuestCard
+                        quest={quest}
+                        accent={ACCENT}
+                        onAccept={onAccept}
+                        onTurnIn={onTurnIn}
+                        emptyLabel={t("g.sola.noQuests")}
+                    />
+                )
+            ) : tab === "respec" ? (
+                <div>
+                    {!progression || progression.branch === null ? (
+                        <p className="text-[#8B8F98] text-sm text-center py-10">
+                            {t("g.sola.noSpecialisation")}
+                        </p>
                     ) : (
-                        <div>
+                        <>
                             <p className="text-[#8B8F98] text-sm mb-4">
-                                {t("g.sola.tokenIntro")}
+                                {t("g.sola.respecIntro")}
                             </p>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    value={tokenCa}
-                                    onChange={(e) => setTokenCa(e.target.value)}
-                                    placeholder={t("g.gate.ca.placeholder")}
-                                    className="flex-1 bg-black/40 text-white px-3 py-2 rounded text-sm border border-[#4ADE80]/30 focus:border-[#4ADE80] outline-none min-w-0"
-                                />
-                                <button
-                                    onClick={handleRequestTokenInfo}
-                                    disabled={!tokenCa.trim()}
-                                    className="bg-gradient-to-r from-[#4ADE80] to-[#22c55e] text-[rgba(12,12,14,0.9)] font-bold px-4 py-2 rounded-[8px] text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                >
-                                    {t("g.sola.send")}
-                                </button>
+                            <div className="flex items-center justify-between text-sm mb-4">
+                                <span className="text-[#8B8F98]">{t("g.sola.cost")}</span>
+                                <span className="text-[#FFD166] font-bold">
+                                    {progression.respecCostAsh === 0 ? t("g.sola.free") : t("g.ash.amount", { amount: progression.respecCostAsh })}
+                                </span>
                             </div>
-                            {justSentCa && (
-                                <p className="text-[#4ADE80] text-xs mt-3">
-                                    {t("g.sola.gotIt")}
+                            <button
+                                onClick={() => onRespec?.()}
+                                disabled={ash < progression.respecCostAsh}
+                                className="w-full bg-gradient-to-r from-[#C79AE0] to-[#9F6FD0] text-[rgba(12,12,14,0.9)] font-bold game-tap px-6 py-2.5 rounded-[8px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {t("g.sola.resetSpecialisation")}
+                            </button>
+                            {ash < progression.respecCostAsh && (
+                                <p className="text-[#FF5757] text-xs mt-3 text-center">
+                                    {t("g.sola.needMoreAsh", { amount: progression.respecCostAsh - ash })}
                                 </p>
                             )}
-                        </div>
+                        </>
                     )}
                 </div>
-
-                <div className="mt-5 pt-4 border-t border-[rgba(255,255,255,0.08)] flex gap-2">
-                    <button
-                        onClick={() => setTab("quests")}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-[8px] text-xs font-bold transition-all ${tab === "quests" ? "bg-[#4ADE80]/15 text-[#4ADE80]" : "text-[#8B8F98] hover:text-[#E5E7EB]"
-                            }`}
-                    >
-                        <ScrollText className="w-3.5 h-3.5" />
-                        {t("g.sola.tabQuests")}
-                    </button>
-                    <button
-                        onClick={() => setTab("tokenInfo")}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-[8px] text-xs font-bold transition-all ${tab === "tokenInfo" ? "bg-[#4ADE80]/15 text-[#4ADE80]" : "text-[#8B8F98] hover:text-[#E5E7EB]"
-                            }`}
-                    >
-                        <Coins className="w-3.5 h-3.5" />
-                        {t("g.sola.tabTokenInfo")}
-                    </button>
-                    <button
-                        onClick={() => setTab("respec")}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-[8px] text-xs font-bold transition-all ${tab === "respec" ? "bg-[#4ADE80]/15 text-[#4ADE80]" : "text-[#8B8F98] hover:text-[#E5E7EB]"
-                            }`}
-                    >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        {t("g.sola.tabRespec")}
-                    </button>
+            ) : (
+                <div>
+                    <p className="text-[#8B8F98] text-sm mb-4">
+                        {t("g.sola.tokenIntro")}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            value={tokenCa}
+                            onChange={(e) => setTokenCa(e.target.value)}
+                            placeholder={t("g.gate.ca.placeholder")}
+                            className="flex-1 bg-black/40 text-white px-3 py-2 rounded text-sm border border-[#4ADE80]/30 focus:border-[#4ADE80] outline-none min-w-0"
+                        />
+                        <button
+                            onClick={handleRequestTokenInfo}
+                            disabled={!tokenCa.trim()}
+                            className="bg-gradient-to-r from-[#4ADE80] to-[#22c55e] text-[rgba(12,12,14,0.9)] font-bold px-4 py-2 rounded-[8px] text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                            {t("g.sola.send")}
+                        </button>
+                    </div>
+                    {justSentCa && (
+                        <p className="text-[#4ADE80] text-xs mt-3">
+                            {t("g.sola.gotIt")}
+                        </p>
+                    )}
                 </div>
-            </div>
-        </div>
+            )}
+        </NpcPanelFrame>
     );
 }

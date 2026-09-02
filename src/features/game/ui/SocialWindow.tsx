@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight, PawPrint, Shirt, Swords } from "lucide-react";
+import { Users, Mail as MailIcon, User, UserX, ArrowLeftRight, PawPrint, Shirt, Swords, Zap } from "lucide-react";
 import { WindowFrame } from "./shell/WindowFrame";
 import { FriendsTab } from "./FriendsTab";
 import { MailTab } from "./MailTab";
@@ -16,10 +16,11 @@ import { CosmeticId } from "../data/cosmetics";
 import { CompanionId, FRAGMENTS_PER_CRATE } from "../data/companions";
 import { NicknameMenuActions } from "./shell/NicknameMenu";
 import { PartyPanel } from "./PartyPanel";
-import { FriendEntry, FriendRequestEntry, MailEntry, PartyStateData, PlayerProfileData, QuestInfoData, BlockedEntry, CosmeticStateData, CompanionStateData } from "../network/NetworkManager";
+import { SkillTreePanel } from "./SkillTreePanel";
+import { FriendEntry, FriendRequestEntry, MailEntry, PartyStateData, PlayerProfileData, ProgressionStateData, QuestInfoData, BlockedEntry, CosmeticStateData, CompanionStateData } from "../network/NetworkManager";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 
-export type SocialTab = "friends" | "party" | "mail" | "account" | "appearance" | "companions" | "blocked" | "trades";
+export type SocialTab = "skills" | "friends" | "party" | "mail" | "account" | "appearance" | "companions" | "blocked" | "trades";
 
 interface SocialWindowProps {
     isOpen: boolean;
@@ -32,6 +33,11 @@ interface SocialWindowProps {
     onRequestSelfProfile: () => void;
     onNicknameChange: (nickname: string) => void;
     quests: QuestInfoData[];
+
+    progression: ProgressionStateData | null;
+    onLearnSkill: (nodeId: string) => void;
+    onBindAbility: (slot: string, abilityId: string | null) => void;
+    onOpenSpecialization: () => void;
 
     friends: FriendEntry[];
     incomingRequests: FriendRequestEntry[];
@@ -83,6 +89,10 @@ export function SocialWindow({
     onRequestSelfProfile,
     onNicknameChange,
     quests,
+    progression,
+    onLearnSkill,
+    onBindAbility,
+    onOpenSpecialization,
     friends,
     incomingRequests,
     outgoingRequests,
@@ -145,6 +155,7 @@ export function SocialWindow({
                 />
             }
             tabs={[
+                { id: "skills", label: t("g.skill.title"), icon: <Zap className="w-3.5 h-3.5" />, badge: (progression?.skillPoints ?? 0) > 0 },
                 { id: "friends", label: t("g.social.tab.friends"), icon: <Users className="w-3.5 h-3.5" />, badge: incomingRequests.length > 0 },
                 { id: "party", label: t("g.social.tab.party"), icon: <Swords className="w-3.5 h-3.5" />, badge: party.members.length > 0 },
                 { id: "mail", label: t("g.social.tab.mail"), icon: <MailIcon className="w-3.5 h-3.5" />, badge: unreadMailCount > 0 },
@@ -157,6 +168,16 @@ export function SocialWindow({
             activeTab={activeTab}
             onTabChange={(id) => setActiveTab(id as SocialTab)}
         >
+            {activeTab === "skills" && (
+                <SkillTreePanel
+                    active={activeTab === "skills"}
+                    progression={progression}
+                    onLearn={onLearnSkill}
+                    onBind={onBindAbility}
+                    onOpenSpecialization={onOpenSpecialization}
+                />
+            )}
+
             {activeTab === "party" && (
                 <PartyPanel
                     party={party}

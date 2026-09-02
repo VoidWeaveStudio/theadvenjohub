@@ -2,8 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Palette, Shirt, Gem, ArrowLeft, Boxes, Puzzle } from "lucide-react";
-import { SoundManager } from "../core/SoundManager";
+import { Palette, Shirt, Gem, ArrowLeft, Boxes, Puzzle } from "lucide-react";
 import { COSMETICS, COSMETIC_FRAGMENTS_PER_CRATE, CosmeticId } from "../data/cosmetics";
 import { CosmeticCrateStateData, CosmeticStateData, QuestInfoData } from "../network/NetworkManager";
 import { CosmeticCard } from "./CosmeticCard";
@@ -11,7 +10,10 @@ import { PreviewModal } from "./preview/PreviewModal";
 import type { PreviewSubject } from "./preview/PreviewScene";
 import { useShopPrices } from "./hooks/useShopPrices";
 import { NpcQuestSection } from "./NpcQuestCard";
+import { NpcPanelFrame } from "./shell/NpcPanelFrame";
 import { useLanguage } from "@/core/i18n/LanguageContext";
+
+const ACCENT = "#4FC3FF";
 
 interface AlfredoPanelProps {
     isOpen: boolean;
@@ -57,10 +59,7 @@ export function AlfredoPanel({
     const wasOpenRef = useRef(false);
 
     useEffect(() => {
-        if (isOpen && !wasOpenRef.current) {
-            SoundManager.getInstance().play('modal-open');
-            setView("menu");
-        }
+        if (isOpen && !wasOpenRef.current) setView("menu");
         wasOpenRef.current = isOpen;
     }, [isOpen]);
 
@@ -71,14 +70,12 @@ export function AlfredoPanel({
         }
     }, [view]);
 
-    if (!isOpen) return null;
-
     const owned = new Set(cosmetics.owned);
     const canCombine = crateWallet.fragments >= COSMETIC_FRAGMENTS_PER_CRATE;
     const collectionComplete = owned.size >= COSMETICS.length;
 
     const crateBlock = (
-        <div className="mb-3 grid flex-shrink-0 grid-cols-2 gap-2">
+        <div className="mb-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-[#4FC3FF]/25 bg-[rgba(79,195,255,0.07)] p-3">
                 <div className="mb-1.5 flex items-center justify-between">
                     <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-[#4FC3FF]">
@@ -120,34 +117,29 @@ export function AlfredoPanel({
     );
 
     return (
-        <div
-            className="absolute inset-0 bg-[rgba(6,6,8,0.85)] backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto font-oxanium p-2 sm:p-4"
-            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-        >
-            <div className="w-full max-w-lg bg-[rgba(10,16,20,0.95)] border-2 border-[#4FC3FF]/40 rounded-[16px] p-6 shadow-[0_0_35px_rgba(79,195,255,0.15)] max-h-[calc(85*var(--game-vh))] flex flex-col">
-                <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                        <Palette className="w-5 h-5 text-[#4FC3FF]" />
-                        <h2 className="text-xl font-black text-[#E5E7EB]">{t("g.npc.alfredo")}</h2>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1.5 text-[#FFD166] text-sm font-bold">
-                            <Gem className="w-4 h-4" />
-                            {ash}
-                        </span>
-                        <button onClick={onClose} className="bg-transparent border-0 p-0 text-[#8B8F98] hover:text-[#E5E7EB] transition-colors">
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-
+        <>
+            <NpcPanelFrame
+                isOpen={isOpen}
+                onClose={onClose}
+                title={t("g.npc.alfredo")}
+                accent={ACCENT}
+                background="rgba(10,16,20,0.95)"
+                size="lg"
+                icon={<Palette className="w-5 h-5" />}
+                headerExtra={
+                    <span className="flex items-center gap-1.5 text-[#FFD166] text-sm font-bold">
+                        <Gem className="w-4 h-4" />
+                        {ash}
+                    </span>
+                }
+            >
                 {view === "menu" && (
                     <>
                         <p className="text-[#8B8F98] text-sm mb-5">{t("g.alfredo.greeting")}</p>
 
                         <NpcQuestSection
                             quest={quest}
-                            accent="#4FC3FF"
+                            accent={ACCENT}
                             onAccept={onAcceptQuest}
                             onTurnIn={onTurnInQuest}
                         />
@@ -182,19 +174,19 @@ export function AlfredoPanel({
                     <>
                         <button
                             onClick={() => setView("menu")}
-                            className="flex items-center gap-1.5 text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold mb-3 flex-shrink-0 transition-colors"
+                            className="flex items-center gap-1.5 text-[#8B8F98] hover:text-[#E5E7EB] text-xs font-bold mb-3 transition-colors"
                         >
                             <ArrowLeft className="w-3.5 h-3.5" />
                             {t("g.alfredo.back")}
                         </button>
 
-                        <p className="text-[#8B8F98] text-xs mb-3 flex-shrink-0">
+                        <p className="text-[#8B8F98] text-xs mb-3">
                             {t("g.alfredo.ownedForever")}
                         </p>
 
                         {crateBlock}
 
-                        <div className="space-y-2 overflow-y-auto min-h-0">
+                        <div className="space-y-2">
                             {COSMETICS.map((definition) => {
                                 const live = livePrices.get(definition.id);
                                 if (live && live.enabled === false) return null;
@@ -239,7 +231,7 @@ export function AlfredoPanel({
                         </div>
                     </>
                 )}
-            </div>
+            </NpcPanelFrame>
 
             <PreviewModal
                 isOpen={!!preview}
@@ -248,6 +240,6 @@ export function AlfredoPanel({
                 subject={preview?.subject ?? null}
                 onClose={() => setPreview(null)}
             />
-        </div>
+        </>
     );
 }

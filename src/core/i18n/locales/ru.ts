@@ -1594,6 +1594,7 @@ export const ru: Translations = {
   "g.invitePicker.noFactions": "Ты не состоишь ни в одной фракции.",
   "g.factions.none": "Ты ещё не основал и не вступил ни в одну фракцию.",
   "g.npcDialogue.next": "Далее",
+  "g.npcDialogue.skip": "Пропустить",
   "g.party.inviteHint": "Нажми на имя игрока в любом месте интерфейса и выбери {action}. В группе — четверо.",
   "g.party.inviteAction": " Пригласить в группу",
   "g.quest.stewardsMet": "смотрителей встречено",

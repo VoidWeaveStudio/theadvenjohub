@@ -1591,6 +1591,7 @@ export const it: PartialTranslations = {
   "g.invitePicker.noFactions": "Non sei membro di nessuna fazione.",
   "g.factions.none": "Non hai ancora fondato né raggiunto una fazione.",
   "g.npcDialogue.next": "Avanti",
+  "g.npcDialogue.skip": "Salta",
   "g.party.inviteHint": "Clicca il nome di un giocatore ovunque nell'interfaccia e scegli {action}. Un gruppo ospita quattro persone.",
   "g.party.inviteAction": " Invita nel gruppo",
   "g.quest.stewardsMet": "custodi incontrati",

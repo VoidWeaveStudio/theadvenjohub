@@ -1591,6 +1591,7 @@ export const zh: Translations = {
   "g.invitePicker.noFactions": "你不是任何阵营的成员。",
   "g.factions.none": "你还没有创建或加入任何阵营。",
   "g.npcDialogue.next": "下一句",
+  "g.npcDialogue.skip": "跳过",
   "g.party.inviteHint": "在界面任意位置点击玩家名字并选择 {action}。队伍上限为四人。",
   "g.party.inviteAction": " 邀请加入队伍",
   "g.quest.stewardsMet": "已会见的管事",

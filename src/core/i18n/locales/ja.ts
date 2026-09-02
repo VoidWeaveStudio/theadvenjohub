@@ -1592,6 +1592,7 @@ export const ja: Translations = {
   "g.invitePicker.noFactions": "どのファクションにも所属していない。",
   "g.factions.none": "まだファクションを設立も参加もしていない。",
   "g.npcDialogue.next": "次へ",
+  "g.npcDialogue.skip": "スキップ",
   "g.party.inviteHint": "インターフェースのどこかでプレイヤー名をクリックし、{action} を選ぼう。パーティは4人まで。",
   "g.party.inviteAction": " パーティに招待",
   "g.quest.stewardsMet": "人の管理人に挨拶済み",
