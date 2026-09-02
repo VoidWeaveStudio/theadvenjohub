@@ -144,6 +144,7 @@ export function SocialWindow({
         <WindowFrame
             isOpen={isOpen}
             onClose={onClose}
+            size={activeTab === "skills" ? "xl" : "lg"}
             title={t("g.social.title")}
             icon={
                 <Image

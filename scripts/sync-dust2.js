@@ -35,6 +35,18 @@ function evaluate(source, name) {
     return new Function(body)();
 }
 
+function objectLiteral(source, name) {
+    const match = source.match(new RegExp(`export const ${name} = (\\{[^;]+\\});`));
+    if (!match) throw new Error(`${name} not found in dust2Layout.ts`);
+    return new Function(`return ${match[1]};`)();
+}
+
+function numberConstant(source, name) {
+    const match = source.match(new RegExp(`export const ${name} = ([^;]+);`));
+    if (!match) throw new Error(`${name} not found in dust2Layout.ts`);
+    return new Function(`return ${match[1]};`)();
+}
+
 function toBoxes(source) {
     const walls = evaluate(source, "WALLS");
     const crates = evaluate(source, "CRATES");
@@ -87,11 +99,34 @@ function toBoxes(source) {
     return boxes;
 }
 
-const boxes = toBoxes(readFileSync(SOURCE, "utf8"));
+const source = readFileSync(SOURCE, "utf8");
+const boxes = toBoxes(source);
+
+const bounds = {
+    halfX: numberConstant(source, "MAP_HALF_X"),
+    halfZ: numberConstant(source, "MAP_HALF_Z"),
+};
+const callouts = evaluate(source, "CALLOUTS");
+const tSpawns = evaluate(source, "T_SPAWN_POINTS");
+const ctSpawns = evaluate(source, "CT_SPAWN_POINTS");
+const sites = {
+    A: objectLiteral(source, "BOMB_SITE_A"),
+    B: objectLiteral(source, "BOMB_SITE_B"),
+};
 
 const generated = `// game-server/dust2Geometry.js
 
 const BLOCKERS = ${JSON.stringify(boxes)};
+
+const BOUNDS = ${JSON.stringify(bounds)};
+
+const CALLOUTS = ${JSON.stringify(callouts)};
+
+const T_SPAWN_POINTS = ${JSON.stringify(tSpawns)};
+
+const CT_SPAWN_POINTS = ${JSON.stringify(ctSpawns)};
+
+const BOMB_SITES = ${JSON.stringify(sites)};
 
 function segmentHitsBox(ax, ay, az, bx, by, bz, box) {
   const dx = bx - ax;
@@ -143,7 +178,17 @@ function hasLineOfSight(ax, ay, az, bx, by, bz) {
   return true;
 }
 
-module.exports = { BLOCKERS, segmentHitsBox, contains, hasLineOfSight };
+module.exports = {
+  BLOCKERS,
+  BOUNDS,
+  CALLOUTS,
+  T_SPAWN_POINTS,
+  CT_SPAWN_POINTS,
+  BOMB_SITES,
+  segmentHitsBox,
+  contains,
+  hasLineOfSight,
+};
 `;
 
 // See sync-arsenal: a CRLF checkout is not drift.

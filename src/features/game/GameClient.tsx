@@ -1964,6 +1964,11 @@ export function GameClient({ slug }: GameClientProps) {
           gameRef.current?.enterEventRoom(eventId);
         }}
         onJoinQueue={() => { setInDefusalQueue(true); gameRef.current?.joinDefusalQueue(); }}
+        onStartBotMatch={() => {
+          setOpenEventDoorId(null);
+          setInDefusalQueue(false);
+          gameRef.current?.startDefusalBotMatch();
+        }}
         onLeaveQueue={() => { setInDefusalQueue(false); gameRef.current?.leaveDefusalQueue(); }}
         onEnterGrinder={() => {
           setOpenEventDoorId(null);

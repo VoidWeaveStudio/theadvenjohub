@@ -2321,6 +2321,10 @@ export class Game {
         this.networkManager.sendDefusalQueue();
     }
 
+    public startDefusalBotMatch() {
+        this.networkManager.sendDefusalBotMatch();
+    }
+
     public leaveDefusalQueue() {
         this.networkManager.sendDefusalLeaveQueue();
     }

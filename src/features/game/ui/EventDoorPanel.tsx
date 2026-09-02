@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, DoorOpen, Gift, Lock, Medal, Swords, Timer, Trophy, Users, X } from "lucide-react";
+import { Bot, CalendarClock, DoorOpen, Gift, Lock, Medal, Swords, Timer, Trophy, Users, X } from "lucide-react";
 import {
     EVENT_DOORS_BY_ID,
     GRINDER_EVENT_ID,
@@ -28,6 +28,7 @@ interface EventDoorPanelProps {
     onEnter: (eventId: string) => void;
     onJoinQueue: () => void;
     onLeaveQueue: () => void;
+    onStartBotMatch: () => void;
     onEnterGrinder: () => void;
 }
 
@@ -92,6 +93,7 @@ export function EventDoorPanel({
     onEnter,
     onJoinQueue,
     onLeaveQueue,
+    onStartBotMatch,
     onEnterGrinder,
 }: EventDoorPanelProps) {
     const { t } = useLanguage();
@@ -296,6 +298,17 @@ export function EventDoorPanel({
                                 <DoorOpen className="w-4 h-4" />
                                 <span>{inQueue ? t("g.door.leaveQueue") : t("g.door.queueUp")}</span>
                             </button>
+
+                            {eventId !== GRINDER_EVENT_ID && (
+                                <button
+                                    onClick={onStartBotMatch}
+                                    className="w-full flex items-center justify-center gap-2 font-black px-4 py-3 rounded-[8px] border transition-all hover:brightness-110"
+                                    style={{ borderColor: accent + "55", background: accent + "14", color: accent }}
+                                >
+                                    <Bot className="w-4 h-4" />
+                                    <span>{t("g.door.botMatch")}</span>
+                                </button>
+                            )}
 
                             {eventId === GRINDER_EVENT_ID && (
                                 <div className="pt-1 space-y-1.5">

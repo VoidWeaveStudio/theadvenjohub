@@ -2727,6 +2727,11 @@ export class NetworkManager {
     this.send({ type: "defusalQueue" });
   }
 
+  sendDefusalBotMatch() {
+    if (!this.authenticated) return;
+    this.send({ type: "defusalBotMatch" });
+  }
+
   sendDefusalLeaveQueue() {
     if (!this.authenticated) return;
     this.send({ type: "defusalLeaveQueue" });
