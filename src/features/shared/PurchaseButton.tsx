@@ -11,19 +11,22 @@ import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/c
 import { sessionFetch } from "@/core/api/session";
 import { fetchPayableTnj } from "@/features/game/utils/shopQuote";
 
+type FactionUpgrade = "promo-code" | "promo-seats";
+
 interface PurchaseButtonProps {
   gameId?: string;
   lotId?: string;
   factionId?: string;
+  factionUpgrade?: FactionUpgrade;
   quoteItemId?: string;
   price: number;
   isLot?: boolean;
-  onSuccess?: (result: { id: string; type: "game" | "item" | "faction_upgrade"; promoCode?: string }) => void;
+  onSuccess?: (result: { id: string; type: "game" | "item" | "faction_upgrade"; promoCode?: string; promoSeats?: number }) => void;
 }
 
 type LoadingState = false | "preparing" | "signing" | "confirming" | "verifying";
 
-export function PurchaseButton({ gameId, lotId, factionId, quoteItemId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
+export function PurchaseButton({ gameId, lotId, factionId, factionUpgrade = "promo-code", quoteItemId, price, isLot = false, onSuccess }: PurchaseButtonProps) {
   const { t } = useLanguage();
   const { publicKey, connected, wallet } = useWallet();
   const { isAuthorized, walletMismatch } = useAuth();
@@ -36,18 +39,18 @@ export function PurchaseButton({ gameId, lotId, factionId, quoteItemId, price, i
   const resumedRef = useRef(false);
 
   const paymentKey = useMemo(() => {
-    if (factionId) return `faction:${factionId}`;
+    if (factionId) return `faction:${factionId}:${factionUpgrade}`;
     if (gameId) return `game:${gameId}`;
     if (lotId) return `lot:${lotId}`;
     return "";
-  }, [factionId, gameId, lotId]);
+  }, [factionId, factionUpgrade, gameId, lotId]);
 
   const purchaseConfig = useMemo(() => ({
     gameId, lotId, factionId, quoteItemId, price, isLot, onSuccess
   }), [gameId, lotId, factionId, quoteItemId, price, isLot, onSuccess]);
 
   const submitVerification = useCallback(async (signature: string, signal: AbortSignal) => {
-    const endpoint = factionId ? "/api/faction/upgrades/promo-code/purchase" : "/api/purchase/verify";
+    const endpoint = factionId ? `/api/faction/upgrades/${factionUpgrade}/purchase` : "/api/purchase/verify";
     const body = factionId ? { signature, factionId } : { signature, gameId, lotId };
 
     const verifyRes = await sessionFetch(endpoint, {
@@ -63,7 +66,7 @@ export function PurchaseButton({ gameId, lotId, factionId, quoteItemId, price, i
     }
 
     return verifyRes.json();
-  }, [factionId, gameId, lotId]);
+  }, [factionId, factionUpgrade, gameId, lotId]);
 
   const describeError = useCallback((err: unknown): string => {
     if (err instanceof PayTnjError) {

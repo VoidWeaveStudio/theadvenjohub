@@ -56,6 +56,7 @@ export const SHOP_CATALOG: ShopCatalogEntry[] = [
     { itemId: "faction_creation", name: "Faction Creation", nameKey: "g.shopItem.faction_creation.name", kind: "faction", description: "Founding a faction at Alaric", descriptionKey: "g.shopItem.faction_creation.description", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 1000000, defaultPriceUsdCents: 5000, maxOwned: null },
     { itemId: "faction_promo_code", name: "Faction Promo Code", nameKey: "g.shopItem.faction_promo_code.name", kind: "faction", description: "Shareable code granting the game", descriptionKey: "g.shopItem.faction_promo_code.description", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 1000000, defaultPriceUsdCents: 5000, maxOwned: null },
     { itemId: "faction_gate", name: "Faction Gate Room", nameKey: "g.shopItem.faction_gate.name", kind: "faction", description: "Private room in Token Gates", descriptionKey: "g.shopItem.faction_gate.description", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 1000000, defaultPriceUsdCents: 5000, maxOwned: null },
+    { itemId: "faction_promo_seats", name: "Promo Seat Pack", nameKey: "g.shopItem.faction_promo_seats.name", kind: "faction", description: "50 more free-access seats on the faction page", descriptionKey: "g.shopItem.faction_promo_seats.description", defaultCurrency: "tnj", defaultPriceAsh: 0, defaultPriceTnj: 500000, defaultPriceUsdCents: 2500, maxOwned: null },
 ];
 
 export const SHOP_CATALOG_BY_ID = new Map(SHOP_CATALOG.map((e) => [e.itemId, e]));

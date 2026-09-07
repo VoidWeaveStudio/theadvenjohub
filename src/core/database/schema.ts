@@ -13,6 +13,8 @@ import {
   uniqueIndex,
   jsonb,
   numeric,
+  date,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -414,8 +416,14 @@ export const factions = pgTable("factions", {
   promoCodePurchaseTx: varchar("promo_code_purchase_tx", { length: 88 }).unique(),
   promoCodePurchasedAt: timestamp("promo_code_purchased_at"),
   creationTx: varchar("creation_tx", { length: 88 }).unique(),
+  slug: varchar("slug", { length: 32 }),
+  promoSeats: integer("promo_seats").default(100).notNull(),
+  promoSeatsUsed: integer("promo_seats_used").default(0).notNull(),
+  promoMinUsdCents: integer("promo_min_usd_cents").default(100).notNull(),
+  pageHidden: boolean("page_hidden").default(false).notNull(),
 }, (table) => [
   uniqueIndex("idx_factions_game_name").on(table.gameId, table.name),
+  uniqueIndex("idx_factions_game_slug").on(table.gameId, table.slug),
   index("idx_factions_token_ca").on(table.tokenCa),
   index("idx_factions_game").on(table.gameId),
 ]);
@@ -460,6 +468,17 @@ export const factionGates = pgTable("faction_gates", {
   purchaseTx: varchar("purchase_tx", { length: 88 }).unique(),
   purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
 });
+
+export const factionPageStats = pgTable("faction_page_stats", {
+  factionId: uuid("faction_id").notNull().references(() => factions.id, { onDelete: "cascade" }),
+  day: date("day").notNull(),
+  views: integer("views").default(0).notNull(),
+  connects: integer("connects").default(0).notNull(),
+  eligible: integer("eligible").default(0).notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.factionId, table.day] }),
+  index("idx_faction_page_stats_day").on(table.factionId, table.day),
+]);
 
 export const gameCosmetics = pgTable("game_cosmetics", {
   id: uuid("id").primaryKey().defaultRandom(),

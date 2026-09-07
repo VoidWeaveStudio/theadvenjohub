@@ -23,6 +23,11 @@ interface FactionDetail {
     promoCode: string | null;
     promoCodePurchaseTx: string | null;
     promoCodePurchasedAt: string | null;
+    slug: string | null;
+    promoSeats: number;
+    promoSeatsUsed: number;
+    promoMinUsdCents: number;
+    pageHidden: boolean;
     hasGate: boolean;
     gatePurchaseTx: string | null;
     gatePurchasedAt: string | null;
@@ -74,6 +79,8 @@ export function AdminFactionDetailModal({ factionId, onClose, onDeleted, onChang
     const [busy, setBusy] = useState(false);
     const [levelInput, setLevelInput] = useState("1");
     const [progressInput, setProgressInput] = useState("0");
+    const [seatsInput, setSeatsInput] = useState("100");
+    const [minHoldInput, setMinHoldInput] = useState("100");
     const [rosterQuery, setRosterQuery] = useState("");
     const { signedFetch } = useAdminSignature();
 
@@ -89,6 +96,8 @@ export function AdminFactionDetailModal({ factionId, onClose, onDeleted, onChang
         setFaction(data.faction);
         setLevelInput(String(data.faction.level ?? 1));
         setProgressInput(String(data.faction.levelProgressAsh ?? 0));
+        setSeatsInput(String(data.faction.promoSeats ?? 100));
+        setMinHoldInput(String(data.faction.promoMinUsdCents ?? 100));
     }, [factionId]);
 
     useEffect(() => {
@@ -309,6 +318,48 @@ export function AdminFactionDetailModal({ factionId, onClose, onDeleted, onChang
                                     )}
                                 </section>
 
+
+                                <section>
+                                    <span className="a-label">Public page — /f/{faction.slug ?? `F${faction.number}`}</span>
+                                    <div className="a-item">
+                                        <span className="a-item-title">{faction.pageHidden ? "Hidden" : "Live"}</span>
+                                        <Badge tone={faction.pageHidden ? "warn" : "good"}>
+                                            {faction.pageHidden ? "not reachable" : "public"}
+                                        </Badge>
+                                        <span className="a-hint a-spacer">
+                                            {faction.promoSeatsUsed} / {faction.promoSeats} seats used
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className={`a-btn a-btn-sm ${faction.pageHidden ? "a-btn-good" : "a-btn-danger"}`}
+                                            disabled={busy}
+                                            onClick={() => perk(faction.pageHidden ? "showPage" : "hidePage", {}, "Page visibility")}
+                                        >
+                                            {faction.pageHidden ? "Show page" : "Hide page"}
+                                        </button>
+                                    </div>
+                                    <div className="a-row">
+                                        <label className="a-row" style={{ gap: 6 }}>
+                                            <span className="a-hint">Free seats</span>
+                                            <input type="number" min={0} value={seatsInput} onChange={(e) => setSeatsInput(e.target.value)} style={{ width: 100 }} />
+                                        </label>
+                                        <label className="a-row" style={{ gap: 6 }}>
+                                            <span className="a-hint">Min hold (cents)</span>
+                                            <input type="number" min={100} value={minHoldInput} onChange={(e) => setMinHoldInput(e.target.value)} style={{ width: 120 }} />
+                                        </label>
+                                        <button
+                                            type="button"
+                                            className="a-btn a-btn-primary"
+                                            disabled={busy}
+                                            onClick={async () => {
+                                                await perk("setPromoSeats", { seats: Number(seatsInput) }, "Seats change");
+                                                await perk("setPromoMinUsd", { minUsdCents: Number(minHoldInput) }, "Min hold change");
+                                            }}
+                                        >
+                                            Apply
+                                        </button>
+                                    </div>
+                                </section>
 
                                 <section>
                                     <span className="a-label">Faction level</span>

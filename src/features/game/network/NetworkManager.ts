@@ -737,6 +737,9 @@ export type FactionSummary = {
   levelProgressAsh: number;
   xpForNextLevel: number;
   promoCode?: string | null;
+  slug?: string | null;
+  promoSeats?: number;
+  promoSeatsUsed?: number;
   treasuryAsh?: number;
   treasuryCompanionFragments?: number;
   treasuryCosmeticFragments?: number;

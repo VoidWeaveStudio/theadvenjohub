@@ -66,6 +66,11 @@ export async function buildFactionTaskExtras(faction: FactionRow, gameId: string
         verifiedCreatorWallet: faction.verifiedCreatorWallet,
         verifiedCreatorUserId: faction.verifiedCreatorUserId,
         promoCode: faction.promoCode,
+        slug: faction.slug,
+        promoSeats: faction.promoSeats,
+        promoSeatsUsed: faction.promoSeatsUsed,
+        promoMinUsdCents: faction.promoMinUsdCents,
+        pageHidden: faction.pageHidden,
     };
 }
 

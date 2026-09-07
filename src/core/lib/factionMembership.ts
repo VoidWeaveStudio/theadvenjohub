@@ -27,8 +27,9 @@ export async function joinFactionForUser(params: {
   gameId: string;
   wallet: string;
   factionId: string;
+  minTokenAmount?: number;
 }): Promise<JoinFactionResult> {
-  const { userId, gameId, wallet, factionId } = params;
+  const { userId, gameId, wallet, factionId, minTokenAmount } = params;
 
   const faction = await db.query.factions.findFirst({
     where: and(eq(factions.id, factionId), eq(factions.gameId, gameId)),
@@ -45,7 +46,8 @@ export async function joinFactionForUser(params: {
       console.error("[factionMembership] balance check failed:", err);
       return { ok: false, error: "balance_check_failed", status: 502 };
     }
-    if (balance <= 0) {
+    const required = typeof minTokenAmount === "number" && minTokenAmount > 0 ? minTokenAmount : Number.MIN_VALUE;
+    if (balance < required) {
       return { ok: false, error: "insufficient_token_balance", status: 403 };
     }
   }

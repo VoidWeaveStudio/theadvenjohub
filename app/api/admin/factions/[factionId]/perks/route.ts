@@ -7,11 +7,17 @@ import { factions, factionGates } from "@/core/database/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { generatePromoCode } from "@/core/lib/promoCode";
 import { xpForLevel } from "@/core/lib/factionLeveling";
+import { MIN_PROMO_HOLD_USD_CENTS } from "@/core/lib/factionPromo";
 
-const ACTIONS = ["grantPromo", "revokePromo", "grantGate", "revokeGate", "setLevel", "setRoomAccess", "clearTask"] as const;
+const ACTIONS = [
+    "grantPromo", "revokePromo", "grantGate", "revokeGate", "setLevel", "setRoomAccess", "clearTask",
+    "hidePage", "showPage", "setPromoSeats", "setPromoMinUsd",
+] as const;
 type PerkAction = (typeof ACTIONS)[number];
 
 const MAX_FACTION_LEVEL = 100;
+const MAX_PROMO_SEATS = 100000;
+const MAX_PROMO_MIN_USD_CENTS = 10000000;
 
 export async function PATCH(
     req: NextRequest,
@@ -109,6 +115,32 @@ export async function PATCH(
                 .where(eq(factions.id, factionId));
 
             return NextResponse.json({ success: true, level, levelProgressAsh: progress, xpForNextLevel: xpForLevel(level) });
+        }
+
+        if (action === "hidePage" || action === "showPage") {
+            const pageHidden = action === "hidePage";
+            await db.update(factions).set({ pageHidden }).where(eq(factions.id, factionId));
+            return NextResponse.json({ success: true, pageHidden });
+        }
+
+        if (action === "setPromoSeats") {
+            const seats = Math.floor(Number(body.seats));
+            if (!Number.isFinite(seats) || seats < 0 || seats > MAX_PROMO_SEATS) {
+                return NextResponse.json({ error: "invalid_seats" }, { status: 400 });
+            }
+
+            await db.update(factions).set({ promoSeats: seats }).where(eq(factions.id, factionId));
+            return NextResponse.json({ success: true, promoSeats: seats });
+        }
+
+        if (action === "setPromoMinUsd") {
+            const minUsdCents = Math.floor(Number(body.minUsdCents));
+            if (!Number.isFinite(minUsdCents) || minUsdCents < MIN_PROMO_HOLD_USD_CENTS || minUsdCents > MAX_PROMO_MIN_USD_CENTS) {
+                return NextResponse.json({ error: "invalid_min_hold" }, { status: 400 });
+            }
+
+            await db.update(factions).set({ promoMinUsdCents: minUsdCents }).where(eq(factions.id, factionId));
+            return NextResponse.json({ success: true, promoMinUsdCents: minUsdCents });
         }
 
         await db

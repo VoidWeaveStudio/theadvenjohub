@@ -12,6 +12,7 @@ import { getTokenByCa } from "@/core/lib/dexscreener";
 import { getTokenBalance } from "@/core/blockchain";
 import { getFactionRank } from "@/core/lib/factionRank";
 import { loadPrice, payableTnjFor } from "@/core/lib/shopPricing";
+import { fallbackSlug, pickAvailableSlug } from "@/core/lib/factionSlug";
 import { TNJ_QUOTE_TOLERANCE } from "@/core/lib/tnjPricing";
 
 const createSchema = z.object({
@@ -175,22 +176,35 @@ export async function POST(req: NextRequest) {
     const trimmedImage = tokenInfo.image ? String(tokenInfo.image).trim().slice(0, 512) || null : null;
     const description = buildFactionDescription(trimmedName, trimmedSymbol);
 
-    let created: typeof factions.$inferSelect;
-    try {
-      const [row] = await db.insert(factions).values({
-        gameId: game.id,
-        name: trimmedName,
-        symbol: trimmedSymbol,
-        image: trimmedImage,
-        description,
-        tokenCa: trimmedCa,
-        founderUserId: user.userId,
-        founderWallet: user.wallet,
-        creationTx: signature,
-      }).returning();
-      created = row;
-    } catch (insertError: any) {
-      if (insertError?.code === "23505") {
+    let created: typeof factions.$inferSelect | null = null;
+    let insertFailure: any = null;
+
+    const candidates = await pickAvailableSlug(game.id, trimmedSymbol, trimmedName);
+    for (const candidate of candidates.length > 0 ? candidates : [null]) {
+      try {
+        const [row] = await db.insert(factions).values({
+          gameId: game.id,
+          name: trimmedName,
+          symbol: trimmedSymbol,
+          image: trimmedImage,
+          description,
+          tokenCa: trimmedCa,
+          founderUserId: user.userId,
+          founderWallet: user.wallet,
+          creationTx: signature,
+          slug: candidate,
+        }).returning();
+        created = row;
+        break;
+      } catch (insertError: any) {
+        insertFailure = insertError;
+        if (insertError?.code === "23505") continue;
+        throw insertError;
+      }
+    }
+
+    if (!created) {
+      if (insertFailure?.code === "23505") {
         return NextResponse.json(
           {
             error: "name_taken",
@@ -199,7 +213,16 @@ export async function POST(req: NextRequest) {
           { status: 409, headers: formatRateLimitHeaders(rl) }
         );
       }
-      throw insertError;
+      throw insertFailure ?? new Error("faction_insert_failed");
+    }
+
+    if (!created.slug) {
+      const [withFallback] = await db
+        .update(factions)
+        .set({ slug: fallbackSlug(created.number) })
+        .where(eq(factions.id, created.id))
+        .returning();
+      if (withFallback) created = withFallback;
     }
 
     try {

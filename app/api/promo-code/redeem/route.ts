@@ -8,6 +8,7 @@ import { requireAuth, verifyCSRF } from "@/core/auth/lib/auth";
 import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/rateLimit";
 import { normalizePromoCode } from "@/core/lib/promoCode";
 import { joinFactionForUser } from "@/core/lib/factionMembership";
+import { claimPromoSeat, getTokenPriceUsd, minHoldUsdCents, releasePromoSeat } from "@/core/lib/factionPromo";
 
 const redeemSchema = z.object({
   code: z.string().min(4).max(20),
@@ -71,11 +72,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "invalid_code" }, { status: 404, headers: formatRateLimitHeaders(rl) });
     }
 
+    let minTokenAmount: number | undefined;
+    if (faction.tokenCa) {
+      const priceUsd = await getTokenPriceUsd(faction.tokenCa);
+      if (priceUsd === null) {
+        return NextResponse.json({ error: "price_unavailable" }, { status: 503, headers: formatRateLimitHeaders(rl) });
+      }
+      minTokenAmount = minHoldUsdCents(faction) / 100 / priceUsd;
+    }
+
     const joinResult = await joinFactionForUser({
       userId: user.userId,
       gameId: faction.gameId,
       wallet: user.wallet,
       factionId: faction.id,
+      minTokenAmount,
     });
     if (!joinResult.ok) {
       // faction_not_found is practically unreachable here (we just found the
@@ -95,20 +106,29 @@ export async function POST(req: NextRequest) {
     });
 
     if (!existingLicense) {
-      await db.insert(gameLicenses).values({
-        userId: user.userId,
-        gameId: faction.gameId,
-        wallet: user.wallet,
-        txSignature: null,
-        // The real payment (1,000,000 TNJ) is recorded on
-        // factions.promoCodePurchaseTx — leaving price at 0 here avoids
-        // double-counting revenue if game.price is ever summed across licenses.
-        price: 0,
-        purchasedAt: new Date(),
-        isActive: true,
-        grantedViaPromoFactionId: faction.id,
-        promoCodeUsed: normalizedCode,
-      });
+      if (!(await claimPromoSeat(faction.id))) {
+        return NextResponse.json({ error: "no_seats_left" }, { status: 409, headers: formatRateLimitHeaders(rl) });
+      }
+
+      try {
+        await db.insert(gameLicenses).values({
+          userId: user.userId,
+          gameId: faction.gameId,
+          wallet: user.wallet,
+          txSignature: null,
+          // The real payment (1,000,000 TNJ) is recorded on
+          // factions.promoCodePurchaseTx — leaving price at 0 here avoids
+          // double-counting revenue if game.price is ever summed across licenses.
+          price: 0,
+          purchasedAt: new Date(),
+          isActive: true,
+          grantedViaPromoFactionId: faction.id,
+          promoCodeUsed: normalizedCode,
+        });
+      } catch (licenseError: any) {
+        await releasePromoSeat(faction.id);
+        if (licenseError?.code !== "23505") throw licenseError;
+      }
     }
 
     return NextResponse.json({ success: true, factionId: faction.id, gameId: faction.gameId });
