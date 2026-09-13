@@ -18,5 +18,5 @@ if (typeof window === "undefined" && process.env.NODE_ENV !== "production") {
     if (!ok) {
       console.warn("⚠️ Solana RPC connection failed. Check SOLANA_RPC_PRIVATE in .env");
     }
-  });
+  });  
 }

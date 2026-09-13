@@ -10,7 +10,7 @@ export interface BoltSpawn {
     accent: number;
     charged: boolean;
     local: boolean;
-}
+} 
 
 export type BoltStepResult = "continue" | "stop";
 

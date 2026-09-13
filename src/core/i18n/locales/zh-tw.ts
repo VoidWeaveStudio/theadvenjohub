@@ -15,7 +15,7 @@ export const zhTw: Translations = {
   "game.overview": "概覽",
   "game.reviews": "評論",
   "game.requirements": "系統要求",
-  "game.noRequirements": "未指定系統要求",
+  "game.noRequirements": "未指定系統要求", 
   "game.noReviews": "暫無評論",
   "games.into_the_void.shortDescription": "進入測試版。",
   "games.into_the_void.description": "遊戲正在開發中，測試版將在客戶端中提供下載。",

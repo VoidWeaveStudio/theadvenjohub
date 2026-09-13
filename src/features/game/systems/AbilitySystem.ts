@@ -11,7 +11,7 @@ const ABILITY_SOUNDS: Record<string, string> = {
     soul_tether: "heal",
     kinetic_barrier: "shield-up",
     bulwark: "shield-up",
-    mana_shield: "shield-up",
+    mana_shield: "shield-up", 
     reflect_ward: "shield-up",
     shatter_ward: "shield-break",
     suppression_field: "debuff-apply",

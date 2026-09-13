@@ -13,7 +13,7 @@ export interface Portal {
 }
 
 export interface HeightProvider {
-    getHeightAt(x: number, z: number, referenceY?: number): number;
+    getHeightAt(x: number, z: number, referenceY?: number): number; 
 }
 
 export type CoverProbe = (x: number, y: number, z: number) => number;

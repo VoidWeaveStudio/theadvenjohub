@@ -13,7 +13,7 @@ export class AssetBin {
 
     material<T extends THREE.Material>(material: T): T {
         this.materials.add(material);
-        return material;
+        return material; 
     }
 
     geometry<T extends THREE.BufferGeometry>(geometry: T): T {

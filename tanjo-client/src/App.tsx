@@ -18,7 +18,7 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useEffect(() => {  
     let cancelled = false;
 
     const initAuth = async () => {

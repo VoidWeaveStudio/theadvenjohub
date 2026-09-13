@@ -15,4 +15,4 @@ export function EmptyState({ title, description, action, icon = "📭" }: EmptyS
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
-}
+}  

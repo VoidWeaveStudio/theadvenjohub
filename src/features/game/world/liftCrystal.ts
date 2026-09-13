@@ -18,7 +18,7 @@ const coreVertexShader = /* glsl */`
 
     varying vec3 vLocal;
     varying vec3 vNormalW;
-    varying vec3 vViewW;
+    varying vec3 vViewW; 
 
     void main() {
         vec3 dir = normalize(position);
