@@ -1071,7 +1071,7 @@ export class NetworkManager {
   public onVoiceOffer?: (data: { fromId: string; sdp: string }) => void;
   public onVoiceAnswer?: (data: { fromId: string; sdp: string }) => void;
   public onVoiceIceCandidate?: (data: { fromId: string; candidate: RTCIceCandidateInit }) => void;
-  public onAuthenticated?: (data: { playerId: string; nickname: string; skinTextureUrl?: string | null; locationId?: string; instance?: number; position?: number[] }) => void;
+  public onAuthenticated?: (data: { playerId: string; nickname: string; skinTextureUrl?: string | null; locationId?: string; instance?: number; position?: number[]; isAdmin?: boolean }) => void;
   public onLocationSync?: (data: { locationId: string; instance: number; position?: number[] }) => void;
   public onProgressLoaded?: (data: any) => void;
   public onAuthError?: (error: string) => void;
@@ -1535,6 +1535,7 @@ export class NetworkManager {
           locationId: typeof data.locationId === "string" ? data.locationId : undefined,
           instance: typeof data.instance === "number" ? data.instance : undefined,
           position: Array.isArray(data.position) ? data.position : undefined,
+          isAdmin: data.isAdmin === true,
         });
         if (typeof data.daySyncEpoch === "number") {
           this.onDayNightSync?.({

@@ -14,7 +14,7 @@ interface FloorSelectorProps {
     currentLocationId: string;
 }
 
-const LOCKED_FLOORS = new Set<string>(['tower-token-gates']);
+const LOCKED_FLOORS = new Set<string>([]);
 
 const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
     'tower-events': { x: 66.4, y: 38.1 },

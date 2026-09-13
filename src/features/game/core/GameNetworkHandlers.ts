@@ -68,6 +68,7 @@ interface AuthData {
     locationId?: string;
     instance?: number;
     position?: number[];
+    isAdmin?: boolean;
 }
 
 interface PlayerUpdateData {
@@ -316,6 +317,7 @@ export function registerNetworkHandlers(game: Game) {
 
     game.networkManager.onAuthenticated = (data: AuthData) => {
         game.localPlayerNetId = data.playerId;
+        game.isAdmin = data.isAdmin === true;
         if (data.locationId) {
             void game.applyServerLocation({ locationId: data.locationId, position: data.position });
         }

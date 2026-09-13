@@ -1,6 +1,5 @@
 // src/features/game/entities/characterSkinTexture.ts
 import * as THREE from "three";
-import { CosmeticId } from "../data/cosmetics";
 import { BODY_REGIONS, RegionPalette } from "./characterRegions";
 
 const TEXTURE_SIZE = 512;
@@ -95,10 +94,10 @@ function bakeRegionSkinTexture(
     return texture;
 }
 
-const textureCache = new Map<CosmeticId, THREE.CanvasTexture>();
+const textureCache = new Map<string, THREE.CanvasTexture>();
 
 export function getRegionSkinTexture(
-    id: CosmeticId,
+    id: string,
     geometry: THREE.BufferGeometry,
     regionIndex: Uint8Array,
     palette: RegionPalette

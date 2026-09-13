@@ -1,6 +1,7 @@
 // src/features/game/core/GameCallbacks.ts
 import { ChatMessage } from "../ui/Chat";
 import type { BuildSessionState } from "../world/building/BuildSession";
+import type { CinemaState } from "./CinemaCamera";
 import type { ResolvedEvent } from "../data/eventDoors";
 import type { KillFeedEntry } from "../ui/KillFeed";
 import {
@@ -106,6 +107,7 @@ export interface GameCallbacks {
     onArenaStartResult?: (cooldownUntil: number) => void;
 
     onFloorSelectorToggle?: (isOpen: boolean) => void;
+    onCinemaState?: (state: CinemaState) => void;
     onBuildEditorState?: (state: BuildSessionState) => void;
     onLocationChange?: (id: string) => void;
 

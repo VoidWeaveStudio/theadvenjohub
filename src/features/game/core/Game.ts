@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController } from "./CameraController";
+import { CinemaCamera } from "./CinemaCamera";
 import { ResourceManager } from "./ResourceManager";
 import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData, RespawnTarget, TournamentSummary, TournamentActionPayload, InfluenceStateData, InfluenceCaptureData } from "../network/NetworkManager";
 import { BranchId } from "../data/progression";
@@ -138,6 +139,8 @@ export class Game {
 
     private inputManager: InputManager;
     public readonly cameraController: CameraController;
+    public readonly cinema: CinemaCamera = new CinemaCamera();
+    public isAdmin: boolean = false;
     public readonly resourceManager: ResourceManager;
     public readonly networkManager: NetworkManager;
 
@@ -169,10 +172,11 @@ export class Game {
     private readonly listenerForward = new THREE.Vector3();
 
     private updateAudioListener() {
-        const camera = this.cameraController.camera;
+        const cinematic = this.cinema.isActive();
+        const camera = cinematic ? this.cinema.camera : this.cameraController.camera;
         camera.getWorldDirection(this.listenerForward);
 
-        const position = this.player.mesh.position;
+        const position = cinematic ? this.cinema.camera.position : this.player.mesh.position;
         SoundManager.getInstance().setListener(
             position.x,
             position.z,
@@ -410,6 +414,37 @@ export class Game {
         }
         this.closeTunersExcept(this.weaponTuner);
         this.weaponTuner.toggle();
+    }
+
+    public toggleCinema() {
+        if (this.cinema.isActive()) {
+            this.exitCinema();
+            return;
+        }
+
+        if (!this.isAdmin) {
+            this.onNotification?.("🎬 Free camera is admin only", 2000);
+            return;
+        }
+
+        this.closeTunersExcept(null);
+        this.closeBuildEditor();
+
+        const origin = this.cameraController.camera.getWorldPosition(new THREE.Vector3());
+        this.cinema.setAspect(this.getViewportAspect());
+        this.cinema.enter(origin, this.cameraController.getYaw(), this.cameraController.getPitch());
+        this.locationManager.setActiveCamera(this.cinema.camera);
+        this.player.setMovementLocked(true);
+        this.player.setSelfHidden(this.cinema.hidesPlayer());
+    }
+
+    public exitCinema() {
+        if (!this.cinema.isActive()) return;
+
+        this.cinema.exit();
+        this.locationManager.setActiveCamera(null);
+        this.player.setMovementLocked(false);
+        this.player.setSelfHidden(this.cameraController.isFirstPerson());
     }
 
     public async enterGrinder() {
@@ -873,6 +908,10 @@ export class Game {
                     this.interactionSystem.canPaintLot = state.canEdit;
                     this.onBuildEditorState?.(state);
                 };
+                this.cinema.onStateChange = (state) => {
+                    this.player.setSelfHidden(state.active && state.hideSelf);
+                    this.onCinemaState?.(state);
+                };
                 this.interactionSystem.onOpenPosterPaint = (pieceKey) => {
                     this.onOpenPosterPaintUI?.(pieceKey);
                 };
@@ -1129,6 +1168,7 @@ export class Game {
     ) {
         if (this.isChangingLocation) return;
         this.isChangingLocation = true;
+        this.exitCinema();
         this.closeBuildEditor();
 
         try {
@@ -1462,8 +1502,9 @@ export class Game {
         this.frameCount++;
         perf.frameBegin();
 
-        const portal = this.locationManager.checkPortals(this.player.mesh.position);
-        const isEJustPressed = this.inputManager.isKeyJustPressed("KeyE");
+        const cinematic = this.cinema.isActive();
+        const portal = cinematic ? null : this.locationManager.checkPortals(this.player.mesh.position);
+        const isEJustPressed = !cinematic && this.inputManager.isKeyJustPressed("KeyE");
 
         if (portal) {
             this.interactionSystem.onPrompt?.(t("g.prompt.enterPlace", { place: t(`g.floorReg.${portal.targetLocationId}.name`) }));
@@ -1483,7 +1524,9 @@ export class Game {
             enforcePlayerBounds(this);
             perf.end("player");
             perf.begin("camera");
-            if (this.buildSession.editor.active) {
+            if (cinematic) {
+                this.cinema.update(delta, this.inputManager);
+            } else if (this.buildSession.editor.active) {
                 this.buildSession.update(delta);
             } else {
                 this.cameraController.setAbsorbSteps(!this.player.isJumping());
@@ -1506,7 +1549,9 @@ export class Game {
             this.enemySystem.update(delta);
             this.bossProjectiles.update(delta);
 
-            if (this.defusalHoldingGrenade) {
+            if (cinematic) {
+                this.player.getWeapon().update(delta);
+            } else if (this.defusalHoldingGrenade) {
                 this.player.getWeapon().update(delta);
                 this.updateGrenadeThrow();
             } else if (this.defusalHoldingMelee) {
@@ -1539,11 +1584,11 @@ export class Game {
             }
 
             perf.begin("interaction");
-            this.interactionSystem.update(delta, isEJustPressed);
+            if (!cinematic) this.interactionSystem.update(delta, isEJustPressed);
             this.updateQuestMarkers(delta);
             perf.end("interaction");
 
-            if (currentLocation.getInteractionPrompt && !portal) {
+            if (currentLocation.getInteractionPrompt && !portal && !cinematic) {
                 const prompt = currentLocation.getInteractionPrompt(this.player.mesh.position);
                 if (prompt !== null) {
                     this.interactionSystem.onPrompt?.(prompt);
@@ -1634,6 +1679,7 @@ export class Game {
         const width = container?.clientWidth || window.innerWidth;
         const height = container?.clientHeight || window.innerHeight;
         this.cameraController.resize(width, height);
+        this.cinema.setAspect(width / Math.max(1, height));
         this.buildSession.editor.camera.setAspect(width / Math.max(1, height));
         this.renderer.setSize(width, height, false);
 

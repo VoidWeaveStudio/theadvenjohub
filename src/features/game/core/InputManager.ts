@@ -16,6 +16,7 @@ export class InputManager {
   private mouseJustPressed: Set<number> = new Set();
   private mouseJustReleased: Set<number> = new Set();
   private mouseMovement: THREE.Vector2 = new THREE.Vector2();
+  private wheelDelta: number = 0;
   private isPointerLocked: boolean = false;
   private isEnabled: boolean = true;
   private canvas: HTMLCanvasElement;
@@ -27,6 +28,7 @@ export class InputManager {
   private onMouseDown: (e: MouseEvent) => void;
   private onMouseUp: (e: MouseEvent) => void;
   private onMouseMove: (e: MouseEvent) => void;
+  private onWheel: (e: WheelEvent) => void;
   private onPointerLockChange: () => void;
   private onCanvasClick: () => void;
   private onContextMenu: (e: MouseEvent) => void;
@@ -68,6 +70,11 @@ export class InputManager {
       this.mouseMovement.y += e.movementY;
     };
 
+    this.onWheel = (e) => {
+      if (!this.isEnabled || !this.isPointerLocked) return;
+      this.wheelDelta += e.deltaY;
+    };
+
     this.onPointerLockChange = () => {
       this.isPointerLocked = document.pointerLockElement === canvas;
       this.onPointerLockStateChange?.(this.isPointerLocked);
@@ -94,6 +101,7 @@ export class InputManager {
     document.addEventListener("mousedown", this.onMouseDown);
     document.addEventListener("mouseup", this.onMouseUp);
     document.addEventListener("mousemove", this.onMouseMove);
+    document.addEventListener("wheel", this.onWheel, { passive: true });
     document.addEventListener("pointerlockchange", this.onPointerLockChange);
     canvas.addEventListener("click", this.onCanvasClick);
     canvas.addEventListener("contextmenu", this.onContextMenu);
@@ -175,12 +183,19 @@ export class InputManager {
     this.keys.clear();
     this.mouseButtons.clear();
     this.mouseMovement.set(0, 0);
+    this.wheelDelta = 0;
   }
 
   consumeMouseMovement(): THREE.Vector2 {
     const m = this.mouseMovement.clone();
     this.mouseMovement.set(0, 0);
     return m;
+  }
+
+  consumeWheel(): number {
+    const delta = this.wheelDelta;
+    this.wheelDelta = 0;
+    return delta;
   }
 
   isKeyPressed(code: string): boolean {
@@ -236,6 +251,7 @@ export class InputManager {
     document.removeEventListener("mousedown", this.onMouseDown);
     document.removeEventListener("mouseup", this.onMouseUp);
     document.removeEventListener("mousemove", this.onMouseMove);
+    document.removeEventListener("wheel", this.onWheel);
     document.removeEventListener("pointerlockchange", this.onPointerLockChange);
     this.canvas.removeEventListener("click", this.onCanvasClick);
     this.canvas.removeEventListener("contextmenu", this.onContextMenu);
