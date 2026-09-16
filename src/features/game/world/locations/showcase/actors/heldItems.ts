@@ -15,7 +15,8 @@ export type HeldItemId =
     | "lantern"
     | "wrench"
     | "bag"
-    | "chalice";
+    | "chalice"
+    | "phone";
 
 export interface HeldItem {
     object: THREE.Object3D;
@@ -41,6 +42,35 @@ export function buildHeldItem(id: HeldItemId, bin: Bin, accent: number, withLigh
     let light: THREE.PointLight | undefined;
 
     switch (id) {
+        case "phone": {
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.15, 0.012), matte(bin, 0x1a1a22, 0.42, 0.5));
+            group.add(body);
+
+            const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.064, 0.126), glow(bin, 0x0d2018, 0.95));
+            screen.position.z = 0.008;
+            group.add(screen);
+
+            const barMaterial = glow(bin, 0x3ddc84, 0.95);
+            const dropMaterial = glow(bin, 0xff4a4a, 0.95);
+            const heights = [0.05, 0.036, 0.058, 0.03, 0.018, 0.01];
+            for (let i = 0; i < heights.length; i++) {
+                const bar = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.007, heights[i]),
+                    i > 2 ? dropMaterial : barMaterial
+                );
+                bar.position.set(-0.024 + i * 0.0095, -0.03 + heights[i] / 2, 0.0095);
+                group.add(bar);
+            }
+
+            const trend = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.004), dropMaterial);
+            trend.position.set(0, 0.006, 0.0098);
+            trend.rotation.z = -0.55;
+            group.add(trend);
+
+            offset.set(0.01, -0.03, 0.075);
+            rotation.set(-1.15, 0.2, 0);
+            break;
+        }
         case "cocktail": {
             const bowl = new THREE.Mesh(new THREE.ConeGeometry(0.062, 0.085, 12, 1, true), bin(new THREE.MeshStandardMaterial({
                 color: 0xdff3ff,

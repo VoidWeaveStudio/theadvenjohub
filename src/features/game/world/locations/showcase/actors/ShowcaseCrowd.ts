@@ -18,6 +18,7 @@ export interface CrowdSpec {
     held?: HeldItemId;
     heldHand?: "right" | "left";
     heldLight?: boolean;
+    weapon?: string;
     accent?: number;
     tilt?: number;
     scale?: number;
@@ -31,7 +32,7 @@ const ACTOR_HEIGHT = 1.9;
 
 export class ShowcaseCrowd {
     private readonly specs: CrowdSpec[] = [];
-    private readonly actors: ShowcaseActor[] = [];
+    private readonly built: ShowcaseActor[] = [];
     private readonly materials = new Map<string, THREE.Material>();
     private groundAt: ((x: number, z: number) => number) | null = null;
 
@@ -53,10 +54,24 @@ export class ShowcaseCrowd {
         return this.specs.length;
     }
 
+    public createActor(rm: ResourceManager, spec: CrowdSpec, grid?: CollisionGrid): ShowcaseActor | null {
+        return this.build(rm, spec, grid);
+    }
+
+    public actors(): ShowcaseActor[] {
+        return this.built;
+    }
+
     public create(rm: ResourceManager, grid?: CollisionGrid): void {
+        for (const spec of this.specs) {
+            this.build(rm, spec, grid);
+        }
+    }
+
+    private build(rm: ResourceManager, spec: CrowdSpec, grid?: CollisionGrid): ShowcaseActor | null {
         const bin = <T extends THREE.Material>(material: T): T => this.bin.material(material);
 
-        for (const spec of this.specs) {
+        {
             const pool = VARIANT_SETS[spec.set];
             const index = spec.variantIndex !== undefined
                 ? spec.variantIndex % pool.length
@@ -72,6 +87,7 @@ export class ShowcaseCrowd {
                 held: spec.held,
                 heldHand: spec.heldHand,
                 heldLight: spec.heldLight,
+                weapon: spec.weapon,
                 accent: spec.accent,
                 tilt: spec.tilt,
                 scale: spec.scale ?? 0.95 + this.random() * 0.12,
@@ -80,11 +96,11 @@ export class ShowcaseCrowd {
             };
 
             const actor = new ShowcaseActor(actorSpec);
-            if (!actor.create(rm, bin, this.materials)) continue;
+            if (!actor.create(rm, bin, this.materials)) return null;
 
-            actor.setGroundProvider(spec.walk ? this.groundAt : null);
+            actor.setGroundProvider(spec.walk || spec.weapon ? this.groundAt : null);
             this.scene.add(actor.group);
-            this.actors.push(actor);
+            this.built.push(actor);
 
             if (grid && spec.solid !== false && !spec.walk) {
                 grid.insertCylinder(
@@ -93,18 +109,18 @@ export class ShowcaseCrowd {
                     ACTOR_HEIGHT
                 );
             }
+
+            return actor;
         }
     }
 
     public update(delta: number): void {
-        for (const actor of this.actors) actor.update(delta);
+        for (const actor of this.built) actor.update(delta);
     }
 
     public dispose(): void {
-        for (const actor of this.actors) {
-            actor.group.removeFromParent();
-        }
-        this.actors.length = 0;
+        for (const actor of this.built) actor.dispose();
+        this.built.length = 0;
         this.specs.length = 0;
         this.materials.clear();
     }

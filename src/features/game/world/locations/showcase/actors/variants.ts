@@ -1,9 +1,11 @@
 // src/features/game/world/locations/showcase/actors/variants.ts
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { RegionPalette } from "../../../../entities/characterRegions";
 
 const HEAD_TOP_Y = 2.22;
 const HEAD_CENTRE_Y = 1.08;
+
 
 export type HatKind =
     | "none"
@@ -151,19 +153,14 @@ export function buildHat(kind: HatKind, color: number, accent: number | undefine
             break;
         }
         case "hood": {
-            const shell = new THREE.Mesh(new THREE.SphereGeometry(1.14, 16, 12), cloth);
-            shell.scale.set(1.02, 1.12, 1.0);
-            shell.position.set(0, HEAD_CENTRE_Y + 0.14, -0.34);
+            const shell = new THREE.Mesh(new RoundedBoxGeometry(2.12, 2.5, 1.98, 4, 0.9), cloth);
+            shell.position.set(0, HEAD_CENTRE_Y + 0.02, -0.38);
             group.add(shell);
 
-            const drape = new THREE.Mesh(new THREE.CylinderGeometry(1.06, 1.42, 1.15, 16, 1, true), cloth);
-            drape.position.set(0, HEAD_CENTRE_Y - 0.72, -0.24);
-            group.add(drape);
-
-            const brow = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.16, 8, 18, Math.PI), cloth);
-            brow.rotation.x = -0.45;
-            brow.position.set(0, HEAD_CENTRE_Y + 0.66, 0.42);
-            group.add(brow);
+            const peak = new THREE.Mesh(new RoundedBoxGeometry(1.06, 0.86, 0.86, 3, 0.34), cloth);
+            peak.position.set(0, HEAD_CENTRE_Y + 1.18, -1.12);
+            peak.rotation.x = -0.42;
+            group.add(peak);
             break;
         }
         case "helmet": {
@@ -289,13 +286,12 @@ export function buildHat(kind: HatKind, color: number, accent: number | undefine
             break;
         }
         case "veil": {
-            const cowl = new THREE.Mesh(new THREE.SphereGeometry(1.3, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.72), cloth);
-            cowl.scale.set(1, 1.06, 1.02);
-            cowl.position.set(0, HEAD_CENTRE_Y + 0.08, -0.06);
-            group.add(cowl);
+            const shell = new THREE.Mesh(new RoundedBoxGeometry(2.08, 2.42, 1.92, 4, 0.88), cloth);
+            shell.position.set(0, HEAD_CENTRE_Y + 0.06, -0.42);
+            group.add(shell);
 
-            const drape = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.5, 1.1, 16, 1, true), cloth);
-            drape.position.set(0, HEAD_CENTRE_Y - 0.6, -0.06);
+            const drape = new THREE.Mesh(new RoundedBoxGeometry(1.86, 1.42, 0.62, 3, 0.3), cloth);
+            drape.position.set(0, HEAD_CENTRE_Y - 0.92, -1.12);
             group.add(drape);
             break;
         }

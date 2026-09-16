@@ -4,7 +4,7 @@ import { ShowcaseRoom } from "../ShowcaseRoom";
 import { ResourceManager } from "../../../../core/ResourceManager";
 import { SHOWCASE_INFO_BY_ID, ShowcaseInfo } from "../config";
 import { CrowdSpec } from "../actors/ShowcaseCrowd";
-import { createNpcNameTag } from "../../../../entities/npcNameTag";
+import type { ShowcaseActor } from "../actors/ShowcaseActor";
 
 const SQUARE_RADIUS = 62;
 const FOUNTAIN_CENTER = new THREE.Vector3(0, 0, 22);
@@ -16,6 +16,12 @@ const DUST_COUNT = 220;
 
 const TICKERS = ["$DOGE", "$PEPE", "$WIF", "$BONK", "$SHIB", "$FLOKI", "$BRETT", "$MOG"];
 const AWNING_COLORS = [0xd94f4f, 0x3f8f6b, 0x4f7fd8, 0xf2c53d, 0xa855f7, 0xff8f5a, 0x2fbf9f];
+const PRICES = ["0.004", "1.21", "0.00069", "42.0", "0.31", "7.77", "0.0001", "13.5"];
+const RUG_STALL = new THREE.Vector3(-21, 0, -8);
+const CHANGER_CENTER = new THREE.Vector3(21, 0, 4);
+const AUCTION_CENTER = new THREE.Vector3(-25, 0, 18);
+const ORACLE_CENTER = new THREE.Vector3(25, 0, -20);
+const CART_CENTER = new THREE.Vector3(-7, 0, -33);
 
 interface Bird {
     group: THREE.Group;
@@ -27,6 +33,15 @@ interface Bird {
 }
 
 export class BazaarRoom extends ShowcaseRoom {
+    private rugs: THREE.Mesh[] = [];
+    private scale: THREE.Object3D | null = null;
+    private gavel: THREE.Object3D | null = null;
+    private auctionPrize: THREE.Mesh | null = null;
+    private oracleOrb: THREE.Mesh | null = null;
+    private braziers: THREE.MeshBasicMaterial[] = [];
+    private barker: ShowcaseActor | null = null;
+    private scammer: ShowcaseActor | null = null;
+    private mark: ShowcaseActor | null = null;
     private awnings: THREE.Mesh[] = [];
     private lanterns: THREE.Mesh[] = [];
     private lanternMaterials: THREE.MeshBasicMaterial[] = [];
@@ -71,50 +86,237 @@ export class BazaarRoom extends ShowcaseRoom {
         bounce.position.set(-40, 16, 40);
         this.scene.add(bounce);
 
-        const sky = this.mesh(
-            new THREE.SphereGeometry(280, 24, 16),
-            this.bin.material(new THREE.MeshBasicMaterial({ color: 0xd8c49a, side: THREE.BackSide, fog: false, toneMapped: false })),
-            [0, 0, 0]
-        );
+        const skySkin = this.bin.material(new THREE.MeshBasicMaterial({
+            map: this.tex.gradient("bazaar", [[0, 0xe8d4a8], [0.42, 0xf2d9a0], [0.72, 0xbcd4e8], [1, 0x7fa8d8]], 0.06),
+            side: THREE.BackSide,
+            fog: false,
+            toneMapped: false,
+        }));
+
+        const sky = this.mesh(new THREE.SphereGeometry(280, 32, 20), skySkin, [0, 0, 0]);
         sky.castShadow = false;
         this.scene.add(sky);
+
+        const sunDisc = this.mesh(
+            new THREE.CircleGeometry(16, 32),
+            this.bin.material(new THREE.MeshBasicMaterial({ color: 0xfff3c4, fog: false, toneMapped: false })),
+            [150, 120, -180]
+        );
+        sunDisc.castShadow = false;
+        sunDisc.lookAt(0, 0, 0);
+        this.scene.add(sunDisc);
+
+        const sunHalo = this.mesh(new THREE.CircleGeometry(38, 32), this.glow(0xffe0a0, 0.22), [148, 118, -177]);
+        sunHalo.castShadow = false;
+        sunHalo.lookAt(0, 0, 0);
+        this.scene.add(sunHalo);
     }
 
-    protected decorate(_rm: ResourceManager): void {
+    protected decorate(rm: ResourceManager): void {
         this.buildGround();
         this.buildWalls();
         this.buildStalls();
+        this.buildRugStall();
+        this.buildChanger();
+        this.buildAuction();
+        this.buildOracle();
+        this.buildBraziers();
+        this.buildCart();
         this.buildFountain();
         this.buildBunting();
         this.buildBirds();
         this.buildDust();
         this.buildCrowd();
+        this.buildHustle(rm);
+    }
+
+    private buildHustle(rm: ResourceManager) {
+        const barkerSpot = new THREE.Vector3(-9.2, 0, -12);
+        const crate = this.mesh(
+            new THREE.BoxGeometry(1.7, 1, 1.7),
+            this.textured(this.tex.planks([2, 1], 0x8a6136, 0x54351a, 5), { roughness: 0.94, metalness: 0.02, bump: 0.05 }),
+            [barkerSpot.x, 0.5, barkerSpot.z],
+            [0, 0.3, 0]
+        );
+        this.scene.add(crate);
+        this.collisionGrid.insertOrientedBox(barkerSpot.x, barkerSpot.z, 1.7, 1.7, 0.3, 0, 1);
+
+        const barker = this.crowd.createActor(rm, {
+            position: new THREE.Vector3(barkerSpot.x, 1, barkerSpot.z),
+            set: "trader",
+            variantIndex: 2,
+            facing: 1.4,
+            pose: "hail",
+            held: "sign",
+            heldHand: "left",
+            accent: 0xf2c53d,
+            phase: 0.6,
+            solid: false,
+        }, this.collisionGrid);
+
+        if (barker) {
+            this.barker = barker;
+            const lines = [
+                this.bubble("1000x GUARANTEED", "#f2c53d", { width: 3.8, tone: "shout", y: 2.8 }),
+                this.bubble("PRESALE ENDS TONIGHT", "#ff8f5a", { width: 4.2, y: 2.8 }),
+                this.bubble("TRUST ME BRO", "#7ce8a8", { width: 3, y: 2.8 }),
+                this.bubble("AUDITED BY MY COUSIN", "#67c9ff", { width: 4.4, y: 2.8 }),
+            ];
+            for (const line of lines) barker.group.add(line);
+
+            const show = (index: number) => {
+                for (let i = 0; i < lines.length; i++) lines[i].visible = i === index;
+            };
+
+            this.addStory([
+                { duration: 3.2, enter: () => show(0) },
+                { duration: 0.5, enter: () => show(-1) },
+                { duration: 3.2, enter: () => show(1) },
+                { duration: 0.5, enter: () => show(-1) },
+                { duration: 3.2, enter: () => show(2) },
+                { duration: 0.5, enter: () => show(-1) },
+                { duration: 3.2, enter: () => show(3) },
+                { duration: 0.5, enter: () => show(-1) },
+            ]);
+        }
+
+        const dealSpot = new THREE.Vector3(8.4, 0, 8);
+        const runSpot = new THREE.Vector3(16, 0, -22);
+        const markSpot = new THREE.Vector3(7.2, 0, 9.6);
+
+        const scammer = this.crowd.createActor(rm, {
+            position: dealSpot.clone(),
+            set: "trader",
+            variantIndex: 0,
+            facing: 2.6,
+            pose: "haggle",
+            held: "bag",
+            accent: 0xa855f7,
+            phase: 2.2,
+            solid: false,
+        }, this.collisionGrid);
+
+        const mark = this.crowd.createActor(rm, {
+            position: markSpot.clone(),
+            set: "crowd",
+            variantIndex: 1,
+            facing: -0.6,
+            pose: "haggle",
+            held: "cash",
+            accent: 0x67c9ff,
+            phase: 4.3,
+            solid: false,
+        }, this.collisionGrid);
+
+        if (!scammer || !mark) return;
+        this.scammer = scammer;
+        this.mark = mark;
+
+        scammer.setHeldVisible(false);
+
+        const pitch = this.bubble("FLOOR IS RISING", "#a855f7", { width: 3.6, y: 2.9 });
+        const gone = this.bubble("SEE YOU NEVER", "#ff4a4a", { width: 3.4, tone: "shout", y: 2.9 });
+        scammer.group.add(pitch);
+        scammer.group.add(gone);
+
+        const doubt = this.bubble("IS IT AUDITED?", "#67c9ff", { width: 3.4, y: 2.9 });
+        const loss = this.bubble("MY BAGS...", "#ff8f8f", { width: 2.8, y: 2.9 });
+        mark.group.add(doubt);
+        mark.group.add(loss);
+
+        this.addStory([
+            {
+                duration: 5,
+                enter: () => {
+                    pitch.visible = true;
+                    gone.visible = false;
+                    doubt.visible = false;
+                    loss.visible = false;
+                    scammer.setPose("haggle");
+                    scammer.setHeldVisible(false);
+                    scammer.moveTo(dealSpot.x, 0, dealSpot.z);
+                    scammer.setFacing(2.6);
+                    mark.setPose("haggle");
+                    mark.setHeldVisible(true);
+                    mark.moveTo(markSpot.x, 0, markSpot.z);
+                    mark.setFacing(-0.6);
+                },
+            },
+            {
+                duration: 3,
+                enter: () => {
+                    pitch.visible = false;
+                    doubt.visible = true;
+                },
+            },
+            {
+                duration: 2.5,
+                enter: () => {
+                    doubt.visible = false;
+                    mark.setHeldVisible(false);
+                    scammer.setHeldVisible(true);
+                    scammer.setPose("carry");
+                },
+            },
+            {
+                duration: 7,
+                enter: () => {
+                    gone.visible = true;
+                    scammer.setDestination(runSpot, 4.4);
+                    mark.setPose("gawk");
+                },
+                update: (elapsed) => {
+                    gone.visible = elapsed < 2.5;
+                },
+            },
+            {
+                duration: 6,
+                enter: () => {
+                    gone.visible = false;
+                    mark.setPose("grieve");
+                    loss.visible = true;
+                },
+            },
+            {
+                duration: 4,
+                enter: () => {
+                    loss.visible = false;
+                },
+            },
+        ]);
     }
 
     private buildGround() {
-        const sand = this.matte(0xc4a473, 0.96, 0.02);
-        const cobble = this.matte(0xa98f62, 0.95, 0.03);
-        const carpetColors = [0x9c3f4a, 0x3f6b8f, 0x7a5a9c, 0xb8863f];
+        const sand = this.textured(this.tex.sand(24, 0xc4a473), { roughness: 0.96, metalness: 0.02, bump: 0.05 });
+        const cobble = this.textured(this.tex.cobble([4, 16], 0xa98f62, 0x7a6543), { roughness: 0.95, metalness: 0.03, bump: 0.07 });
+        const plazaSkin = this.textured(this.tex.cobble(8, 0xb59a6d, 0x826d4a), { roughness: 0.95, metalness: 0.03, bump: 0.07 });
+        const carpetColors: Array<[number, number]> = [
+            [0x9c3f4a, 0xe8c87a],
+            [0x3f6b8f, 0xe8e0c0],
+            [0x7a5a9c, 0xffd166],
+            [0xb8863f, 0x4a3a2a],
+        ];
 
         const ground = this.mesh(new THREE.CircleGeometry(SQUARE_RADIUS + 18, 56), sand, [0, 0, 0], [-Math.PI / 2, 0, 0]);
         ground.castShadow = false;
         this.scene.add(ground);
 
-        const street = this.mesh(new THREE.PlaneGeometry(20, 84), cobble, [0, 0.02, -4], [-Math.PI / 2, 0, 0]);
+        const street = this.mesh(new THREE.PlaneGeometry(20, 84), cobble, [0, 0.03, -4], [-Math.PI / 2, 0, 0]);
         street.castShadow = false;
         this.scene.add(street);
 
-        const plaza = this.mesh(new THREE.CircleGeometry(20, 40), cobble, [FOUNTAIN_CENTER.x, 0.02, FOUNTAIN_CENTER.z], [-Math.PI / 2, 0, 0]);
+        const plaza = this.mesh(new THREE.CircleGeometry(20, 40), plazaSkin, [FOUNTAIN_CENTER.x, 0.06, FOUNTAIN_CENTER.z], [-Math.PI / 2, 0, 0]);
         plaza.castShadow = false;
         this.scene.add(plaza);
 
         for (let i = 0; i < 14; i++) {
             const x = (this.random() - 0.5) * 34;
             const z = (this.random() - 0.5) * 60;
+            const [cbase, caccent] = carpetColors[Math.floor(this.random() * carpetColors.length)];
             const carpet = this.mesh(
                 new THREE.PlaneGeometry(2.6 + this.random() * 2, 3.4 + this.random() * 2),
-                this.matte(carpetColors[Math.floor(this.random() * carpetColors.length)], 0.95),
-                [x, 0.03, z],
+                this.textured(this.tex.carpet(1, cbase, caccent), { roughness: 0.95, metalness: 0 }),
+                [x, 0.1, z],
                 [-Math.PI / 2, 0, this.random() * Math.PI]
             );
             carpet.castShadow = false;
@@ -125,8 +327,8 @@ export class BazaarRoom extends ShowcaseRoom {
     }
 
     private buildWalls() {
-        const clay = this.matte(0xc9a678, 0.95, 0.02);
-        const clayDark = this.matte(0xa8865a, 0.96, 0.02);
+        const clay = this.textured(this.tex.plaster([2, 2], 0xc9a678, 0x7a5a34), { roughness: 0.95, metalness: 0.02, bump: 0.06 });
+        const clayDark = this.textured(this.tex.plaster([2, 2], 0xa8865a, 0x5a4020), { roughness: 0.96, metalness: 0.02, bump: 0.06 });
 
         for (let i = 0; i < 26; i++) {
             const angle = (i / 26) * Math.PI * 2;
@@ -169,8 +371,8 @@ export class BazaarRoom extends ShowcaseRoom {
     }
 
     private buildStalls() {
-        const wood = this.matte(0x8a6136, 0.94, 0.02);
-        const woodDark = this.matte(0x6b4a28, 0.95, 0.02);
+        const wood = this.textured(this.tex.planks([2, 1], 0x8a6136, 0x54351a, 5), { roughness: 0.94, metalness: 0.02, bump: 0.05 });
+        const woodDark = this.textured(this.tex.planks([2, 1], 0x6b4a28, 0x3a2614, 5), { roughness: 0.95, metalness: 0.02, bump: 0.05 });
         const coinGold = this.metal(0xe0b552, 0.32, 0.9);
         const coinSilver = this.metal(0xc8ccd4, 0.3, 0.9);
 
@@ -198,11 +400,8 @@ export class BazaarRoom extends ShowcaseRoom {
                     stall.add(postBack);
                 }
 
-                const awningMaterial = this.bin.material(new THREE.MeshStandardMaterial({
-                    color,
-                    roughness: 0.88,
-                    side: THREE.DoubleSide,
-                }));
+                const awningMaterial = this.textured(this.tex.stripes([2, 1], color, 0xf6efe0, 10), { roughness: 0.88, metalness: 0.02 });
+                awningMaterial.side = THREE.DoubleSide;
 
                 const awning = this.mesh(new THREE.PlaneGeometry(5.8, 3.4, 6, 3), awningMaterial, [0, 3.5, -0.5], [-1.15, 0, 0]);
                 stall.add(awning);
@@ -244,15 +443,370 @@ export class BazaarRoom extends ShowcaseRoom {
                 const crate = this.mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), woodDark, [2.4, 0.45, 2.2], [0, 0.4, 0]);
                 stall.add(crate);
 
-                const tag = createNpcNameTag(TICKERS[(row + (side > 0 ? 4 : 0)) % TICKERS.length], `#${color.toString(16).padStart(6, "0")}`);
-                tag.position.set(0, 4.6, 0.4);
-                tag.scale.set(4.4, 1.1, 1);
-                stall.add(tag);
+                const index = (row + (side > 0 ? 4 : 0)) % TICKERS.length;
+                const board = this.board(
+                    this.tex.sign(`stall${index}`, [TICKERS[index], `$${PRICES[index % PRICES.length]}`], {
+                        background: 0x3a2a18,
+                        color: 0xffe9c4,
+                        accent: color,
+                    }),
+                    3.8,
+                    1.9,
+                    [0, 4.4, 0.42],
+                    0,
+                    { roughness: 0.9, metalness: 0.05 }
+                );
+                stall.add(board);
+
+                for (const dx of [-1.8, 1.8]) {
+                    const bracket = this.mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.5, 6), woodDark, [dx, 3.9, 0.42]);
+                    stall.add(bracket);
+                }
 
                 this.scene.add(stall);
                 this.collisionGrid.insertOrientedBox(x, z, 2.4, 5.6, 0, 0, 1.6);
             }
         }
+    }
+
+    private buildRugStall() {
+        const wood = this.textured(this.tex.planks([2, 1], 0x8a6136, 0x54351a, 5), { roughness: 0.94, metalness: 0.02, bump: 0.05 });
+        const rugColors: Array<[number, number]> = [
+            [0x9c3f4a, 0xe8c87a],
+            [0x3f6b8f, 0xe8e0c0],
+            [0x7a5a9c, 0xffd166],
+            [0xb8863f, 0x4a3a2a],
+        ];
+
+        const group = new THREE.Group();
+        group.position.copy(RUG_STALL);
+        group.rotation.y = Math.PI / 2;
+
+        const platform = this.mesh(new THREE.BoxGeometry(11, 0.4, 7), wood, [0, 0.2, 0]);
+        platform.receiveShadow = true;
+        group.add(platform);
+
+        for (const dx of [-5, 5]) {
+            const post = this.mesh(new THREE.CylinderGeometry(0.16, 0.2, 6, 8), wood, [dx, 3, -2.8]);
+            group.add(post);
+        }
+
+        const rail = this.mesh(new THREE.CylinderGeometry(0.12, 0.12, 10.4, 8), wood, [0, 5.6, -2.8], [0, 0, Math.PI / 2]);
+        group.add(rail);
+
+        for (let i = 0; i < 4; i++) {
+            const [base, accent] = rugColors[i];
+            const skin = this.textured(this.tex.carpet(1, base, accent), { roughness: 0.96, metalness: 0 });
+            skin.side = THREE.DoubleSide;
+
+            const hanging = this.mesh(new THREE.PlaneGeometry(2.3, 4, 4, 6), skin, [-3.6 + i * 2.4, 3.5, -2.7]);
+            hanging.castShadow = false;
+            group.add(hanging);
+            this.rugs.push(hanging);
+
+            const rolled = this.mesh(new THREE.CylinderGeometry(0.34, 0.34, 3.2, 12), skin, [-3.4 + i * 2.2, 0.75, 1.6], [0, 0, Math.PI / 2]);
+            group.add(rolled);
+        }
+
+        const sign = this.board(
+            this.tex.sign("rugs", ["RUGS", "PULLED FRESH DAILY"], { background: 0x4a2a1a, color: 0xffd9a0, accent: 0xd94f4f }),
+            5.4,
+            2.7,
+            [0, 6.6, -2.7],
+            0,
+            { roughness: 0.9, metalness: 0.04 }
+        );
+        group.add(sign);
+
+        this.scene.add(group);
+        this.collisionGrid.insertOrientedBox(RUG_STALL.x, RUG_STALL.z, 7, 11, 0, 0, 0.6);
+    }
+
+    private buildChanger() {
+        const stone = this.textured(this.tex.stoneBlock([2, 1], 0xc2b08a, 0x8a7a58, 4), { roughness: 0.93, metalness: 0.04, bump: 0.07 });
+        const brass = this.metal(0xd8b46a, 0.3, 0.9);
+        const wood = this.textured(this.tex.planks([2, 1], 0x6b4a28, 0x3a2614, 5), { roughness: 0.94, metalness: 0.03, bump: 0.05 });
+
+        const group = new THREE.Group();
+        group.position.copy(CHANGER_CENTER);
+        group.rotation.y = -Math.PI / 2;
+
+        const booth = this.mesh(new THREE.BoxGeometry(6, 3.4, 4), stone, [0, 1.7, -1]);
+        group.add(booth);
+
+        const counter = this.mesh(new THREE.BoxGeometry(6.4, 0.2, 1.6), wood, [0, 1.4, 1.2]);
+        group.add(counter);
+
+        const awningSkin = this.textured(this.tex.stripes([2, 1], 0x3f6b8f, 0xe8e0c0, 8), { roughness: 0.9, metalness: 0.02 });
+        awningSkin.side = THREE.DoubleSide;
+        const awning = this.mesh(new THREE.PlaneGeometry(7, 3, 5, 3), awningSkin, [0, 3.6, 0.8], [-1.1, 0, 0]);
+        awning.castShadow = false;
+        group.add(awning);
+        this.awnings.push(awning);
+
+        for (let i = 0; i < 7; i++) {
+            const bar = this.mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6), brass, [-2.4 + i * 0.8, 2.3, 1.1]);
+            group.add(bar);
+        }
+
+        const scale = new THREE.Group();
+        scale.position.set(2.2, 1.5, 1.2);
+        const stand = this.mesh(new THREE.CylinderGeometry(0.08, 0.16, 1.1, 8), brass, [0, 0.55, 0]);
+        scale.add(stand);
+        const beam = this.mesh(new THREE.BoxGeometry(1.8, 0.07, 0.07), brass, [0, 1.12, 0]);
+        scale.add(beam);
+        for (const side of [-1, 1]) {
+            const pan = this.mesh(new THREE.CylinderGeometry(0.32, 0.26, 0.1, 12), brass, [side * 0.85, 0.82, 0]);
+            scale.add(pan);
+            const wire = this.mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.32, 4), brass, [side * 0.85, 0.98, 0]);
+            scale.add(wire);
+        }
+        group.add(scale);
+        this.scale = scale;
+
+        const coinGold = this.metal(0xe0b552, 0.32, 0.9);
+        for (let i = 0; i < 5; i++) {
+            const coin = this.mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 14), coinGold, [-2.2 + i * 0.34, 1.53, 1.2]);
+            group.add(coin);
+        }
+
+        const sign = this.board(
+            this.tex.sign("changer", ["EXCHANGE", "1 $BONK = 1 $BONK"], { background: 0x2a2418, color: 0xffe9a8, accent: 0xd8b46a }),
+            5,
+            2.5,
+            [0, 4.6, 1.05],
+            0,
+            { roughness: 0.9, metalness: 0.05 }
+        );
+        group.add(sign);
+
+        this.scene.add(group);
+        this.collisionGrid.insertOrientedBox(CHANGER_CENTER.x, CHANGER_CENTER.z, 4, 6.4, 0, 0, 2);
+    }
+
+    private buildAuction() {
+        const wood = this.textured(this.tex.planks([3, 1], 0x8a6136, 0x54351a, 6), { roughness: 0.94, metalness: 0.02, bump: 0.05 });
+        const cloth = this.textured(this.tex.carpet(1, 0x9c3f4a, 0xe8c87a), { roughness: 0.96, metalness: 0 });
+
+        const group = new THREE.Group();
+        group.position.copy(AUCTION_CENTER);
+        group.rotation.y = 0.5;
+
+        const dais = this.mesh(new THREE.CylinderGeometry(3.4, 3.8, 1.1, 18), wood, [0, 0.55, 0]);
+        dais.receiveShadow = true;
+        group.add(dais);
+        this.collisionGrid.insertCylinder(new THREE.Vector3(AUCTION_CENTER.x, 0.55, AUCTION_CENTER.z), 3.8, 1.1);
+
+        const drape = this.mesh(new THREE.CylinderGeometry(3.45, 3.45, 0.9, 18, 1, true), cloth, [0, 0.55, 0]);
+        (drape.material as THREE.Material).side = THREE.DoubleSide;
+        group.add(drape);
+
+        const lectern = this.mesh(new THREE.BoxGeometry(1.4, 1.2, 0.8), wood, [0, 1.7, 1.2]);
+        group.add(lectern);
+
+        const gavelBase = this.mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.14, 12), wood, [0, 2.38, 1.2]);
+        group.add(gavelBase);
+
+        const gavel = new THREE.Group();
+        gavel.position.set(0.7, 2.7, 1.2);
+        const head = this.mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.5, 10), wood, [0, 0, 0], [0, 0, Math.PI / 2]);
+        gavel.add(head);
+        const handle = this.mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.7, 8), wood, [0, -0.35, 0]);
+        gavel.add(handle);
+        group.add(gavel);
+        this.gavel = gavel;
+
+        for (const dx of [-3, 3]) {
+            const post = this.mesh(new THREE.CylinderGeometry(0.14, 0.18, 5, 8), wood, [dx, 2.5, -1.4]);
+            group.add(post);
+        }
+
+        const board = this.board(
+            this.tex.sign("auction", ["LOT 404", "1 000 000 $HOPIUM"], { background: 0x3a2a18, color: 0xffe9a8, accent: 0xff8f5a }),
+            5.6,
+            2.8,
+            [0, 4.4, -1.35],
+            0,
+            { roughness: 0.9, metalness: 0.05 }
+        );
+        group.add(board);
+
+        const prize = this.mesh(
+            new THREE.CylinderGeometry(0.9, 0.9, 0.24, 26),
+            this.lit(0xffd166, 0.7),
+            [-1.4, 1.5, 0.4],
+            [0.4, 0, 0.2]
+        );
+        group.add(prize);
+        this.auctionPrize = prize;
+
+        this.scene.add(group);
+    }
+
+    private buildOracle() {
+        const canvasSkin = this.textured(this.tex.stripes([2, 2], 0x5a3a7a, 0x2a1a3a, 10), { roughness: 0.94, metalness: 0.02, bump: 0.05 });
+        const rope = this.matte(0xc9a86a, 0.92);
+
+        const group = new THREE.Group();
+        group.position.copy(ORACLE_CENTER);
+
+        const tent = this.mesh(new THREE.ConeGeometry(5, 6.4, 10), canvasSkin, [0, 3.2, 0]);
+        group.add(tent);
+        this.collisionGrid.insertCylinder(new THREE.Vector3(ORACLE_CENTER.x, 2, ORACLE_CENTER.z), 4.4, 4);
+
+        const skirt = this.mesh(new THREE.CylinderGeometry(5, 5.2, 0.4, 10), canvasSkin, [0, 0.2, 0]);
+        group.add(skirt);
+
+        const doorway = this.mesh(new THREE.BoxGeometry(2.2, 3, 0.2), this.matte(0x140d1c, 0.98, 0), [0, 1.5, 4.2]);
+        group.add(doorway);
+
+        for (const side of [-1, 1]) {
+            const flap = this.mesh(new THREE.PlaneGeometry(1.2, 3, 2, 4), canvasSkin, [side * 1.6, 1.5, 4.3], [0, side * 0.5, 0]);
+            (flap.material as THREE.Material).side = THREE.DoubleSide;
+            flap.castShadow = false;
+            group.add(flap);
+        }
+
+        const finial = this.mesh(new THREE.SphereGeometry(0.4, 12, 10), this.lit(0xa855f7, 1.2), [0, 6.7, 0]);
+        finial.castShadow = false;
+        group.add(finial);
+        this.oracleOrb = finial;
+
+        const table = this.mesh(new THREE.CylinderGeometry(1, 1, 0.16, 14), this.matte(0x3a2a44, 0.9), [0, 1, 3.2]);
+        group.add(table);
+
+        const stem = this.mesh(new THREE.CylinderGeometry(0.16, 0.26, 1, 8), this.matte(0x3a2a44, 0.9), [0, 0.5, 3.2]);
+        group.add(stem);
+
+        const orb = this.mesh(new THREE.SphereGeometry(0.44, 16, 12), this.glow(0x9f7fff, 0.85), [0, 1.5, 3.2]);
+        orb.castShadow = false;
+        group.add(orb);
+
+        const light = new THREE.PointLight(0xa855f7, 20, 16, 2);
+        light.position.set(0, 1.8, 3.2);
+        group.add(light);
+
+        const sign = this.board(
+            this.tex.sign("oracle", ["PRICE ORACLE", "TOP IS IN. PROBABLY."], { background: 0x1e142c, color: 0xe0d0ff, accent: 0xa855f7 }),
+            4.6,
+            2.3,
+            [0, 4.6, 3.3],
+            0,
+            { roughness: 0.88, metalness: 0.06, emissive: 0xa855f7, emissiveIntensity: 0.3 }
+        );
+        group.add(sign);
+
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2;
+            const peg = this.mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.6, 5), rope, [Math.cos(angle) * 6.4, 0.3, Math.sin(angle) * 6.4]);
+            group.add(peg);
+
+            const guy = this.mesh(new THREE.CylinderGeometry(0.03, 0.03, 6.6, 4), rope, [Math.cos(angle) * 5.5, 2.4, Math.sin(angle) * 5.5]);
+            guy.quaternion.setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                new THREE.Vector3(-Math.cos(angle) * 1.6, 5.4, -Math.sin(angle) * 1.6).normalize()
+            );
+            guy.castShadow = false;
+            group.add(guy);
+        }
+
+        this.scene.add(group);
+    }
+
+    private buildBraziers() {
+        const iron = this.metal(0x3a3128, 0.62, 0.62);
+
+        for (let i = 0; i < 6; i++) {
+            const z = -30 + i * 12;
+            for (const side of [-1, 1]) {
+                const x = side * 4.6;
+                const group = new THREE.Group();
+                group.position.set(x, 0, z);
+
+                for (let leg = 0; leg < 3; leg++) {
+                    const angle = (leg / 3) * Math.PI * 2;
+                    const foot = this.mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.35, 6), iron, [Math.cos(angle) * 0.24, 0.66, Math.sin(angle) * 0.24], [Math.sin(angle) * 0.2, 0, -Math.cos(angle) * 0.2]);
+                    group.add(foot);
+                }
+
+                const bowl = this.mesh(new THREE.CylinderGeometry(0.44, 0.28, 0.36, 14), iron, [0, 1.42, 0]);
+                group.add(bowl);
+
+                const coals = this.mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.1, 14), this.lit(0xff5a2a, 1.6), [0, 1.6, 0]);
+                coals.castShadow = false;
+                group.add(coals);
+
+                const flameMaterial = this.glow(0xffa845, 0.75);
+                this.braziers.push(flameMaterial);
+                const flame = this.mesh(new THREE.ConeGeometry(0.3, 0.8, 9), flameMaterial, [0, 1.98, 0]);
+                flame.castShadow = false;
+                group.add(flame);
+
+                const flameInner = this.mesh(new THREE.ConeGeometry(0.16, 0.44, 8), this.glow(0xfff3c4, 0.85), [0, 1.84, 0]);
+                flameInner.castShadow = false;
+                group.add(flameInner);
+
+                const light = new THREE.PointLight(0xff9a4a, 16, 14, 2);
+                light.position.set(0, 1.9, 0);
+                group.add(light);
+
+                this.scene.add(group);
+                this.collisionGrid.insertCylinder(new THREE.Vector3(x, 0.8, z), 0.56, 1.7);
+            }
+        }
+    }
+
+    private buildCart() {
+        const wood = this.textured(this.tex.planks([2, 1], 0x8a6136, 0x54351a, 5), { roughness: 0.94, metalness: 0.02, bump: 0.05 });
+        const iron = this.metal(0x3a3128, 0.6, 0.65);
+
+        const group = new THREE.Group();
+        group.position.copy(CART_CENTER);
+        group.rotation.y = 0.9;
+
+        const bed = this.mesh(new THREE.BoxGeometry(4.6, 0.3, 2.4), wood, [0, 1.1, 0]);
+        group.add(bed);
+
+        for (const dz of [-1.2, 1.2]) {
+            const side = this.mesh(new THREE.BoxGeometry(4.6, 0.8, 0.16), wood, [0, 1.5, dz]);
+            group.add(side);
+        }
+
+        const front = this.mesh(new THREE.BoxGeometry(0.16, 0.8, 2.4), wood, [-2.3, 1.5, 0]);
+        group.add(front);
+
+        for (const side of [-1, 1]) {
+            const wheel = this.mesh(new THREE.TorusGeometry(0.85, 0.12, 8, 20), wood, [0.6, 0.85, side * 1.35], [0, Math.PI / 2, 0]);
+            group.add(wheel);
+
+            for (let s = 0; s < 6; s++) {
+                const spoke = this.mesh(new THREE.BoxGeometry(0.1, 1.7, 0.08), wood, [0.6, 0.85, side * 1.35], [0, Math.PI / 2, (s / 6) * Math.PI]);
+                group.add(spoke);
+            }
+        }
+
+        const shaft = this.mesh(new THREE.CylinderGeometry(0.09, 0.09, 3, 8), wood, [-3.6, 1.05, 0], [0, 0, Math.PI / 2 - 0.16]);
+        group.add(shaft);
+
+        const brace = this.mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.2, 8), iron, [1.6, 0.6, 0], [0, 0, 0.5]);
+        group.add(brace);
+
+        for (let i = 0; i < 5; i++) {
+            const crate = this.mesh(
+                new THREE.BoxGeometry(0.9, 0.8, 0.9),
+                wood,
+                [-1.6 + (i % 3) * 1.5, 1.65 + Math.floor(i / 3) * 0.8, (i % 2 === 0 ? -0.5 : 0.5)],
+                [0, this.random() * 0.4, 0]
+            );
+            group.add(crate);
+
+            const lid = this.mesh(new THREE.BoxGeometry(0.75, 0.1, 0.75), this.lit(0xffd166, 0.5), [-1.6 + (i % 3) * 1.5, 2.08 + Math.floor(i / 3) * 0.8, (i % 2 === 0 ? -0.5 : 0.5)]);
+            lid.castShadow = false;
+            group.add(lid);
+        }
+
+        this.scene.add(group);
+        this.collisionGrid.insertOrientedBox(CART_CENTER.x, CART_CENTER.z, 4.6, 2.8, 0.9, 0, 1.6);
     }
 
     private buildFountain() {
@@ -471,7 +1025,7 @@ export class BazaarRoom extends ShowcaseRoom {
         }
 
         specs.push({
-            position: new THREE.Vector3(-4.5, 0.95, 12),
+            position: new THREE.Vector3(-6.6, 0.95, 12),
             set: "trader",
             variantIndex: 0,
             facing: 0.4,
@@ -483,7 +1037,7 @@ export class BazaarRoom extends ShowcaseRoom {
             solid: false,
         });
 
-        const crate = this.mesh(new THREE.BoxGeometry(1.6, 0.95, 1.6), this.matte(0x6b4a28, 0.95), [-4.5, 0.47, 12]);
+        const crate = this.mesh(new THREE.BoxGeometry(1.6, 0.95, 1.6), this.matte(0x6b4a28, 0.95), [-6.6, 0.47, 12]);
         this.scene.add(crate);
         this.collisionGrid.insertOrientedBox(-4.5, 12, 1.6, 1.6, 0, 0, 0.95);
 
@@ -499,12 +1053,12 @@ export class BazaarRoom extends ShowcaseRoom {
         }
 
         for (let i = 0; i < 3; i++) {
-            const angle = 1.2 + i * 0.9;
+            const angle = 4.0 + i * 0.7;
             specs.push({
                 position: new THREE.Vector3(
-                    FOUNTAIN_CENTER.x + Math.cos(angle) * 9,
+                    FOUNTAIN_CENTER.x + Math.cos(angle) * 10.5,
                     0,
-                    FOUNTAIN_CENTER.z + Math.sin(angle) * 9
+                    FOUNTAIN_CENTER.z + Math.sin(angle) * 10.5
                 ),
                 set: "crowd",
                 lookAt: FOUNTAIN_CENTER,
@@ -516,13 +1070,13 @@ export class BazaarRoom extends ShowcaseRoom {
         }
 
         const walkers: Array<[number, number, number, number, number]> = [
-            [-6, -32, -6, 30, 1],
-            [6, 32, 6, -30, 1],
-            [-2, -20, -2, 16, 1],
-            [3, 14, 3, -26, 1],
-            [-18, 30, 16, 34, 1],
-            [20, -20, -20, -24, 1],
-            [-8, 6, 8, 6, 0.72],
+            [-6.5, -28, -6.5, 12, 1],
+            [6.5, 12, 6.5, -28, 1],
+            [-1.5, -20, -1.5, 10, 1],
+            [1.5, 10, 1.5, -26, 1],
+            [-16, 36, 16, 36, 1],
+            [18, -33.5, -2, -33.5, 1],
+            [-7.5, 0, 7.5, 0, 0.72],
             [9, -8, -9, -10, 0.72],
         ];
 
@@ -543,10 +1097,161 @@ export class BazaarRoom extends ShowcaseRoom {
             });
         }
 
+        specs.push({
+            position: new THREE.Vector3(RUG_STALL.x + 2.6, 0.4, RUG_STALL.z + 1),
+            set: "trader",
+            variantIndex: 0,
+            facing: Math.PI / 2,
+            pose: "haggle",
+            phase: 1.4,
+            solid: false,
+        });
+
+        for (let i = 0; i < 3; i++) {
+            specs.push({
+                position: new THREE.Vector3(RUG_STALL.x + 5.4, 0, RUG_STALL.z - 2 + i * 2),
+                set: "crowd",
+                lookAt: new THREE.Vector3(RUG_STALL.x, 2, RUG_STALL.z),
+                pose: i === 0 ? "haggle" : "gawk",
+                phase: this.random() * 9,
+            });
+        }
+
+        specs.push({
+            position: new THREE.Vector3(CHANGER_CENTER.x - 1.4, 0, CHANGER_CENTER.z),
+            set: "trader",
+            variantIndex: 1,
+            facing: -Math.PI / 2,
+            pose: "work",
+            phase: 2.8,
+            solid: false,
+        });
+
+        for (let i = 0; i < 3; i++) {
+            specs.push({
+                position: new THREE.Vector3(CHANGER_CENTER.x - 4.2 - i * 1.5, 0, CHANGER_CENTER.z - 1 + (i % 2) * 2),
+                set: "crowd",
+                lookAt: new THREE.Vector3(CHANGER_CENTER.x, 1.6, CHANGER_CENTER.z),
+                pose: i === 0 ? "haggle" : "carry",
+                held: i === 0 ? "cash" : "bag",
+                phase: this.random() * 9,
+            });
+        }
+
+        specs.push({
+            position: new THREE.Vector3(AUCTION_CENTER.x + Math.sin(0.5) * 1.1, 1.1, AUCTION_CENTER.z + Math.cos(0.5) * 1.1),
+            set: "trader",
+            variantIndex: 2,
+            facing: 0.5,
+            pose: "preach",
+            accent: 0xffd166,
+            phase: 0.6,
+            solid: false,
+        });
+
+        for (let i = 0; i < 8; i++) {
+            const angle = 0.5 + (i - 3.5) * 0.3;
+            const radius = 5.4 + (i % 2) * 1.8;
+            specs.push({
+                position: new THREE.Vector3(
+                    AUCTION_CENTER.x + Math.sin(angle) * radius,
+                    0,
+                    AUCTION_CENTER.z + Math.cos(angle) * radius
+                ),
+                set: "crowd",
+                lookAt: new THREE.Vector3(AUCTION_CENTER.x, 2, AUCTION_CENTER.z),
+                pose: i % 3 === 0 ? "cheer" : "gawk",
+                held: i % 4 === 0 ? "cash" : undefined,
+                phase: this.random() * 9,
+            });
+        }
+
+        specs.push({
+            position: new THREE.Vector3(ORACLE_CENTER.x, 0, ORACLE_CENTER.z + 2.2),
+            set: "trader",
+            variantIndex: 0,
+            facing: 0,
+            pose: "preach",
+            accent: 0xa855f7,
+            phase: 3.4,
+            solid: false,
+        });
+
+        for (let i = 0; i < 3; i++) {
+            specs.push({
+                position: new THREE.Vector3(ORACLE_CENTER.x - 2 + i * 2, 0, ORACLE_CENTER.z + 6.4),
+                set: "crowd",
+                lookAt: new THREE.Vector3(ORACLE_CENTER.x, 1.6, ORACLE_CENTER.z + 3),
+                pose: "gawk",
+                phase: this.random() * 9,
+            });
+        }
+
+        specs.push({
+            position: new THREE.Vector3(CART_CENTER.x - 3, 0, CART_CENTER.z + 1.4),
+            set: "trader",
+            variantIndex: 1,
+            lookAt: new THREE.Vector3(CART_CENTER.x, 1.4, CART_CENTER.z),
+            pose: "work",
+            phase: 5.2,
+        });
+
+        const chase: Array<[number, number, number, number, number, string]> = [
+            [-2.6, -30, -2.6, 8, 2.6, "bag"],
+            [-3.2, -33, -3.2, 5, 2.4, "wrench"],
+        ];
+
+        for (const [x1, z1, x2, z2, speed, held] of chase) {
+            specs.push({
+                position: new THREE.Vector3(x1, 0, z1),
+                set: "trader",
+                walk: {
+                    path: [new THREE.Vector3(x1, 0, z1), new THREE.Vector3(x2, 0, z2)],
+                    mode: "pingpong",
+                    pause: 1.2,
+                    speed,
+                    run: true,
+                },
+                held: held as never,
+                phase: this.random() * 9,
+            });
+        }
+
         this.crowd.addMany(specs);
     }
 
     protected tick(delta: number): void {
+        for (let i = 0; i < this.rugs.length; i++) {
+            const attribute = (this.rugs[i].geometry as THREE.PlaneGeometry).getAttribute("position") as THREE.BufferAttribute;
+            const array = attribute.array as Float32Array;
+            for (let v = 0; v < array.length; v += 3) {
+                array[v + 2] = Math.sin(this.elapsed * 1.3 + array[v + 1] * 1.4 + i) * 0.09 * (2.2 - array[v + 1]);
+            }
+            attribute.needsUpdate = true;
+        }
+
+        if (this.scale) {
+            this.scale.rotation.z = Math.sin(this.elapsed * 0.9) * 0.1;
+        }
+
+        if (this.gavel) {
+            this.gavel.position.y = 2.7 + Math.abs(Math.sin(this.elapsed * 1.6)) * 0.36;
+            this.gavel.rotation.z = -Math.abs(Math.sin(this.elapsed * 1.6)) * 0.5;
+        }
+
+        if (this.auctionPrize) {
+            this.auctionPrize.rotation.y += delta * 1.1;
+        }
+
+        if (this.oracleOrb) {
+            const material = this.oracleOrb.material as THREE.MeshStandardMaterial;
+            material.emissiveIntensity = 0.9 + Math.sin(this.elapsed * 2.1) * 0.5;
+        }
+
+        for (let i = 0; i < this.braziers.length; i++) {
+            this.braziers[i].opacity = 0.62 + Math.sin(this.elapsed * 7 + i * 1.7) * 0.22;
+        }
+
         for (let i = 0; i < this.awnings.length; i++) {
             this.awnings[i].rotation.z = Math.sin(this.elapsed * 0.9 + i * 0.7) * 0.022;
         }

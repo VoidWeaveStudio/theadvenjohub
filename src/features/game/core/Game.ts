@@ -423,7 +423,7 @@ export class Game {
         }
 
         if (!this.isAdmin) {
-            this.onNotification?.("🎬 Free camera is admin only", 2000);
+            this.onNotification?.(t("g.cinema.adminOnly"), 2000);
             return;
         }
 

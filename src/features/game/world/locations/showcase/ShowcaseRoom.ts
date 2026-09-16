@@ -5,6 +5,8 @@ import { ResourceManager } from "../../../core/ResourceManager";
 import { AssetBin } from "../../AssetBin";
 import { ShowcaseCrowd } from "./actors/ShowcaseCrowd";
 import { SECOND_WORLD_ID, ShowcaseInfo } from "./config";
+import { ShowcaseTextures, surfaceMaterial } from "./textures";
+import { speechTexture, Story, StoryStep } from "./story";
 import type { HeightProvider } from "../../Location";
 import { t } from "@/core/i18n";
 
@@ -23,7 +25,9 @@ export abstract class ShowcaseRoom extends TowerFloor {
     protected readonly random: () => number;
     protected readonly info: ShowcaseInfo;
     protected readonly crowd: ShowcaseCrowd;
+    protected readonly tex: ShowcaseTextures;
     protected elapsed = 0;
+    private stories: Story[] = [];
 
     public terrain: HeightProvider = { getHeightAt: (x, z) => this.groundHeight(x, z) };
 
@@ -40,12 +44,102 @@ export abstract class ShowcaseRoom extends TowerFloor {
         this.info = info;
         this.random = makeRandom(seed);
         this.crowd = new ShowcaseCrowd(this.scene, this.bin, this.random);
+        this.tex = new ShowcaseTextures(this.bin, this.random);
         this.maxPlayerRadius = roomRadius;
         this.cameraBounds = { radius: roomRadius + 6, minY: -40, maxY: 220 };
     }
 
     protected matte(color: number, roughness = 0.85, metalness = 0.04): THREE.MeshStandardMaterial {
         return this.bin.material(new THREE.MeshStandardMaterial({ color, roughness, metalness }));
+    }
+
+    protected textured(
+        map: THREE.Texture,
+        options: { roughness?: number; metalness?: number; bump?: number; color?: number; emissive?: number; emissiveIntensity?: number } = {}
+    ): THREE.MeshStandardMaterial {
+        return surfaceMaterial(this.bin, map, options);
+    }
+
+    protected bubble(
+        text: string,
+        accent: string,
+        options: { width?: number; tone?: "say" | "shout" | "think"; y?: number } = {}
+    ): THREE.Sprite {
+        const texture = speechTexture(this.bin, text, accent, options.tone ?? "say");
+        const material = this.bin.material(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+        const sprite = new THREE.Sprite(material);
+        const width = options.width ?? 2.6;
+        sprite.scale.set(width, width * 0.375, 1);
+        sprite.position.y = options.y ?? 2.9;
+        sprite.visible = false;
+        sprite.renderOrder = 6;
+        return sprite;
+    }
+
+    protected addStory(steps: StoryStep[]): Story {
+        const story = new Story(steps);
+        this.stories.push(story);
+        return story;
+    }
+
+    protected decal(
+        map: THREE.Texture,
+        options: { roughness?: number; metalness?: number; color?: number; emissive?: number; emissiveIntensity?: number } = {}
+    ): THREE.MeshStandardMaterial {
+        const material = surfaceMaterial(this.bin, map, options);
+        material.polygonOffset = true;
+        material.polygonOffsetFactor = -4;
+        material.polygonOffsetUnits = -8;
+        material.side = THREE.FrontSide;
+        return material;
+    }
+
+    protected board(
+        map: THREE.Texture,
+        width: number,
+        height: number,
+        position?: [number, number, number],
+        rotationY = 0,
+        options: { roughness?: number; metalness?: number; color?: number; emissive?: number; emissiveIntensity?: number; segments?: number; oneSided?: boolean; offset?: number } = {}
+    ): THREE.Group {
+        const group = new THREE.Group();
+        const material = this.decal(map, options);
+        const segments = options.segments ?? 1;
+        const offset = options.offset ?? 0.015;
+
+        const front = new THREE.Mesh(this.bin.geometry(new THREE.PlaneGeometry(width, height, segments, segments)), material);
+        front.position.z = offset;
+        front.castShadow = false;
+        front.receiveShadow = false;
+        group.add(front);
+
+        if (!options.oneSided) {
+            const back = new THREE.Mesh(this.bin.geometry(new THREE.PlaneGeometry(width, height, segments, segments)), material);
+            back.position.z = -offset;
+            back.rotation.y = Math.PI;
+            back.castShadow = false;
+            back.receiveShadow = false;
+            group.add(back);
+        }
+
+        if (position) group.position.set(position[0], position[1], position[2]);
+        group.rotation.y = rotationY;
+        return group;
+    }
+
+    protected waveBoard(group: THREE.Group, time: number, amplitude: number, index = 0) {
+        for (let i = 0; i < group.children.length; i++) {
+            const mesh = group.children[i] as THREE.Mesh;
+            const attribute = (mesh.geometry as THREE.PlaneGeometry).getAttribute("position") as THREE.BufferAttribute;
+            if (!attribute) continue;
+            const array = attribute.array as Float32Array;
+            const flip = mesh.rotation.y === 0 ? 1 : -1;
+            for (let v = 0; v < array.length; v += 3) {
+                const along = array[v] * flip;
+                array[v + 2] = flip * Math.sin(time * 2.1 + along * 2.4 + index) * amplitude * (along + 1.4);
+            }
+            attribute.needsUpdate = true;
+        }
     }
 
     protected metal(color: number, roughness = 0.34, metalness = 0.88): THREE.MeshStandardMaterial {
@@ -192,6 +286,7 @@ export abstract class ShowcaseRoom extends TowerFloor {
     override update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean): void {
         this.elapsed += delta;
         this.crowd.update(delta);
+        for (let i = 0; i < this.stories.length; i++) this.stories[i].update(delta);
         this.tick(delta);
 
         if (this.exitVeil) this.exitVeil.opacity = 0.36 + Math.sin(this.elapsed * 1.7) * 0.09;
@@ -207,10 +302,11 @@ export abstract class ShowcaseRoom extends TowerFloor {
     }
 
     dispose(): void {
+        this.stories = [];
         this.exitVeil = null;
         this.exitLight = null;
-        super.dispose();
         this.crowd.dispose();
+        super.dispose();
         this.bin.dispose();
     }
 }

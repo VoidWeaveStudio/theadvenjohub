@@ -1,6 +1,7 @@
 // src/features/game/core/CinemaCamera.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
+import { t } from "@/core/i18n";
 
 const NEAR = 0.05;
 const FAR = 30000;
@@ -41,24 +42,29 @@ const PLAY_EMIT_INTERVAL_MS = 120;
 export type CinemaMode = "free" | "orbit" | "rail";
 
 export interface CinemaSmoothing {
-    label: string;
+    labelKey: string;
     move: number;
     look: number;
 }
 
 const SMOOTHING_STEPS: CinemaSmoothing[] = [
-    { label: "off", move: 60, look: 90 },
-    { label: "soft", move: 14, look: 20 },
-    { label: "film", move: 6.5, look: 9 },
-    { label: "heavy", move: 3, look: 4.5 },
+    { labelKey: "g.cinema.smooth.off", move: 60, look: 90 },
+    { labelKey: "g.cinema.smooth.soft", move: 14, look: 20 },
+    { labelKey: "g.cinema.smooth.film", move: 6.5, look: 9 },
+    { labelKey: "g.cinema.smooth.heavy", move: 3, look: 4.5 },
 ];
+
+export interface CinemaToast {
+    key: string;
+    vars?: Record<string, string | number>;
+}
 
 export interface CinemaState {
     active: boolean;
     mode: CinemaMode;
     speed: number;
     fov: number;
-    smoothing: string;
+    smoothingKey: string;
     roll: number;
     hideUi: boolean;
     hideSelf: boolean;
@@ -68,7 +74,7 @@ export interface CinemaState {
     railProgress: number;
     orbitRadius: number;
     orbitSpeed: number;
-    toast: string | null;
+    toast: CinemaToast | null;
 }
 
 interface Keyframe {
@@ -155,7 +161,7 @@ export class CinemaCamera {
     private railLoop = false;
     private railTime = 0;
 
-    private toast: string | null = null;
+    private toast: CinemaToast | null = null;
     private toastUntil = 0;
     private lastPlayEmit = 0;
 
@@ -192,7 +198,7 @@ export class CinemaCamera {
             mode: this.mode,
             speed: this.speed,
             fov: this.fov,
-            smoothing: SMOOTHING_STEPS[this.smoothingIndex].label,
+            smoothingKey: SMOOTHING_STEPS[this.smoothingIndex].labelKey,
             roll: this.roll,
             hideUi: this.hideUi,
             hideSelf: this.hideSelf,
@@ -210,8 +216,8 @@ export class CinemaCamera {
         this.onStateChange?.(this.getState());
     }
 
-    private say(message: string) {
-        this.toast = message;
+    private say(key: string, vars?: Record<string, string | number>) {
+        this.toast = { key, vars };
         this.toastUntil = performance.now() + TOAST_MS;
         this.emit();
     }
@@ -231,7 +237,7 @@ export class CinemaCamera {
         this.railTime = 0;
 
         this.applyTransform();
-        this.say("F8 — выход · H — интерфейс");
+        this.say("g.cinema.toast.enter");
     }
 
     public exit() {
@@ -286,7 +292,7 @@ export class CinemaCamera {
 
         if (input.isKeyJustPressed("KeyZ")) {
             this.smoothingIndex = (this.smoothingIndex + 1) % SMOOTHING_STEPS.length;
-            this.say(`плавность: ${SMOOTHING_STEPS[this.smoothingIndex].label}`);
+            this.say("g.cinema.toast.smoothing", { mode: t(SMOOTHING_STEPS[this.smoothingIndex].labelKey) });
         }
 
         if (input.isKeyJustPressed("KeyH")) {
@@ -296,12 +302,12 @@ export class CinemaCamera {
 
         if (input.isKeyJustPressed("KeyJ")) {
             this.hideSelf = !this.hideSelf;
-            this.say(this.hideSelf ? "персонаж скрыт" : "персонаж виден");
+            this.say(this.hideSelf ? "g.cinema.toast.selfHidden" : "g.cinema.toast.selfShown");
         }
 
         if (input.isKeyJustPressed("KeyR")) {
             this.roll = 0;
-            this.say("крен сброшен");
+            this.say("g.cinema.toast.rollReset");
         }
 
         if (input.isKeyJustPressed("KeyO")) {
@@ -322,7 +328,7 @@ export class CinemaCamera {
 
         if (input.isKeyJustPressed("KeyP")) {
             this.railLoop = !this.railLoop;
-            this.say(this.railLoop ? "пролёт зациклен" : "пролёт без повтора");
+            this.say(this.railLoop ? "g.cinema.toast.loopOn" : "g.cinema.toast.loopOff");
         }
 
         if (input.isKeyJustPressed("Comma")) {
@@ -387,7 +393,7 @@ export class CinemaCamera {
             this.mode = "free";
             this.targetYaw = this.yaw;
             this.targetPitch = this.pitch;
-            this.say("орбита выключена");
+            this.say("g.cinema.toast.orbitOff");
             return;
         }
 
@@ -397,7 +403,7 @@ export class CinemaCamera {
         this.orbitAngle = Math.atan2(this.position.x - this.orbitTarget.x, this.position.z - this.orbitTarget.z);
         this.orbitHeight = this.position.y - this.orbitTarget.y;
         this.mode = "orbit";
-        this.say("орбита: A/D — скорость, W/S — радиус");
+        this.say("g.cinema.toast.orbitOn");
     }
 
     private updateOrbit(delta: number, input: InputManager) {
@@ -434,7 +440,7 @@ export class CinemaCamera {
 
     private addKeyframe() {
         if (this.keyframes.length >= MAX_KEYFRAMES) {
-            this.say(`предел ${MAX_KEYFRAMES} кадров`);
+            this.say("g.cinema.toast.limit", { count: MAX_KEYFRAMES });
             return;
         }
 
@@ -448,7 +454,7 @@ export class CinemaCamera {
         });
 
         this.railCurve = null;
-        this.say(`кадр ${this.keyframes.length} записан`);
+        this.say("g.cinema.toast.frame", { count: this.keyframes.length });
     }
 
     private clearKeyframes() {
@@ -456,7 +462,7 @@ export class CinemaCamera {
         this.keyframes = [];
         this.railCurve = null;
         if (this.mode === "rail") this.mode = "free";
-        this.say("кадры очищены");
+        this.say("g.cinema.toast.cleared");
     }
 
     private buildRail(): boolean {
@@ -481,18 +487,18 @@ export class CinemaCamera {
             this.targetYaw = this.yaw;
             this.targetPitch = this.pitch;
             this.velocity.set(0, 0, 0);
-            this.say("пролёт остановлен");
+            this.say("g.cinema.toast.railStop");
             return;
         }
 
         if (!this.buildRail()) {
-            this.say("нужно минимум 2 кадра (K)");
+            this.say("g.cinema.toast.railNeed");
             return;
         }
 
         this.mode = "rail";
         this.railTime = 0;
-        this.say(`пролёт: ${this.keyframes.length} кадров / ${this.railSeconds}с`);
+        this.say("g.cinema.toast.railStart", { count: this.keyframes.length, seconds: this.railSeconds });
     }
 
     private updateRail(delta: number, input: InputManager) {
@@ -514,7 +520,7 @@ export class CinemaCamera {
                 this.mode = "free";
                 this.targetYaw = this.yaw;
                 this.targetPitch = this.pitch;
-                this.say("пролёт завершён");
+                this.say("g.cinema.toast.railDone");
             }
         }
 

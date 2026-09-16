@@ -5,15 +5,34 @@ import { ResourceManager } from "../../../../core/ResourceManager";
 import { SHOWCASE_INFO_BY_ID, ShowcaseInfo } from "../config";
 import { CrowdSpec } from "../actors/ShowcaseCrowd";
 import { createNpcNameTag } from "../../../../entities/npcNameTag";
+import type { ShowcaseActor } from "../actors/ShowcaseActor";
+import { KNEEL_DROP } from "../actors/poses";
 
 const YARD_RADIUS = 66;
 const MONUMENT_Z = 34;
 const WISP_COUNT = 22;
 const MIST_LAYERS = 3;
 
-const DEAD_TICKERS = [
-    "$MOONZ", "$SAFU", "$LUNC", "$RUGME", "$PEPE2", "$ELONX", "$HODL", "$DOGE9",
-    "$GEMZ", "$APE3", "$WOJAK", "$FOMO", "$BONKZ", "$SHIBX", "$CUM", "$LAMBO",
+const MAUSOLEUM = new THREE.Vector3(-28, 0, 12);
+const FRESH_GRAVE = new THREE.Vector3(15, 0, -9);
+
+const DEAD_TICKERS: Array<[string, string]> = [
+    ["$MOONZ", "DEV WENT DARK"],
+    ["$SAFU", "NOT SO SAFU"],
+    ["$LUNC", "-99.99% IN A WEEK"],
+    ["$RUGME", "IT SAID SO"],
+    ["$PEPE2", "THE SEQUEL NOBODY WANTED"],
+    ["$ELONX", "ONE TWEET, ONE GRAVE"],
+    ["$HODLR", "HELD ALL THE WAY DOWN"],
+    ["$DOGE9", "NINE LIVES, ZERO LIQUIDITY"],
+    ["$GEMZ", "100x GUARANTEED"],
+    ["$APE3", "APED IN AT THE TOP"],
+    ["$WOJAK", "HE KNEW, HE BOUGHT ANYWAY"],
+    ["$FOMO", "BOUGHT THE GREEN CANDLE"],
+    ["$BONKZ", "LP PULLED AT 03:14"],
+    ["$SHIBX", "1 000 000 HOLDERS, 0 BUYERS"],
+    ["$MOG2", "PRESALE ONLY"],
+    ["$LAMBO", "STILL TAKING THE BUS"],
 ];
 
 interface Wisp {
@@ -33,6 +52,9 @@ export class GraveyardRoom extends ShowcaseRoom {
     private mist: THREE.Mesh[] = [];
     private crows: THREE.Object3D[] = [];
     private monumentShard: THREE.Object3D | null = null;
+    private coffin: THREE.Object3D | null = null;
+    private widow: ShowcaseActor | null = null;
+    private friend: ShowcaseActor | null = null;
     private rain: THREE.Points | null = null;
 
     constructor(info: ShowcaseInfo = SHOWCASE_INFO_BY_ID.get("show-graveyard") as ShowcaseInfo) {
@@ -85,28 +107,138 @@ export class GraveyardRoom extends ShowcaseRoom {
         this.scene.add(rim);
     }
 
-    protected decorate(_rm: ResourceManager): void {
+    protected decorate(rm: ResourceManager): void {
         this.buildGround();
         this.buildFence();
         this.buildGraves();
+        this.buildMausoleum();
+        this.buildFreshGrave();
+        this.buildNoticeBoard();
+        this.buildLampPosts();
         this.buildMonument();
         this.buildTrees();
         this.buildMist();
         this.buildWisps();
         this.buildRain();
         this.buildCrowd();
+        this.buildWake(rm);
+    }
+
+    private buildWake(rm: ResourceManager) {
+        const grave = new THREE.Vector3(2.4, 0, 12);
+
+        const stone = this.mesh(
+            new THREE.BoxGeometry(1.8, 2.4, 0.36),
+            this.textured(this.tex.granite([1, 2], 0x5f646d), { roughness: 0.92, metalness: 0.06, bump: 0.06 }),
+            [grave.x, 1.2, grave.z],
+            [0.04, 0.1, 0.02]
+        );
+        this.scene.add(stone);
+
+        const plate = this.mesh(
+            new THREE.PlaneGeometry(1.4, 0.7),
+            this.decal(this.tex.sign("wake", ["$HOPIUM", "HE BELIEVED"], { background: 0x2b2f36, color: 0xc8d2e0, accent: 0x6a7a94, width: 512, height: 256 }), { roughness: 0.88, metalness: 0.1 }),
+            [grave.x, 1.5, grave.z + 0.24],
+            [0.04, 0.1, 0.02]
+        );
+        plate.castShadow = false;
+        this.scene.add(plate);
+
+        const base = this.mesh(new THREE.BoxGeometry(2.2, 0.3, 1), this.matte(0x3a3f48, 0.94), [grave.x, 0.15, grave.z + 0.1]);
+        this.scene.add(base);
+        this.collisionGrid.insertOrientedBox(grave.x, grave.z, 2.2, 1, 0, 0, 2.4);
+
+        const widow = this.crowd.createActor(rm, {
+            position: new THREE.Vector3(grave.x - 0.3, -KNEEL_DROP, grave.z + 2.1),
+            set: "mourner",
+            variantIndex: 1,
+            facing: Math.PI,
+            pose: "kneel",
+            held: "rose",
+            accent: 0xc2342f,
+            phase: 1.8,
+            solid: false,
+        }, this.collisionGrid);
+
+        const friend = this.crowd.createActor(rm, {
+            position: new THREE.Vector3(grave.x + 1.15, 0, grave.z + 2.5),
+            set: "mourner",
+            variantIndex: 0,
+            facing: Math.PI - 0.5,
+            pose: "comfort",
+            accent: 0x9ec6ff,
+            phase: 3.1,
+            solid: false,
+        }, this.collisionGrid);
+
+        if (!widow || !friend) return;
+        this.widow = widow;
+        this.friend = friend;
+
+        const cry = this.bubble("IT WAS MY RENT", "#ff8f8f", { width: 3.2, y: 2.1 });
+        const sob = this.bubble("WHY", "#ff8f8f", { width: 1.6, tone: "shout", y: 2.1 });
+        widow.group.add(cry);
+        widow.group.add(sob);
+
+        const support = this.bubble("IT'S JUST A DIP", "#9ec6ff", { width: 3.2, y: 2.9 });
+        const truth = this.bubble("WE'RE ALL GONNA MAKE IT", "#7ce8a8", { width: 4, y: 2.9 });
+        friend.group.add(support);
+        friend.group.add(truth);
+
+        this.addStory([
+            {
+                duration: 5,
+                enter: () => {
+                    cry.visible = true;
+                    sob.visible = false;
+                    support.visible = false;
+                    truth.visible = false;
+                    widow.setPose("kneel");
+                },
+            },
+            {
+                duration: 4,
+                enter: () => {
+                    cry.visible = false;
+                    support.visible = true;
+                    friend.setPose("comfort");
+                },
+            },
+            {
+                duration: 3,
+                enter: () => {
+                    support.visible = false;
+                    sob.visible = true;
+                    widow.setPose("grieve");
+                },
+            },
+            {
+                duration: 5,
+                enter: () => {
+                    sob.visible = false;
+                    truth.visible = true;
+                },
+            },
+            {
+                duration: 4,
+                enter: () => {
+                    truth.visible = false;
+                    widow.setPose("kneel");
+                },
+            },
+        ]);
     }
 
     private buildGround() {
-        const soil = this.matte(0x232a25, 0.98, 0.01);
-        const grass = this.matte(0x2c3a2e, 0.98, 0.01);
-        const gravel = this.matte(0x2e3136, 0.96, 0.02);
+        const soil = this.textured(this.tex.dirt(6, 0x232a25, 0x424a3e), { roughness: 0.98, metalness: 0.01, bump: 0.06 });
+        const grass = this.textured(this.tex.grass(26, 0x2c3a2e, 0x3f5540), { roughness: 0.98, metalness: 0.01, bump: 0.04 });
+        const gravel = this.textured(this.tex.dirt([2, 20], 0x2e3136, 0x585c64), { roughness: 0.96, metalness: 0.02, bump: 0.05 });
 
         const field = this.mesh(new THREE.CircleGeometry(YARD_RADIUS + 16, 56), grass, [0, 0, 0], [-Math.PI / 2, 0, 0]);
         field.castShadow = false;
         this.scene.add(field);
 
-        const path = this.mesh(new THREE.PlaneGeometry(6, 90), gravel, [0, 0.02, -2], [-Math.PI / 2, 0, 0]);
+        const path = this.mesh(new THREE.PlaneGeometry(6, 90), gravel, [0, 0.05, -2], [-Math.PI / 2, 0, 0]);
         path.castShadow = false;
         this.scene.add(path);
 
@@ -155,9 +287,10 @@ export class GraveyardRoom extends ShowcaseRoom {
     }
 
     private buildGraves() {
-        const stone = this.matte(0x5a5f68, 0.94, 0.05);
-        const stoneDark = this.matte(0x424750, 0.95, 0.04);
-        const plaque = this.metal(0x8a8f98, 0.5, 0.6);
+        const stone = this.textured(this.tex.granite([1, 2], 0x5a5f68), { roughness: 0.92, metalness: 0.06, bump: 0.06 });
+        const stoneDark = this.textured(this.tex.granite([1, 2], 0x424750), { roughness: 0.93, metalness: 0.05, bump: 0.06 });
+        const mossy = this.textured(this.tex.granite([1, 2], 0x4a5450), { roughness: 0.95, metalness: 0.04, bump: 0.07 });
+        const tones = [stone, stoneDark, mossy];
 
         const shapes = [
             () => this.bin.geometry(new THREE.BoxGeometry(1.5, 2.1, 0.32)),
@@ -175,7 +308,7 @@ export class GraveyardRoom extends ShowcaseRoom {
                 const tilt = (this.random() - 0.5) * 0.22;
 
                 const shape = shapes[Math.floor(this.random() * shapes.length)]();
-                const grave = new THREE.Mesh(shape, this.random() < 0.5 ? stone : stoneDark);
+                const grave = new THREE.Mesh(shape, tones[Math.floor(this.random() * tones.length)]);
                 grave.position.set(x, 1.05, z);
                 grave.rotation.set(tilt, (this.random() - 0.5) * 0.5, tilt * 0.6);
                 grave.castShadow = true;
@@ -187,14 +320,16 @@ export class GraveyardRoom extends ShowcaseRoom {
 
                 this.collisionGrid.insertOrientedBox(x, z, 2, 0.9, 0, 0, 2.2);
 
-                if (this.random() < 0.55) {
-                    const label = this.mesh(new THREE.BoxGeometry(1.1, 0.42, 0.06), plaque, [x, 1.4, z + 0.2]);
+                if (this.random() < 0.72) {
+                    const [ticker, years] = DEAD_TICKERS[tickerIndex % DEAD_TICKERS.length];
+                    const engraving = this.decal(
+                        this.tex.sign(`grave${ticker}`, [ticker, years], { background: 0x2b2f36, color: 0xc8d2e0, accent: 0x6a7a94, width: 512, height: 256 }),
+                        { roughness: 0.88, metalness: 0.1 }
+                    );
+                    const label = this.mesh(new THREE.PlaneGeometry(1.15, 0.58), engraving, [x, 1.35, z + 0.22]);
+                    label.rotation.set(tilt, (this.random() - 0.5) * 0.06, tilt * 0.6);
+                    label.castShadow = false;
                     this.scene.add(label);
-
-                    const tag = createNpcNameTag(DEAD_TICKERS[tickerIndex % DEAD_TICKERS.length], "#9ec6ff");
-                    tag.position.set(x, 2.9, z);
-                    tag.scale.set(2.6, 0.65, 1);
-                    this.scene.add(tag);
                     tickerIndex++;
                 }
 
@@ -209,7 +344,7 @@ export class GraveyardRoom extends ShowcaseRoom {
                     flame.castShadow = false;
                     this.scene.add(flame);
 
-                    if (this.candleLights.length < 14) {
+                    if (this.candleLights.length < 6) {
                         const light = new THREE.PointLight(0xff5a4a, 12, 12, 2);
                         light.position.set(x + 0.9, 1.4, z + 0.7);
                         this.scene.add(light);
@@ -225,15 +360,253 @@ export class GraveyardRoom extends ShowcaseRoom {
         }
     }
 
+    private buildMausoleum() {
+        const stone = this.textured(this.tex.stoneBlock([3, 2], 0x4e535c, 0x2f333a, 5), { roughness: 0.94, metalness: 0.05, bump: 0.08 });
+        const trim = this.textured(this.tex.granite([2, 1], 0x6b707a), { roughness: 0.82, metalness: 0.1, bump: 0.05 });
+        const iron = this.metal(0x22262c, 0.55, 0.78);
+
+        const group = new THREE.Group();
+        group.position.set(MAUSOLEUM.x, 0, MAUSOLEUM.z);
+        group.rotation.y = Math.PI / 2.6;
+
+        const base = this.mesh(new THREE.BoxGeometry(9.4, 0.8, 7.4), trim, [0, 0.4, 0]);
+        group.add(base);
+
+        const body = this.mesh(new THREE.BoxGeometry(8, 5.4, 6), stone, [0, 3.5, 0]);
+        group.add(body);
+
+        const cornice = this.mesh(new THREE.BoxGeometry(8.8, 0.6, 6.8), trim, [0, 6.5, 0]);
+        group.add(cornice);
+
+        const roof = this.mesh(new THREE.ConeGeometry(6.4, 2.6, 4), trim, [0, 8.1, 0], [0, Math.PI / 4, 0]);
+        group.add(roof);
+
+        const finial = this.mesh(new THREE.OctahedronGeometry(0.6, 0), iron, [0, 9.8, 0]);
+        group.add(finial);
+
+        for (const dx of [-2.6, 2.6]) {
+            const column = this.mesh(new THREE.CylinderGeometry(0.45, 0.5, 4.6, 12), trim, [dx, 3.1, 3.1]);
+            group.add(column);
+
+            const cap = this.mesh(new THREE.BoxGeometry(1.3, 0.4, 1.3), trim, [dx, 5.5, 3.1]);
+            group.add(cap);
+        }
+
+        const doorway = this.mesh(new THREE.BoxGeometry(2.6, 3.8, 0.4), this.matte(0x0d1014, 0.98, 0), [0, 2.7, 3.05]);
+        group.add(doorway);
+
+        for (let i = 0; i < 7; i++) {
+            const bar = this.mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.6, 6), iron, [-1.1 + i * 0.37, 2.7, 3.24]);
+            group.add(bar);
+        }
+
+        const arch = this.mesh(new THREE.TorusGeometry(1.35, 0.14, 6, 16, Math.PI), iron, [0, 4.6, 3.24]);
+        group.add(arch);
+
+        const plaqueSkin = this.decal(
+            this.tex.sign("crypt", ["$LUNA", "40B GONE · 2022"], { background: 0x1a1d22, color: 0xcfd8e8, accent: 0x6a7a94 }),
+            { roughness: 0.82, metalness: 0.14, emissive: 0x6a7a94, emissiveIntensity: 0.2 }
+        );
+        const plaque = this.mesh(new THREE.PlaneGeometry(4.6, 2.3), plaqueSkin, [0, 5.6, 3.12]);
+        plaque.castShadow = false;
+        group.add(plaque);
+
+        for (const dx of [-3.4, 3.4]) {
+            const bowl = this.mesh(new THREE.CylinderGeometry(0.42, 0.28, 0.5, 10), iron, [dx, 1.05, 3.6]);
+            group.add(bowl);
+
+            const flameMaterial = this.glow(0x7fd8ff, 0.85);
+            this.candleMaterials.push(flameMaterial);
+            const flame = this.mesh(new THREE.ConeGeometry(0.3, 0.9, 8), flameMaterial, [dx, 1.75, 3.6]);
+            flame.castShadow = false;
+            group.add(flame);
+
+            const light = new THREE.PointLight(0x7fd8ff, 16, 18, 2);
+            light.position.set(dx, 1.9, 3.6);
+            group.add(light);
+            this.candleLights.push(light);
+        }
+
+        this.scene.add(group);
+        this.collisionGrid.insertOrientedBox(MAUSOLEUM.x, MAUSOLEUM.z, 9.4, 7.4, Math.PI / 2.6, 0, 6.5);
+    }
+
+    private buildFreshGrave() {
+        const soil = this.textured(this.tex.dirt(3, 0x3a3128, 0x6b6052), { roughness: 0.98, metalness: 0.01, bump: 0.07 });
+        const wood = this.textured(this.tex.planks([2, 1], 0x4a3a28, 0x261c12, 5), { roughness: 0.92, metalness: 0.03, bump: 0.05 });
+        const iron = this.metal(0x2a2e36, 0.6, 0.7);
+
+        const group = new THREE.Group();
+        group.position.set(FRESH_GRAVE.x, 0, FRESH_GRAVE.z);
+
+        const pit = this.mesh(new THREE.BoxGeometry(2.6, 2.4, 5.2), this.matte(0x0c0f12, 0.99, 0), [0, -1.2, 0]);
+        pit.castShadow = false;
+        group.add(pit);
+
+        for (const side of [-1, 1]) {
+            const wall = this.mesh(new THREE.BoxGeometry(0.4, 0.5, 5.6), soil, [side * 1.5, 0.12, 0]);
+            group.add(wall);
+        }
+
+        const mound = this.mesh(new THREE.SphereGeometry(2.4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), soil, [3.4, 0, 0.6]);
+        mound.scale.y = 0.42;
+        group.add(mound);
+
+        const coffin = new THREE.Group();
+        coffin.position.set(0, 0.62, 0);
+
+        const lid = this.mesh(new THREE.BoxGeometry(1.7, 0.16, 4.4), wood, [0, 0.52, 0]);
+        coffin.add(lid);
+
+        const box = this.mesh(new THREE.BoxGeometry(1.6, 0.9, 4.3), wood, [0, 0, 0]);
+        coffin.add(box);
+
+        const emblemSkin = this.decal(
+            this.tex.emblem("coffin", "skull", 0x3a2c1c, 0xcfd8e8),
+            { roughness: 0.8, metalness: 0.12, emissive: 0x6a7a94, emissiveIntensity: 0.12 }
+        );
+        const emblem = this.mesh(new THREE.PlaneGeometry(1.1, 1.1), emblemSkin, [0, 0.63, -0.6], [-Math.PI / 2, 0, 0]);
+        emblem.castShadow = false;
+        coffin.add(emblem);
+
+        for (const dz of [-1.5, 1.5]) {
+            for (const side of [-1, 1]) {
+                const handle = this.mesh(new THREE.TorusGeometry(0.16, 0.04, 5, 10), iron, [side * 0.84, 0.1, dz], [0, Math.PI / 2, 0]);
+                coffin.add(handle);
+            }
+        }
+
+        group.add(coffin);
+        this.coffin = coffin;
+
+        for (const side of [-1, 1]) {
+            const trestle = this.mesh(new THREE.BoxGeometry(0.2, 0.7, 2.4), wood, [side * 1.6, 0.35, 0]);
+            group.add(trestle);
+        }
+
+        const shovel = new THREE.Group();
+        shovel.position.set(2.2, 0, -2.2);
+        shovel.rotation.z = -0.5;
+        const handle = this.mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.2, 8), wood, [0, 1.1, 0]);
+        shovel.add(handle);
+        const blade = this.mesh(new THREE.BoxGeometry(0.42, 0.6, 0.08), iron, [0, 0.1, 0]);
+        shovel.add(blade);
+        group.add(shovel);
+
+        const marker = this.mesh(new THREE.BoxGeometry(1.5, 2.2, 0.3), this.textured(this.tex.granite(1, 0x5a5f68), { roughness: 0.92, metalness: 0.06, bump: 0.05 }), [-3.2, 1.1, -0.4], [0, 0.3, 0.06]);
+        group.add(marker);
+
+        const markerSkin = this.decal(
+            this.tex.sign("fresh", ["$NEXT", "SOON"], { background: 0x23262c, color: 0xc8d2e0, accent: 0x6a7a94, width: 512, height: 256 }),
+            { roughness: 0.86, metalness: 0.1 }
+        );
+        const markerPlate = this.mesh(new THREE.PlaneGeometry(1.15, 0.58), markerSkin, [-3.0, 1.35, -0.21], [0, 0.3, 0.06]);
+        markerPlate.castShadow = false;
+        group.add(markerPlate);
+
+        this.scene.add(group);
+        this.collisionGrid.insertOrientedBox(FRESH_GRAVE.x, FRESH_GRAVE.z, 3.4, 5.6, 0, 0, 1.2);
+    }
+
+    private buildNoticeBoard() {
+        const wood = this.textured(this.tex.planks([2, 1], 0x3d3128, 0x1e1812, 5), { roughness: 0.94, metalness: 0.02, bump: 0.05 });
+
+        const group = new THREE.Group();
+        group.position.set(-7.5, 0, -28);
+        group.rotation.y = 0.55;
+
+        for (const dx of [-2, 2]) {
+            const post = this.mesh(new THREE.BoxGeometry(0.28, 3.4, 0.28), wood, [dx, 1.7, 0]);
+            group.add(post);
+        }
+
+        const board = this.mesh(new THREE.BoxGeometry(4.6, 2.6, 0.18), wood, [0, 2.5, 0]);
+        group.add(board);
+
+        const notice = this.board(
+            this.tex.sign("obituaries", ["OBITUARIES", "TODAY: 14 · ALL TIME: 1.2M"], { background: 0x1b1f24, color: 0xcfd8e8, accent: 0x8f5f6f }),
+            4.2,
+            2.2,
+            [0, 2.5, 0],
+            0,
+            { roughness: 0.9, metalness: 0.04, emissive: 0x9ec6ff, emissiveIntensity: 0.16, offset: 0.11 }
+        );
+        group.add(notice);
+
+        const lamp = this.mesh(new THREE.SphereGeometry(0.22, 10, 8), this.glow(0x9ec6ff, 0.8), [0, 4.1, 0.2]);
+        lamp.castShadow = false;
+        group.add(lamp);
+
+        const light = new THREE.PointLight(0x9ec6ff, 14, 14, 2);
+        light.position.set(0, 4.1, 0.6);
+        group.add(light);
+        this.candleLights.push(light);
+
+        this.scene.add(group);
+        this.collisionGrid.insertOrientedBox(-7.5, -28, 4.6, 0.6, 0.55, 0, 3.4);
+    }
+
+    private buildLampPosts() {
+        const iron = this.metal(0x22262c, 0.58, 0.74);
+
+        for (let i = 0; i < 8; i++) {
+            const z = -26 + i * 8;
+            for (const side of [-1, 1]) {
+                const x = side * 4.6;
+                const group = new THREE.Group();
+                group.position.set(x, 0, z);
+
+                const post = this.mesh(new THREE.CylinderGeometry(0.1, 0.16, 4.2, 8), iron, [0, 2.1, 0]);
+                group.add(post);
+
+                const arm = this.mesh(new THREE.TorusGeometry(0.5, 0.06, 5, 10, Math.PI / 2), iron, [0, 4.1, 0], [0, side > 0 ? Math.PI : 0, 0]);
+                group.add(arm);
+
+                const cage = this.mesh(new THREE.BoxGeometry(0.5, 0.7, 0.5), iron, [-side * 0.5, 3.9, 0]);
+                group.add(cage);
+
+                const glassMaterial = this.glow(0x9ec6ff, 0.75);
+                this.candleMaterials.push(glassMaterial);
+                const glass = this.mesh(new THREE.SphereGeometry(0.2, 10, 8), glassMaterial, [-side * 0.5, 3.9, 0]);
+                glass.castShadow = false;
+                group.add(glass);
+
+                if (this.candleLights.length < 14) {
+                    const light = new THREE.PointLight(0x8fb8ff, 14, 16, 2);
+                    light.position.set(-side * 0.5, 3.9, 0);
+                    group.add(light);
+                    this.candleLights.push(light);
+                }
+
+                this.scene.add(group);
+                this.collisionGrid.insertCylinder(new THREE.Vector3(x, 2, z), 0.24, 4.2);
+            }
+        }
+    }
+
     private buildMonument() {
         const group = new THREE.Group();
         group.position.set(0, 0, MONUMENT_Z);
 
-        const plinth = this.mesh(new THREE.CylinderGeometry(7.5, 8.6, 1.6, 8), this.matte(0x3a3f48, 0.95), [0, 0.8, 0]);
+        const plinthSkin = this.textured(this.tex.stoneBlock([5, 1], 0x3a3f48, 0x22262c, 2), { roughness: 0.94, metalness: 0.05, bump: 0.07 });
+        const stepSkin = this.textured(this.tex.granite([4, 1], 0x4a505a), { roughness: 0.9, metalness: 0.07, bump: 0.05 });
+
+        const plinth = this.mesh(new THREE.CylinderGeometry(7.5, 8.6, 1.6, 8), plinthSkin, [0, 0.8, 0]);
         group.add(plinth);
 
-        const step = this.mesh(new THREE.CylinderGeometry(5.6, 6.4, 0.9, 8), this.matte(0x4a505a, 0.94), [0, 1.9, 0]);
+        const step = this.mesh(new THREE.CylinderGeometry(5.6, 6.4, 0.9, 8), stepSkin, [0, 1.9, 0]);
         group.add(step);
+
+        const rollBoard = this.board(
+            this.tex.sign("rollcall", ["THE GREAT UNWIND", "1 204 881 TOKENS BURIED HERE"], { background: 0x2a1418, color: 0xffb8b8, accent: 0x8f3f4f }),
+            7,
+            3.5,
+            [0, 3.6, 6.5],
+            0,
+            { roughness: 0.86, metalness: 0.08, emissive: 0xff5a4a, emissiveIntensity: 0.22 }
+        );
+        rollBoard.rotation.x = -0.18;
+        group.add(rollBoard);
 
         const redBody = this.lit(0xc2342f, 0.75);
         const lower = this.mesh(new THREE.BoxGeometry(4.2, 9, 4.2), redBody, [0, 6.6, 0]);
@@ -279,7 +652,7 @@ export class GraveyardRoom extends ShowcaseRoom {
     }
 
     private buildTrees() {
-        const bark = this.matte(0x2e2a26, 0.97, 0.02);
+        const bark = this.textured(this.tex.bark([2, 3], 0x2e2a26), { roughness: 0.97, metalness: 0.02, bump: 0.12 });
         const crowBody = this.matte(0x14161a, 0.9, 0.1);
 
         for (let i = 0; i < 13; i++) {
@@ -361,7 +734,7 @@ export class GraveyardRoom extends ShowcaseRoom {
             this.scene.add(mesh);
 
             let light: THREE.PointLight | null = null;
-            if (i < 6) {
+            if (i < 3) {
                 light = new THREE.PointLight(i % 3 === 0 ? 0x6ff0a0 : 0x8fb6ff, 9, 14, 2);
                 this.scene.add(light);
             }
@@ -411,12 +784,12 @@ export class GraveyardRoom extends ShowcaseRoom {
         const specs: CrowdSpec[] = [];
 
         const mourners: Array<[number, number, number]> = [
-            [-5.4, 6, 0.1],
-            [-4.2, 6.4, 0.3],
-            [6.2, -2, -0.2],
-            [9.4, 12.5, 0.15],
-            [-9.8, 18, 0.4],
-            [4.6, 22, -0.3],
+            [-3.4, 6.2, 0.1],
+            [-3.2, 12.4, 0.3],
+            [3.3, -1.8, -0.2],
+            [3.4, 7.8, 0.15],
+            [-3.3, 18.2, 0.4],
+            [3.2, 22.1, -0.3],
         ];
 
         for (const [x, z, facing] of mourners) {
@@ -453,13 +826,14 @@ export class GraveyardRoom extends ShowcaseRoom {
         });
 
         const walkers: Array<[number, number, number, number]> = [
-            [0, -30, 0, 26],
-            [-24, -12, -24, 20],
-            [22, 24, 22, -16],
-            [-34, 6, 30, 6],
+            [0, -30, 0, 22],
+            [-20.4, -12, -20.4, 20],
+            [24.8, 24, 24.8, -16],
+            [11.6, -14, 11.6, 20],
         ];
 
-        for (const [x1, z1, x2, z2] of walkers) {
+        for (let w = 0; w < walkers.length; w++) {
+            const [x1, z1, x2, z2] = walkers[w];
             specs.push({
                 position: new THREE.Vector3(x1, 0, z1),
                 set: "mourner",
@@ -470,7 +844,7 @@ export class GraveyardRoom extends ShowcaseRoom {
                     speed: 0.75 + this.random() * 0.3,
                 },
                 held: "lantern",
-                heldLight: true,
+                heldLight: w < 2,
                 accent: 0xffb45a,
                 phase: this.random() * 9,
             });
@@ -486,6 +860,60 @@ export class GraveyardRoom extends ShowcaseRoom {
             });
         }
 
+        specs.push({
+            position: new THREE.Vector3(FRESH_GRAVE.x + 3.4, 1, FRESH_GRAVE.z + 0.6),
+            set: "mourner",
+            variantIndex: 2,
+            lookAt: new THREE.Vector3(FRESH_GRAVE.x, 0.6, FRESH_GRAVE.z),
+            pose: "work",
+            held: "wrench",
+            accent: 0x6a7a94,
+            phase: 1.6,
+        });
+
+        for (let i = 0; i < 5; i++) {
+            const side = i % 2 === 0 ? -1 : 1;
+            specs.push({
+                position: new THREE.Vector3(
+                    FRESH_GRAVE.x + side * 2.6 + (this.random() - 0.5) * 0.8,
+                    0,
+                    FRESH_GRAVE.z - 1.8 + Math.floor(i / 2) * 1.9
+                ),
+                set: "mourner",
+                lookAt: new THREE.Vector3(FRESH_GRAVE.x, 0.8, FRESH_GRAVE.z),
+                pose: i === 0 ? "pray" : "mourn",
+                held: i % 2 === 0 ? "rose" : undefined,
+                accent: 0xc2342f,
+                phase: this.random() * 9,
+            });
+        }
+
+        for (let i = 0; i < 3; i++) {
+            const angle = 0.6 + i * 0.8;
+            specs.push({
+                position: new THREE.Vector3(
+                    MAUSOLEUM.x + Math.cos(angle) * 7.4,
+                    0,
+                    MAUSOLEUM.z + Math.sin(angle) * 7.4
+                ),
+                set: "mourner",
+                lookAt: new THREE.Vector3(MAUSOLEUM.x, 3, MAUSOLEUM.z),
+                pose: i === 1 ? "gawk" : "mourn",
+                held: i === 1 ? "lantern" : "rose",
+                heldLight: false,
+                accent: i === 1 ? 0x9ec6ff : 0xc2342f,
+                phase: this.random() * 9,
+            });
+        }
+
+        specs.push({
+            position: new THREE.Vector3(-11.2, 0, -25.2),
+            set: "crowd",
+            lookAt: new THREE.Vector3(-7.5, 2.5, -28),
+            pose: "gawk",
+            phase: 3.1,
+        });
+
         this.crowd.addMany(specs);
     }
 
@@ -497,7 +925,7 @@ export class GraveyardRoom extends ShowcaseRoom {
         }
 
         for (let i = 0; i < this.candleLights.length; i++) {
-            this.candleLights[i].intensity = 11 * (flicker + Math.sin(this.elapsed * 5.5 + i) * 0.12);
+            this.candleLights[i].intensity = (i < 8 ? 11 : 14) * (flicker + Math.sin(this.elapsed * 5.5 + i) * 0.12);
         }
 
         for (let i = 0; i < this.mist.length; i++) {
@@ -513,6 +941,11 @@ export class GraveyardRoom extends ShowcaseRoom {
 
         if (this.monumentShard) {
             this.monumentShard.rotation.z = 0.55 + Math.sin(this.elapsed * 0.4) * 0.012;
+        }
+
+        if (this.coffin) {
+            this.coffin.position.y = 0.62 + Math.sin(this.elapsed * 0.5) * 0.03;
+            this.coffin.rotation.z = Math.sin(this.elapsed * 0.4) * 0.012;
         }
 
         for (const wisp of this.wisps) {
