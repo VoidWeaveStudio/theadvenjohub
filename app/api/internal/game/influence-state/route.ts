@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const body = await req.json();
+        const body = await req.json().catch(() => null);
 
         if (body?.action === "set") {
             const state = await setInfluenceState(normalizeInfluenceState(body.state));

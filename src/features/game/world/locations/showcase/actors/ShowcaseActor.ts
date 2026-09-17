@@ -22,7 +22,7 @@ export type ActorMotion = "idle" | "walk" | "run";
 export interface WalkSpec {
     path: THREE.Vector3[];
     speed?: number;
-    mode?: "loop" | "pingpong";
+    mode?: "loop" | "pingpong" | "cycle";
     pause?: number;
     run?: boolean;
 }
@@ -384,6 +384,13 @@ export class ShowcaseActor {
         this.group.rotation.y = facing;
     }
 
+    public setWalkIndex(index: number) {
+        if (!this.walk || this.walk.path.length === 0) return;
+        this.walkIndex = ((index % this.walk.path.length) + this.walk.path.length) % this.walk.path.length;
+        this.walkDirection = 1;
+        this.waitLeft = 0;
+    }
+
     public setMotion(motion: ActorMotion) {
         if (this.dead || this.motion === motion) return;
         this.motion = motion;
@@ -601,6 +608,11 @@ export class ShowcaseActor {
                     this.walkDirection *= -1;
                 }
                 this.walkIndex += this.walkDirection;
+            } else if (walk.mode === "cycle" && this.walkIndex === walk.path.length - 1) {
+                const start = walk.path[0];
+                const y = this.groundAt ? this.groundAt(start.x, start.z) : start.y;
+                this.group.position.set(start.x, y, start.z);
+                this.walkIndex = 1 % walk.path.length;
             } else {
                 this.walkIndex = (this.walkIndex + 1) % walk.path.length;
             }

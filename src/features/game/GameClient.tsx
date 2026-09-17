@@ -74,6 +74,8 @@ import { CrateOpening } from "./ui/CrateOpening";
 import { PerfPanel } from "./ui/PerfPanel";
 import { CinemaPanel } from "./ui/CinemaPanel";
 import type { CinemaState } from "./core/CinemaCamera";
+import { CrowdPanel } from "./ui/CrowdPanel";
+import type { CrowdState } from "./systems/CrowdDirector";
 import { useCompanionState } from "./ui/hooks/useCompanionState";
 import { useCosmeticCrateState } from "./ui/hooks/useCosmeticCrateState";
 import { LeaderboardsWindow } from "./ui/LeaderboardsWindow";
@@ -257,6 +259,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [isPlaceableMenuOpen, setIsPlaceableMenuOpen] = useState(false);
   const [wheelMode, setWheelMode] = useState<WheelMode>(null);
   const [cinemaState, setCinemaState] = useState<CinemaState | null>(null);
+  const [crowdState, setCrowdState] = useState<CrowdState | null>(null);
   const [isSpecializationOpen, setIsSpecializationOpen] = useState(false);
   const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
   const [spawnProtectionSeconds, setSpawnProtectionSeconds] = useState(0);
@@ -588,6 +591,7 @@ export function GameClient({ slug }: GameClientProps) {
 
         game.onStateChange = (state) => { if (!cancelled) hud.handleStateChange(state); };
         game.onCinemaState = (state) => { if (!cancelled) setCinemaState(state); };
+        game.onCrowdState = (state) => { if (!cancelled) setCrowdState(state); };
         game.onLoadStateChange = (loading, message, progress) => {
           if (cancelled) return;
           setLoading(loading);
@@ -1149,7 +1153,14 @@ export function GameClient({ slug }: GameClientProps) {
         return;
       }
 
+      if (e.code === "F7" && !e.repeat) {
+        e.preventDefault();
+        gameRef.current?.toggleCrowd();
+        return;
+      }
+
       if (cinemaState?.active) return;
+      if (crowdState?.active) return;
 
       if (inventory.activeTokenData) return;
 
@@ -1444,7 +1455,7 @@ export function GameClient({ slug }: GameClientProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cinemaState?.active, defusalMatch, grinderMatch, localPlayerId, isBuyMenuOpen, isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, openEventDoorId, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, wheelMode, isSpecializationOpen, isSkillTreeOpen, npcDialogue.dialogue, hud.hudState.equippedTool, tradeSession, pendingTradeInvite, abilityState.cooldowns]);
+  }, [cinemaState?.active, crowdState?.active, defusalMatch, grinderMatch, localPlayerId, isBuyMenuOpen, isPointerLocked, showFloorSelector, inventory.activeTokenData, isVendorOpen, isSolaOpen, isAlfredoOpen, isGateStewardOpen, bubbleIndex, isPersonalizationOpen, canyonMap.isCanyonMapOpen, inventory.isInventoryOpen, isCreateFactionModalOpen, isEventsPickerOpen, openEventDoorId, activeTopWindow, signEditorId, viewingSign, isPlaceableMenuOpen, wheelMode, isSpecializationOpen, isSkillTreeOpen, npcDialogue.dialogue, hud.hudState.equippedTool, tradeSession, pendingTradeInvite, abilityState.cooldowns]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -1719,6 +1730,8 @@ export function GameClient({ slug }: GameClientProps) {
       />
       <PerfPanel isOpen={isPerfPanelOpen} onClose={() => setIsPerfPanelOpen(false)} />
       <CinemaPanel state={cinemaState} />
+
+      <CrowdPanel state={crowdState} />
 
       {!defusalMatch && !grinderMatch && (
         <TopMenu

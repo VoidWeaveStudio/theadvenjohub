@@ -21,6 +21,7 @@ import { BossProjectiles } from "../entities/bossProjectiles";
 import { LootSystem } from "../systems/LootSystem";
 import { PetSystem } from "../systems/PetSystem";
 import { PetTuner } from "../systems/PetTuner";
+import { CrowdDirector } from "../systems/CrowdDirector";
 import { BuildSystem } from "../systems/BuildSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
 import { EmoteSystem } from "../systems/EmoteSystem";
@@ -140,6 +141,7 @@ export class Game {
     private inputManager: InputManager;
     public readonly cameraController: CameraController;
     public readonly cinema: CinemaCamera = new CinemaCamera();
+    public readonly crowdDirector: CrowdDirector = new CrowdDirector();
     public isAdmin: boolean = false;
     public readonly resourceManager: ResourceManager;
     public readonly networkManager: NetworkManager;
@@ -436,6 +438,20 @@ export class Game {
         this.locationManager.setActiveCamera(this.cinema.camera);
         this.player.setMovementLocked(true);
         this.player.setSelfHidden(this.cinema.hidesPlayer());
+    }
+
+    public toggleCrowd() {
+        if (this.crowdDirector.isEnabled()) {
+            this.crowdDirector.close();
+            return;
+        }
+
+        if (!this.isAdmin) {
+            this.onNotification?.(t("g.crowd.adminOnly"), 2000);
+            return;
+        }
+
+        this.crowdDirector.toggle();
     }
 
     public exitCinema() {
@@ -815,6 +831,10 @@ export class Game {
                         loc.onOpenFloorSelector = () => {
                             this.openFloorSelector();
                         };
+                        this.crowdDirector.setStage(
+                            loc.scene,
+                            loc.terrain ? (x, z) => loc.terrain!.getHeightAt(x, z) : null
+                        );
                     }
                 };
 
@@ -882,6 +902,15 @@ export class Game {
                     this.hudState.tunerReadout = text;
                     this.emitState(true);
                 };
+                this.crowdDirector.init(this.inputManager, this.resourceManager);
+                this.crowdDirector.onState = (state) => this.onCrowdState?.(state);
+                this.crowdDirector.onNotification = (key, duration, vars) => {
+                    this.onNotification?.(t(key, vars), duration);
+                };
+                this.crowdDirector.setStage(
+                    currentLocation.scene,
+                    currentLocation.terrain ? (x, z) => currentLocation.terrain!.getHeightAt(x, z) : null
+                );
                 this.canyonTuner.init(this.inputManager, currentLocation instanceof FirstFloor ? currentLocation : null);
                 this.canyonTuner.onReadout = (text) => {
                     this.hudState.tunerReadout = text;
@@ -1568,6 +1597,10 @@ export class Game {
             if (this.defusalWeaponId) this.updateScopeInput();
             this.lootSystem.update(delta);
             this.petSystem.update(delta);
+            this.crowdDirector.update(
+                delta,
+                cinematic ? this.cinema.camera.position : this.player.mesh.position
+            );
             this.petTuner.update();
             this.cosmeticTuner.update();
             this.canyonTuner.update();
@@ -2587,6 +2620,7 @@ export class Game {
         this.bossProjectiles.dispose();
         this.lootSystem.dispose();
         this.petSystem.dispose();
+        this.crowdDirector.dispose();
         this.voiceChat.dispose();
 
         const currentLocation = this.locationManager.getCurrentLocation();
