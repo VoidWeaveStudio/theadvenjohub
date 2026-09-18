@@ -293,7 +293,7 @@ export class WarRoom extends ShowcaseRoom {
             rambo.setAim(0.06);
             this.rambo = rambo;
 
-            const bubble = this.bubble("NOT MY BAGS!", "#ff5a4a", { width: 3.6, tone: "shout", y: 2.9 });
+            const bubble = this.bubble("NOT MY BAGS!", "#ff5a4a", { width: 3.6, tone: "shout", y: 2.9, speaker: rambo });
             rambo.group.add(bubble);
             this.ramboBubble = bubble;
         }
@@ -363,8 +363,8 @@ export class WarRoom extends ShowcaseRoom {
         }, this.collisionGrid);
 
         if (medic) {
-            const first = this.bubble("STAY WITH ME, JOHNNY", "#ffd166", { width: 4, y: 2.6 });
-            const second = this.bubble("HE BOUGHT THE TOP", "#9ec6ff", { width: 3.6, y: 2.6 });
+            const first = this.bubble("STAY WITH ME, JOHNNY", "#ffd166", { width: 4, y: 2.6, speaker: medic });
+            const second = this.bubble("HE BOUGHT THE TOP", "#9ec6ff", { width: 3.6, y: 2.6, speaker: medic });
             medic.group.add(first);
             medic.group.add(second);
             this.medicBubbleA = first;

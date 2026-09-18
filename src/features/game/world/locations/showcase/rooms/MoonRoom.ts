@@ -851,7 +851,7 @@ export class MoonRoom extends ShowcaseRoom {
 
         if (!operator) return;
 
-        const shout = this.bubble("SEND IT", "#ffd166", { width: 2.4, tone: "shout", y: 2.7 });
+        const shout = this.bubble("SEND IT", "#ffd166", { width: 2.4, tone: "shout", y: 2.7, speaker: operator });
         operator.group.add(shout);
 
         const pressSpot = new THREE.Vector3(CONSOLE_SPOT.x, 0, CONSOLE_SPOT.z - 1.6);

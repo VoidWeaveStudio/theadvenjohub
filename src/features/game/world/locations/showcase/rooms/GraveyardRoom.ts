@@ -7,14 +7,22 @@ import { CrowdSpec } from "../actors/ShowcaseCrowd";
 import { createNpcNameTag } from "../../../../entities/npcNameTag";
 import type { ShowcaseActor } from "../actors/ShowcaseActor";
 import { KNEEL_DROP } from "../actors/poses";
+import { isRainEnabled } from "../rainVisibility";
 
 const YARD_RADIUS = 66;
 const MONUMENT_Z = 34;
 const WISP_COUNT = 22;
-const MIST_LAYERS = 3;
+const MAX_CANDLE_LIGHTS = 24;
 
 const MAUSOLEUM = new THREE.Vector3(-28, 0, 12);
 const FRESH_GRAVE = new THREE.Vector3(15, 0, -9);
+const JOHNNY_GRAVE = new THREE.Vector3(-4.6, 0, -22);
+
+const LIGHTNING_MIN_GAP = 18;
+const LIGHTNING_MAX_GAP = 42;
+const LIGHTNING_FLASH_DURATION = 0.14;
+const LIGHTNING_GAP_DURATION = 0.1;
+const LIGHTNING_SECOND_DURATION = 0.22;
 
 const DEAD_TICKERS: Array<[string, string]> = [
     ["$MOONZ", "DEV WENT DARK"],
@@ -45,17 +53,42 @@ interface Wisp {
     height: number;
 }
 
+interface MistLayer {
+    mesh: THREE.Mesh;
+    centerX: number;
+    centerZ: number;
+    driftRadius: number;
+    driftSpeed: number;
+    phase: number;
+    baseOpacity: number;
+}
+
+type LightningPhase = "idle" | "flashA" | "gap" | "flashB";
+
 export class GraveyardRoom extends ShowcaseRoom {
     private wisps: Wisp[] = [];
-    private candleMaterials: THREE.MeshBasicMaterial[] = [];
+    private candleMaterials: THREE.Material[] = [];
     private candleLights: THREE.PointLight[] = [];
-    private mist: THREE.Mesh[] = [];
+    private mist: MistLayer[] = [];
     private crows: THREE.Object3D[] = [];
-    private monumentShard: THREE.Object3D | null = null;
     private coffin: THREE.Object3D | null = null;
     private widow: ShowcaseActor | null = null;
     private friend: ShowcaseActor | null = null;
     private rain: THREE.Points | null = null;
+
+    private moonLight: THREE.DirectionalLight | null = null;
+    private ambientLight: THREE.AmbientLight | null = null;
+    private skyColor: THREE.Color | null = null;
+    private skyBase = 0x0b1018;
+    private lightningPhase: LightningPhase = "idle";
+    private lightningTimer = LIGHTNING_MIN_GAP;
+    private lightningStep = 0;
+    private moonBaseIntensity = 1.1;
+    private ambientBaseIntensity = 0.7;
+    private lightningBoltMesh: THREE.Mesh | null = null;
+    private lightningBoltMaterial: THREE.MeshBasicMaterial | null = null;
+    private lightningGlow: THREE.Sprite | null = null;
+    private lightningGlowMaterial: THREE.SpriteMaterial | null = null;
 
     constructor(info: ShowcaseInfo = SHOWCASE_INFO_BY_ID.get("show-graveyard") as ShowcaseInfo) {
         super(info, 0x7b21a9, 64);
@@ -65,13 +98,17 @@ export class GraveyardRoom extends ShowcaseRoom {
     }
 
     protected buildAtmosphere(): void {
-        this.scene.background = new THREE.Color(0x0b1018);
+        this.skyColor = new THREE.Color(this.skyBase);
+        this.scene.background = this.skyColor;
         this.scene.fog = new THREE.FogExp2(0x10161f, 0.017);
 
-        this.scene.add(new THREE.AmbientLight(0x28324a, 0.7));
+        const ambient = new THREE.AmbientLight(0x28324a, this.ambientBaseIntensity);
+        this.scene.add(ambient);
+        this.ambientLight = ambient;
+
         this.scene.add(new THREE.HemisphereLight(0x3b4a6b, 0x0c1016, 0.75));
 
-        const moon = new THREE.DirectionalLight(0xb8cdf2, 1.1);
+        const moon = new THREE.DirectionalLight(0xb8cdf2, this.moonBaseIntensity);
         moon.position.set(34, 58, -46);
         moon.target.position.set(0, 0, 10);
         moon.castShadow = true;
@@ -87,6 +124,7 @@ export class GraveyardRoom extends ShowcaseRoom {
         moon.shadow.camera.updateProjectionMatrix();
         this.scene.add(moon);
         this.scene.add(moon.target);
+        this.moonLight = moon;
 
         const moonDisc = this.mesh(
             new THREE.CircleGeometry(11, 32),
@@ -105,16 +143,144 @@ export class GraveyardRoom extends ShowcaseRoom {
         const rim = new THREE.PointLight(0x6a8fd8, 60, 160, 2);
         rim.position.set(0, 30, 60);
         this.scene.add(rim);
+
+        this.buildSkyDome();
+        this.buildMoonShafts();
+        this.buildLightningRig();
+    }
+
+    private buildSkyDome(): void {
+        const skyTexture = this.tex.nightSky("graveyard", 0x05070c, 0x171d28, 0x2a3548);
+        const domeMaterial = this.bin.material(new THREE.MeshBasicMaterial({
+            map: skyTexture,
+            side: THREE.BackSide,
+            fog: false,
+            toneMapped: false,
+            depthWrite: false,
+        }));
+        const dome = new THREE.Mesh(this.bin.geometry(new THREE.SphereGeometry(280, 24, 16)), domeMaterial);
+        dome.rotation.y = Math.PI * 0.3;
+        dome.renderOrder = -1;
+        dome.castShadow = false;
+        dome.receiveShadow = false;
+        this.scene.add(dome);
+    }
+
+    private buildLightningRig(): void {
+        const boltMaterial = this.bin.material(new THREE.MeshBasicMaterial({
+            color: 0xe8f0ff,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            depthTest: false,
+            toneMapped: false,
+            fog: false,
+        }));
+        this.lightningBoltMaterial = boltMaterial;
+
+        const placeholder = new THREE.Mesh(this.bin.geometry(new THREE.BufferGeometry()), boltMaterial);
+        placeholder.frustumCulled = false;
+        placeholder.renderOrder = 6;
+        placeholder.castShadow = false;
+        placeholder.receiveShadow = false;
+        this.scene.add(placeholder);
+        this.lightningBoltMesh = placeholder;
+
+        const glowTexture = this.tex.radialGlow("boltglow", 0xd8e6ff);
+        const glowMaterial = this.bin.material(new THREE.SpriteMaterial({
+            map: glowTexture,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
+            fog: false,
+        }));
+        this.lightningGlowMaterial = glowMaterial;
+
+        const glow = new THREE.Sprite(glowMaterial);
+        glow.scale.setScalar(90);
+        glow.renderOrder = 5;
+        this.scene.add(glow);
+        this.lightningGlow = glow;
+
+        this.randomizeLightningBolt();
+    }
+
+    private randomizeLightningBolt(): void {
+        const mesh = this.lightningBoltMesh;
+        if (!mesh) return;
+
+        const angle = this.random() * Math.PI * 2;
+        const distance = 150 + this.random() * 50;
+        const topY = 140 + this.random() * 40;
+        const originX = Math.cos(angle) * distance;
+        const originZ = Math.sin(angle) * distance;
+
+        const segments = 9;
+        const points: THREE.Vector3[] = [];
+        let x = originX;
+        let z = originZ;
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const y = topY - t * (topY - 18);
+            points.push(new THREE.Vector3(x, y, z));
+            x += (this.random() - 0.5) * 16 * (1 - t * 0.5);
+            z += (this.random() - 0.5) * 7;
+        }
+
+        const curve = new THREE.CatmullRomCurve3(points);
+        const geometry = new THREE.TubeGeometry(curve, 24, 0.65, 5, false);
+        mesh.geometry.dispose();
+        mesh.geometry = geometry;
+
+        this.lightningGlow?.position.set(originX, topY * 0.55, originZ);
+    }
+
+    private buildMoonShafts(): void {
+        const shaftTexture = this.tex.radialGlow("moonshaft", 0xbfe0ff);
+        const shaftMaterial = this.bin.material(new THREE.MeshBasicMaterial({
+            map: shaftTexture,
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
+            opacity: 0.16,
+            fog: false,
+        }));
+
+        const moonDir = new THREE.Vector3(34, 58, -46).normalize();
+        const spots: Array<[number, number, number]> = [
+            [-18, 0, -6],
+            [10, 0, 14],
+            [-30, 0, 22],
+            [22, 0, -18],
+        ];
+
+        for (const [x, y, z] of spots) {
+            const shaft = new THREE.Mesh(
+                this.bin.geometry(new THREE.ConeGeometry(6.5, 46, 16, 1, true)),
+                shaftMaterial
+            );
+            shaft.position.set(x, y + 23, z);
+            shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), moonDir);
+            shaft.castShadow = false;
+            shaft.receiveShadow = false;
+            shaft.renderOrder = 1;
+            this.scene.add(shaft);
+        }
     }
 
     protected decorate(rm: ResourceManager): void {
         this.buildGround();
         this.buildFence();
+        this.buildLampPosts();
         this.buildGraves();
+        this.buildJohnnyGrave();
         this.buildMausoleum();
         this.buildFreshGrave();
         this.buildNoticeBoard();
-        this.buildLampPosts();
         this.buildMonument();
         this.buildTrees();
         this.buildMist();
@@ -175,13 +341,13 @@ export class GraveyardRoom extends ShowcaseRoom {
         this.widow = widow;
         this.friend = friend;
 
-        const cry = this.bubble("IT WAS MY RENT", "#ff8f8f", { width: 3.2, y: 2.1 });
-        const sob = this.bubble("WHY", "#ff8f8f", { width: 1.6, tone: "shout", y: 2.1 });
+        const cry = this.bubble("IT WAS MY RENT", "#ff8f8f", { width: 3.2, y: 2.1, speaker: widow });
+        const sob = this.bubble("WHY", "#ff8f8f", { width: 1.6, tone: "shout", y: 2.1, speaker: widow });
         widow.group.add(cry);
         widow.group.add(sob);
 
-        const support = this.bubble("IT'S JUST A DIP", "#9ec6ff", { width: 3.2, y: 2.9 });
-        const truth = this.bubble("WE'RE ALL GONNA MAKE IT", "#7ce8a8", { width: 4, y: 2.9 });
+        const support = this.bubble("IT'S JUST A DIP", "#9ec6ff", { width: 3.2, y: 2.9, speaker: friend });
+        const truth = this.bubble("WE'RE ALL GONNA MAKE IT", "#7ce8a8", { width: 4, y: 2.9, speaker: friend });
         friend.group.add(support);
         friend.group.add(truth);
 
@@ -246,12 +412,13 @@ export class GraveyardRoom extends ShowcaseRoom {
             const angle = this.random() * Math.PI * 2;
             const distance = this.random() * YARD_RADIUS;
             const mound = this.mesh(
-                new THREE.SphereGeometry(1.4 + this.random() * 1.4, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+                new THREE.SphereGeometry(0.6 + this.random() * 0.7, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
                 soil,
-                [Math.cos(angle) * distance, 0.02, Math.sin(angle) * distance]
+                [Math.cos(angle) * distance, 0.025, Math.sin(angle) * distance]
             );
-            mound.scale.y = 0.28;
+            mound.scale.y = 0.12;
             mound.castShadow = false;
+            mound.receiveShadow = true;
             this.scene.add(mound);
         }
 
@@ -287,38 +454,125 @@ export class GraveyardRoom extends ShowcaseRoom {
     }
 
     private buildGraves() {
-        const stone = this.textured(this.tex.granite([1, 2], 0x5a5f68), { roughness: 0.92, metalness: 0.06, bump: 0.06 });
-        const stoneDark = this.textured(this.tex.granite([1, 2], 0x424750), { roughness: 0.93, metalness: 0.05, bump: 0.06 });
-        const mossy = this.textured(this.tex.granite([1, 2], 0x4a5450), { roughness: 0.95, metalness: 0.04, bump: 0.07 });
+        const moss = 0x4a6b46;
+        const stone = this.textured(this.tex.weatheredGranite([1, 2], 0x5a5f68, moss), { roughness: 0.92, metalness: 0.06, bump: 0.06 });
+        const stoneDark = this.textured(this.tex.weatheredGranite([1, 2], 0x424750, moss), { roughness: 0.93, metalness: 0.05, bump: 0.06 });
+        const mossy = this.textured(this.tex.weatheredGranite([1, 2], 0x4a5450, 0x5c7a52), { roughness: 0.95, metalness: 0.04, bump: 0.07 });
         const tones = [stone, stoneDark, mossy];
+        const plinthTone = this.textured(this.tex.weatheredGranite(1, 0x3a3f48, moss), { roughness: 0.94, metalness: 0.05 });
 
-        const shapes = [
-            () => this.bin.geometry(new THREE.BoxGeometry(1.5, 2.1, 0.32)),
-            () => this.bin.geometry(new THREE.CylinderGeometry(0.78, 0.78, 2.2, 16, 1, false, 0, Math.PI)),
-            () => this.bin.geometry(new THREE.BoxGeometry(1.8, 1.5, 0.36)),
+        const plinthGeo = this.bin.geometry(new THREE.BoxGeometry(2, 0.28, 0.9));
+        const tabletGeo = this.bin.geometry(new THREE.BoxGeometry(1.5, 1.9, 0.32));
+        const archBodyGeo = this.bin.geometry(new THREE.BoxGeometry(1.5, 1.5, 0.32));
+        const archCapGeo = this.bin.geometry(new THREE.SphereGeometry(0.78, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2));
+        const wideGeo = this.bin.geometry(new THREE.BoxGeometry(1.8, 1.5, 0.36));
+        const pedimentBodyGeo = this.bin.geometry(new THREE.BoxGeometry(1.6, 1.7, 0.34));
+        const pedimentCapGeo = this.bin.geometry(new THREE.ConeGeometry(1.16, 0.6, 4));
+        const crossBaseGeo = this.bin.geometry(new THREE.BoxGeometry(1.2, 1.0, 0.32));
+        const crossVGeo = this.bin.geometry(new THREE.BoxGeometry(0.24, 1.4, 0.22));
+        const crossHGeo = this.bin.geometry(new THREE.BoxGeometry(0.86, 0.22, 0.2));
+
+        type GraveShape = (tone: THREE.Material) => THREE.Object3D;
+
+        const shapes: GraveShape[] = [
+            (tone) => {
+                const mesh = new THREE.Mesh(tabletGeo, tone);
+                mesh.position.y = 0.95;
+                return mesh;
+            },
+            (tone) => {
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(archBodyGeo, tone);
+                body.position.y = 0.75;
+                group.add(body);
+                const cap = new THREE.Mesh(archCapGeo, tone);
+                cap.scale.set(1, 1, 0.42);
+                cap.position.set(0, 1.45, 0);
+                group.add(cap);
+                return group;
+            },
+            (tone) => {
+                const mesh = new THREE.Mesh(wideGeo, tone);
+                mesh.position.y = 1.05;
+                return mesh;
+            },
+            (tone) => {
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(pedimentBodyGeo, tone);
+                body.position.y = 0.95;
+                group.add(body);
+                const cap = new THREE.Mesh(pedimentCapGeo, tone);
+                cap.position.y = 0.95 + 0.85 + 0.3 - 0.06;
+                group.add(cap);
+                return group;
+            },
+            (tone) => {
+                const group = new THREE.Group();
+                const base = new THREE.Mesh(crossBaseGeo, tone);
+                base.position.y = 0.5;
+                group.add(base);
+                const vertical = new THREE.Mesh(crossVGeo, tone);
+                vertical.position.y = 1.55;
+                group.add(vertical);
+                const horizontal = new THREE.Mesh(crossHGeo, tone);
+                horizontal.position.y = 1.9;
+                group.add(horizontal);
+                return group;
+            },
         ];
 
         let tickerIndex = 0;
+        const columnsPerBlock = 3;
+        const columnSpacing = 4.2;
+        const laneWidth = 2.8;
+
+        const keepClearOf: Array<[number, number, number]> = [
+            [MAUSOLEUM.x, MAUSOLEUM.z, 8.5],
+            [FRESH_GRAVE.x, FRESH_GRAVE.z, 5.5],
+            [JOHNNY_GRAVE.x, JOHNNY_GRAVE.z, 4],
+        ];
+        const inExclusionZone = (x: number, z: number) =>
+            keepClearOf.some(([cx, cz, radius]) => Math.hypot(x - cx, z - cz) < radius);
 
         for (let row = 0; row < 9; row++) {
             for (let column = 0; column < 14; column++) {
                 const side = column < 7 ? -1 : 1;
-                const x = side * (5 + (column % 7) * 4.4 + (this.random() - 0.5) * 0.8);
-                const z = -18 + row * 5.4 + (this.random() - 0.5) * 1.1;
-                const tilt = (this.random() - 0.5) * 0.22;
+                const localColumn = column % 7;
+                const block = Math.floor(localColumn / columnsPerBlock);
+                const withinBlock = localColumn % columnsPerBlock;
+                const x = side * (
+                    5.4 +
+                    block * (columnsPerBlock * columnSpacing + laneWidth) +
+                    withinBlock * columnSpacing +
+                    (this.random() - 0.5) * 0.7
+                );
+                const z = -18 + row * 5.4 + (this.random() - 0.5) * 1.3;
 
-                const shape = shapes[Math.floor(this.random() * shapes.length)]();
-                const grave = new THREE.Mesh(shape, tones[Math.floor(this.random() * tones.length)]);
-                grave.position.set(x, 1.05, z);
-                grave.rotation.set(tilt, (this.random() - 0.5) * 0.5, tilt * 0.6);
-                grave.castShadow = true;
-                grave.receiveShadow = true;
+                if (inExclusionZone(x, z)) continue;
+
+                const tilt = (this.random() - 0.5) * 0.24;
+                const yaw = (this.random() - 0.5) * 0.5;
+
+                const shapeFn = shapes[Math.floor(this.random() * shapes.length)];
+                const tone = tones[Math.floor(this.random() * tones.length)];
+                const grave = shapeFn(tone);
+                grave.position.x = x;
+                grave.position.z = z;
+                grave.rotation.set(tilt, yaw, tilt * 0.6);
+                grave.traverse((child) => {
+                    const childMesh = child as THREE.Mesh;
+                    if (!childMesh.isMesh) return;
+                    childMesh.castShadow = true;
+                    childMesh.receiveShadow = true;
+                });
                 this.scene.add(grave);
 
-                const base = this.mesh(new THREE.BoxGeometry(2, 0.28, 0.9), stoneDark, [x, 0.14, z]);
+                const base = new THREE.Mesh(plinthGeo, plinthTone);
+                base.position.set(x, 0.14, z);
+                base.receiveShadow = true;
                 this.scene.add(base);
 
-                this.collisionGrid.insertOrientedBox(x, z, 2, 0.9, 0, 0, 2.2);
+                this.collisionGrid.insertOrientedBox(x, z, 2, 0.9, 0, 0, 2.3);
 
                 if (this.random() < 0.72) {
                     const [ticker, years] = DEAD_TICKERS[tickerIndex % DEAD_TICKERS.length];
@@ -327,37 +581,137 @@ export class GraveyardRoom extends ShowcaseRoom {
                         { roughness: 0.88, metalness: 0.1 }
                     );
                     const label = this.mesh(new THREE.PlaneGeometry(1.15, 0.58), engraving, [x, 1.35, z + 0.22]);
-                    label.rotation.set(tilt, (this.random() - 0.5) * 0.06, tilt * 0.6);
+                    label.rotation.set(tilt, yaw, tilt * 0.6);
                     label.castShadow = false;
                     this.scene.add(label);
                     tickerIndex++;
                 }
 
                 if (this.random() < 0.5) {
-                    const candleMaterial = this.glow(0xff4a4a, 0.9);
-                    this.candleMaterials.push(candleMaterial);
-
-                    const candleBody = this.mesh(new THREE.BoxGeometry(0.36, 0.7 + this.random() * 0.8, 0.36), this.lit(0xc2342f, 1.1), [x + 0.9, 0.6, z + 0.7]);
-                    this.scene.add(candleBody);
-
-                    const flame = this.mesh(new THREE.ConeGeometry(0.16, 0.42, 8), candleMaterial, [x + 0.9, 1.35, z + 0.7]);
-                    flame.castShadow = false;
-                    this.scene.add(flame);
-
-                    if (this.candleLights.length < 6) {
-                        const light = new THREE.PointLight(0xff5a4a, 12, 12, 2);
-                        light.position.set(x + 0.9, 1.4, z + 0.7);
-                        this.scene.add(light);
-                        this.candleLights.push(light);
-                    }
-                }
-
-                if (this.random() < 0.28) {
-                    const wreath = this.mesh(new THREE.TorusGeometry(0.42, 0.1, 6, 14), this.matte(0x3f5f3a, 0.95), [x, 0.55, z + 0.55], [Math.PI / 2 - 0.4, 0, 0]);
-                    this.scene.add(wreath);
+                    this.buildMemorialCandle(x + 0.9, z + 0.7, 0.4 + this.random() * 0.22);
                 }
             }
         }
+    }
+
+    private buildFlame(
+        parent: THREE.Object3D,
+        position: THREE.Vector3,
+        options: { color: number; tipColor?: number; lightColor: number; intensity: number; scale?: number; forceLight?: boolean }
+    ): void {
+        const scale = options.scale ?? 1;
+
+        const outerMaterial = this.glow(options.color, 0.92);
+        this.candleMaterials.push(outerMaterial);
+        const outer = new THREE.Mesh(new THREE.ConeGeometry(0.1 * scale, 0.32 * scale, 8), outerMaterial);
+        outer.position.copy(position);
+        outer.castShadow = false;
+        parent.add(outer);
+
+        const tipMaterial = this.glow(options.tipColor ?? 0xfff2c8, 0.95);
+        this.candleMaterials.push(tipMaterial);
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.045 * scale, 0.16 * scale, 8), tipMaterial);
+        tip.position.set(position.x, position.y + 0.1 * scale, position.z);
+        tip.castShadow = false;
+        parent.add(tip);
+
+        const haloTexture = this.tex.radialGlow(`flame${options.color.toString(16)}`, options.color);
+        const haloMaterial = this.bin.material(new THREE.SpriteMaterial({
+            map: haloTexture,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
+            opacity: 0.7,
+        }));
+        this.candleMaterials.push(haloMaterial);
+        const halo = new THREE.Sprite(haloMaterial);
+        halo.scale.setScalar(0.55 * scale);
+        halo.position.set(position.x, position.y + 0.05 * scale, position.z);
+        parent.add(halo);
+
+        if (options.forceLight || this.candleLights.length < MAX_CANDLE_LIGHTS) {
+            const light = new THREE.PointLight(options.lightColor, options.intensity, options.intensity, 2);
+            light.position.copy(position);
+            parent.add(light);
+            this.candleLights.push(light);
+        }
+    }
+
+    private buildMemorialCandle(x: number, z: number, height = 0.5, forceLight = false): void {
+        const dish = this.mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.06, 12), this.matte(0x2a2e36, 0.7), [x, 0.03, z]);
+        this.scene.add(dish);
+
+        const wax = this.mesh(new THREE.CylinderGeometry(0.14, 0.17, height, 10), this.lit(0xc2342f, 0.4), [x, 0.06 + height / 2, z]);
+        this.scene.add(wax);
+
+        const glassMaterial = this.bin.material(new THREE.MeshStandardMaterial({
+            color: 0xffb08a,
+            roughness: 0.15,
+            metalness: 0.05,
+            transparent: true,
+            opacity: 0.26,
+            side: THREE.DoubleSide,
+        }));
+        const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, height + 0.14, 12, 1, false), glassMaterial);
+        glass.position.set(x, 0.09 + height / 2, z);
+        glass.castShadow = false;
+        this.scene.add(glass);
+
+        const wick = this.mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 5), this.matte(0x14100c, 0.8), [x, 0.06 + height + 0.03, z]);
+        wick.castShadow = false;
+        this.scene.add(wick);
+
+        this.buildFlame(this.scene, new THREE.Vector3(x, 0.06 + height + 0.12, z), {
+            color: 0xff4a4a,
+            tipColor: 0xffd9a0,
+            lightColor: 0xff5a4a,
+            intensity: 12,
+            forceLight,
+        });
+    }
+
+    private buildJohnnyGrave(): void {
+        const tone = this.textured(this.tex.weatheredGranite(1, 0x565b64, 0x4a6b46), { roughness: 0.9, metalness: 0.07, bump: 0.07 });
+
+        const group = new THREE.Group();
+        group.position.set(JOHNNY_GRAVE.x, 0, JOHNNY_GRAVE.z);
+        group.rotation.y = 0.12;
+
+        const plinth = new THREE.Mesh(this.bin.geometry(new THREE.BoxGeometry(1.7, 0.24, 1.05)), tone);
+        plinth.position.y = 0.12;
+        plinth.receiveShadow = true;
+        group.add(plinth);
+
+        const base = new THREE.Mesh(this.bin.geometry(new THREE.BoxGeometry(1.35, 1.05, 0.34)), tone);
+        base.position.y = 0.525;
+        base.castShadow = true;
+        base.receiveShadow = true;
+        group.add(base);
+
+        const vertical = new THREE.Mesh(this.bin.geometry(new THREE.BoxGeometry(0.28, 1.4, 0.24)), tone);
+        vertical.position.y = 1.55;
+        vertical.castShadow = true;
+        group.add(vertical);
+
+        const horizontal = new THREE.Mesh(this.bin.geometry(new THREE.BoxGeometry(0.94, 0.24, 0.2)), tone);
+        horizontal.position.y = 1.9;
+        horizontal.castShadow = true;
+        group.add(horizontal);
+
+        const plateSkin = this.decal(
+            this.tex.sign("johnnygrave", ["$JOHNNY", "2021-2026"], { background: 0x2b2f36, color: 0xffd9a0, accent: 0x8f5f2f, width: 512, height: 320 }),
+            { roughness: 0.86, metalness: 0.1 }
+        );
+        const plate = new THREE.Mesh(this.bin.geometry(new THREE.PlaneGeometry(1.05, 0.66)), plateSkin);
+        plate.position.set(0, 0.62, 0.19);
+        plate.castShadow = false;
+        group.add(plate);
+
+        this.scene.add(group);
+        this.collisionGrid.insertOrientedBox(JOHNNY_GRAVE.x, JOHNNY_GRAVE.z, 1.7, 1.1, group.rotation.y, 0, 2.3);
+
+        this.buildMemorialCandle(JOHNNY_GRAVE.x + 0.85, JOHNNY_GRAVE.z + 0.35, 0.52, true);
     }
 
     private buildMausoleum() {
@@ -400,14 +754,11 @@ export class GraveyardRoom extends ShowcaseRoom {
             group.add(bar);
         }
 
-        const arch = this.mesh(new THREE.TorusGeometry(1.35, 0.14, 6, 16, Math.PI), iron, [0, 4.6, 3.24]);
-        group.add(arch);
-
         const plaqueSkin = this.decal(
             this.tex.sign("crypt", ["$LUNA", "40B GONE · 2022"], { background: 0x1a1d22, color: 0xcfd8e8, accent: 0x6a7a94 }),
             { roughness: 0.82, metalness: 0.14, emissive: 0x6a7a94, emissiveIntensity: 0.2 }
         );
-        const plaque = this.mesh(new THREE.PlaneGeometry(4.6, 2.3), plaqueSkin, [0, 5.6, 3.12]);
+        const plaque = this.mesh(new THREE.PlaneGeometry(3.4, 1.35), plaqueSkin, [0, 5.4, 3.3]);
         plaque.castShadow = false;
         group.add(plaque);
 
@@ -415,16 +766,14 @@ export class GraveyardRoom extends ShowcaseRoom {
             const bowl = this.mesh(new THREE.CylinderGeometry(0.42, 0.28, 0.5, 10), iron, [dx, 1.05, 3.6]);
             group.add(bowl);
 
-            const flameMaterial = this.glow(0x7fd8ff, 0.85);
-            this.candleMaterials.push(flameMaterial);
-            const flame = this.mesh(new THREE.ConeGeometry(0.3, 0.9, 8), flameMaterial, [dx, 1.75, 3.6]);
-            flame.castShadow = false;
-            group.add(flame);
-
-            const light = new THREE.PointLight(0x7fd8ff, 16, 18, 2);
-            light.position.set(dx, 1.9, 3.6);
-            group.add(light);
-            this.candleLights.push(light);
+            this.buildFlame(group, new THREE.Vector3(dx, 1.75, 3.6), {
+                color: 0x5fc8ff,
+                tipColor: 0xeaf8ff,
+                lightColor: 0x7fd8ff,
+                intensity: 16,
+                scale: 1.9,
+                forceLight: true,
+            });
         }
 
         this.scene.add(group);
@@ -448,7 +797,7 @@ export class GraveyardRoom extends ShowcaseRoom {
             group.add(wall);
         }
 
-        const mound = this.mesh(new THREE.SphereGeometry(2.4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), soil, [3.4, 0, 0.6]);
+        const mound = this.mesh(new THREE.SphereGeometry(2.4, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), soil, [3.4, 0.03, 0.6]);
         mound.scale.y = 0.42;
         group.add(mound);
 
@@ -537,10 +886,12 @@ export class GraveyardRoom extends ShowcaseRoom {
         lamp.castShadow = false;
         group.add(lamp);
 
-        const light = new THREE.PointLight(0x9ec6ff, 14, 14, 2);
-        light.position.set(0, 4.1, 0.6);
-        group.add(light);
-        this.candleLights.push(light);
+        if (this.candleLights.length < MAX_CANDLE_LIGHTS) {
+            const light = new THREE.PointLight(0x9ec6ff, 14, 14, 2);
+            light.position.set(0, 4.1, 0.6);
+            group.add(light);
+            this.candleLights.push(light);
+        }
 
         this.scene.add(group);
         this.collisionGrid.insertOrientedBox(-7.5, -28, 4.6, 0.6, 0.55, 0, 3.4);
@@ -571,7 +922,7 @@ export class GraveyardRoom extends ShowcaseRoom {
                 glass.castShadow = false;
                 group.add(glass);
 
-                if (this.candleLights.length < 14) {
+                if (this.candleLights.length < MAX_CANDLE_LIGHTS) {
                     const light = new THREE.PointLight(0x8fb8ff, 14, 16, 2);
                     light.position.set(-side * 0.5, 3.9, 0);
                     group.add(light);
@@ -591,36 +942,61 @@ export class GraveyardRoom extends ShowcaseRoom {
         const plinthSkin = this.textured(this.tex.stoneBlock([5, 1], 0x3a3f48, 0x22262c, 2), { roughness: 0.94, metalness: 0.05, bump: 0.07 });
         const stepSkin = this.textured(this.tex.granite([4, 1], 0x4a505a), { roughness: 0.9, metalness: 0.07, bump: 0.05 });
 
-        const plinth = this.mesh(new THREE.CylinderGeometry(7.5, 8.6, 1.6, 8), plinthSkin, [0, 0.8, 0]);
+        const plinth = this.mesh(new THREE.CylinderGeometry(7.5, 8.6, 1.6, 20), plinthSkin, [0, 0.8, 0]);
         group.add(plinth);
 
-        const step = this.mesh(new THREE.CylinderGeometry(5.6, 6.4, 0.9, 8), stepSkin, [0, 1.9, 0]);
+        const step = this.mesh(new THREE.CylinderGeometry(5.6, 6.4, 0.9, 20), stepSkin, [0, 1.9, 0]);
         group.add(step);
 
         const rollBoard = this.board(
             this.tex.sign("rollcall", ["THE GREAT UNWIND", "1 204 881 TOKENS BURIED HERE"], { background: 0x2a1418, color: 0xffb8b8, accent: 0x8f3f4f }),
             7,
             3.5,
-            [0, 3.6, 6.5],
-            0,
+            [0, 3.6, -6.8],
+            Math.PI,
             { roughness: 0.86, metalness: 0.08, emissive: 0xff5a4a, emissiveIntensity: 0.22 }
         );
-        rollBoard.rotation.x = -0.18;
+        rollBoard.rotation.x = 0.18;
         group.add(rollBoard);
 
-        const redBody = this.lit(0xc2342f, 0.75);
-        const lower = this.mesh(new THREE.BoxGeometry(4.2, 9, 4.2), redBody, [0, 6.6, 0]);
-        group.add(lower);
+        const redBody = this.lit(0xc2342f, 0.7);
+        const waxDrip = this.lit(0x9c2a26, 0.5);
 
-        const shard = this.mesh(new THREE.BoxGeometry(4.2, 7.4, 4.2), redBody, [1.7, 13.4, 0.5], [0.2, 0.3, 0.55]);
-        group.add(shard);
-        this.monumentShard = shard;
+        const candleBase = this.mesh(new THREE.CylinderGeometry(3.1, 3.6, 3.4, 20), redBody, [0, 1.7, 0]);
+        group.add(candleBase);
 
-        const wickTop = this.mesh(new THREE.BoxGeometry(0.9, 3.4, 0.9), redBody, [2.9, 17.4, 0.9], [0.2, 0.3, 0.55]);
-        group.add(wickTop);
+        const candleMid = this.mesh(new THREE.CylinderGeometry(2.55, 3.05, 5.3, 20), redBody, [0, 5.95, 0]);
+        group.add(candleMid);
 
-        const wickBottom = this.mesh(new THREE.BoxGeometry(0.9, 3.2, 0.9), redBody, [0, 1.9, 0]);
-        group.add(wickBottom);
+        const candleUpper = this.mesh(new THREE.CylinderGeometry(2.05, 2.5, 4.7, 20), redBody, [0, 10.85, 0]);
+        group.add(candleUpper);
+
+        const dripSpots: Array<[number, number, number]> = [
+            [2.3, 8.4, 0.6],
+            [-1.9, 5.8, 1.8],
+            [1.1, 3.2, -2.4],
+            [-2.4, 9.6, -1.1],
+        ];
+        for (const [dx, dy, dz] of dripSpots) {
+            const drip = this.mesh(new THREE.ConeGeometry(0.5, 1.6, 8), waxDrip, [dx, dy, dz], [Math.PI, 0, 0]);
+            group.add(drip);
+        }
+
+        const collar = this.mesh(new THREE.CylinderGeometry(1.05, 1.3, 0.6, 16), waxDrip, [0, 13.4, 0]);
+        group.add(collar);
+
+        const wick = this.mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.4, 8), this.matte(0x1a1210, 0.85), [0, 14.35, 0]);
+        wick.castShadow = false;
+        group.add(wick);
+
+        this.buildFlame(group, new THREE.Vector3(0, 15.4, 0), {
+            color: 0xff4a3a,
+            tipColor: 0xffe0a0,
+            lightColor: 0xff5a4a,
+            intensity: 50,
+            scale: 5,
+            forceLight: true,
+        });
 
         const arrow = new THREE.Group();
         arrow.position.set(-6.4, 12, 0.6);
@@ -638,12 +1014,8 @@ export class GraveyardRoom extends ShowcaseRoom {
         halo.castShadow = false;
         group.add(halo);
 
-        const light = new THREE.PointLight(0xff5a4a, 50, 60, 2);
-        light.position.set(0, 9, 4);
-        group.add(light);
-
         const tag = createNpcNameTag("R.I.P. 2021—2026", "#ff8f8f");
-        tag.position.set(0, 20.5, 0);
+        tag.position.set(0, 19.5, 0);
         tag.scale.set(9, 2.25, 1);
         group.add(tag);
 
@@ -653,39 +1025,83 @@ export class GraveyardRoom extends ShowcaseRoom {
 
     private buildTrees() {
         const bark = this.textured(this.tex.bark([2, 3], 0x2e2a26), { roughness: 0.97, metalness: 0.02, bump: 0.12 });
+        const foliage = this.matte(0x24301f, 0.92, 0.02);
         const crowBody = this.matte(0x14161a, 0.9, 0.1);
+
+        const branchGeo = this.bin.geometry(new THREE.CylinderGeometry(0.06, 0.15, 1, 6));
+        const twigGeo = this.bin.geometry(new THREE.CylinderGeometry(0.03, 0.08, 1, 5));
+        const upAxis = new THREE.Vector3(0, 1, 0);
+
+        const aimAlong = (mesh: THREE.Mesh, base: THREE.Vector3, dir: THREE.Vector3, length: number) => {
+            mesh.quaternion.setFromUnitVectors(upAxis, dir);
+            mesh.position.copy(base).addScaledVector(dir, length / 2);
+            mesh.scale.y = length;
+        };
 
         for (let i = 0; i < 13; i++) {
             const angle = (i / 13) * Math.PI * 2 + this.random() * 0.4;
             const distance = 26 + this.random() * 32;
             const x = Math.cos(angle) * distance;
             const z = Math.sin(angle) * distance;
-            const height = 6 + this.random() * 5;
+            const height = 6.5 + this.random() * 4;
+            const hasFoliage = this.random() < 0.45;
 
             const tree = new THREE.Group();
             tree.position.set(x, 0, z);
             tree.rotation.y = this.random() * Math.PI;
 
-            const trunk = this.mesh(new THREE.CylinderGeometry(0.28, 0.55, height, 8), bark, [0, height / 2, 0]);
+            const trunk = this.mesh(new THREE.CylinderGeometry(0.24, 0.5, height, 8), bark, [0, height / 2, 0]);
+            trunk.scale.x = 0.85 + this.random() * 0.3;
             tree.add(trunk);
 
-            const branchCount = 5 + Math.floor(this.random() * 4);
+            const branchCount = 4 + Math.floor(this.random() * 3);
             for (let b = 0; b < branchCount; b++) {
-                const branchLength = 2 + this.random() * 3;
-                const branchY = height * (0.55 + this.random() * 0.4);
-                const branchAngle = this.random() * Math.PI * 2;
+                const branchLength = 2.2 + this.random() * 2;
+                const branchY = height * (0.5 + (b / branchCount) * 0.42 + this.random() * 0.08);
+                const branchAngle = (b / branchCount) * Math.PI * 2 + this.random() * 0.6;
+                const upward = 0.32 + this.random() * 0.4;
 
-                const branch = this.mesh(
-                    new THREE.CylinderGeometry(0.07, 0.16, branchLength, 6),
-                    bark,
-                    [Math.cos(branchAngle) * branchLength * 0.4, branchY, Math.sin(branchAngle) * branchLength * 0.4],
-                    [Math.cos(branchAngle) * 0.9, 0, -Math.sin(branchAngle) * 0.9]
-                );
+                const base = new THREE.Vector3(0, branchY, 0);
+                const dir = new THREE.Vector3(Math.cos(branchAngle), upward, Math.sin(branchAngle)).normalize();
+
+                const branch = new THREE.Mesh(branchGeo, bark);
+                aimAlong(branch, base, dir, branchLength);
+                branch.castShadow = true;
                 tree.add(branch);
 
-                if (this.random() < 0.3) {
+                const tip = base.clone().addScaledVector(dir, branchLength);
+
+                if (this.random() < 0.6) {
+                    const twigLength = 0.8 + this.random() * 0.7;
+                    const twigDir = dir.clone()
+                        .add(new THREE.Vector3((this.random() - 0.5) * 0.7, 0.35 + this.random() * 0.3, (this.random() - 0.5) * 0.7))
+                        .normalize();
+                    const twig = new THREE.Mesh(twigGeo, bark);
+                    aimAlong(twig, tip, twigDir, twigLength);
+                    twig.castShadow = true;
+                    tree.add(twig);
+                }
+
+                if (hasFoliage && this.random() < 0.7) {
+                    const clumpCount = 2 + Math.floor(this.random() * 2);
+                    for (let c = 0; c < clumpCount; c++) {
+                        const clump = this.mesh(
+                            new THREE.IcosahedronGeometry(0.55 + this.random() * 0.35, 0),
+                            foliage,
+                            [
+                                tip.x + (this.random() - 0.5) * 0.8,
+                                tip.y + (this.random() - 0.5) * 0.6 + 0.2,
+                                tip.z + (this.random() - 0.5) * 0.8,
+                            ]
+                        );
+                        clump.rotation.set(this.random() * Math.PI, this.random() * Math.PI, this.random() * Math.PI);
+                        tree.add(clump);
+                    }
+                }
+
+                if (!hasFoliage && this.random() < 0.22) {
                     const crow = new THREE.Group();
-                    crow.position.set(Math.cos(branchAngle) * branchLength * 0.8, branchY + branchLength * 0.35, Math.sin(branchAngle) * branchLength * 0.8);
+                    crow.position.copy(tip);
 
                     const body = this.mesh(new THREE.SphereGeometry(0.22, 8, 6), crowBody, [0, 0, 0]);
                     body.scale.set(1, 0.9, 1.5);
@@ -703,23 +1119,52 @@ export class GraveyardRoom extends ShowcaseRoom {
             }
 
             this.scene.add(tree);
-            this.collisionGrid.insertCylinder(new THREE.Vector3(x, height / 2, z), 0.6, height);
+            this.collisionGrid.insertCylinder(new THREE.Vector3(x, height / 2, z), 0.55, height);
         }
     }
 
     private buildMist() {
-        for (let i = 0; i < MIST_LAYERS; i++) {
-            const material = this.glow(0x8fa6c8, 0.03, false);
+        const mistTexture = this.tex.radialGlow("groundmist", 0x8fa6c8);
+        const spots: Array<[number, number]> = [
+            [0, 30],
+            [-18, -8],
+            [16, 8],
+            [-24, 18],
+            [22, -18],
+            [-6, -26],
+        ];
+
+        for (let i = 0; i < spots.length; i++) {
+            const [x, z] = spots[i];
+            const baseOpacity = 0.16 + this.random() * 0.05;
+            const material = this.bin.material(new THREE.MeshBasicMaterial({
+                map: mistTexture,
+                color: 0x8fa6c8,
+                transparent: true,
+                opacity: baseOpacity,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                toneMapped: false,
+            }));
+            const radius = 15 + this.random() * 9;
             const plane = this.mesh(
-                new THREE.CircleGeometry(YARD_RADIUS * 0.9 - i * 5, 40),
+                new THREE.CircleGeometry(radius, 24),
                 material,
-                [0, 0.4 + i * 0.55, 4],
-                [-Math.PI / 2, 0, 0]
+                [x, 0.25 + this.random() * 0.15, z],
+                [-Math.PI / 2, 0, this.random() * Math.PI * 2]
             );
             plane.castShadow = false;
             plane.renderOrder = 2;
             this.scene.add(plane);
-            this.mist.push(plane);
+            this.mist.push({
+                mesh: plane,
+                centerX: x,
+                centerZ: z,
+                driftRadius: 1.5 + this.random() * 2.5,
+                driftSpeed: 0.04 + this.random() * 0.03,
+                phase: this.random() * Math.PI * 2,
+                baseOpacity,
+            });
         }
     }
 
@@ -776,6 +1221,7 @@ export class GraveyardRoom extends ShowcaseRoom {
 
         const points = new THREE.Points(geometry, material);
         points.frustumCulled = false;
+        points.visible = isRainEnabled();
         this.scene.add(points);
         this.rain = points;
     }
@@ -827,8 +1273,8 @@ export class GraveyardRoom extends ShowcaseRoom {
 
         const walkers: Array<[number, number, number, number]> = [
             [0, -30, 0, 22],
-            [-20.4, -12, -20.4, 20],
-            [24.8, 24, 24.8, -16],
+            [-17.3, -12, -17.3, 20],
+            [32.7, 24, 32.7, -16],
             [11.6, -14, 11.6, 20],
         ];
 
@@ -930,17 +1376,18 @@ export class GraveyardRoom extends ShowcaseRoom {
 
         for (let i = 0; i < this.mist.length; i++) {
             const layer = this.mist[i];
-            layer.rotation.z += delta * (0.01 + i * 0.004);
-            (layer.material as THREE.MeshBasicMaterial).opacity = 0.026 + Math.sin(this.elapsed * 0.4 + i) * 0.01;
+            layer.mesh.rotation.z += delta * (0.01 + i * 0.003);
+            const t = this.elapsed * layer.driftSpeed + layer.phase;
+            layer.mesh.position.x = layer.centerX + Math.cos(t) * layer.driftRadius;
+            layer.mesh.position.z = layer.centerZ + Math.sin(t * 0.7) * layer.driftRadius;
+            (layer.mesh.material as THREE.MeshBasicMaterial).opacity = layer.baseOpacity + Math.sin(this.elapsed * 0.3 + i * 1.7) * layer.baseOpacity * 0.3;
         }
+
+        this.updateLightning(delta);
 
         for (let i = 0; i < this.crows.length; i++) {
             this.crows[i].rotation.y = Math.sin(this.elapsed * 0.6 + i * 2.1) * 0.6;
             this.crows[i].position.y += Math.sin(this.elapsed * 3 + i) * delta * 0.05;
-        }
-
-        if (this.monumentShard) {
-            this.monumentShard.rotation.z = 0.55 + Math.sin(this.elapsed * 0.4) * 0.012;
         }
 
         if (this.coffin) {
@@ -960,6 +1407,10 @@ export class GraveyardRoom extends ShowcaseRoom {
         }
 
         if (this.rain) {
+            this.rain.visible = isRainEnabled();
+        }
+
+        if (this.rain && this.rain.visible) {
             const attribute = this.rain.geometry.getAttribute("position") as THREE.BufferAttribute;
             const array = attribute.array as Float32Array;
             for (let i = 0; i < array.length; i += 3) {
@@ -972,6 +1423,53 @@ export class GraveyardRoom extends ShowcaseRoom {
                 }
             }
             attribute.needsUpdate = true;
+        }
+    }
+
+    private setLightningLevel(level: number, showBolt: boolean): void {
+        if (this.moonLight) this.moonLight.intensity = this.moonBaseIntensity + level * 4.5;
+        if (this.ambientLight) this.ambientLight.intensity = this.ambientBaseIntensity + level * 1.4;
+
+        const boltOpacity = showBolt ? level : 0;
+        if (this.lightningBoltMaterial) this.lightningBoltMaterial.opacity = boltOpacity;
+        if (this.lightningGlowMaterial) this.lightningGlowMaterial.opacity = boltOpacity * 0.75;
+    }
+
+    private updateLightning(delta: number): void {
+        this.lightningTimer -= delta;
+        if (this.lightningTimer > 0 && this.lightningPhase === "idle") return;
+
+        this.lightningStep += delta;
+
+        switch (this.lightningPhase) {
+            case "idle":
+                this.lightningPhase = "flashA";
+                this.lightningStep = 0;
+                this.randomizeLightningBolt();
+                this.setLightningLevel(1, true);
+                break;
+            case "flashA":
+                if (this.lightningStep >= LIGHTNING_FLASH_DURATION) {
+                    this.lightningPhase = "gap";
+                    this.lightningStep = 0;
+                    this.setLightningLevel(0, false);
+                }
+                break;
+            case "gap":
+                if (this.lightningStep >= LIGHTNING_GAP_DURATION) {
+                    this.lightningPhase = "flashB";
+                    this.lightningStep = 0;
+                    this.setLightningLevel(0.7, false);
+                }
+                break;
+            case "flashB":
+                if (this.lightningStep >= LIGHTNING_SECOND_DURATION) {
+                    this.lightningPhase = "idle";
+                    this.lightningStep = 0;
+                    this.setLightningLevel(0, false);
+                    this.lightningTimer = LIGHTNING_MIN_GAP + this.random() * (LIGHTNING_MAX_GAP - LIGHTNING_MIN_GAP);
+                }
+                break;
         }
     }
 }

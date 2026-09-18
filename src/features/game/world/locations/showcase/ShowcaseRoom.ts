@@ -9,6 +9,8 @@ import { ShowcaseTextures, surfaceMaterial } from "./textures";
 import { speechTexture, Story, StoryStep } from "./story";
 import type { HeightProvider } from "../../Location";
 import { t } from "@/core/i18n";
+import type { ShowcaseActor } from "./actors/ShowcaseActor";
+import { areCaptionsHidden } from "./captionVisibility";
 
 const EXIT_RANGE = 7.5;
 
@@ -28,6 +30,10 @@ export abstract class ShowcaseRoom extends TowerFloor {
     protected readonly tex: ShowcaseTextures;
     protected elapsed = 0;
     private stories: Story[] = [];
+    private captionMaterials: THREE.SpriteMaterial[] = [];
+    private talkers: Array<{ sprite: THREE.Sprite; speaker: ShowcaseActor; text: string }> = [];
+    private readonly activeTalkerText = new Map<ShowcaseActor, string>();
+    private readonly processedTalkers = new Set<ShowcaseActor>();
 
     public terrain: HeightProvider = { getHeightAt: (x, z) => this.groundHeight(x, z) };
 
@@ -63,7 +69,7 @@ export abstract class ShowcaseRoom extends TowerFloor {
     protected bubble(
         text: string,
         accent: string,
-        options: { width?: number; tone?: "say" | "shout" | "think"; y?: number } = {}
+        options: { width?: number; tone?: "say" | "shout" | "think"; y?: number; speaker?: ShowcaseActor } = {}
     ): THREE.Sprite {
         const texture = speechTexture(this.bin, text, accent, options.tone ?? "say");
         const material = this.bin.material(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
@@ -73,6 +79,10 @@ export abstract class ShowcaseRoom extends TowerFloor {
         sprite.position.y = options.y ?? 2.9;
         sprite.visible = false;
         sprite.renderOrder = 6;
+
+        this.captionMaterials.push(material);
+        if (options.speaker) this.talkers.push({ sprite, speaker: options.speaker, text });
+
         return sprite;
     }
 
@@ -283,10 +293,33 @@ export abstract class ShowcaseRoom extends TowerFloor {
         return t("g.showcase.exit");
     }
 
+    private updateTalkers(): void {
+        if (this.talkers.length === 0) return;
+
+        this.activeTalkerText.clear();
+        for (const talker of this.talkers) {
+            if (talker.sprite.visible) this.activeTalkerText.set(talker.speaker, talker.text);
+        }
+
+        this.processedTalkers.clear();
+        for (const talker of this.talkers) {
+            if (this.processedTalkers.has(talker.speaker)) continue;
+            this.processedTalkers.add(talker.speaker);
+            const text = this.activeTalkerText.get(talker.speaker);
+            talker.speaker.setTalking(text !== undefined, text);
+        }
+    }
+
     override update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean): void {
         this.elapsed += delta;
         this.crowd.update(delta);
         for (let i = 0; i < this.stories.length; i++) this.stories[i].update(delta);
+
+        this.updateTalkers();
+
+        const opacity = areCaptionsHidden() ? 0 : 1;
+        for (let i = 0; i < this.captionMaterials.length; i++) this.captionMaterials[i].opacity = opacity;
+
         this.tick(delta);
 
         if (this.exitVeil) this.exitVeil.opacity = 0.36 + Math.sin(this.elapsed * 1.7) * 0.09;
@@ -303,6 +336,8 @@ export abstract class ShowcaseRoom extends TowerFloor {
 
     dispose(): void {
         this.stories = [];
+        this.captionMaterials = [];
+        this.talkers = [];
         this.exitVeil = null;
         this.exitLight = null;
         this.crowd.dispose();

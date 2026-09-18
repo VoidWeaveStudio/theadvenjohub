@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { t } from "@/core/i18n";
+import { isRainEnabled, setRainEnabled } from "@/features/game/world/locations/showcase/rainVisibility";
 
 const NEAR = 0.05;
 const FAR = 30000;
@@ -68,6 +69,7 @@ export interface CinemaState {
     roll: number;
     hideUi: boolean;
     hideSelf: boolean;
+    hideCaptions: boolean;
     keyframes: number;
     railSeconds: number;
     railLoop: boolean;
@@ -144,6 +146,7 @@ export class CinemaCamera {
     private smoothingIndex = 1;
     private hideUi = false;
     private hideSelf = true;
+    private hideCaptions = false;
 
     private readonly orbitTarget = new THREE.Vector3();
     private orbitRadius = DEFAULT_ORBIT_RADIUS;
@@ -187,6 +190,10 @@ export class CinemaCamera {
         return this.active && this.hideSelf;
     }
 
+    public hidesCaptions(): boolean {
+        return this.active && this.hideCaptions;
+    }
+
     public setAspect(aspect: number) {
         this.camera.aspect = aspect > 0 ? aspect : 1;
         this.camera.updateProjectionMatrix();
@@ -202,6 +209,7 @@ export class CinemaCamera {
             roll: this.roll,
             hideUi: this.hideUi,
             hideSelf: this.hideSelf,
+            hideCaptions: this.hideCaptions,
             keyframes: this.keyframes.length,
             railSeconds: this.railSeconds,
             railLoop: this.railLoop,
@@ -303,6 +311,16 @@ export class CinemaCamera {
         if (input.isKeyJustPressed("KeyJ")) {
             this.hideSelf = !this.hideSelf;
             this.say(this.hideSelf ? "g.cinema.toast.selfHidden" : "g.cinema.toast.selfShown");
+        }
+
+        if (input.isKeyJustPressed("KeyC")) {
+            this.hideCaptions = !this.hideCaptions;
+            this.say(this.hideCaptions ? "g.cinema.toast.captionsHidden" : "g.cinema.toast.captionsShown");
+        }
+
+        if (input.isKeyJustPressed("KeyV")) {
+            setRainEnabled(!isRainEnabled());
+            this.say(isRainEnabled() ? "g.cinema.toast.rainOn" : "g.cinema.toast.rainOff");
         }
 
         if (input.isKeyJustPressed("KeyR")) {

@@ -208,11 +208,11 @@ export class GardenRoom extends ShowcaseRoom {
 
         guest.setHeldVisible(false);
 
-        const guestBubble = this.bubble("DIAMOND HANDS", "#7ce8a8", { width: 3, tone: "shout", y: 1.9 });
+        const guestBubble = this.bubble("DIAMOND HANDS", "#7ce8a8", { width: 3, tone: "shout", y: 1.9, speaker: guest });
         guest.group.add(guestBubble);
         this.guestBubble = guestBubble;
 
-        const waiterBubble = this.bubble("ONE MORE, SIR?", "#ffd166", { width: 2.8, y: 2.9 });
+        const waiterBubble = this.bubble("ONE MORE, SIR?", "#ffd166", { width: 2.8, y: 2.9, speaker: waiter });
         waiter.group.add(waiterBubble);
         this.waiterBubble = waiterBubble;
 

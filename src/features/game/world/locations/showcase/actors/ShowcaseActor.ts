@@ -3,12 +3,14 @@ import * as THREE from "three";
 import { ResourceManager } from "../../../../core/ResourceManager";
 import { CharacterAnimator } from "../../../../entities/CharacterAnimator";
 import { findHandBone, reparentPreservingWorldScale, scaleAndCenterModel } from "../../../../entities/characterModel";
-import { buildRegionIndex } from "../../../../entities/characterRegions";
+import { BODY_REGIONS, buildRegionIndex } from "../../../../entities/characterRegions";
 import { getRegionSkinTexture } from "../../../../entities/characterSkinTexture";
 import { buildDefusalWeapon, disposeWeaponRig, remoteWeaponTransformFor, WeaponRig } from "../../../../entities/defusalWeaponModels";
 import { BoneKey, BodyAxis, CENTER_BONES, CenterBoneKey, PoseBend, PoseId, POSES, SIDE_BONES, SideBoneKey } from "./poses";
 import { ActorVariant, buildHat } from "./variants";
 import { buildHeldItem, HeldItemId } from "./heldItems";
+import { buildFace, FaceRig } from "./face";
+import { CollisionGrid } from "../../../CollisionGrid";
 
 const MODEL_HEIGHT = 1.8;
 const WALK_SPEED = 1.35;
@@ -16,6 +18,16 @@ const RUN_SPEED = 4.2;
 const TURN_RATE = 4.5;
 const ARRIVE_EPSILON = 0.12;
 const CHEST_HEIGHT = 1.15;
+
+const BREATH_AMPLITUDE = 0.006;
+const BREATH_RATE = 1.35;
+
+const POSE_BLEND_RATE = 6;
+
+const COLLIDER_WIDTH = 0.7;
+const COLLIDER_HEIGHT = 1.8;
+const _colliderSize = new THREE.Vector3(COLLIDER_WIDTH, COLLIDER_HEIGHT, COLLIDER_WIDTH);
+const _colliderProbe = new THREE.Vector3();
 
 export type ActorMotion = "idle" | "walk" | "run";
 
@@ -53,6 +65,7 @@ interface CompiledBend {
     sway: number;
     rate: number;
     phase: number;
+    blended: boolean;
 }
 
 type OverlayKind = "aim" | "crouch" | "recoil";
@@ -92,6 +105,9 @@ const _worldQuat = new THREE.Quaternion();
 const _bendQuat = new THREE.Quaternion();
 const _scaleProbe = new THREE.Vector3();
 const _bodyQuat = new THREE.Quaternion();
+const _headVertex = new THREE.Vector3();
+
+const headBoundsCache = new WeakMap<THREE.BufferGeometry, THREE.Box3 | null>();
 
 function boneDepth(bone: THREE.Object3D): number {
     let depth = 0;
@@ -142,6 +158,12 @@ export class ShowcaseActor {
     private facingTarget: number | null = null;
 
     private groundAt: ((x: number, z: number) => number) | null = null;
+    private collisionGrid: CollisionGrid | null = null;
+
+    private face: FaceRig | null = null;
+    private poseBlend = 1;
+    private skinnedMesh: THREE.SkinnedMesh | null = null;
+    private headLocalBounds: THREE.Box3 | null = null;
 
     constructor(private readonly spec: ActorSpec) {
         this.clock = spec.phase ?? 0;
@@ -152,6 +174,10 @@ export class ShowcaseActor {
 
     public setGroundProvider(provider: ((x: number, z: number) => number) | null) {
         this.groundAt = provider;
+    }
+
+    public setCollisionGrid(grid: CollisionGrid | null) {
+        this.collisionGrid = grid;
     }
 
     public get position(): THREE.Vector3 {
@@ -167,6 +193,7 @@ export class ShowcaseActor {
 
         this.applyLook(root, bin, materials);
         this.collectBones(root);
+        this.computeHeadBounds();
 
         this.animator.setup(root, data.animations);
         this.armed = !!this.spec.weapon;
@@ -190,6 +217,7 @@ export class ShowcaseActor {
         this.animator.update(this.clock % 1.3);
 
         this.attachHat(bin);
+        this.attachFace(bin);
         this.attachHeld(bin);
         this.attachWeapon(root);
         this.compilePose();
@@ -216,6 +244,7 @@ export class ShowcaseActor {
 
         const mesh = skinned as THREE.SkinnedMesh | null;
         if (!mesh) return;
+        this.skinnedMesh = mesh;
 
         const cached = materials.get(this.spec.variantKey);
         if (cached) {
@@ -284,6 +313,51 @@ export class ShowcaseActor {
 
         const hat = buildHat(this.spec.variant.hat, this.spec.variant.hatColor, this.spec.variant.hatAccent, bin);
         if (hat) head.add(hat);
+    }
+
+    private computeHeadBounds(): void {
+        const mesh = this.skinnedMesh;
+        const head = this.bones.get("head");
+        const skeleton = mesh?.skeleton;
+        if (!mesh || !head || !skeleton) return;
+
+        const cached = headBoundsCache.get(mesh.geometry);
+        if (cached !== undefined) {
+            this.headLocalBounds = cached;
+            return;
+        }
+
+        const regions = buildRegionIndex(mesh);
+        const headBoneIndex = skeleton.bones.indexOf(head as THREE.Bone);
+        if (!regions || headBoneIndex < 0) {
+            headBoundsCache.set(mesh.geometry, null);
+            return;
+        }
+
+        const headRegion = BODY_REGIONS.indexOf("head");
+        const boneInverse = skeleton.boneInverses[headBoneIndex];
+        const position = mesh.geometry.getAttribute("position");
+        const box = new THREE.Box3();
+
+        for (let i = 0; i < position.count; i++) {
+            if (regions[i] !== headRegion) continue;
+            _headVertex.fromBufferAttribute(position, i);
+            _headVertex.applyMatrix4(mesh.bindMatrix);
+            _headVertex.applyMatrix4(boneInverse);
+            box.expandByPoint(_headVertex);
+        }
+
+        const result = box.isEmpty() ? null : box;
+        headBoundsCache.set(mesh.geometry, result);
+        this.headLocalBounds = result;
+    }
+
+    private attachFace(bin: Bin) {
+        const head = this.bones.get("head");
+        if (!head) return;
+
+        this.face = buildFace(this.spec.variant, bin, this.spec.phase ?? 0, this.headLocalBounds);
+        head.add(this.face.group);
     }
 
     private attachHeld(bin: Bin) {
@@ -359,7 +433,12 @@ export class ShowcaseActor {
     public setPose(pose: PoseId | undefined) {
         if (this.dead || this.spec.pose === pose) return;
         this.spec.pose = pose;
+        this.poseBlend = 0;
         this.compilePose();
+    }
+
+    public setTalking(talking: boolean, text?: string) {
+        this.face?.setTalking(talking, text);
     }
 
     public setHeldVisible(visible: boolean) {
@@ -414,6 +493,7 @@ export class ShowcaseActor {
         this.destination = null;
         this.targets = [];
         this.playClip();
+        this.face?.close();
     }
 
     public revive(position: THREE.Vector3, facing: number) {
@@ -429,7 +509,9 @@ export class ShowcaseActor {
         this.facingTarget = null;
         this.group.rotation.y = facing;
         this.playClip();
+        this.poseBlend = 0;
         this.compilePose();
+        this.face?.open();
     }
 
     public setDestination(point: THREE.Vector3 | null, speed = RUN_SPEED) {
@@ -489,6 +571,18 @@ export class ShowcaseActor {
             return target;
         };
 
+        const chest = ensure("spineUpper");
+        if (chest) {
+            chest.bends.push({
+                axis: "right",
+                angle: 0,
+                sway: BREATH_AMPLITUDE,
+                rate: BREATH_RATE,
+                phase: this.spec.phase ?? 0,
+                blended: false,
+            });
+        }
+
         const poseId: PoseId | undefined = this.spec.pose;
         if (poseId) {
             for (const bend of POSES[poseId] ?? []) {
@@ -501,6 +595,7 @@ export class ShowcaseActor {
                     sway: bend.sway ?? 0,
                     rate: bend.rate ?? 1,
                     phase: (bend.phase ?? 0) + this.clock,
+                    blended: true,
                 });
             }
         }
@@ -529,9 +624,10 @@ export class ShowcaseActor {
             target.lastIn.copy(target.bone.quaternion);
 
             for (const bend of target.bends) {
+                const weight = bend.blended ? this.poseBlend : 1;
                 const angle = bend.sway !== 0
-                    ? bend.angle + Math.sin(this.clock * bend.rate + bend.phase) * bend.sway
-                    : bend.angle;
+                    ? (bend.angle + Math.sin(this.clock * bend.rate + bend.phase) * bend.sway) * weight
+                    : bend.angle * weight;
                 this.bendBone(target.bone, bend.axis, angle);
             }
 
@@ -583,6 +679,24 @@ export class ShowcaseActor {
         this.group.rotation.y = this.facing;
     }
 
+    private collides(x: number, z: number): boolean {
+        if (!this.collisionGrid) return false;
+        const y = this.groundAt ? this.groundAt(x, z) : this.group.position.y;
+        _colliderProbe.set(x, y + COLLIDER_HEIGHT / 2, z);
+        return this.collisionGrid.checkCollisionHorizontal(_colliderProbe, _colliderSize);
+    }
+
+    private resolveStep(fromX: number, fromZ: number, stepX: number, stepZ: number): { x: number; z: number; moved: boolean } {
+        const tryX = fromX + stepX;
+        const tryZ = fromZ + stepZ;
+
+        if (!this.collides(tryX, tryZ)) return { x: tryX, z: tryZ, moved: true };
+        if (stepX !== 0 && !this.collides(tryX, fromZ)) return { x: tryX, z: fromZ, moved: true };
+        if (stepZ !== 0 && !this.collides(fromX, tryZ)) return { x: fromX, z: tryZ, moved: true };
+
+        return { x: fromX, z: fromZ, moved: false };
+    }
+
     private advanceWalk(delta: number) {
         const walk = this.walk;
         if (!walk || walk.path.length < 2) {
@@ -622,15 +736,16 @@ export class ShowcaseActor {
 
         const speed = walk.speed ?? (walk.run ? RUN_SPEED : WALK_SPEED);
         const step = Math.min(distance, speed * delta);
-        this.group.position.x += (dx / distance) * step;
-        this.group.position.z += (dz / distance) * step;
+        const resolved = this.resolveStep(this.group.position.x, this.group.position.z, (dx / distance) * step, (dz / distance) * step);
+        this.group.position.x = resolved.x;
+        this.group.position.z = resolved.z;
 
         if (this.groundAt) {
             this.group.position.y = this.groundAt(this.group.position.x, this.group.position.z);
         }
 
         this.turnTowards(Math.atan2(dx, dz), delta);
-        this.moving = true;
+        this.moving = resolved.moved;
     }
 
     private advanceDestination(delta: number) {
@@ -647,15 +762,16 @@ export class ShowcaseActor {
         }
 
         const step = Math.min(distance, this.destinationSpeed * delta);
-        this.group.position.x += (dx / distance) * step;
-        this.group.position.z += (dz / distance) * step;
+        const resolved = this.resolveStep(this.group.position.x, this.group.position.z, (dx / distance) * step, (dz / distance) * step);
+        this.group.position.x = resolved.x;
+        this.group.position.z = resolved.z;
 
         if (this.groundAt) {
             this.group.position.y = this.groundAt(this.group.position.x, this.group.position.z);
         }
 
         this.turnTowards(Math.atan2(dx, dz), delta);
-        return true;
+        return resolved.moved;
     }
 
     public update(delta: number) {
@@ -680,7 +796,9 @@ export class ShowcaseActor {
         }
 
         this.animator.update(delta);
+        this.poseBlend = Math.min(1, this.poseBlend + POSE_BLEND_RATE * delta);
         this.applyPose();
+        this.face?.update(delta);
     }
 
     public dispose() {
@@ -689,6 +807,7 @@ export class ShowcaseActor {
             this.weaponRig = null;
             this.weaponMount = null;
         }
+        this.face = null;
 
         this.group.traverse((child) => {
             const mesh = child as THREE.Mesh;

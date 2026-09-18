@@ -139,13 +139,13 @@ export class ChurchRoom extends ShowcaseRoom {
         if (!preacher || !pilgrim) return;
         this.preacher = preacher;
 
-        const ask = this.bubble("BLESS MY BAGS", "#ffd489", { width: 3, y: 2.3 });
+        const ask = this.bubble("BLESS MY BAGS", "#ffd489", { width: 3, y: 2.3, speaker: pilgrim });
         pilgrim.group.add(ask);
 
-        const answer = this.bubble("JUST HOLD", "#ffe9a8", { width: 2.8, tone: "shout", y: 2.6 });
+        const answer = this.bubble("JUST HOLD", "#ffe9a8", { width: 2.8, tone: "shout", y: 2.6, speaker: preacher });
         preacher.group.add(answer);
 
-        const amen = this.bubble("AMEN", "#7ce8a8", { width: 1.8, y: 2.3 });
+        const amen = this.bubble("AMEN", "#7ce8a8", { width: 1.8, y: 2.3, speaker: pilgrim });
         pilgrim.group.add(amen);
 
         this.addStory([

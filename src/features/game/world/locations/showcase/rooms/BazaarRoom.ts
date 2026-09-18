@@ -157,10 +157,10 @@ export class BazaarRoom extends ShowcaseRoom {
         if (barker) {
             this.barker = barker;
             const lines = [
-                this.bubble("1000x GUARANTEED", "#f2c53d", { width: 3.8, tone: "shout", y: 2.8 }),
-                this.bubble("PRESALE ENDS TONIGHT", "#ff8f5a", { width: 4.2, y: 2.8 }),
-                this.bubble("TRUST ME BRO", "#7ce8a8", { width: 3, y: 2.8 }),
-                this.bubble("AUDITED BY MY COUSIN", "#67c9ff", { width: 4.4, y: 2.8 }),
+                this.bubble("1000x GUARANTEED", "#f2c53d", { width: 3.8, tone: "shout", y: 2.8, speaker: barker }),
+                this.bubble("PRESALE ENDS TONIGHT", "#ff8f5a", { width: 4.2, y: 2.8, speaker: barker }),
+                this.bubble("TRUST ME BRO", "#7ce8a8", { width: 3, y: 2.8, speaker: barker }),
+                this.bubble("AUDITED BY MY COUSIN", "#67c9ff", { width: 4.4, y: 2.8, speaker: barker }),
             ];
             for (const line of lines) barker.group.add(line);
 
@@ -214,13 +214,13 @@ export class BazaarRoom extends ShowcaseRoom {
 
         scammer.setHeldVisible(false);
 
-        const pitch = this.bubble("FLOOR IS RISING", "#a855f7", { width: 3.6, y: 2.9 });
-        const gone = this.bubble("SEE YOU NEVER", "#ff4a4a", { width: 3.4, tone: "shout", y: 2.9 });
+        const pitch = this.bubble("FLOOR IS RISING", "#a855f7", { width: 3.6, y: 2.9, speaker: scammer });
+        const gone = this.bubble("SEE YOU NEVER", "#ff4a4a", { width: 3.4, tone: "shout", y: 2.9, speaker: scammer });
         scammer.group.add(pitch);
         scammer.group.add(gone);
 
-        const doubt = this.bubble("IS IT AUDITED?", "#67c9ff", { width: 3.4, y: 2.9 });
-        const loss = this.bubble("MY BAGS...", "#ff8f8f", { width: 2.8, y: 2.9 });
+        const doubt = this.bubble("IS IT AUDITED?", "#67c9ff", { width: 3.4, y: 2.9, speaker: mark });
+        const loss = this.bubble("MY BAGS...", "#ff8f8f", { width: 2.8, y: 2.9, speaker: mark });
         mark.group.add(doubt);
         mark.group.add(loss);
 

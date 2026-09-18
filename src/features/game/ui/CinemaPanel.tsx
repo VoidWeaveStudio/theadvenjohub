@@ -26,6 +26,8 @@ const KEY_ROWS: Array<[string, string]> = [
     ["L / P", "g.cinema.hint.rail"],
     [", .", "g.cinema.hint.duration"],
     ["J", "g.cinema.hint.self"],
+    ["C", "g.cinema.hint.captions"],
+    ["V", "g.cinema.hint.rain"],
     ["H", "g.cinema.hint.ui"],
     ["F8", "g.cinema.hint.exit"],
 ];

@@ -132,9 +132,9 @@ export class CasinoRoom extends ShowcaseRoom {
         if (!trader) return;
         this.paperHands = trader;
 
-        const watch = this.bubble("JUST A DIP...", "#9ec6ff", { width: 3, tone: "think", y: 2.7 });
-        const sell = this.bubble("SOLD!", "#ff4a4a", { width: 2.2, tone: "shout", y: 2.9 });
-        const regret = this.bubble("IT PUMPED 40x", "#ffd166", { width: 3.2, y: 2.7 });
+        const watch = this.bubble("JUST A DIP...", "#9ec6ff", { width: 3, tone: "think", y: 2.7, speaker: trader });
+        const sell = this.bubble("SOLD!", "#ff4a4a", { width: 2.2, tone: "shout", y: 2.9, speaker: trader });
+        const regret = this.bubble("IT PUMPED 40x", "#ffd166", { width: 3.2, y: 2.7, speaker: trader });
         trader.group.add(watch);
         trader.group.add(sell);
         trader.group.add(regret);

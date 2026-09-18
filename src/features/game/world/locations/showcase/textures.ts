@@ -511,6 +511,97 @@ export class ShowcaseTextures {
         });
     }
 
+    weatheredGranite(repeat: number | [number, number], base: number, moss: number): THREE.CanvasTexture {
+        return this.build(`weathered${base.toString(16)}${moss.toString(16)}`, repeat, (ctx, size, random) => {
+            ctx.fillStyle = hex(base);
+            ctx.fillRect(0, 0, size, size);
+            this.speckle(ctx, size, random, 600, mix(base, 0x000000, 0.45), 0.35, 1.5, 6);
+            this.speckle(ctx, size, random, 420, mix(base, 0xffffff, 0.4), 0.3, 1.5, 5);
+            this.speckle(ctx, size, random, 90, mix(base, 0xffffff, 0.16), 0.25, 18, 70);
+            this.veins(ctx, size, random, 10, mix(base, 0xffffff, 0.25), 0.12, 1.6);
+
+            const streaks = 6 + Math.floor(random() * 5);
+            for (let i = 0; i < streaks; i++) {
+                const x = random() * size;
+                const width = size * (0.05 + random() * 0.08);
+                const top = random() * size * 0.35;
+                const gradient = ctx.createLinearGradient(0, top, 0, size);
+                gradient.addColorStop(0, rgba(mix(base, 0x000000, 0.6), 0.5 * (0.6 + random() * 0.4)));
+                gradient.addColorStop(1, rgba(mix(base, 0x000000, 0.6), 0));
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.moveTo(x - width / 2, top);
+                for (let y = top; y <= size; y += size / 12) {
+                    ctx.lineTo(x + Math.sin(y * 0.05 + i) * width * 0.3 - width / 2, y);
+                }
+                for (let y = size; y >= top; y -= size / 12) {
+                    ctx.lineTo(x + Math.sin(y * 0.05 + i) * width * 0.3 + width / 2, y);
+                }
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            const blotches = 6 + Math.floor(random() * 6);
+            for (let i = 0; i < blotches; i++) {
+                const cx = random() * size;
+                const cy = size * (0.4 + random() * 0.6);
+                const r = size * (0.04 + random() * 0.09);
+                const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+                gradient.addColorStop(0, rgba(moss, 0.55 + random() * 0.25));
+                gradient.addColorStop(1, rgba(moss, 0));
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+    }
+
+    radialGlow(key: string, color: number): THREE.CanvasTexture {
+        return this.build(`radial${key}${color.toString(16)}`, 1, (ctx, size) => {
+            const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+            gradient.addColorStop(0, rgba(color, 0.85));
+            gradient.addColorStop(0.35, rgba(color, 0.4));
+            gradient.addColorStop(1, rgba(color, 0));
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+        }, 128, false);
+    }
+
+    nightSky(key: string, top: number, horizon: number, cloud: number): THREE.CanvasTexture {
+        return this.build(`nightsky${key}${top.toString(16)}${horizon.toString(16)}${cloud.toString(16)}`, 1, (ctx, size, random) => {
+            const gradient = ctx.createLinearGradient(0, 0, 0, size);
+            gradient.addColorStop(0, hex(top));
+            gradient.addColorStop(0.6, hex(mix(top, horizon, 0.5)));
+            gradient.addColorStop(1, hex(horizon));
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            for (let i = 0; i < 220; i++) {
+                const y = size * random() * 0.55;
+                ctx.fillStyle = rgba(0xffffff, 0.1 + random() * 0.5);
+                const r = random() < 0.88 ? 0.5 + random() * 0.6 : 1.1 + random() * 0.8;
+                ctx.beginPath();
+                ctx.arc(random() * size, y, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            for (let i = 0; i < 9; i++) {
+                const cx = random() * size;
+                const cy = size * (0.32 + random() * 0.5);
+                const rx = size * (0.1 + random() * 0.15);
+                const ry = rx * (0.3 + random() * 0.2);
+                const cloudGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, rx);
+                cloudGradient.addColorStop(0, rgba(cloud, 0.28 + random() * 0.16));
+                cloudGradient.addColorStop(1, rgba(cloud, 0));
+                ctx.fillStyle = cloudGradient;
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }, 1024);
+    }
+
     stripes(repeat: number | [number, number], a: number, b: number, count = 6, vertical = false): THREE.CanvasTexture {
         return this.build(`stripes${a.toString(16)}${b.toString(16)}${count}${vertical}`, repeat, (ctx, size, random) => {
             const band = size / count;

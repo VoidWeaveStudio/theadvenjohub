@@ -99,6 +99,7 @@ export class ShowcaseCrowd {
             if (!actor.create(rm, bin, this.materials)) return null;
 
             actor.setGroundProvider(spec.walk || spec.weapon ? this.groundAt : null);
+            actor.setCollisionGrid(grid ?? null);
             this.scene.add(actor.group);
             this.built.push(actor);
 

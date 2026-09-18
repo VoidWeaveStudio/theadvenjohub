@@ -3,8 +3,8 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import type { RegionPalette } from "../../../../entities/characterRegions";
 
-const HEAD_TOP_Y = 2.22;
-const HEAD_CENTRE_Y = 1.08;
+export const HEAD_TOP_Y = 2.22;
+export const HEAD_CENTRE_Y = 1.08;
 
 
 export type HatKind =
