@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import type { ActorVariant } from "./variants";
 import { HEAD_CENTRE_Y, HEAD_TOP_Y } from "./variants";
+import { getMouthTexture, MouthShapeKind } from "./mouthTextures";
 
 const FALLBACK_TOP_Y = HEAD_TOP_Y;
 const FALLBACK_HALF_WIDTH = 0.85;
@@ -13,65 +14,65 @@ const BLINK_THRESHOLD = 0.985;
 const BLINK_SQUASH = 0.08;
 const BLINK_PHASE_SCALE = 3.1;
 
-const TALK_HOLD_MIN = 0.05;
-const TALK_HOLD_MAX = 0.16;
-const TALK_EASE_RATE = 16;
-const CLOSE_EASE_RATE = 10;
+// The mouth flaps shut->open->shut on its own clock rather than marching through the
+// text once — that keeps it looking natural regardless of hold duration.
+const FLAP_CYCLE_MIN = 0.14;
+const FLAP_CYCLE_MAX = 0.24;
+const RESTING_SHAPE: MouthShapeKind = "bmp";
+
+// A caption bubble's on-screen duration is chosen for scene pacing, not reading/speaking
+// time (e.g. a 3-letter "WHY" can be held for a dramatic 3 seconds) — so the mouth can't
+// just flap for as long as the bubble is visible, or it "talks" for way longer than the
+// line takes to say. Instead estimate how long the LINE ITSELF takes to speak and stop
+// there, independent of how long the bubble lingers afterwards. ~150 words/min average
+// conversational speech, ~5.7 chars/word (incl. space) -> ~14 letters/sec.
+const SPEECH_LETTERS_PER_SECOND = 14;
+const MIN_SPEECH_DURATION = 0.35;
+
+function estimateSpeechDuration(letterCount: number): number {
+    return Math.max(MIN_SPEECH_DURATION, letterCount / SPEECH_LETTERS_PER_SECOND);
+}
 
 type Bin = <T extends THREE.Material>(material: T) => T;
 
-// [scaleX, heightFactor] — scaleX is the mouth's width fraction, heightFactor is
-// its opening fraction (multiplied by the actor's own open-mouth height at runtime).
-// Not phonetically exact — grouped by rough mouth shape (closed lips, round/pursed,
-// wide spread, jaw-drop open, teeth-together) so every letter reads as visibly distinct.
-type VisemeShape = readonly [number, number];
-
-const DEFAULT_VISEME_SHAPE: VisemeShape = [0.8, 0.45];
-
-const LETTER_VISEME_SHAPES: Record<string, VisemeShape> = {
-    a: [0.72, 0.95],
-    b: [1.0, 0.06],
-    c: [0.88, 0.2],
-    d: [0.68, 0.42],
-    e: [0.92, 0.34],
-    f: [0.85, 0.15],
-    g: [0.62, 0.55],
-    h: [0.65, 0.5],
-    i: [0.95, 0.28],
-    j: [0.58, 0.5],
-    k: [0.62, 0.55],
-    l: [0.7, 0.4],
-    m: [1.0, 0.06],
-    n: [0.72, 0.38],
-    o: [0.55, 0.75],
-    p: [1.0, 0.06],
-    q: [0.5, 0.6],
-    r: [0.6, 0.5],
-    s: [0.88, 0.16],
-    t: [0.7, 0.35],
-    u: [0.48, 0.7],
-    v: [0.85, 0.18],
-    w: [0.55, 0.55],
-    x: [0.65, 0.45],
-    y: [0.9, 0.3],
-    z: [0.85, 0.18],
+// Rough mouth-shape groups, same idea as the classic 9-pose cartoon lip-sync chart
+// (AE / CDGKN-STXYZ / R / BMP / TH / O / QW / L / FV) — not phonetically exact, just
+// enough variety that a line's own letters flavor which shapes it flaps through.
+const LETTER_MOUTH_SHAPES: Record<string, MouthShapeKind> = {
+    a: "ae", e: "ae", i: "ae",
+    c: "teeth", d: "teeth", g: "teeth", k: "teeth", n: "teeth",
+    s: "teeth", t: "teeth", x: "teeth", y: "teeth", z: "teeth", j: "teeth",
+    r: "r",
+    b: "bmp", m: "bmp", p: "bmp",
+    h: "th",
+    o: "o", u: "o",
+    q: "qw", w: "qw",
+    l: "l",
+    f: "fv", v: "fv",
 };
 
-function shapeForChar(ch: string): VisemeShape {
-    return LETTER_VISEME_SHAPES[ch.toLowerCase()] ?? DEFAULT_VISEME_SHAPE;
+// Spaces/punctuation are skipped — they aren't sounds, so they shouldn't get a mouth shape.
+function buildShapePool(text: string): MouthShapeKind[] {
+    const pool: MouthShapeKind[] = [];
+    for (const ch of text) {
+        const kind = LETTER_MOUTH_SHAPES[ch.toLowerCase()];
+        if (kind) pool.push(kind);
+    }
+    if (pool.length === 0) pool.push("teeth");
+    return pool;
 }
 
-function buildVisemeSequence(text: string): VisemeShape[] {
-    const sequence: VisemeShape[] = [];
-    for (const ch of text) sequence.push(shapeForChar(ch));
-    if (sequence.length === 0) sequence.push(DEFAULT_VISEME_SHAPE);
-    return sequence;
+function countSpeechLetters(text: string): number {
+    let count = 0;
+    for (const ch of text) {
+        if (LETTER_MOUTH_SHAPES[ch.toLowerCase()]) count++;
+    }
+    return count;
 }
 
 interface FaceMetrics {
     eyeY: number;
     browY: number;
-    mouthTopY: number;
     faceZ: number;
     browZ: number;
     eyeX: number;
@@ -80,10 +81,8 @@ interface FaceMetrics {
     browWidth: number;
     browHeight: number;
     browDepth: number;
-    mouthRadius: number;
-    mouthClosedScaleY: number;
-    mouthOpenScaleY: number;
-    mouthDepth: number;
+    mouthCenterY: number;
+    mouthPlaneSize: number;
 }
 
 function computeMetrics(headBounds: THREE.Box3 | null): FaceMetrics {
@@ -105,15 +104,12 @@ function computeMetrics(headBounds: THREE.Box3 | null): FaceMetrics {
 
     const eyeY = topY - verticalSpan * 0.3;
     const faceZ = frontZ + halfWidth * 0.05;
-    const mouthWidth = halfWidth * 0.59;
-    const mouthRadius = mouthWidth / 2;
-    const mouthOpenHeight = halfWidth * 0.47;
-    const mouthClosedHeight = halfWidth * 0.082;
+    const mouthTopY = topY - verticalSpan * 0.62;
+    const mouthPlaneSize = halfWidth * 0.85;
 
     return {
         eyeY,
         browY: eyeY + verticalSpan * 0.14,
-        mouthTopY: topY - verticalSpan * 0.62,
         faceZ,
         browZ: faceZ - halfWidth * 0.03,
         eyeX: halfWidth * 0.5,
@@ -122,11 +118,37 @@ function computeMetrics(headBounds: THREE.Box3 | null): FaceMetrics {
         browWidth: halfWidth * 0.47,
         browHeight: halfWidth * 0.095,
         browDepth: halfWidth * 0.095,
-        mouthRadius,
-        mouthClosedScaleY: mouthClosedHeight / (mouthRadius * 2),
-        mouthOpenScaleY: mouthOpenHeight / (mouthRadius * 2),
-        mouthDepth: halfWidth * 0.095,
+        mouthCenterY: mouthTopY - mouthPlaneSize * 0.25,
+        mouthPlaneSize,
     };
+}
+
+// Some hats/bands (bandana, cap, visor) wrap around at roughly eye height with a radius
+// authored for clearance over the head, not over the eyes sitting right at its surface —
+// so on those, the eyes ended up hidden behind/inside the accessory. Rather than hardcode
+// a fix per hat kind, measure the hat's own actual geometry near eye height and push the
+// eyes out just far enough to clear whatever is really there. Cached per hat kind, since
+// geometry (unlike color) is identical across actors wearing the same hat.
+const hatClearanceCache = new Map<string, number>();
+const _hatVertex = new THREE.Vector3();
+
+function measureHatRadiusAtHeight(hat: THREE.Object3D, targetY: number, band: number): number {
+    let maxRadius = 0;
+    hat.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.geometry) return;
+        mesh.updateMatrix();
+        const position = mesh.geometry.getAttribute("position");
+        if (!position) return;
+        for (let i = 0; i < position.count; i++) {
+            _hatVertex.fromBufferAttribute(position, i);
+            _hatVertex.applyMatrix4(mesh.matrix);
+            if (Math.abs(_hatVertex.y - targetY) > band) continue;
+            const radius = Math.hypot(_hatVertex.x, _hatVertex.z);
+            if (radius > maxRadius) maxRadius = radius;
+        }
+    });
+    return maxRadius;
 }
 
 function darken(color: number, amount: number): number {
@@ -145,12 +167,32 @@ export interface FaceRig {
     open(): void;
 }
 
-export function buildFace(variant: ActorVariant, bin: Bin, phase: number, headBounds: THREE.Box3 | null): FaceRig {
+export function buildFace(
+    variant: ActorVariant,
+    bin: Bin,
+    phase: number,
+    headBounds: THREE.Box3 | null,
+    hatObject: THREE.Object3D | null
+): FaceRig {
     const group = new THREE.Group();
     const metrics = computeMetrics(headBounds);
-    const closedScaleX = 1;
-    const closedScaleY = metrics.mouthClosedScaleY;
-    const mouthTopY = metrics.mouthTopY + metrics.mouthClosedScaleY * metrics.mouthRadius;
+
+    let eyeZ = metrics.faceZ;
+    if (hatObject) {
+        const band = metrics.eyeScleraRadius * 0.8;
+        let hatRadius = hatClearanceCache.get(variant.hat);
+        if (hatRadius === undefined) {
+            hatRadius = measureHatRadiusAtHeight(hatObject, metrics.eyeY, band);
+            hatClearanceCache.set(variant.hat, hatRadius);
+        }
+        // The clearance has to cover the eye's own radius, not just its center point —
+        // otherwise the near side of the eye still dips into the hat's surface and reads
+        // as sitting on/inside it rather than in front of it.
+        const clearRadius = hatRadius + metrics.eyeScleraRadius * 1.2;
+        const minEyeZ = Math.sqrt(Math.max(0, clearRadius * clearRadius - metrics.eyeX * metrics.eyeX));
+        if (minEyeZ > eyeZ) eyeZ = minEyeZ;
+    }
+    const browZ = eyeZ - (metrics.faceZ - metrics.browZ);
 
     const scleraMaterial = bin(new THREE.MeshStandardMaterial({ color: 0xf4f0e8, roughness: 0.4, metalness: 0 }));
 
@@ -162,17 +204,17 @@ export function buildFace(variant: ActorVariant, bin: Bin, phase: number, headBo
     }));
 
     const browMaterial = bin(new THREE.MeshStandardMaterial({ color: darken(variant.palette.head, 0.55), roughness: 0.85, metalness: 0 }));
-    const mouthMaterial = bin(new THREE.MeshStandardMaterial({ color: darken(variant.palette.head, 0.65), roughness: 0.75, metalness: 0 }));
+    const mouthMaterial = bin(new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide }));
 
     const scleraGeometry = new THREE.SphereGeometry(metrics.eyeScleraRadius, 10, 8);
     const pupilGeometry = new THREE.SphereGeometry(metrics.eyePupilRadius, 8, 8);
     const browGeometry = new THREE.BoxGeometry(metrics.browWidth, metrics.browHeight, metrics.browDepth);
-    const mouthGeometry = new THREE.CylinderGeometry(metrics.mouthRadius, metrics.mouthRadius, metrics.mouthDepth, 14);
+    const mouthGeometry = new THREE.PlaneGeometry(metrics.mouthPlaneSize, metrics.mouthPlaneSize);
 
     const eyeGroups: THREE.Group[] = [];
     for (const side of [-1, 1]) {
         const eye = new THREE.Group();
-        eye.position.set(side * metrics.eyeX, metrics.eyeY, metrics.faceZ);
+        eye.position.set(side * metrics.eyeX, metrics.eyeY, eyeZ);
 
         const sclera = new THREE.Mesh(scleraGeometry, scleraMaterial);
         sclera.scale.set(1, 1, 0.35);
@@ -186,14 +228,13 @@ export function buildFace(variant: ActorVariant, bin: Bin, phase: number, headBo
         eyeGroups.push(eye);
 
         const brow = new THREE.Mesh(browGeometry, browMaterial);
-        brow.position.set(side * metrics.eyeX, metrics.browY, metrics.browZ);
+        brow.position.set(side * metrics.eyeX, metrics.browY, browZ);
         brow.rotation.z = -side * 0.12;
         group.add(brow);
     }
 
     const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
-    mouth.rotation.x = Math.PI / 2;
-    mouth.position.set(0, metrics.mouthTopY, metrics.faceZ);
+    mouth.position.set(0, metrics.mouthCenterY, metrics.faceZ);
     group.add(mouth);
 
     group.traverse((child) => {
@@ -202,46 +243,46 @@ export function buildFace(variant: ActorVariant, bin: Bin, phase: number, headBo
     });
 
     let talking = false;
+    let speaking = false;
+    let speechRemaining = 0;
     let closed = false;
-    let currentScaleX = closedScaleX;
-    let currentScaleY = closedScaleY;
-    let targetScaleX = closedScaleX;
-    let targetScaleY = closedScaleY;
-    let talkClock = phase;
-    let holdUntil = 0;
-    let visemeSequence: VisemeShape[] = [DEFAULT_VISEME_SHAPE];
-    let visemeIndex = 0;
+    let flapPhase = 0;
+    let flapDuration = FLAP_CYCLE_MIN;
+    let openShape: MouthShapeKind = "teeth";
+    let shapePool: MouthShapeKind[] = ["teeth"];
+    let currentTexture: MouthShapeKind | null = null;
     let lastText = "";
     let blinkClock = phase * BLINK_PHASE_SCALE;
 
-    const applyMouthScale = () => {
-        mouth.scale.x = currentScaleX;
-        mouth.scale.z = currentScaleY;
-        mouth.position.y = mouthTopY - currentScaleY * metrics.mouthRadius;
+    const applyMouthTexture = (kind: MouthShapeKind) => {
+        if (currentTexture === kind) return;
+        currentTexture = kind;
+        mouthMaterial.map = getMouthTexture(kind);
+        mouthMaterial.needsUpdate = true;
     };
+    applyMouthTexture(RESTING_SHAPE);
 
-    const settleMouth = (delta: number) => {
-        if (talking) {
-            talkClock += delta;
-            if (talkClock >= holdUntil) {
-                const [scaleX, heightFactor] = visemeSequence[visemeIndex % visemeSequence.length];
-                visemeIndex++;
-                targetScaleX = scaleX;
-                targetScaleY = heightFactor * metrics.mouthOpenScaleY;
-                holdUntil = talkClock + TALK_HOLD_MIN + Math.random() * (TALK_HOLD_MAX - TALK_HOLD_MIN);
-            }
-            const ease = Math.min(1, TALK_EASE_RATE * delta);
-            currentScaleX += (targetScaleX - currentScaleX) * ease;
-            currentScaleY += (targetScaleY - currentScaleY) * ease;
-        } else {
-            targetScaleX = closedScaleX;
-            targetScaleY = closedScaleY;
-            const ease = Math.min(1, CLOSE_EASE_RATE * delta);
-            currentScaleX += (targetScaleX - currentScaleX) * ease;
-            currentScaleY += (targetScaleY - currentScaleY) * ease;
+    const updateMouth = (delta: number) => {
+        if (talking && speaking) {
+            speechRemaining -= delta;
+            if (speechRemaining <= 0) speaking = false;
         }
 
-        applyMouthScale();
+        if (talking && speaking) {
+            flapPhase += delta / flapDuration;
+            if (flapPhase >= 1) {
+                flapPhase -= 1;
+                flapDuration = FLAP_CYCLE_MIN + Math.random() * (FLAP_CYCLE_MAX - FLAP_CYCLE_MIN);
+                openShape = shapePool[Math.floor(Math.random() * shapePool.length)];
+            }
+            applyMouthTexture(flapPhase >= 0.5 ? openShape : RESTING_SHAPE);
+            const bump = Math.sin(Math.min(flapPhase, 1) * Math.PI);
+            mouth.scale.setScalar(0.9 + bump * 0.22);
+        } else {
+            flapPhase = 0;
+            applyMouthTexture(RESTING_SHAPE);
+            mouth.scale.setScalar(1);
+        }
     };
 
     return {
@@ -249,7 +290,7 @@ export function buildFace(variant: ActorVariant, bin: Bin, phase: number, headBo
         update(delta: number) {
             if (closed) return;
 
-            settleMouth(delta);
+            updateMouth(delta);
 
             blinkClock += delta;
             const blink = Math.sin(blinkClock * BLINK_RATE) > BLINK_THRESHOLD ? BLINK_SQUASH : 1;
@@ -260,34 +301,38 @@ export function buildFace(variant: ActorVariant, bin: Bin, phase: number, headBo
             if (talking === next) {
                 if (next && nextText !== lastText) {
                     lastText = nextText;
-                    visemeSequence = buildVisemeSequence(nextText);
-                    visemeIndex = 0;
+                    shapePool = buildShapePool(nextText);
+                    speechRemaining = estimateSpeechDuration(countSpeechLetters(nextText));
+                    speaking = true;
                 }
                 return;
             }
             talking = next;
             if (talking) {
                 lastText = nextText;
-                visemeSequence = buildVisemeSequence(nextText);
-                visemeIndex = 0;
-                holdUntil = talkClock;
+                shapePool = buildShapePool(nextText);
+                speechRemaining = estimateSpeechDuration(countSpeechLetters(nextText));
+                speaking = true;
+                flapPhase = 0;
+                flapDuration = FLAP_CYCLE_MIN + Math.random() * (FLAP_CYCLE_MAX - FLAP_CYCLE_MIN);
             } else {
-                holdUntil = 0;
+                speaking = false;
             }
         },
         close() {
             closed = true;
             talking = false;
-            currentScaleX = closedScaleX;
-            currentScaleY = closedScaleY;
-            applyMouthScale();
+            speaking = false;
+            flapPhase = 0;
+            applyMouthTexture(RESTING_SHAPE);
+            mouth.scale.setScalar(1);
             for (const eye of eyeGroups) eye.scale.y = 0.05;
         },
         open() {
             closed = false;
-            currentScaleX = closedScaleX;
-            currentScaleY = closedScaleY;
-            applyMouthScale();
+            flapPhase = 0;
+            applyMouthTexture(RESTING_SHAPE);
+            mouth.scale.setScalar(1);
             for (const eye of eyeGroups) eye.scale.y = 1;
         },
     };

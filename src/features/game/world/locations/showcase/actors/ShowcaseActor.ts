@@ -164,6 +164,7 @@ export class ShowcaseActor {
     private poseBlend = 1;
     private skinnedMesh: THREE.SkinnedMesh | null = null;
     private headLocalBounds: THREE.Box3 | null = null;
+    private hatObject: THREE.Object3D | null = null;
 
     constructor(private readonly spec: ActorSpec) {
         this.clock = spec.phase ?? 0;
@@ -312,7 +313,10 @@ export class ShowcaseActor {
         if (!head) return;
 
         const hat = buildHat(this.spec.variant.hat, this.spec.variant.hatColor, this.spec.variant.hatAccent, bin);
-        if (hat) head.add(hat);
+        if (hat) {
+            head.add(hat);
+            this.hatObject = hat;
+        }
     }
 
     private computeHeadBounds(): void {
@@ -356,7 +360,7 @@ export class ShowcaseActor {
         const head = this.bones.get("head");
         if (!head) return;
 
-        this.face = buildFace(this.spec.variant, bin, this.spec.phase ?? 0, this.headLocalBounds);
+        this.face = buildFace(this.spec.variant, bin, this.spec.phase ?? 0, this.headLocalBounds, this.hatObject);
         head.add(this.face.group);
     }
 

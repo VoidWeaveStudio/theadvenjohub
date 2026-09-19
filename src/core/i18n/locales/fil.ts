@@ -1985,6 +1985,7 @@ export const fil: PartialTranslations = {
   "g.cinema.hint.ui": "itago ang interface",
   "g.cinema.hint.exit": "lumabas",
   "g.cinema.toast.enter": "F8 — lumabas · H — interface",
+  "g.cinema.toast.relocated": "nailipat ang camera sa bagong lokasyon",
   "g.cinema.toast.smoothing": "kinis: {mode}",
   "g.cinema.toast.selfHidden": "nakatago ang karakter",
   "g.cinema.toast.selfShown": "nakikita ang karakter",

@@ -7,6 +7,7 @@ import { Cave } from "./locations/cave/Cave";
 import { ALL_LOCATIONS } from "./locations/tower/TowerRegistry";
 import { FactionGateRoom } from "./locations/tower/floors/FactionGateRoom";
 import { PersonalRoom, PERSONAL_ROOM_PREFIX } from "./locations/tower/floors/PersonalRoom";
+import { themedShowcaseLocationFor } from "./locations/showcase/themedFactions";
 import { perf } from "../core/PerfProfiler";
 
 const SLOW_CREATE_MS = 150;
@@ -42,7 +43,17 @@ export class LocationManager {
         let location = this.locations.get(locationId);
         if (!location) {
             if (locationId.startsWith("faction-gate-")) {
-                location = new FactionGateRoom(locationId.slice("faction-gate-".length));
+                const factionId = locationId.slice("faction-gate-".length);
+                const themedId = themedShowcaseLocationFor(factionId);
+                if (themedId) {
+                    const themedFactory = this.locationFactories.get(themedId);
+                    if (!themedFactory) {
+                        throw new Error(`Themed faction location not found: ${themedId}`);
+                    }
+                    location = themedFactory();
+                } else {
+                    location = new FactionGateRoom(factionId);
+                }
             } else if (locationId.startsWith(PERSONAL_ROOM_PREFIX)) {
                 location = new PersonalRoom(locationId.slice(PERSONAL_ROOM_PREFIX.length));
             } else {
@@ -53,7 +64,6 @@ export class LocationManager {
                 location = factory();
             }
             location.renderer = this.renderer;
-            location.camera = this.activeCamera;
             if (this.resourceManager) {
                 const created = location;
                 const createStartedAt = performance.now();
@@ -67,6 +77,7 @@ export class LocationManager {
             }
             this.locations.set(locationId, location);
         }
+        location.camera = this.activeCamera;
         this.currentLocation = location;
         perf.setScene(locationId, location.scene);
         this.onLocationChange?.(locationId);
@@ -100,6 +111,7 @@ export class LocationManager {
 
     setActiveCamera(camera: THREE.Camera | null) {
         this.activeCamera = camera ?? this.defaultCamera;
+        if (this.currentLocation) this.currentLocation.camera = this.activeCamera;
     }
 
     render() {

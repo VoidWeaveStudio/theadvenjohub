@@ -1985,6 +1985,7 @@ export const be: PartialTranslations = {
   "g.cinema.hint.ui": "схаваць інтэрфейс",
   "g.cinema.hint.exit": "выхад",
   "g.cinema.toast.enter": "F8 — выхад · H — інтэрфейс",
+  "g.cinema.toast.relocated": "камера перанесена ў новую лакацыю",
   "g.cinema.toast.smoothing": "плаўнасць: {mode}",
   "g.cinema.toast.selfHidden": "персанаж схаваны",
   "g.cinema.toast.selfShown": "персанаж бачны",

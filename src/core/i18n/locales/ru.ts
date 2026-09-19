@@ -1994,6 +1994,7 @@ export const ru: Translations = {
   "g.cinema.hint.ui": "спрятать интерфейс",
   "g.cinema.hint.exit": "выход",
   "g.cinema.toast.enter": "F8 — выход · H — интерфейс",
+  "g.cinema.toast.relocated": "камера перенесена в новую локацию",
   "g.cinema.toast.smoothing": "плавность: {mode}",
   "g.cinema.toast.selfHidden": "персонаж скрыт",
   "g.cinema.toast.selfShown": "персонаж виден",

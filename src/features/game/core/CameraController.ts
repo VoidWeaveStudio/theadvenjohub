@@ -20,7 +20,7 @@ const INDOOR_MAX_PITCH = Math.PI / 6;
 const COVER_RANGE = 4.5;
 const INDOOR_BLEND_SPEED = 3.5;
 
-const FP_EYE_HEIGHT = 1.62;
+export const FP_EYE_HEIGHT = 1.62;
 const FP_HFOV = 96;
 const FP_AIM_HFOV = 62;
 const FP_MAX_PITCH = Math.PI / 2 - 0.05;

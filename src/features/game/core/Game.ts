@@ -1,7 +1,7 @@
 // src/features/game/core/Game.ts
 import * as THREE from "three";
 import { InputManager } from "./InputManager";
-import { CameraController } from "./CameraController";
+import { CameraController, FP_EYE_HEIGHT } from "./CameraController";
 import { CinemaCamera } from "./CinemaCamera";
 import { ResourceManager } from "./ResourceManager";
 import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData, RespawnTarget, TournamentSummary, TournamentActionPayload, InfluenceStateData, InfluenceCaptureData } from "../network/NetworkManager";
@@ -1198,7 +1198,11 @@ export class Game {
     ) {
         if (this.isChangingLocation) return;
         this.isChangingLocation = true;
-        this.exitCinema();
+        // A shoot moves through many locations without dropping out of cinema mode —
+        // only exit for real when cinema wasn't running; otherwise carry it through
+        // and reposition it once the new location's spawn point is known (below).
+        const cinemaContinuing = this.cinema.isActive();
+        if (!cinemaContinuing) this.exitCinema();
         this.closeBuildEditor();
 
         try {
@@ -1312,6 +1316,16 @@ export class Game {
             beginTeleportGrace(this);
             if (options?.rotation !== undefined) {
                 this.player.mesh.rotation.y = options.rotation;
+            }
+
+            if (cinemaContinuing) {
+                const origin = spawnPoint.clone();
+                origin.y += FP_EYE_HEIGHT;
+                this.cinema.setAspect(this.getViewportAspect());
+                this.cinema.relocate(origin, this.cameraController.getYaw(), this.cameraController.getPitch());
+                this.locationManager.setActiveCamera(this.cinema.camera);
+                this.player.setMovementLocked(true);
+                this.player.setSelfHidden(this.cinema.hidesPlayer());
             }
 
             if (newLocation instanceof PersonalRoom) {

@@ -13,8 +13,19 @@ export interface WarLayout {
 
 interface Flag {
     mesh: THREE.Mesh;
+    material: THREE.MeshStandardMaterial;
     phase: number;
+    bannerIndex: number;
+    nextChangeAt: number;
+    snapTimer: number;
 }
+
+// The war never settles on one ticker — every banner keeps swapping to a
+// different memecoin on its own random clock, forever, so the two sides
+// visibly never stop finding a new reason to fight.
+const FLAG_CYCLE_MIN = 4;
+const FLAG_CYCLE_MAX = 9;
+const FLAG_SNAP_DURATION = 0.22;
 
 export class WarProps {
     public readonly redCover: THREE.Vector3[] = [];
@@ -23,6 +34,7 @@ export class WarProps {
     public readonly smokePoints: THREE.Vector3[] = [];
 
     private flags: Flag[] = [];
+    private bannerTextureCache = new Map<string, THREE.CanvasTexture>();
 
     private ground!: THREE.MeshStandardMaterial;
     private road!: THREE.MeshStandardMaterial;
@@ -61,6 +73,14 @@ export class WarProps {
         this.wood = this.bin.material(new THREE.MeshStandardMaterial({ color: 0x5a4328, roughness: 0.93, metalness: 0.03 }));
         this.metal = this.bin.material(new THREE.MeshStandardMaterial({ map: rustMap, color: 0x7d7a74, roughness: 0.58, metalness: 0.72 }));
         this.burnt = this.bin.material(new THREE.MeshStandardMaterial({ color: 0x2b2724, roughness: 0.98, metalness: 0.12 }));
+    }
+
+    private getBannerTexture(banner: (typeof MEMECOIN_BANNERS)[number]): THREE.CanvasTexture {
+        const cached = this.bannerTextureCache.get(banner.ticker);
+        if (cached) return cached;
+        const texture = bannerTexture(this.bin, banner);
+        this.bannerTextureCache.set(banner.ticker, texture);
+        return texture;
     }
 
     private add(mesh: THREE.Object3D) {
@@ -247,14 +267,14 @@ export class WarProps {
         const { halfWidth } = this.layout;
 
         for (let i = 0; i < count; i++) {
-            const banner = MEMECOIN_BANNERS[(i + (facing > 0 ? 3 : 0)) % MEMECOIN_BANNERS.length];
+            const bannerIndex = (i + (facing > 0 ? 3 : 0)) % MEMECOIN_BANNERS.length;
             const x = -halfWidth + 12 + (i / Math.max(1, count - 1)) * (halfWidth * 2 - 24);
 
             const pole = this.mesh(new THREE.CylinderGeometry(0.1, 0.13, 8.4, 8), this.metal, x, 4.2, z - facing * 2.4);
             this.add(pole);
 
             const material = this.bin.material(new THREE.MeshStandardMaterial({
-                map: bannerTexture(this.bin, banner),
+                map: this.getBannerTexture(MEMECOIN_BANNERS[bannerIndex]),
                 color: 0xffffff,
                 roughness: 0.88,
                 metalness: 0.02,
@@ -266,7 +286,14 @@ export class WarProps {
             cloth.castShadow = true;
             this.add(cloth);
 
-            this.flags.push({ mesh: cloth, phase: this.random() * 9 });
+            this.flags.push({
+                mesh: cloth,
+                material,
+                phase: this.random() * 9,
+                bannerIndex,
+                nextChangeAt: this.random() * FLAG_CYCLE_MAX,
+                snapTimer: 0,
+            });
         }
     }
 
@@ -439,6 +466,23 @@ export class WarProps {
             flag.mesh.rotation.y = Math.sin(elapsed * 1.1 + flag.phase) * 0.22;
             flag.mesh.rotation.z = Math.sin(elapsed * 1.7 + flag.phase) * 0.06;
             flag.mesh.rotation.x = Math.sin(elapsed * 0.9 + flag.phase * 0.5) * 0.04;
+
+            if (elapsed >= flag.nextChangeAt) {
+                const step = 1 + Math.floor(this.random() * (MEMECOIN_BANNERS.length - 1));
+                flag.bannerIndex = (flag.bannerIndex + step) % MEMECOIN_BANNERS.length;
+                flag.material.map = this.getBannerTexture(MEMECOIN_BANNERS[flag.bannerIndex]);
+                flag.material.needsUpdate = true;
+                flag.nextChangeAt = elapsed + FLAG_CYCLE_MIN + this.random() * (FLAG_CYCLE_MAX - FLAG_CYCLE_MIN);
+                flag.snapTimer = FLAG_SNAP_DURATION;
+            }
+
+            if (flag.snapTimer > 0) {
+                flag.snapTimer = Math.max(0, flag.snapTimer - delta);
+                const t = flag.snapTimer / FLAG_SNAP_DURATION;
+                flag.mesh.scale.x = 1 - Math.sin(t * Math.PI) * 0.85;
+            } else if (flag.mesh.scale.x !== 1) {
+                flag.mesh.scale.x = 1;
+            }
         }
     }
 }

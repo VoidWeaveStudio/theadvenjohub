@@ -258,6 +258,25 @@ export class CinemaCamera {
         this.emit();
     }
 
+    // Same repositioning as enter(), but for a session that stays active across a
+    // location change — the old position/keyframes/rail are meaningless in a new
+    // scene, so drop them, but never drop out of cinema mode itself to do it.
+    public relocate(origin: THREE.Vector3, yaw: number, pitch: number) {
+        this.mode = "free";
+        this.position.copy(origin);
+        this.velocity.set(0, 0, 0);
+        this.yaw = yaw;
+        this.pitch = THREE.MathUtils.clamp(pitch, -MAX_PITCH, MAX_PITCH);
+        this.targetYaw = this.yaw;
+        this.targetPitch = this.pitch;
+        this.roll = 0;
+        this.railTime = 0;
+        this.clearKeyframes();
+
+        this.applyTransform();
+        this.say("g.cinema.toast.relocated");
+    }
+
     public update(delta: number, input: InputManager) {
         if (!this.active) return;
 

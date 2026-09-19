@@ -1985,6 +1985,7 @@ export const id: PartialTranslations = {
   "g.cinema.hint.ui": "sembunyikan antarmuka",
   "g.cinema.hint.exit": "keluar",
   "g.cinema.toast.enter": "F8 — keluar · H — antarmuka",
+  "g.cinema.toast.relocated": "kamera dipindahkan ke lokasi baru",
   "g.cinema.toast.smoothing": "kehalusan: {mode}",
   "g.cinema.toast.selfHidden": "karakter disembunyikan",
   "g.cinema.toast.selfShown": "karakter terlihat",

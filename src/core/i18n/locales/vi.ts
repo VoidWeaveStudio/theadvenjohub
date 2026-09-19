@@ -1985,6 +1985,7 @@ export const vi: PartialTranslations = {
   "g.cinema.hint.ui": "ẩn giao diện",
   "g.cinema.hint.exit": "thoát",
   "g.cinema.toast.enter": "F8 — thoát · H — giao diện",
+  "g.cinema.toast.relocated": "đã chuyển camera sang địa điểm mới",
   "g.cinema.toast.smoothing": "độ mượt: {mode}",
   "g.cinema.toast.selfHidden": "đã ẩn nhân vật",
   "g.cinema.toast.selfShown": "đã hiện nhân vật",

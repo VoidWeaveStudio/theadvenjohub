@@ -1991,6 +1991,7 @@ export const zhTw: Translations = {
   "g.cinema.hint.ui": "隱藏介面",
   "g.cinema.hint.exit": "退出",
   "g.cinema.toast.enter": "F8 — 退出 · H — 介面",
+  "g.cinema.toast.relocated": "鏡頭已帶入新場景",
   "g.cinema.toast.smoothing": "平滑：{mode}",
   "g.cinema.toast.selfHidden": "角色已隱藏",
   "g.cinema.toast.selfShown": "角色已顯示",

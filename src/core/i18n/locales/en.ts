@@ -1990,6 +1990,7 @@ export const en: Translations = {
   "g.cinema.hint.ui": "hide interface",
   "g.cinema.hint.exit": "exit",
   "g.cinema.toast.enter": "F8 — exit · H — interface",
+  "g.cinema.toast.relocated": "camera carried into the new location",
   "g.cinema.toast.smoothing": "smoothing: {mode}",
   "g.cinema.toast.selfHidden": "character hidden",
   "g.cinema.toast.selfShown": "character visible",

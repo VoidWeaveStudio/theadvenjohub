@@ -1982,6 +1982,7 @@ export const es: PartialTranslations = {
   "g.cinema.hint.ui": "ocultar interfaz",
   "g.cinema.hint.exit": "salir",
   "g.cinema.toast.enter": "F8 — salir · H — interfaz",
+  "g.cinema.toast.relocated": "cámara trasladada a la nueva ubicación",
   "g.cinema.toast.smoothing": "suavizado: {mode}",
   "g.cinema.toast.selfHidden": "personaje oculto",
   "g.cinema.toast.selfShown": "personaje visible",

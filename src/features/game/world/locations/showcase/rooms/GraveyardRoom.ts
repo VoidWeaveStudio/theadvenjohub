@@ -12,7 +12,6 @@ import { isRainEnabled } from "../rainVisibility";
 const YARD_RADIUS = 66;
 const MONUMENT_Z = 34;
 const WISP_COUNT = 22;
-const MAX_CANDLE_LIGHTS = 24;
 
 const MAUSOLEUM = new THREE.Vector3(-28, 0, 12);
 const FRESH_GRAVE = new THREE.Vector3(15, 0, -9);
@@ -597,7 +596,7 @@ export class GraveyardRoom extends ShowcaseRoom {
     private buildFlame(
         parent: THREE.Object3D,
         position: THREE.Vector3,
-        options: { color: number; tipColor?: number; lightColor: number; intensity: number; scale?: number; forceLight?: boolean }
+        options: { color: number; tipColor?: number; lightColor: number; intensity: number; scale?: number }
     ): void {
         const scale = options.scale ?? 1;
 
@@ -630,15 +629,13 @@ export class GraveyardRoom extends ShowcaseRoom {
         halo.position.set(position.x, position.y + 0.05 * scale, position.z);
         parent.add(halo);
 
-        if (options.forceLight || this.candleLights.length < MAX_CANDLE_LIGHTS) {
-            const light = new THREE.PointLight(options.lightColor, options.intensity, options.intensity, 2);
-            light.position.copy(position);
-            parent.add(light);
-            this.candleLights.push(light);
-        }
+        const light = new THREE.PointLight(options.lightColor, options.intensity, options.intensity, 2);
+        light.position.copy(position);
+        parent.add(light);
+        this.candleLights.push(light);
     }
 
-    private buildMemorialCandle(x: number, z: number, height = 0.5, forceLight = false): void {
+    private buildMemorialCandle(x: number, z: number, height = 0.5): void {
         const dish = this.mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.06, 12), this.matte(0x2a2e36, 0.7), [x, 0.03, z]);
         this.scene.add(dish);
 
@@ -667,7 +664,6 @@ export class GraveyardRoom extends ShowcaseRoom {
             tipColor: 0xffd9a0,
             lightColor: 0xff5a4a,
             intensity: 12,
-            forceLight,
         });
     }
 
@@ -711,7 +707,7 @@ export class GraveyardRoom extends ShowcaseRoom {
         this.scene.add(group);
         this.collisionGrid.insertOrientedBox(JOHNNY_GRAVE.x, JOHNNY_GRAVE.z, 1.7, 1.1, group.rotation.y, 0, 2.3);
 
-        this.buildMemorialCandle(JOHNNY_GRAVE.x + 0.85, JOHNNY_GRAVE.z + 0.35, 0.52, true);
+        this.buildMemorialCandle(JOHNNY_GRAVE.x + 0.85, JOHNNY_GRAVE.z + 0.35, 0.52);
     }
 
     private buildMausoleum() {
@@ -772,7 +768,6 @@ export class GraveyardRoom extends ShowcaseRoom {
                 lightColor: 0x7fd8ff,
                 intensity: 16,
                 scale: 1.9,
-                forceLight: true,
             });
         }
 
@@ -886,12 +881,10 @@ export class GraveyardRoom extends ShowcaseRoom {
         lamp.castShadow = false;
         group.add(lamp);
 
-        if (this.candleLights.length < MAX_CANDLE_LIGHTS) {
-            const light = new THREE.PointLight(0x9ec6ff, 14, 14, 2);
-            light.position.set(0, 4.1, 0.6);
-            group.add(light);
-            this.candleLights.push(light);
-        }
+        const light = new THREE.PointLight(0x9ec6ff, 14, 14, 2);
+        light.position.set(0, 4.1, 0.6);
+        group.add(light);
+        this.candleLights.push(light);
 
         this.scene.add(group);
         this.collisionGrid.insertOrientedBox(-7.5, -28, 4.6, 0.6, 0.55, 0, 3.4);
@@ -922,12 +915,10 @@ export class GraveyardRoom extends ShowcaseRoom {
                 glass.castShadow = false;
                 group.add(glass);
 
-                if (this.candleLights.length < MAX_CANDLE_LIGHTS) {
-                    const light = new THREE.PointLight(0x8fb8ff, 14, 16, 2);
-                    light.position.set(-side * 0.5, 3.9, 0);
-                    group.add(light);
-                    this.candleLights.push(light);
-                }
+                const light = new THREE.PointLight(0x8fb8ff, 14, 16, 2);
+                light.position.set(-side * 0.5, 3.9, 0);
+                group.add(light);
+                this.candleLights.push(light);
 
                 this.scene.add(group);
                 this.collisionGrid.insertCylinder(new THREE.Vector3(x, 2, z), 0.24, 4.2);
@@ -995,7 +986,6 @@ export class GraveyardRoom extends ShowcaseRoom {
             lightColor: 0xff5a4a,
             intensity: 50,
             scale: 5,
-            forceLight: true,
         });
 
         const arrow = new THREE.Group();

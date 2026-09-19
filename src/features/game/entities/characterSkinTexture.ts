@@ -8,6 +8,23 @@ const SHADE_STEPS = 24;
 const SHADE_LOW = 0.72;
 const SHADE_HIGH = 1.12;
 
+// A flat color per body region reads as clothing only where two regions happen to land
+// on different colors — otherwise it's an arbitrary blotch (e.g. a torso and legs that
+// happen to share a palette color look like a single unbroken void). These bands paint a
+// thin, sharply darkened "seam" — collar and hem on the torso, a cuff on the legs — using
+// the same height-normalized value already computed for shading, so a jacket/shirt and
+// pants silhouette reads even when neighboring regions are close in color. Vertical
+// position doesn't separate "shoulder" from "hand" on a T-pose arm (the arm runs mostly
+// along X, not Y, in the bind pose this bakes from), so sleeves are left untrimmed.
+const TORSO_COLLAR_BAND: [number, number] = [0.8, 0.845];
+const TORSO_HEM_BAND: [number, number] = [0.455, 0.5];
+const LEGS_CUFF_BAND: [number, number] = [0.06, 0.1];
+const TRIM_DARKEN = 0.4;
+
+function inBand(value: number, band: [number, number]): boolean {
+    return value >= band[0] && value <= band[1];
+}
+
 function shadeStepAt(height01: number, jitter: number): number {
     const shaded = height01 * (SHADE_STEPS - 1) + jitter;
     return Math.max(0, Math.min(SHADE_STEPS - 1, Math.round(shaded)));
@@ -53,6 +70,20 @@ function bakeRegionSkinTexture(
         return hex;
     };
 
+    const trimSwatch: string[] = new Array(BODY_REGIONS.length);
+    const trimColorFor = (region: number): string => {
+        const cached = trimSwatch[region];
+        if (cached) return cached;
+
+        shaded.copy(baseColor[region] ?? baseColor[0]).multiplyScalar(1 - TRIM_DARKEN);
+        const hex = `#${shaded.getHexString()}`;
+        trimSwatch[region] = hex;
+        return hex;
+    };
+
+    const torsoRegion = BODY_REGIONS.indexOf("torso");
+    const legsRegion = BODY_REGIONS.indexOf("legs");
+
     ctx.fillStyle = colorFor(BODY_REGIONS.indexOf("torso"), Math.floor(SHADE_STEPS * 0.6));
     ctx.fillRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE);
 
@@ -71,8 +102,13 @@ function bakeRegionSkinTexture(
         const region = rb === rc ? rb : ra;
 
         const height = (position.getY(a) + position.getY(b) + position.getY(c)) / 3;
+        const heightFraction = (height - minY) / span;
         const jitter = ((a * 7 + b * 13 + c * 29) % 5) * 0.25 - 0.5;
-        const color = colorFor(region, shadeStepAt((height - minY) / span, jitter));
+
+        const isTrim =
+            (region === torsoRegion && (inBand(heightFraction, TORSO_COLLAR_BAND) || inBand(heightFraction, TORSO_HEM_BAND))) ||
+            (region === legsRegion && inBand(heightFraction, LEGS_CUFF_BAND));
+        const color = isTrim ? trimColorFor(region) : colorFor(region, shadeStepAt(heightFraction, jitter));
 
         ctx.fillStyle = color;
         ctx.strokeStyle = color;

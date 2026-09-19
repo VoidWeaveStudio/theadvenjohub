@@ -1991,6 +1991,7 @@ export const ko: Translations = {
   "g.cinema.hint.ui": "인터페이스 숨기기",
   "g.cinema.hint.exit": "종료",
   "g.cinema.toast.enter": "F8 — 종료 · H — 인터페이스",
+  "g.cinema.toast.relocated": "카메라가 새 로케이션으로 이동됨",
   "g.cinema.toast.smoothing": "부드러움: {mode}",
   "g.cinema.toast.selfHidden": "캐릭터 숨김",
   "g.cinema.toast.selfShown": "캐릭터 표시",

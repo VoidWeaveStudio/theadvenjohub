@@ -1992,6 +1992,7 @@ export const ja: Translations = {
   "g.cinema.hint.ui": "UIを隠す",
   "g.cinema.hint.exit": "終了",
   "g.cinema.toast.enter": "F8 — 終了 · H — UI",
+  "g.cinema.toast.relocated": "カメラを新しいロケーションへ引き継ぎ",
   "g.cinema.toast.smoothing": "スムーズ：{mode}",
   "g.cinema.toast.selfHidden": "キャラを隠した",
   "g.cinema.toast.selfShown": "キャラを表示",
