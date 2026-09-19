@@ -1919,7 +1919,7 @@ export const ko: Translations = {
   "g.floorReg.tower-token-gates.description": "밈코인 세계 쇼케이스",
   "g.showcase.church.name": "밈코인 교회",
   "g.showcase.church.tagline": "다가올 100배를 설교한다",
-  "g.showcase.war.name": "영원한 전쟁",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "두 티커, 하나의 전선",
   "g.showcase.garden.name": "고요의 정원",
   "g.showcase.garden.tagline": "홀드, 칵테일 그리고 고요",

@@ -80,6 +80,8 @@ export type PoseId =
     | "phone"
     | "shout"
     | "cradle"
+    | "weep"
+    | "hipFire"
     | "fallen"
     | "hail"
     | "point";
@@ -357,6 +359,39 @@ export const POSES: Record<PoseId, PoseBend[]> = {
         { bone: "lowerArmL", axis: "right", angle: -0.55 },
         { bone: "lowerArmR", axis: "right", angle: -0.55 },
     ],
+    // Sitting on the ground beside the mattress with his head in his hands, shoulders
+    // going with the sobbing.
+    weep: [
+        { bone: "upperLegL", axis: "right", angle: -1.45 },
+        { bone: "upperLegR", axis: "right", angle: -1.4 },
+        { bone: "upperLegL", axis: "up", angle: 0.5 },
+        { bone: "upperLegR", axis: "up", angle: -0.32 },
+        { bone: "lowerLegL", axis: "right", angle: 1.85 },
+        { bone: "lowerLegR", axis: "right", angle: 1.9 },
+        { bone: "footL", axis: "right", angle: 0.3 },
+        { bone: "footR", axis: "right", angle: 0.3 },
+        { bone: "spineLower", axis: "right", angle: 0.34 },
+        { bone: "spineUpper", axis: "right", angle: 0.3, sway: 0.05, rate: 3.1 },
+        { bone: "neck", axis: "right", angle: 0.52 },
+        { bone: "upperArmL", axis: "right", angle: -1.5 },
+        { bone: "upperArmR", axis: "right", angle: -1.5 },
+        { bone: "upperArmL", axis: "forward", angle: -0.2 },
+        { bone: "upperArmR", axis: "forward", angle: 0.2 },
+        { bone: "lowerArmL", axis: "right", angle: -1.85, sway: 0.06, rate: 3.1 },
+        { bone: "lowerArmR", axis: "right", angle: -1.85, sway: 0.06, rate: 3.1, phase: 0.4 },
+        { bone: "lowerArmL", axis: "up", angle: -0.4 },
+        { bone: "lowerArmR", axis: "up", angle: 0.4 },
+    ],
+    // The rifle clips carry the weapon up at eye level, which buries the face in hands and
+    // receiver on a close-up. This drops the whole hold to the chest and lifts the chin.
+    hipFire: [
+        { bone: "upperArmR", axis: "right", angle: 0.42 },
+        { bone: "upperArmL", axis: "right", angle: 0.38 },
+        { bone: "lowerArmR", axis: "right", angle: 0.16 },
+        { bone: "lowerArmL", axis: "right", angle: 0.14 },
+        { bone: "neck", axis: "right", angle: -0.2 },
+        { bone: "spineUpper", axis: "right", angle: -0.06 },
+    ],
     fallen: [
         { bone: "upperLegL", axis: "right", angle: -0.3 },
         { bone: "upperLegR", axis: "right", angle: -0.18 },
@@ -390,7 +425,7 @@ export const POSES: Record<PoseId, PoseBend[]> = {
     ],
 };
 
-export const SEATED_POSES: PoseId[] = ["sit", "sitSlouch", "sitGround", "kneel", "cradle", "fallen", "lounge"];
+export const SEATED_POSES: PoseId[] = ["sit", "sitSlouch", "sitGround", "kneel", "cradle", "weep", "fallen", "lounge"];
 
 export const SEAT_PELVIS_HEIGHT = 0.458;
 export const SEAT_SOLE_HEIGHT = 0.22;

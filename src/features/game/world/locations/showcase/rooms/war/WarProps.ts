@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { AssetBin } from "../../../../AssetBin";
 import { CollisionGrid } from "../../../../CollisionGrid";
-import { bannerTexture, concreteTexture, groundTexture, MEMECOIN_BANNERS, roadTexture, rustTexture, sandbagTexture } from "./warTextures";
+import { bannerTexture, MEMECOIN_BANNERS, proceduralSurface, roadTexture, scorchTexture } from "./warTextures";
 
 export interface WarLayout {
     halfWidth: number;
@@ -12,7 +12,7 @@ export interface WarLayout {
 }
 
 interface Flag {
-    mesh: THREE.Mesh;
+    group: THREE.Group;
     material: THREE.MeshStandardMaterial;
     phase: number;
     bannerIndex: number;
@@ -26,6 +26,33 @@ interface Flag {
 const FLAG_CYCLE_MIN = 4;
 const FLAG_CYCLE_MAX = 9;
 const FLAG_SNAP_DURATION = 0.22;
+
+// Communication gaps through the sandbag line. Both sides use the same x positions so a
+// runner crossing from the rear always has an opening straight ahead of it.
+export const TRENCH_GAPS = [-64, -32, 0, 32, 64];
+const TRENCH_GAP_HALF = 3.6;
+
+export function inTrenchGap(x: number): boolean {
+    for (const centre of TRENCH_GAPS) {
+        if (Math.abs(x - centre) < TRENCH_GAP_HALF) return true;
+    }
+    return false;
+}
+
+function trenchSolidSpans(halfWidth: number): Array<[number, number]> {
+    const spans: Array<[number, number]> = [];
+    let cursor = -halfWidth - 3;
+
+    for (const centre of TRENCH_GAPS) {
+        const start = centre - TRENCH_GAP_HALF;
+        const end = centre + TRENCH_GAP_HALF;
+        if (start > cursor) spans.push([cursor, start]);
+        cursor = Math.max(cursor, end);
+    }
+
+    if (cursor < halfWidth + 3) spans.push([cursor, halfWidth + 3]);
+    return spans;
+}
 
 export class WarProps {
     public readonly redCover: THREE.Vector3[] = [];
@@ -56,23 +83,129 @@ export class WarProps {
     ) { }
 
     public prepare() {
-        const groundMap = groundTexture(this.bin, this.random, 36);
+        const dirt = proceduralSurface(this.bin, {
+            key: "war-dirt",
+            repeat: 30,
+            seed: 41,
+            baseFreq: 4,
+            octaves: 5,
+            warp: 0.5,
+            contrast: 1.25,
+            normalStrength: 3.2,
+            stops: [
+                { at: 0, color: 0x2a231b },
+                { at: 0.35, color: 0x453a2c },
+                { at: 0.62, color: 0x5d4f3c },
+                { at: 0.85, color: 0x6f6047 },
+                { at: 1, color: 0x8a795c },
+            ],
+        });
+
+        const concrete = proceduralSurface(this.bin, {
+            key: "war-concrete",
+            repeat: 3,
+            seed: 907,
+            baseFreq: 5,
+            octaves: 5,
+            warp: 0.22,
+            contrast: 0.85,
+            normalStrength: 2.2,
+            stops: [
+                { at: 0, color: 0x38352f },
+                { at: 0.4, color: 0x585349 },
+                { at: 0.7, color: 0x6d675b },
+                { at: 1, color: 0x847d6e },
+            ],
+        });
+
+        const sandbag = proceduralSurface(this.bin, {
+            key: "war-sandbag",
+            size: 256,
+            repeat: 1,
+            seed: 233,
+            baseFreq: 6,
+            octaves: 4,
+            warp: 0.3,
+            contrast: 1.1,
+            grain: 0.09,
+            normalStrength: 3.6,
+            stops: [
+                { at: 0, color: 0x3d3626 },
+                { at: 0.45, color: 0x5e5439 },
+                { at: 0.75, color: 0x776a4b },
+                { at: 1, color: 0x8e8060 },
+            ],
+        });
+
+        const steel = proceduralSurface(this.bin, {
+            key: "war-steel",
+            size: 256,
+            repeat: 2,
+            seed: 613,
+            baseFreq: 5,
+            octaves: 5,
+            warp: 0.42,
+            contrast: 1.3,
+            normalStrength: 2.8,
+            stops: [
+                { at: 0, color: 0x241f1c },
+                { at: 0.35, color: 0x413c37 },
+                { at: 0.6, color: 0x6b4327 },
+                { at: 0.8, color: 0x8a5a2e },
+                { at: 1, color: 0x9a8c7e },
+            ],
+        });
+
         const roadMap = roadTexture(this.bin, this.random, 10);
-        const concreteMap = concreteTexture(this.bin, this.random, 3);
-        const rustMap = rustTexture(this.bin, this.random, 2);
-        const sandbagMap = sandbagTexture(this.bin, this.random, 1);
 
-        this.rustMap = rustMap;
+        this.rustMap = steel.map;
 
-        this.ground = this.bin.material(new THREE.MeshStandardMaterial({ map: groundMap, color: 0xc8c2b6, roughness: 0.98, metalness: 0.02 }));
-        this.road = this.bin.material(new THREE.MeshStandardMaterial({ map: roadMap, color: 0xbdbdbd, roughness: 0.95, metalness: 0.04 }));
-        this.concrete = this.bin.material(new THREE.MeshStandardMaterial({ map: concreteMap, color: 0xb8b2a6, roughness: 0.96, metalness: 0.03 }));
-        this.concreteDark = this.bin.material(new THREE.MeshStandardMaterial({ map: concreteMap, color: 0x7c7669, roughness: 0.97, metalness: 0.03 }));
-        this.rust = this.bin.material(new THREE.MeshStandardMaterial({ map: rustMap, color: 0xa89c90, roughness: 0.82, metalness: 0.42 }));
-        this.sandbag = this.bin.material(new THREE.MeshStandardMaterial({ map: sandbagMap, color: 0xc8bfa6, roughness: 0.98, metalness: 0.02 }));
-        this.wood = this.bin.material(new THREE.MeshStandardMaterial({ color: 0x5a4328, roughness: 0.93, metalness: 0.03 }));
-        this.metal = this.bin.material(new THREE.MeshStandardMaterial({ map: rustMap, color: 0x7d7a74, roughness: 0.58, metalness: 0.72 }));
-        this.burnt = this.bin.material(new THREE.MeshStandardMaterial({ color: 0x2b2724, roughness: 0.98, metalness: 0.12 }));
+        this.ground = this.bin.material(new THREE.MeshStandardMaterial({
+            map: dirt.map,
+            normalMap: dirt.normalMap,
+            normalScale: new THREE.Vector2(1.1, 1.1),
+            roughness: 0.99,
+            metalness: 0.02,
+        }));
+        this.road = this.bin.material(new THREE.MeshStandardMaterial({ map: roadMap, color: 0x8f8f8f, roughness: 0.96, metalness: 0.04 }));
+        this.concrete = this.bin.material(new THREE.MeshStandardMaterial({
+            map: concrete.map,
+            normalMap: concrete.normalMap,
+            normalScale: new THREE.Vector2(0.9, 0.9),
+            roughness: 0.97,
+            metalness: 0.03,
+        }));
+        this.concreteDark = this.bin.material(new THREE.MeshStandardMaterial({
+            map: concrete.map,
+            normalMap: concrete.normalMap,
+            normalScale: new THREE.Vector2(0.9, 0.9),
+            color: 0x6e695d,
+            roughness: 0.98,
+            metalness: 0.03,
+        }));
+        this.rust = this.bin.material(new THREE.MeshStandardMaterial({
+            map: steel.map,
+            normalMap: steel.normalMap,
+            normalScale: new THREE.Vector2(1, 1),
+            roughness: 0.78,
+            metalness: 0.45,
+        }));
+        this.sandbag = this.bin.material(new THREE.MeshStandardMaterial({
+            map: sandbag.map,
+            normalMap: sandbag.normalMap,
+            normalScale: new THREE.Vector2(1.3, 1.3),
+            roughness: 0.99,
+            metalness: 0.01,
+        }));
+        this.wood = this.bin.material(new THREE.MeshStandardMaterial({ color: 0x4a3722, roughness: 0.95, metalness: 0.03 }));
+        this.metal = this.bin.material(new THREE.MeshStandardMaterial({
+            map: steel.map,
+            normalMap: steel.normalMap,
+            color: 0x6e6b66,
+            roughness: 0.55,
+            metalness: 0.78,
+        }));
+        this.burnt = this.bin.material(new THREE.MeshStandardMaterial({ color: 0x211d1a, roughness: 0.99, metalness: 0.1 }));
     }
 
     private getBannerTexture(banner: (typeof MEMECOIN_BANNERS)[number]): THREE.CanvasTexture {
@@ -113,9 +246,20 @@ export class WarProps {
         crossRoad.castShadow = false;
         this.add(crossRoad);
 
-        const craterRim = this.bin.geometry(new THREE.TorusGeometry(1, 0.16, 6, 18));
-        const craterFloor = this.bin.geometry(new THREE.CircleGeometry(1, 20));
-        const craterMaterial = this.bin.material(new THREE.MeshStandardMaterial({ color: 0x3a3229, roughness: 0.99, metalness: 0.01 }));
+        // A soft alpha-blended scorch decal instead of a hard disc + a bright raised rim —
+        // the rim was catching firelight and reading as a glowing ring rather than a burn
+        // mark in the ground.
+        const scorchMap = scorchTexture(this.bin, this.random);
+        const craterFloor = this.bin.geometry(new THREE.CircleGeometry(1, 24));
+        const craterMaterial = this.bin.material(new THREE.MeshBasicMaterial({
+            map: scorchMap,
+            transparent: true,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
+        }));
+        const debrisGeometry = this.bin.geometry(new THREE.DodecahedronGeometry(1, 0));
 
         for (let i = 0; i < 44; i++) {
             const x = (this.random() - 0.5) * halfWidth * 2;
@@ -123,17 +267,27 @@ export class WarProps {
             const radius = 2 + this.random() * 6;
 
             const floor = new THREE.Mesh(craterFloor, craterMaterial);
-            floor.position.set(x, 0.04, z);
+            floor.position.set(x, 0.03, z);
             floor.rotation.x = -Math.PI / 2;
+            floor.rotation.z = this.random() * Math.PI * 2;
             floor.scale.setScalar(radius);
             floor.receiveShadow = true;
+            floor.castShadow = false;
             this.add(floor);
 
-            const rim = new THREE.Mesh(craterRim, this.ground);
-            rim.position.set(x, 0.12, z);
-            rim.rotation.x = -Math.PI / 2;
-            rim.scale.setScalar(radius);
-            this.add(rim);
+            const debrisCount = 3 + Math.floor(this.random() * 4);
+            for (let d = 0; d < debrisCount; d++) {
+                const angle = this.random() * Math.PI * 2;
+                const dist = radius * (0.65 + this.random() * 0.4);
+                const size = 0.12 + this.random() * 0.3;
+
+                const chunk = new THREE.Mesh(debrisGeometry, this.concreteDark);
+                chunk.position.set(x + Math.cos(angle) * dist, size * 0.4, z + Math.sin(angle) * dist);
+                chunk.rotation.set(this.random() * 3, this.random() * 3, this.random() * 3);
+                chunk.scale.setScalar(size);
+                chunk.castShadow = true;
+                this.add(chunk);
+            }
 
             if (this.random() < 0.3 && this.firePoints.length < 16) {
                 this.firePoints.push(new THREE.Vector3(x, 0.1, z));
@@ -174,9 +328,15 @@ export class WarProps {
     public buildTrench(z: number, facing: number, team: number, grid: CollisionGrid) {
         const { halfWidth } = this.layout;
         const bagGeometry = this.bin.geometry(new THREE.CapsuleGeometry(0.3, 0.62, 4, 8));
+
         const bagColumns = Math.floor((halfWidth * 2) / 0.82) + 1;
-        const bagCount = bagColumns * 2;
-        const bags = new THREE.InstancedMesh(bagGeometry, this.sandbag, bagCount);
+        const columnsX: number[] = [];
+        for (let column = 0; column < bagColumns; column++) {
+            const x = -halfWidth + column * 0.82;
+            if (!inTrenchGap(x)) columnsX.push(x);
+        }
+
+        const bags = new THREE.InstancedMesh(bagGeometry, this.sandbag, columnsX.length * 2);
         bags.castShadow = true;
         bags.receiveShadow = true;
 
@@ -187,9 +347,7 @@ export class WarProps {
         const scale = new THREE.Vector3();
 
         let index = 0;
-        for (let column = 0; column < bagColumns; column++) {
-            const x = -halfWidth + column * 0.82;
-
+        for (const x of columnsX) {
             for (let row = 0; row < 2; row++) {
                 position.set(
                     x + (row % 2) * 0.4,
@@ -207,9 +365,17 @@ export class WarProps {
         bags.instanceMatrix.needsUpdate = true;
         this.add(bags);
 
-        grid.insertOrientedBox(0, z + facing * 1.9, halfWidth * 2 + 6, 1.6, 0, 0, 1.3);
+        // One box across the whole field walled the two halves off from each other, so
+        // anyone spawning behind the line could never reach cover in front of it and just
+        // pressed into the bags forever. The line is collided per solid span instead, with
+        // the same openings the bags leave.
+        for (const [from, to] of trenchSolidSpans(halfWidth)) {
+            grid.insertOrientedBox((from + to) / 2, z + facing * 1.9, to - from, 1.6, 0, 0, 1.3);
+        }
 
         for (let x = -halfWidth + 4; x <= halfWidth; x += 7.5) {
+            if (inTrenchGap(x)) continue;
+
             const post = this.mesh(new THREE.BoxGeometry(0.26, 2.2, 0.26), this.wood, x, 1.1, z - facing * 0.7);
             this.add(post);
 
@@ -238,15 +404,20 @@ export class WarProps {
         const wire = new THREE.InstancedMesh(wireGeometry, this.metal, wireCount);
         wire.castShadow = true;
 
+        let wireIndex = 0;
         for (let i = 0; i < wireCount; i++) {
-            position.set(-halfWidth + i * 2.1, 0.48, z + facing * (4.6 + (this.random() - 0.5) * 0.7));
+            const x = -halfWidth + i * 2.1;
+            if (inTrenchGap(x)) continue;
+
+            position.set(x, 0.48, z + facing * (4.6 + (this.random() - 0.5) * 0.7));
             euler.set(this.random() * 0.5, Math.PI / 2, 0);
             quaternion.setFromEuler(euler);
             scale.setScalar(1);
             matrix.compose(position, quaternion, scale);
-            wire.setMatrixAt(i, matrix);
+            wire.setMatrixAt(wireIndex++, matrix);
         }
 
+        wire.count = wireIndex;
         wire.instanceMatrix.needsUpdate = true;
         this.add(wire);
 
@@ -256,7 +427,7 @@ export class WarProps {
         }
         for (let i = 0; i < 6; i++) {
             cover.push(new THREE.Vector3(
-                (this.random() - 0.5) * halfWidth * 1.6,
+                TRENCH_GAPS[i % TRENCH_GAPS.length] + (this.random() - 0.5) * 3,
                 0,
                 z + facing * (6 + this.random() * 8)
             ));
@@ -273,21 +444,36 @@ export class WarProps {
             const pole = this.mesh(new THREE.CylinderGeometry(0.1, 0.13, 8.4, 8), this.metal, x, 4.2, z - facing * 2.4);
             this.add(pole);
 
+            // A single double-sided plane shows the SAME texture mirrored from behind —
+            // two single-sided layers, the back one spun 180°, read correctly from both
+            // sides instead.
             const material = this.bin.material(new THREE.MeshStandardMaterial({
                 map: this.getBannerTexture(MEMECOIN_BANNERS[bannerIndex]),
                 color: 0xffffff,
                 roughness: 0.88,
                 metalness: 0.02,
-                side: THREE.DoubleSide,
+                side: THREE.FrontSide,
             }));
 
-            const cloth = new THREE.Mesh(this.bin.geometry(new THREE.PlaneGeometry(3.8, 2.4, 10, 5)), material);
-            cloth.position.set(x + 1.95, 6.9, z - facing * 2.4);
-            cloth.castShadow = true;
-            this.add(cloth);
+            const clothGeometry = this.bin.geometry(new THREE.PlaneGeometry(3.8, 2.4, 10, 5));
+            const group = new THREE.Group();
+            group.position.set(x + 1.95, 6.9, z - facing * 2.4);
+
+            const front = new THREE.Mesh(clothGeometry, material);
+            front.position.z = 0.01;
+            front.castShadow = true;
+            group.add(front);
+
+            const back = new THREE.Mesh(clothGeometry, material);
+            back.position.z = -0.01;
+            back.rotation.y = Math.PI;
+            back.castShadow = true;
+            group.add(back);
+
+            this.add(group);
 
             this.flags.push({
-                mesh: cloth,
+                group,
                 material,
                 phase: this.random() * 9,
                 bannerIndex,
@@ -393,6 +579,59 @@ export class WarProps {
         }
     }
 
+    // The row-based ruins in buildRuins() only cover the front/back of the field, leaving
+    // the flanks open past halfWidth — enough to see clear sky/neighboring sets past the
+    // edge of the room. A ring of plainer silhouettes beyond the player's max radius closes
+    // the horizon on every side without needing the same interior/floor detail up close.
+    public buildPerimeterRing(grid: CollisionGrid) {
+        const ringRadius = 140;
+        const count = 30;
+
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2 + this.random() * 0.12;
+            const px = Math.sin(angle) * ringRadius;
+            const pz = Math.cos(angle) * ringRadius;
+
+            const width = 14 + this.random() * 14;
+            const floors = 3 + Math.floor(this.random() * 6);
+            const height = floors * 3.6;
+            const frontHeight = height * (0.4 + this.random() * 0.5);
+            const rotation = angle + Math.PI + (this.random() - 0.5) * 0.3;
+
+            const shell = new THREE.Group();
+            shell.position.set(px, 0, pz);
+            shell.rotation.y = rotation;
+
+            const back = this.mesh(new THREE.BoxGeometry(width, height, 0.6), this.concreteDark, 0, height / 2, 6);
+            back.castShadow = false;
+            shell.add(back);
+
+            for (const side of [-1, 1]) {
+                const wall = this.mesh(new THREE.BoxGeometry(0.5, height, 12), this.concrete, side * width * 0.5, height / 2, 0);
+                wall.castShadow = false;
+                shell.add(wall);
+            }
+
+            const front = this.mesh(new THREE.BoxGeometry(width, frontHeight, 0.5), this.concreteDark, 0, frontHeight / 2, -6);
+            front.castShadow = false;
+            shell.add(front);
+
+            for (let f = 1; f <= floors; f++) {
+                const slab = this.mesh(new THREE.BoxGeometry(width + 0.6, 0.3, 12.6), this.concreteDark, 0, f * 3.6, 0);
+                slab.castShadow = false;
+                slab.receiveShadow = false;
+                shell.add(slab);
+            }
+
+            this.add(shell);
+            grid.insertOrientedBox(px, pz, width + 4, 14, rotation, 0, height);
+
+            if (this.random() < 0.18) {
+                this.smokePoints.push(new THREE.Vector3(px, height * 0.7, pz));
+            }
+        }
+    }
+
     public buildBarriers(grid: CollisionGrid) {
         const { halfWidth } = this.layout;
 
@@ -436,20 +675,74 @@ export class WarProps {
             wreck.position.set(x, 0, z);
             wreck.rotation.set(0.08, rotation, 0.14);
 
-            const body = this.mesh(new THREE.BoxGeometry(4.4, 1.1, 2.1), this.burnt, 0, 0.85, 0);
-            wreck.add(body);
+            // Burnt-out truck: chassis rails, a gutted cab and a cargo bed whose ribs are
+            // all that is left of the canopy.
+            for (const side of [-1, 1]) {
+                const rail = this.mesh(new THREE.BoxGeometry(5.2, 0.18, 0.18), this.rust, 0, 0.62, side * 0.7);
+                wreck.add(rail);
+            }
 
-            const cabin = this.mesh(new THREE.BoxGeometry(2.2, 1, 1.9), this.burnt, -0.3, 1.75, 0);
-            wreck.add(cabin);
+            const axleFront = this.mesh(new THREE.BoxGeometry(0.2, 0.16, 2.1), this.rust, 1.5, 0.5, 0);
+            const axleRear = this.mesh(new THREE.BoxGeometry(0.2, 0.16, 2.1), this.rust, -1.5, 0.5, 0);
+            wreck.add(axleFront, axleRear);
 
-            const hood = this.mesh(new THREE.BoxGeometry(1.5, 0.2, 1.9), this.rust, 1.6, 1.45, 0);
-            hood.rotation.z = 0.5;
+            const bed = this.mesh(new THREE.BoxGeometry(2.9, 0.14, 2), this.burnt, -1.1, 0.78, 0);
+            wreck.add(bed);
+
+            for (const side of [-1, 1]) {
+                const sidePanel = this.mesh(new THREE.BoxGeometry(2.9, 0.5, 0.12), this.burnt, -1.1, 1.03, side * 0.95);
+                wreck.add(sidePanel);
+            }
+
+            for (let r = 0; r < 4; r++) {
+                const rib = this.mesh(new THREE.TorusGeometry(0.92, 0.05, 5, 10, Math.PI), this.rust, -2.2 + r * 0.72, 1.05, 0);
+                rib.rotation.y = Math.PI / 2;
+                rib.castShadow = false;
+                wreck.add(rib);
+            }
+
+            const cabFloor = this.mesh(new THREE.BoxGeometry(1.9, 0.14, 1.9), this.burnt, 1.2, 0.8, 0);
+            wreck.add(cabFloor);
+
+            const cabBack = this.mesh(new THREE.BoxGeometry(0.14, 1.25, 1.9), this.burnt, 0.35, 1.4, 0);
+            wreck.add(cabBack);
+
+            for (const side of [-1, 1]) {
+                const pillar = this.mesh(new THREE.BoxGeometry(0.14, 1.2, 0.14), this.rust, 1.95, 1.4, side * 0.85);
+                pillar.rotation.z = -0.12;
+                wreck.add(pillar);
+            }
+
+            const roof = this.mesh(new THREE.BoxGeometry(1.7, 0.12, 1.9), this.burnt, 1.15, 1.98, 0);
+            roof.rotation.z = -0.06;
+            wreck.add(roof);
+
+            const hood = this.mesh(new THREE.BoxGeometry(1.2, 0.16, 1.8), this.rust, 2.5, 1.32, 0);
+            hood.rotation.z = 0.42;
             wreck.add(hood);
 
-            for (const [dx, dz] of [[-1.5, -1], [-1.5, 1], [1.5, -1], [1.5, 1]] as Array<[number, number]>) {
-                const wheel = this.mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.3, 10), this.burnt, dx, 0.45, dz);
-                wheel.rotation.x = Math.PI / 2;
-                wreck.add(wheel);
+            const grille = this.mesh(new THREE.BoxGeometry(0.16, 0.7, 1.7), this.rust, 3.05, 0.95, 0);
+            wreck.add(grille);
+
+            const engine = this.mesh(new THREE.BoxGeometry(1.1, 0.7, 1.3), this.burnt, 2.5, 0.95, 0);
+            wreck.add(engine);
+
+            for (const [dx, dz, burnt] of [[1.5, -1, false], [1.5, 1, true], [-1.5, -1, true], [-1.5, 1, false]] as Array<[number, number, boolean]>) {
+                if (burnt) {
+                    // Burnt off the rim: just the hub is left.
+                    const hub = this.mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.26, 8), this.rust, dx, 0.5, dz);
+                    hub.rotation.x = Math.PI / 2;
+                    wreck.add(hub);
+                    continue;
+                }
+
+                const tyre = this.mesh(new THREE.TorusGeometry(0.42, 0.16, 6, 12), this.burnt, dx, 0.5, dz);
+                tyre.rotation.y = Math.PI / 2;
+                wreck.add(tyre);
+
+                const hub = this.mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.3, 8), this.rust, dx, 0.5, dz);
+                hub.rotation.x = Math.PI / 2;
+                wreck.add(hub);
             }
 
             this.add(wreck);
@@ -463,9 +756,9 @@ export class WarProps {
 
     public update(delta: number, elapsed: number) {
         for (const flag of this.flags) {
-            flag.mesh.rotation.y = Math.sin(elapsed * 1.1 + flag.phase) * 0.22;
-            flag.mesh.rotation.z = Math.sin(elapsed * 1.7 + flag.phase) * 0.06;
-            flag.mesh.rotation.x = Math.sin(elapsed * 0.9 + flag.phase * 0.5) * 0.04;
+            flag.group.rotation.y = Math.sin(elapsed * 1.1 + flag.phase) * 0.22;
+            flag.group.rotation.z = Math.sin(elapsed * 1.7 + flag.phase) * 0.06;
+            flag.group.rotation.x = Math.sin(elapsed * 0.9 + flag.phase * 0.5) * 0.04;
 
             if (elapsed >= flag.nextChangeAt) {
                 const step = 1 + Math.floor(this.random() * (MEMECOIN_BANNERS.length - 1));
@@ -479,9 +772,9 @@ export class WarProps {
             if (flag.snapTimer > 0) {
                 flag.snapTimer = Math.max(0, flag.snapTimer - delta);
                 const t = flag.snapTimer / FLAG_SNAP_DURATION;
-                flag.mesh.scale.x = 1 - Math.sin(t * Math.PI) * 0.85;
-            } else if (flag.mesh.scale.x !== 1) {
-                flag.mesh.scale.x = 1;
+                flag.group.scale.x = 1 - Math.sin(t * Math.PI) * 0.85;
+            } else if (flag.group.scale.x !== 1) {
+                flag.group.scale.x = 1;
             }
         }
     }

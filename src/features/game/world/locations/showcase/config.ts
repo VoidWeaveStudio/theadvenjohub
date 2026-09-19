@@ -1,5 +1,6 @@
 // src/features/game/world/locations/showcase/config.ts
 export const SECOND_WORLD_ID = "tower-token-gates";
+export const BASEMENT_ID = "tower-basement";
 
 export type ShowcaseId =
     | "show-church"

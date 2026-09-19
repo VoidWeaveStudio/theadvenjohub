@@ -8,6 +8,8 @@ import { ALL_LOCATIONS } from "./locations/tower/TowerRegistry";
 import { FactionGateRoom } from "./locations/tower/floors/FactionGateRoom";
 import { PersonalRoom, PERSONAL_ROOM_PREFIX } from "./locations/tower/floors/PersonalRoom";
 import { themedShowcaseLocationFor } from "./locations/showcase/themedFactions";
+import { ShowcaseRoom } from "./locations/showcase/ShowcaseRoom";
+import { BASEMENT_ID } from "./locations/showcase/config";
 import { perf } from "../core/PerfProfiler";
 
 const SLOW_CREATE_MS = 150;
@@ -51,6 +53,9 @@ export class LocationManager {
                         throw new Error(`Themed faction location not found: ${themedId}`);
                     }
                     location = themedFactory();
+                    // Entered from a bubble, so its exit has to lead back to the galaxy
+                    // rather than to the Second World hub the set normally hangs off.
+                    if (location instanceof ShowcaseRoom) location.exitTarget = BASEMENT_ID;
                 } else {
                     location = new FactionGateRoom(factionId);
                 }

@@ -1910,7 +1910,7 @@ export const es: PartialTranslations = {
   "g.floorReg.tower-token-gates.description": "Escaparate de los mundos memecoin",
   "g.showcase.church.name": "Iglesia del Memecoin",
   "g.showcase.church.tagline": "Predicando el próximo 100x",
-  "g.showcase.war.name": "La Guerra Eterna",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "Dos tickers, un solo frente",
   "g.showcase.garden.name": "Jardín de la Calma",
   "g.showcase.garden.tagline": "Hold, cócteles y silencio",

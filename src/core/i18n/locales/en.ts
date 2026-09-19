@@ -1918,7 +1918,7 @@ export const en: Translations = {
   "g.floorReg.tower-token-gates.description": "Memecoin worlds showcase",
   "g.showcase.church.name": "Church of the Memecoin",
   "g.showcase.church.tagline": "Preaching the coming 100x",
-  "g.showcase.war.name": "The Eternal War",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "Two tickers, one front line",
   "g.showcase.garden.name": "Garden of Calm",
   "g.showcase.garden.tagline": "Hold, cocktails and quiet",

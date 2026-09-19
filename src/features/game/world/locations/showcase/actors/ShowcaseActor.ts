@@ -29,6 +29,16 @@ const COLLIDER_HEIGHT = 1.8;
 const _colliderSize = new THREE.Vector3(COLLIDER_WIDTH, COLLIDER_HEIGHT, COLLIDER_WIDTH);
 const _colliderProbe = new THREE.Vector3();
 
+// A straight-line walker has no pathfinding, so a destination on the far side of an
+// obstacle (a sandbag mound, a wreck) otherwise just presses into it forever. After a
+// short stuck window, sidestep perpendicular to the blocked direction instead — clears
+// most cover-sized obstacles without needing a real navmesh.
+const STUCK_THRESHOLD = 0.3;
+const DODGE_COMMIT = 0.9;
+const STUCK_GIVE_UP = 6;
+
+const FIRING_CLIP_WEAPON_PITCH = -0.46;
+
 export type ActorMotion = "idle" | "walk" | "run";
 
 export interface WalkSpec {
@@ -68,7 +78,7 @@ interface CompiledBend {
     blended: boolean;
 }
 
-type OverlayKind = "aim" | "crouch" | "recoil";
+type OverlayKind = "aim" | "crouch" | "recoil" | "flinch";
 
 interface OverlayBend {
     axis: BodyAxis;
@@ -97,6 +107,23 @@ const OVERLAY_BENDS: Array<{ bone: BoneKey; axis: BodyAxis; kind: OverlayKind; f
     { bone: "lowerLegL", axis: "right", kind: "crouch", factor: 1.35 },
     { bone: "lowerLegR", axis: "right", kind: "crouch", factor: 1.35 },
 ];
+
+// Taking a round: the torso snaps back and the arms fly up and out. Kept apart from the
+// recoil overlay so a shooter's kick never turns into this, and applied whether or not
+// the actor is holding a weapon.
+const FLINCH_BENDS: Array<{ bone: BoneKey; axis: BodyAxis; factor: number }> = [
+    { bone: "spineUpper", axis: "right", factor: -0.5 },
+    { bone: "spineLower", axis: "right", factor: -0.22 },
+    { bone: "neck", axis: "right", factor: -0.55 },
+    { bone: "upperArmL", axis: "forward", factor: -1.5 },
+    { bone: "upperArmR", axis: "forward", factor: 1.5 },
+    { bone: "upperArmL", axis: "right", factor: -0.5 },
+    { bone: "upperArmR", axis: "right", factor: -0.5 },
+    { bone: "lowerArmL", axis: "forward", factor: -0.5 },
+    { bone: "lowerArmR", axis: "forward", factor: 0.5 },
+];
+
+const FLINCH_DECAY = 2.6;
 
 const CROUCH_DROP = 0.42;
 
@@ -152,10 +179,14 @@ export class ShowcaseActor {
     private aim = 0;
     private crouch = 0;
     private recoil = 0;
+    private flinchAmount = 0;
 
     private destination: THREE.Vector3 | null = null;
     private destinationSpeed = RUN_SPEED;
     private facingTarget: number | null = null;
+    private stuckTimer = 0;
+    private dodgeSign = 1;
+    private dodgeHold = 0;
 
     private groundAt: ((x: number, z: number) => number) | null = null;
     private collisionGrid: CollisionGrid | null = null;
@@ -171,6 +202,7 @@ export class ShowcaseActor {
         this.facing = spec.facing ?? 0;
         this.walk = spec.walk ?? null;
         this.scale = spec.scale ?? 1;
+        this.dodgeSign = Math.sin((spec.phase ?? 0) * 12.9898) > 0 ? 1 : -1;
     }
 
     public setGroundProvider(provider: ((x: number, z: number) => number) | null) {
@@ -395,6 +427,8 @@ export class ShowcaseActor {
         mount.add(rig.group);
         rig.group.position.copy(rig.rearGrip.position).multiplyScalar(-1);
 
+        // Same seating as OtherPlayer: the mount starts under the unscaled outer group so
+        // reparentPreservingWorldScale carries the bone's world scale into it.
         this.group.add(mount);
         reparentPreservingWorldScale(mount, gripBone);
 
@@ -416,6 +450,15 @@ export class ShowcaseActor {
         this.weaponMount.position.copy(transform.position);
         this.weaponMount.rotation.copy(transform.euler);
         this.weaponMount.scale.setScalar(this.weaponBaseScale * transform.scale);
+
+        // The shared seating is tuned against the plain rifle clips; the firing ones carry
+        // the hand 26° further back, which points the barrel up across the face. Corrected
+        // here rather than in REMOTE_WEAPON_CLIP_TRANSFORMS so the player and Dust 2 keep
+        // the seating they already have. The hip-fire pose already rotates the arm by the
+        // same amount, so applying both would tip the barrel into the ground.
+        if (this.clip.includes("firing") && this.spec.pose !== "hipFire") {
+            this.weaponMount.rotation.x += FIRING_CLIP_WEAPON_PITCH;
+        }
     }
 
     private playClip() {
@@ -443,6 +486,17 @@ export class ShowcaseActor {
 
     public setTalking(talking: boolean, text?: string) {
         this.face?.setTalking(talking, text);
+    }
+
+    public scream(active: boolean) {
+        this.face?.scream(active);
+    }
+
+    // For an actor spawned already dead/dying (e.g. the cradle scene) — closing the eyes
+    // without going through die() leaves its pose bends intact instead of wiping them.
+    public setEyesClosed(closed: boolean) {
+        if (closed) this.face?.close();
+        else this.face?.open();
     }
 
     public setHeldVisible(visible: boolean) {
@@ -612,6 +666,12 @@ export class ShowcaseActor {
             }
         }
 
+        for (const entry of FLINCH_BENDS) {
+            const target = ensure(entry.bone);
+            if (!target) continue;
+            target.overlays.push({ axis: entry.axis, kind: "flinch", factor: entry.factor });
+        }
+
         this.targets = Array.from(byBone.values()).sort((a, b) => a.depth - b.depth);
     }
 
@@ -640,7 +700,9 @@ export class ShowcaseActor {
                     ? this.aim
                     : overlay.kind === "crouch"
                         ? this.crouch
-                        : this.recoil;
+                        : overlay.kind === "flinch"
+                            ? this.flinchAmount
+                            : this.recoil;
                 if (Math.abs(amount) < 1e-4) continue;
                 this.bendBone(target.bone, overlay.axis, overlay.factor * amount);
             }
@@ -675,6 +737,11 @@ export class ShowcaseActor {
         this.recoil = Math.min(1.4, this.recoil + strength);
     }
 
+    public flinch(strength = 1) {
+        if (this.dead) return;
+        this.flinchAmount = Math.min(1.2, this.flinchAmount + strength);
+    }
+
     private turnTowards(angle: number, delta: number) {
         let diff = angle - this.facing;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -699,6 +766,49 @@ export class ShowcaseActor {
         if (stepZ !== 0 && !this.collides(fromX, tryZ)) return { x: fromX, z: tryZ, moved: true };
 
         return { x: fromX, z: fromZ, moved: false };
+    }
+
+    // Shared by advanceWalk/advanceDestination: walks straight at the target normally,
+    // but once resolveStep has failed to make progress for STUCK_THRESHOLD seconds, steps
+    // perpendicular to the blocked direction instead (flipping sides every DODGE_SWITCH
+    // seconds if that's blocked too) until it clears whatever it was pressed against.
+    private stepToward(dx: number, dz: number, distance: number, step: number, delta: number): boolean {
+        const dodging = this.dodgeHold > 0;
+        let dirX = dx / distance;
+        let dirZ = dz / distance;
+
+        // Committing to the sidestep for a while matters: a one-frame nudge just
+        // oscillates against the wall, holding it long enough actually travels along
+        // the wall until a gap opens up.
+        if (dodging) {
+            dirX = (-dz / distance) * this.dodgeSign;
+            dirZ = (dx / distance) * this.dodgeSign;
+            this.dodgeHold -= delta;
+            if (this.dodgeHold <= 0) this.stuckTimer = 0;
+        }
+
+        const resolved = this.resolveStep(this.group.position.x, this.group.position.z, dirX * step, dirZ * step);
+        this.group.position.x = resolved.x;
+        this.group.position.z = resolved.z;
+
+        if (this.groundAt) {
+            this.group.position.y = this.groundAt(this.group.position.x, this.group.position.z);
+        }
+
+        if (resolved.moved) {
+            if (!dodging) this.stuckTimer = 0;
+            return true;
+        }
+
+        this.stuckTimer += delta;
+        if (dodging) {
+            this.dodgeSign = -this.dodgeSign;
+            this.dodgeHold = DODGE_COMMIT;
+        } else if (this.stuckTimer > STUCK_THRESHOLD) {
+            this.dodgeHold = DODGE_COMMIT;
+        }
+
+        return false;
     }
 
     private advanceWalk(delta: number) {
@@ -740,16 +850,8 @@ export class ShowcaseActor {
 
         const speed = walk.speed ?? (walk.run ? RUN_SPEED : WALK_SPEED);
         const step = Math.min(distance, speed * delta);
-        const resolved = this.resolveStep(this.group.position.x, this.group.position.z, (dx / distance) * step, (dz / distance) * step);
-        this.group.position.x = resolved.x;
-        this.group.position.z = resolved.z;
-
-        if (this.groundAt) {
-            this.group.position.y = this.groundAt(this.group.position.x, this.group.position.z);
-        }
-
+        this.moving = this.stepToward(dx, dz, distance, step, delta);
         this.turnTowards(Math.atan2(dx, dz), delta);
-        this.moving = resolved.moved;
     }
 
     private advanceDestination(delta: number) {
@@ -762,26 +864,31 @@ export class ShowcaseActor {
 
         if (distance < 0.35) {
             this.destination = null;
+            this.stuckTimer = 0;
+            this.dodgeHold = 0;
             return false;
         }
 
         const step = Math.min(distance, this.destinationSpeed * delta);
-        const resolved = this.resolveStep(this.group.position.x, this.group.position.z, (dx / distance) * step, (dz / distance) * step);
-        this.group.position.x = resolved.x;
-        this.group.position.z = resolved.z;
+        const moved = this.stepToward(dx, dz, distance, step, delta);
+        this.turnTowards(Math.atan2(dx, dz), delta);
 
-        if (this.groundAt) {
-            this.group.position.y = this.groundAt(this.group.position.x, this.group.position.z);
+        // Nothing here can path around a large obstacle. Rather than press into it
+        // forever, give the destination up and let the caller pick a new one.
+        if (this.stuckTimer > STUCK_GIVE_UP) {
+            this.destination = null;
+            this.stuckTimer = 0;
+            this.dodgeHold = 0;
         }
 
-        this.turnTowards(Math.atan2(dx, dz), delta);
-        return resolved.moved;
+        return moved;
     }
 
     public update(delta: number) {
         this.clock += delta;
 
         if (this.recoil > 0) this.recoil = Math.max(0, this.recoil - delta * 7);
+        if (this.flinchAmount > 0) this.flinchAmount = Math.max(0, this.flinchAmount - delta * FLINCH_DECAY);
 
         if (this.dead) {
             this.animator.update(delta);

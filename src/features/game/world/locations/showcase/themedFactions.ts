@@ -10,6 +10,7 @@ import type { ShowcaseId } from "./config";
 // Empty until the seven factions exist — add "<factionId>": "show-bazaar"
 // (etc., one of each) once each one is created.
 export const THEMED_FACTION_LOCATIONS: Record<string, ShowcaseId> = {
+    "9731dc93-b97a-4a94-b458-b9254873b255": "show-war", // Endless WAR
 };
 
 export function themedShowcaseLocationFor(factionId: string): ShowcaseId | null {

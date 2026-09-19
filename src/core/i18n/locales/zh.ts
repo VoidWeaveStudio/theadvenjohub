@@ -1919,7 +1919,7 @@ export const zh: Translations = {
   "g.floorReg.tower-token-gates.description": "模因币世界展厅",
   "g.showcase.church.name": "模因币教堂",
   "g.showcase.church.tagline": "布道下一个百倍",
-  "g.showcase.war.name": "永恒之战",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "两个代币，一条战线",
   "g.showcase.garden.name": "宁静花园",
   "g.showcase.garden.tagline": "持币、鸡尾酒与安宁",

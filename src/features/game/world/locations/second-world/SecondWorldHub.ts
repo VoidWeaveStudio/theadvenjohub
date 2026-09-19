@@ -12,6 +12,7 @@ import {
 import { GALAXY, galaxyOrbitTime } from "../tower/floors/token-gates/galaxy/GalaxyLayout";
 import { createNpcNameTag } from "../../../entities/npcNameTag";
 import { GATE_INTERACT_RANGE, GATE_RING_RADIUS, SHOWCASE_INFO, ShowcaseInfo } from "../showcase/config";
+import { THEMED_FACTION_LOCATIONS } from "../showcase/themedFactions";
 import type { FlightZone, HeightProvider } from "../../Location";
 import { t } from "@/core/i18n";
 
@@ -86,7 +87,11 @@ export class SecondWorldHub extends TowerFloor {
     }
 
     private buildGates() {
+        const movedIntoBubbles = new Set(Object.values(THEMED_FACTION_LOCATIONS));
+
         for (const info of SHOWCASE_INFO) {
+            if (movedIntoBubbles.has(info.id)) continue;
+
             const position = this.gatePosition(info);
             const facing = Math.atan2(PLATFORM_CENTER.x - position.x, PLATFORM_CENTER.z - position.z);
 

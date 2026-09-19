@@ -1920,7 +1920,7 @@ export const ja: Translations = {
   "g.floorReg.tower-token-gates.description": "ミームコイン世界のショーケース",
   "g.showcase.church.name": "ミームコイン教会",
   "g.showcase.church.tagline": "次の100倍を説く",
-  "g.showcase.war.name": "永遠の戦争",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "二つのティッカー、一つの戦線",
   "g.showcase.garden.name": "安らぎの庭",
   "g.showcase.garden.tagline": "ホールドとカクテルと静けさ",

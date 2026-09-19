@@ -123,17 +123,11 @@ function computeMetrics(headBounds: THREE.Box3 | null): FaceMetrics {
     };
 }
 
-// Some hats/bands (bandana, cap, visor) wrap around at roughly eye height with a radius
-// authored for clearance over the head, not over the eyes sitting right at its surface —
-// so on those, the eyes ended up hidden behind/inside the accessory. Rather than hardcode
-// a fix per hat kind, measure the hat's own actual geometry near eye height and push the
-// eyes out just far enough to clear whatever is really there. Cached per hat kind, since
-// geometry (unlike color) is identical across actors wearing the same hat.
 const hatClearanceCache = new Map<string, number>();
 const _hatVertex = new THREE.Vector3();
 
-function measureHatRadiusAtHeight(hat: THREE.Object3D, targetY: number, band: number): number {
-    let maxRadius = 0;
+function measureHatFrontReach(hat: THREE.Object3D, targetY: number, band: number, xLimit: number): number {
+    let maxZ = 0;
     hat.traverse((child) => {
         const mesh = child as THREE.Mesh;
         if (!mesh.isMesh || !mesh.geometry) return;
@@ -143,12 +137,12 @@ function measureHatRadiusAtHeight(hat: THREE.Object3D, targetY: number, band: nu
         for (let i = 0; i < position.count; i++) {
             _hatVertex.fromBufferAttribute(position, i);
             _hatVertex.applyMatrix4(mesh.matrix);
+            if (_hatVertex.z <= 0 || Math.abs(_hatVertex.x) > xLimit) continue;
             if (Math.abs(_hatVertex.y - targetY) > band) continue;
-            const radius = Math.hypot(_hatVertex.x, _hatVertex.z);
-            if (radius > maxRadius) maxRadius = radius;
+            if (_hatVertex.z > maxZ) maxZ = _hatVertex.z;
         }
     });
-    return maxRadius;
+    return maxZ;
 }
 
 function darken(color: number, amount: number): number {
@@ -159,10 +153,15 @@ function darken(color: number, amount: number): number {
     return (Math.round(r * scale) << 16) | (Math.round(g * scale) << 8) | Math.round(b * scale);
 }
 
+const SCREAM_FLAP_MIN = 0.09;
+const SCREAM_FLAP_MAX = 0.16;
+const SCREAM_SHAPE: MouthShapeKind = "ae";
+
 export interface FaceRig {
     group: THREE.Object3D;
     update(delta: number): void;
     setTalking(talking: boolean, text?: string): void;
+    scream(active: boolean): void;
     close(): void;
     open(): void;
 }
@@ -178,19 +177,25 @@ export function buildFace(
     const metrics = computeMetrics(headBounds);
 
     let eyeZ = metrics.faceZ;
+    let eyeY = metrics.eyeY;
+    let browY = metrics.browY;
+
     if (hatObject) {
+        const drop = metrics.eyeScleraRadius * 0.7;
+        eyeY -= drop;
+        browY -= drop;
+
         const band = metrics.eyeScleraRadius * 0.8;
-        let hatRadius = hatClearanceCache.get(variant.hat);
-        if (hatRadius === undefined) {
-            hatRadius = measureHatRadiusAtHeight(hatObject, metrics.eyeY, band);
-            hatClearanceCache.set(variant.hat, hatRadius);
+        const xLimit = metrics.eyeX + metrics.eyeScleraRadius;
+        let hatFrontZ = hatClearanceCache.get(variant.hat);
+        if (hatFrontZ === undefined) {
+            hatFrontZ = measureHatFrontReach(hatObject, eyeY, band, xLimit);
+            hatClearanceCache.set(variant.hat, hatFrontZ);
         }
-        // The clearance has to cover the eye's own radius, not just its center point —
-        // otherwise the near side of the eye still dips into the hat's surface and reads
-        // as sitting on/inside it rather than in front of it.
-        const clearRadius = hatRadius + metrics.eyeScleraRadius * 1.2;
-        const minEyeZ = Math.sqrt(Math.max(0, clearRadius * clearRadius - metrics.eyeX * metrics.eyeX));
-        if (minEyeZ > eyeZ) eyeZ = minEyeZ;
+        if (hatFrontZ > 0) {
+            const maxEyeZ = metrics.faceZ + metrics.eyeScleraRadius * 0.6;
+            eyeZ = Math.min(Math.max(eyeZ, hatFrontZ + metrics.eyeScleraRadius * 0.3), maxEyeZ);
+        }
     }
     const browZ = eyeZ - (metrics.faceZ - metrics.browZ);
 
@@ -214,7 +219,7 @@ export function buildFace(
     const eyeGroups: THREE.Group[] = [];
     for (const side of [-1, 1]) {
         const eye = new THREE.Group();
-        eye.position.set(side * metrics.eyeX, metrics.eyeY, eyeZ);
+        eye.position.set(side * metrics.eyeX, eyeY, eyeZ);
 
         const sclera = new THREE.Mesh(scleraGeometry, scleraMaterial);
         sclera.scale.set(1, 1, 0.35);
@@ -228,7 +233,7 @@ export function buildFace(
         eyeGroups.push(eye);
 
         const brow = new THREE.Mesh(browGeometry, browMaterial);
-        brow.position.set(side * metrics.eyeX, metrics.browY, browZ);
+        brow.position.set(side * metrics.eyeX, browY, browZ);
         brow.rotation.z = -side * 0.12;
         group.add(brow);
     }
@@ -245,6 +250,7 @@ export function buildFace(
     let talking = false;
     let speaking = false;
     let speechRemaining = 0;
+    let screaming = false;
     let closed = false;
     let flapPhase = 0;
     let flapDuration = FLAP_CYCLE_MIN;
@@ -268,7 +274,16 @@ export function buildFace(
             if (speechRemaining <= 0) speaking = false;
         }
 
-        if (talking && speaking) {
+        if (screaming) {
+            flapPhase += delta / flapDuration;
+            if (flapPhase >= 1) {
+                flapPhase -= 1;
+                flapDuration = SCREAM_FLAP_MIN + Math.random() * (SCREAM_FLAP_MAX - SCREAM_FLAP_MIN);
+            }
+            applyMouthTexture(SCREAM_SHAPE);
+            const bump = Math.sin(Math.min(flapPhase, 1) * Math.PI);
+            mouth.scale.setScalar(1.05 + bump * 0.35);
+        } else if (talking && speaking) {
             flapPhase += delta / flapDuration;
             if (flapPhase >= 1) {
                 flapPhase -= 1;
@@ -319,10 +334,19 @@ export function buildFace(
                 speaking = false;
             }
         },
+        scream(active: boolean) {
+            if (screaming === active) return;
+            screaming = active;
+            if (active) {
+                flapPhase = 0;
+                flapDuration = SCREAM_FLAP_MIN + Math.random() * (SCREAM_FLAP_MAX - SCREAM_FLAP_MIN);
+            }
+        },
         close() {
             closed = true;
             talking = false;
             speaking = false;
+            screaming = false;
             flapPhase = 0;
             applyMouthTexture(RESTING_SHAPE);
             mouth.scale.setScalar(1);

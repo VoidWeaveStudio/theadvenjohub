@@ -1913,7 +1913,7 @@ export const vi: PartialTranslations = {
   "g.floorReg.tower-token-gates.description": "Trưng bày các thế giới memecoin",
   "g.showcase.church.name": "Nhà Thờ Memecoin",
   "g.showcase.church.tagline": "Rao giảng về cú x100 sắp tới",
-  "g.showcase.war.name": "Cuộc Chiến Vĩnh Cửu",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "Hai ticker, một chiến tuyến",
   "g.showcase.garden.name": "Khu Vườn Tĩnh Lặng",
   "g.showcase.garden.tagline": "Hold, cocktail và yên bình",

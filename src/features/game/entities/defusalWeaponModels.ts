@@ -278,6 +278,59 @@ function buildBlueChip(): WeaponRig {
     };
 }
 
+// Belt-fed support gun — bipod, perforated heat shield, ammo box hanging off the
+// receiver. Sized like the rifles (not the stubby whale-cannon) so it seats correctly
+// in the shared REMOTE_WEAPON_TRANSFORM without needing its own clip override.
+function buildMachineGun(): WeaponRig {
+    const group = new THREE.Group();
+
+    part(group, bevelBox(0.05, 0.07, 0.3, 0.007), steel(), 0, 0.01, -0.03);
+    part(group, new THREE.BoxGeometry(0.044, 0.03, 0.26), darkSteel(), 0, 0.05, -0.05);
+
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.006, 6, 12, Math.PI), darkSteel());
+    handle.rotation.set(0, 0, Math.PI);
+    handle.position.set(0, 0.085, -0.02);
+    group.add(handle);
+    part(group, new THREE.BoxGeometry(0.01, 0.03, 0.01), darkSteel(), -0.04, 0.065, -0.02);
+    part(group, new THREE.BoxGeometry(0.01, 0.03, 0.01), darkSteel(), 0.04, 0.065, -0.02);
+
+    barrel(group, 0.014, 0.34, -0.38, steel(), 0.018);
+    for (let i = 0; i < 10; i++) {
+        part(group, new THREE.TorusGeometry(0.017, 0.0025, 5, 10), darkSteel(), 0, 0.018, -0.24 - i * 0.03, [Math.PI / 2, 0, 0]);
+    }
+    part(group, new THREE.BoxGeometry(0.006, 0.03, 0.006), darkSteel(), 0, 0.045, -0.53);
+    part(group, new THREE.CylinderGeometry(0.016, 0.02, 0.06, 10), darkSteel(), 0, 0.018, -0.58, [Math.PI / 2, 0, 0]);
+
+    for (const side of [-1, 1]) {
+        const leg = part(group, new THREE.CylinderGeometry(0.005, 0.006, 0.22, 6), darkSteel(), side * 0.02, -0.01, -0.4);
+        leg.rotation.set(0.15, 0, side * 0.18);
+    }
+
+    part(group, bevelBox(0.09, 0.07, 0.09, 0.006), blackPoly(), 0.01, -0.06, 0.04);
+    part(group, new THREE.BoxGeometry(0.05, 0.012, 0.02), darkSteel(), 0.01, -0.02, -0.01);
+
+    pistolGrip(group, blackPoly(), 0.22, 0.09);
+    triggerGuard(group, 0.06);
+
+    part(group, new THREE.BoxGeometry(0.03, 0.03, 0.14), darkSteel(), 0, 0.01, 0.18);
+    part(group, bevelBox(0.05, 0.075, 0.09, 0.007), wood(), 0, 0, 0.27);
+    part(group, new THREE.BoxGeometry(0.052, 0.02, 0.02), wood(), 0, -0.03, 0.31);
+
+    ironSights(group, -0.5, 0.05, 0.06);
+
+    return {
+        group,
+        muzzle: anchor(group, 0, 0.018, -0.61),
+        ejection: anchor(group, 0.024, 0.03, -0.02),
+        frontGrip: anchor(group, 0, -0.01, -0.3),
+        rearGrip: anchor(group, 0.0, -0.045, 0.026),
+        gripRake: 0.2,
+        oneHanded: false,
+        scopeLens: null,
+        length: 0.92,
+    };
+}
+
 // The joke is the barrel. It is four metres of chromed pipe and it one-shots.
 function buildMoonLadder(): WeaponRig {
     const group = new THREE.Group();
@@ -456,6 +509,7 @@ const BUILDERS: Record<string, () => WeaponRig> = {
     "fud-cloud": () => buildGrenadeRig("fud-cloud"),
     "liquidation": () => buildGrenadeRig("liquidation"),
     "whale-cannon": buildWhaleCannon,
+    "machine-gun": buildMachineGun,
     "pump-rifle": buildPumpRifle,
     "bluechip-rifle": buildBlueChip,
     "moon-ladder": buildMoonLadder,

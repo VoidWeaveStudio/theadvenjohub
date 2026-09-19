@@ -1913,7 +1913,7 @@ export const fil: PartialTranslations = {
   "g.floorReg.tower-token-gates.description": "Showcase ng mga mundo ng memecoin",
   "g.showcase.church.name": "Simbahan ng Memecoin",
   "g.showcase.church.tagline": "Sermon tungkol sa paparating na 100x",
-  "g.showcase.war.name": "Walang Hanggang Digmaan",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "Dalawang ticker, isang prente",
   "g.showcase.garden.name": "Hardin ng Katahimikan",
   "g.showcase.garden.tagline": "Hold, cocktails at katahimikan",

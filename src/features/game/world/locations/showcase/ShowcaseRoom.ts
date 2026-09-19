@@ -39,6 +39,11 @@ export abstract class ShowcaseRoom extends TowerFloor {
 
     protected exitPosition = new THREE.Vector3(0, 0, 0);
     protected exitFacing = 0;
+
+    // Where the exit gate leads. A set reached from the Second World hub sends the
+    // player back there; the same set standing in for a faction's bubble has to return
+    // to the galaxy instead, like every other room entered from Basement.
+    public exitTarget: string = SECOND_WORLD_ID;
     protected spawnPosition = new THREE.Vector3(0, 0, 6);
     protected spawnFacing = 0;
 
@@ -326,7 +331,7 @@ export abstract class ShowcaseRoom extends TowerFloor {
         if (this.exitLight) this.exitLight.intensity = 16 + Math.sin(this.elapsed * 2.3) * 4;
 
         if (isEPressed && playerPosition.distanceTo(this.exitPosition) <= EXIT_RANGE) {
-            this.pendingTeleport = SECOND_WORLD_ID;
+            this.pendingTeleport = this.exitTarget;
         }
     }
 

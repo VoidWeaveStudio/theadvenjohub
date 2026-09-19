@@ -5,6 +5,9 @@ import type { FactionGateData } from "../../../../../../network/NetworkManager";
 import { GALAXY, factionBubbleOrbit, orbitPosition, hashString, type BubbleOrbit } from "./GalaxyLayout";
 import { buildMcFrame, disposeMcFrame } from "@/features/game/utils/mcFrame";
 import { AdminCoreBubble } from "./AdminCoreBubble";
+import { areCaptionsHidden } from "@/features/game/world/locations/showcase/captionVisibility";
+import { BUBBLE_THEMES, createThemedPlanet, updateThemedPlanet } from "./ThemedBubblePlanet";
+import { themedShowcaseLocationFor } from "@/features/game/world/locations/showcase/themedFactions";
 
 const MC_REFRESH_MS = 30000;
 
@@ -17,6 +20,7 @@ interface FactionBubble {
     planet: THREE.Mesh | null;
     core: AdminCoreBubble | null;
     logo: THREE.Sprite;
+    logoLoaded: boolean;
     frame: THREE.Sprite | null;
     nameSprite: THREE.Sprite;
     mcSprite: THREE.Sprite | null;
@@ -184,18 +188,25 @@ export class FactionBubbleSystem {
             core = new AdminCoreBubble(radius);
             group.add(core.group);
         } else {
-            const hue = (hashString(data.factionId) % 360) / 360;
-            const surface = new THREE.Color().setHSL(hue, 0.5, 0.48);
-            planet = new THREE.Mesh(
-                new THREE.SphereGeometry(radius, 40, 28),
-                new THREE.MeshStandardMaterial({
-                    color: surface,
-                    roughness: 0.82,
-                    metalness: 0.12,
-                    emissive: surface.clone().multiplyScalar(0.22),
-                    emissiveIntensity: 0.6,
-                })
-            );
+            const showcaseId = themedShowcaseLocationFor(data.factionId);
+            const theme = showcaseId ? BUBBLE_THEMES[showcaseId] : undefined;
+
+            if (theme && showcaseId) {
+                planet = createThemedPlanet(showcaseId, theme, radius);
+            } else {
+                const hue = (hashString(data.factionId) % 360) / 360;
+                const surface = new THREE.Color().setHSL(hue, 0.5, 0.48);
+                planet = new THREE.Mesh(
+                    new THREE.SphereGeometry(radius, 40, 28),
+                    new THREE.MeshStandardMaterial({
+                        color: surface,
+                        roughness: 0.82,
+                        metalness: 0.12,
+                        emissive: surface.clone().multiplyScalar(0.22),
+                        emissiveIntensity: 0.6,
+                    })
+                );
+            }
             planet.castShadow = false;
             group.add(planet);
         }
@@ -241,6 +252,7 @@ export class FactionBubbleSystem {
             planet,
             core,
             logo,
+            logoLoaded: false,
             frame,
             nameSprite,
             mcSprite: null,
@@ -262,7 +274,8 @@ export class FactionBubbleSystem {
         tokenTextureCache.load(url, (texture) => {
             bubble.logo.material.map = texture;
             bubble.logo.material.needsUpdate = true;
-            bubble.logo.visible = true;
+            bubble.logoLoaded = true;
+            bubble.logo.visible = !areCaptionsHidden();
         });
     }
 
@@ -325,15 +338,26 @@ export class FactionBubbleSystem {
 
     update(delta: number, orbitTime: number) {
         this.orbitTime = orbitTime;
+        const labelsVisible = !areCaptionsHidden();
 
         for (const bubble of this.bubbles.values()) {
             this.positionBubble(bubble);
 
             bubble.spin += delta;
             bubble.core?.update(delta);
-            if (bubble.planet) bubble.planet.rotation.y += delta * 0.14;
+            if (bubble.planet) {
+                bubble.planet.rotation.y += delta * 0.14;
+                if (bubble.planet.material instanceof THREE.ShaderMaterial) {
+                    updateThemedPlanet(bubble.planet, delta);
+                }
+            }
+
+            bubble.logo.visible = bubble.logoLoaded && labelsVisible;
+            bubble.nameSprite.visible = labelsVisible;
+            if (bubble.mcSprite) bubble.mcSprite.visible = labelsVisible;
 
             if (bubble.frame) {
+                bubble.frame.visible = labelsVisible;
                 bubble.frame.material.rotation += delta * (bubble.frame.userData.spin as number);
             }
         }

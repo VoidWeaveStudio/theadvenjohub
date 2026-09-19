@@ -112,32 +112,106 @@ export class WarVehicles {
         glacis.castShadow = true;
         group.add(glacis);
 
-        const skirtL = this.box(7.2, 0.6, 0.28, this.metal, 0, 1.5, 2.05);
-        const skirtR = this.box(7.2, 0.6, 0.28, this.metal, 0, 1.5, -2.05);
-        group.add(skirtL, skirtR);
+        // Rear plate and engine deck louvres.
+        const rearPlate = new THREE.Mesh(this.bin.geometry(new THREE.BoxGeometry(1.1, 1.3, 3.5)), body);
+        rearPlate.position.set(-3.7, 1.5, 0);
+        rearPlate.rotation.z = 0.24;
+        rearPlate.castShadow = true;
+        group.add(rearPlate);
+
+        for (let i = 0; i < 5; i++) {
+            const louvre = this.box(0.18, 0.1, 2.4, this.track, -2.1 - i * 0.34, 2.5, 0);
+            louvre.castShadow = false;
+            group.add(louvre);
+        }
+
+        const exhaust = new THREE.Mesh(this.bin.geometry(new THREE.CylinderGeometry(0.2, 0.22, 1.1, 10)), this.metal);
+        exhaust.rotation.z = Math.PI / 2;
+        exhaust.position.set(-3.2, 2.3, 1.35);
+        exhaust.castShadow = true;
+        group.add(exhaust);
+
+        // Fenders with stowage boxes and spare track links on the hull side.
+        for (const side of [-1, 1]) {
+            const fender = this.box(7.6, 0.14, 0.7, this.metal, 0, 2.02, side * 2.2);
+            group.add(fender);
+
+            for (let b = 0; b < 2; b++) {
+                const stow = this.box(1.3, 0.5, 0.6, this.metal, -2.4 + b * 1.6, 2.33, side * 2.2);
+                group.add(stow);
+            }
+
+            for (let l = 0; l < 6; l++) {
+                const link = this.box(0.34, 0.26, 0.1, this.track, 1.1 + l * 0.38, 2.34, side * 1.82);
+                link.castShadow = false;
+                group.add(link);
+            }
+
+            const skirt = this.box(7.2, 0.62, 0.22, this.metal, 0, 1.55, side * 2.05);
+            group.add(skirt);
+        }
 
         for (const side of [-1, 1]) {
             const belt = this.box(8, 1.25, 1.05, this.track, 0, 0.65, side * 1.75);
             group.add(belt);
 
+            // Track links around the belt, so the running gear is not one smooth slab.
+            for (let l = 0; l < 14; l++) {
+                const top = this.box(0.46, 0.16, 1.12, this.track, -3.6 + l * 0.56, 1.2, side * 1.75);
+                top.castShadow = false;
+                group.add(top);
+
+                const bottom = this.box(0.46, 0.16, 1.12, this.track, -3.6 + l * 0.56, 0.1, side * 1.75);
+                bottom.castShadow = false;
+                group.add(bottom);
+            }
+
             for (let w = 0; w < 6; w++) {
                 const wheel = new THREE.Mesh(
-                    this.bin.geometry(new THREE.CylinderGeometry(0.62, 0.62, 0.55, 14)),
+                    this.bin.geometry(new THREE.CylinderGeometry(0.62, 0.62, 0.55, 16)),
                     this.metal
                 );
                 wheel.position.set(-3 + w * 1.2, 0.65, side * 1.75);
                 wheel.rotation.x = Math.PI / 2;
                 wheel.castShadow = true;
                 group.add(wheel);
+
+                const hub = new THREE.Mesh(
+                    this.bin.geometry(new THREE.CylinderGeometry(0.24, 0.24, 0.62, 10)),
+                    this.track
+                );
+                hub.position.set(-3 + w * 1.2, 0.65, side * 1.75);
+                hub.rotation.x = Math.PI / 2;
+                hub.castShadow = false;
+                group.add(hub);
+            }
+
+            for (let r = 0; r < 3; r++) {
+                const roller = new THREE.Mesh(
+                    this.bin.geometry(new THREE.CylinderGeometry(0.22, 0.22, 0.4, 10)),
+                    this.metal
+                );
+                roller.position.set(-2.2 + r * 2.1, 1.32, side * 1.75);
+                roller.rotation.x = Math.PI / 2;
+                roller.castShadow = false;
+                group.add(roller);
             }
 
             const drive = new THREE.Mesh(
-                this.bin.geometry(new THREE.CylinderGeometry(0.82, 0.82, 0.62, 12)),
+                this.bin.geometry(new THREE.CylinderGeometry(0.82, 0.82, 0.62, 14)),
                 this.metal
             );
             drive.position.set(3.7, 0.95, side * 1.75);
             drive.rotation.x = Math.PI / 2;
             group.add(drive);
+
+            const idler = new THREE.Mesh(
+                this.bin.geometry(new THREE.CylinderGeometry(0.66, 0.66, 0.6, 12)),
+                this.metal
+            );
+            idler.position.set(-3.8, 0.78, side * 1.75);
+            idler.rotation.x = Math.PI / 2;
+            group.add(idler);
         }
 
         const turret = new THREE.Group();
@@ -186,14 +260,53 @@ export class WarVehicles {
         barrel.add(muzzle);
 
         const hatch = new THREE.Mesh(
-            this.bin.geometry(new THREE.CylinderGeometry(0.52, 0.52, 0.2, 10)),
+            this.bin.geometry(new THREE.CylinderGeometry(0.52, 0.52, 0.2, 12)),
             this.metal
         );
         hatch.position.set(-0.7, 0.82, 0.35);
         turret.add(hatch);
 
+        const hatchRim = new THREE.Mesh(
+            this.bin.geometry(new THREE.TorusGeometry(0.54, 0.06, 6, 14)),
+            this.metal
+        );
+        hatchRim.rotation.x = -Math.PI / 2;
+        hatchRim.position.set(-0.7, 0.74, 0.35);
+        turret.add(hatchRim);
+
+        // Bustle rack at the back of the turret with a tarp roll on it.
+        const bustle = this.box(1.3, 0.7, 2.2, body, -1.85, 0.1, 0);
+        turret.add(bustle);
+
+        const tarp = new THREE.Mesh(
+            this.bin.geometry(new THREE.CylinderGeometry(0.28, 0.28, 1.8, 10)),
+            this.track
+        );
+        tarp.rotation.x = Math.PI / 2;
+        tarp.position.set(-1.9, 0.6, 0);
+        turret.add(tarp);
+
         const mg = this.box(0.9, 0.16, 0.16, this.metal, -0.2, 1.0, 0.35);
         turret.add(mg);
+
+        const mgMount = new THREE.Mesh(
+            this.bin.geometry(new THREE.CylinderGeometry(0.1, 0.13, 0.3, 8)),
+            this.metal
+        );
+        mgMount.position.set(-0.2, 0.85, 0.35);
+        turret.add(mgMount);
+
+        for (let i = 0; i < 4; i++) {
+            const launcher = new THREE.Mesh(
+                this.bin.geometry(new THREE.CylinderGeometry(0.11, 0.11, 0.34, 8)),
+                this.track
+            );
+            launcher.rotation.z = Math.PI / 2;
+            launcher.rotation.y = 0.3;
+            launcher.position.set(0.5, 0.3, (i < 2 ? 1 : -1) * 1.25 + (i % 2) * 0.05);
+            launcher.position.z += (i % 2) * 0.26 * (i < 2 ? 1 : -1);
+            turret.add(launcher);
+        }
 
         const antenna = new THREE.Mesh(
             this.bin.geometry(new THREE.CylinderGeometry(0.03, 0.04, 2.6, 5)),

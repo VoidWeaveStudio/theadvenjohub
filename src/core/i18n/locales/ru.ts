@@ -1922,7 +1922,7 @@ export const ru: Translations = {
   "g.floorReg.tower-token-gates.description": "Витрина миров мемкоинов",
   "g.showcase.church.name": "Церковь Мемкоина",
   "g.showcase.church.tagline": "Проповедь о грядущем иксе",
-  "g.showcase.war.name": "Вечная война",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "Фронт двух тикеров",
   "g.showcase.garden.name": "Сад умиротворения",
   "g.showcase.garden.tagline": "Холд, коктейли и тишина",

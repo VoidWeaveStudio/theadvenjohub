@@ -1,7 +1,9 @@
 // src/features/game/world/locations/showcase/rooms/war/WarEffects.ts
 import * as THREE from "three";
 import { AssetBin } from "../../../../AssetBin";
-import { flameTexture, smokeTexture, sparkTexture } from "./warTextures";
+import { flameTexture, flashBurstTexture, smokeTexture, sparkTexture } from "./warTextures";
+import { WarFireSystem, blastVertex, blastFragment, type Fire } from "./WarFire";
+import { fireNoiseTexture } from "./warTextures";
 
 const TRACER_POOL = 56;
 const FLASH_POOL = 24;
@@ -22,6 +24,7 @@ interface Tracer {
     duration: number;
     active: boolean;
     impact: boolean;
+    streak: number;
 }
 
 interface Flash {
@@ -44,6 +47,7 @@ interface Puff {
 interface Blast {
     core: THREE.Mesh;
     ring: THREE.Mesh;
+    skirt: THREE.Mesh;
     life: number;
     duration: number;
     radius: number;
@@ -63,22 +67,13 @@ interface Rocket {
     active: boolean;
 }
 
-interface Fire {
-    group: THREE.Group;
-    sheets: THREE.Mesh[];
-    light: THREE.PointLight | null;
-    scale: number;
-    phase: number;
-    smokeTimer: number;
-}
-
 export class WarEffects {
     private tracers: Tracer[] = [];
     private flashes: Flash[] = [];
     private puffs: Puff[] = [];
     private blasts: Blast[] = [];
     private rockets: Rocket[] = [];
-    private fires: Fire[] = [];
+    private fireSystem: WarFireSystem;
     private blastLights: THREE.PointLight[] = [];
     private blastLightLife: number[] = [];
 
@@ -90,6 +85,8 @@ export class WarEffects {
     private pending: Array<{ position: THREE.Vector3; radius: number; delay: number }> = [];
 
     private flameMap!: THREE.CanvasTexture;
+    private flashMap!: THREE.CanvasTexture;
+    private noiseMap!: THREE.CanvasTexture;
     private smokeMap!: THREE.CanvasTexture;
     private sparkMap!: THREE.CanvasTexture;
 
@@ -102,12 +99,17 @@ export class WarEffects {
         private readonly scene: THREE.Scene,
         private readonly bin: AssetBin,
         private readonly random: () => number
-    ) { }
+    ) {
+        this.fireSystem = new WarFireSystem(scene, bin, random);
+    }
 
     public create() {
         this.flameMap = flameTexture(this.bin);
-        this.smokeMap = smokeTexture(this.bin);
+        this.flashMap = flashBurstTexture(this.bin);
+        this.smokeMap = smokeTexture(this.bin, this.random);
         this.sparkMap = sparkTexture(this.bin);
+        this.noiseMap = fireNoiseTexture(this.bin);
+        this.fireSystem.prepare(this.flashMap, this.noiseMap);
 
         this.buildTracers();
         this.buildFlashes();
@@ -153,6 +155,7 @@ export class WarEffects {
                 duration: 0.1,
                 active: false,
                 impact: true,
+                streak: 4,
             });
         }
     }
@@ -160,10 +163,10 @@ export class WarEffects {
     private buildFlashes() {
         for (let i = 0; i < FLASH_POOL; i++) {
             const material = this.bin.material(new THREE.SpriteMaterial({
-                map: this.flameMap,
+                map: this.flashMap,
                 color: 0xffd9a0,
                 transparent: true,
-                opacity: 0.95,
+                opacity: 0.55,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
                 toneMapped: false,
@@ -210,28 +213,45 @@ export class WarEffects {
     }
 
     private buildBlasts() {
-        const coreGeometry = this.bin.geometry(new THREE.IcosahedronGeometry(1, 2));
-        const ringGeometry = this.bin.geometry(new THREE.TorusGeometry(1, 0.09, 6, 28));
+        const coreGeometry = this.bin.geometry(new THREE.SphereGeometry(1, 28, 20));
+        const ringGeometry = this.bin.geometry(new THREE.RingGeometry(0.72, 1, 48, 1));
+        const skirtGeometry = this.bin.geometry(new THREE.CylinderGeometry(1, 1.12, 0.5, 32, 1, true));
 
         for (let i = 0; i < BLAST_POOL; i++) {
-            const coreMaterial = this.bin.material(new THREE.MeshBasicMaterial({
-                color: 0xffb45a,
+            const coreMaterial = this.bin.material(new THREE.ShaderMaterial({
+                uniforms: {
+                    uProgress: { value: 0 },
+                    uSeed: { value: this.random() * 10 },
+                    uNoise: { value: this.noiseMap },
+                },
+                vertexShader: blastVertex,
+                fragmentShader: blastFragment,
                 transparent: true,
-                opacity: 0.9,
-                blending: THREE.AdditiveBlending,
                 depthWrite: false,
-                toneMapped: false,
+                blending: THREE.AdditiveBlending,
                 fog: false,
             }));
+
+            // Dust wave along the ground and the skirt it kicks up — the old single
+            // neon torus read as a ring, not as a blast front.
             const ringMaterial = this.bin.material(new THREE.MeshBasicMaterial({
-                color: 0xffe0b0,
+                color: 0xd9c4a0,
                 transparent: true,
-                opacity: 0.6,
+                opacity: 0.5,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false,
                 side: THREE.DoubleSide,
                 toneMapped: false,
                 fog: false,
+            }));
+            const skirtMaterial = this.bin.material(new THREE.MeshBasicMaterial({
+                color: 0x9c8e79,
+                transparent: true,
+                opacity: 0.32,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                toneMapped: false,
+                fog: true,
             }));
 
             const core = new THREE.Mesh(coreGeometry, coreMaterial);
@@ -245,7 +265,12 @@ export class WarEffects {
             ring.frustumCulled = false;
             this.scene.add(ring);
 
-            this.blasts.push({ core, ring, life: 0, duration: 1, radius: 4, active: false });
+            const skirt = new THREE.Mesh(skirtGeometry, skirtMaterial);
+            skirt.visible = false;
+            skirt.frustumCulled = false;
+            this.scene.add(skirt);
+
+            this.blasts.push({ core, ring, skirt, life: 0, duration: 1, radius: 4, active: false });
         }
     }
 
@@ -343,17 +368,24 @@ export class WarEffects {
         const tracer = this.tracers.find((entry) => !entry.active);
         if (!tracer) return;
 
+        const length = from.distanceTo(to);
+
         tracer.from.copy(from);
         tracer.to.copy(to);
         tracer.life = 0;
-        tracer.duration = Math.max(0.05, from.distanceTo(to) / TRACER_SPEED);
+        tracer.duration = Math.max(0.05, length / TRACER_SPEED);
         tracer.active = true;
         tracer.impact = impact;
+        tracer.streak = Math.min(6, Math.max(1.2, length * 0.3));
         tracer.mesh.visible = true;
         (tracer.mesh.material as THREE.MeshBasicMaterial).color.setHex(color);
 
-        const length = from.distanceTo(to);
-        tracer.mesh.scale.set(1, Math.min(8, length * 0.35), 1);
+        // Place it at the muzzle right away. Waiting for the first update meant the
+        // round appeared several metres downrange, detached from the barrel.
+        this.tmpB.subVectors(to, from).normalize();
+        tracer.mesh.position.copy(from);
+        tracer.mesh.quaternion.setFromUnitVectors(this.up, this.tmpB);
+        tracer.mesh.scale.set(1, 0.35, 1);
     }
 
     public spawnFlash(position: THREE.Vector3, size = 1.1, color = 0xffd9a0) {
@@ -413,12 +445,16 @@ export class WarEffects {
     public spawnExplosion(position: THREE.Vector3, radius = 5) {
         const blast = this.blasts.find((entry) => !entry.active);
         if (blast) {
-            blast.core.position.copy(position);
-            blast.ring.position.set(position.x, position.y + 0.3, position.z);
+            blast.core.position.set(position.x, position.y + radius * 0.22, position.z);
+            blast.ring.position.set(position.x, position.y + 0.25, position.z);
+            blast.skirt.position.set(position.x, position.y + 0.3, position.z);
             blast.core.visible = true;
             blast.ring.visible = true;
+            blast.skirt.visible = true;
+            (blast.core.material as THREE.ShaderMaterial).uniforms.uSeed.value = this.random() * 10;
+            blast.core.rotation.set(this.random() * 3, this.random() * 3, this.random() * 3);
             blast.life = 0;
-            blast.duration = 0.65 + radius * 0.04;
+            blast.duration = 0.75 + radius * 0.05;
             blast.radius = radius;
             blast.active = true;
         }
@@ -431,17 +467,38 @@ export class WarEffects {
             break;
         }
 
-        const puffs = Math.min(9, 3 + Math.round(radius * 0.7));
-        for (let i = 0; i < puffs; i++) {
+        // A low ring of dust plus a column that keeps climbing after the fireball is
+        // gone — the smoke is what sells the scale once the light has died.
+        const skirtPuffs = Math.min(8, 3 + Math.round(radius * 0.5));
+        for (let i = 0; i < skirtPuffs; i++) {
+            const angle = (i / skirtPuffs) * Math.PI * 2 + this.random();
             this.tmpA.set(
-                position.x + (this.random() - 0.5) * radius,
-                position.y + this.random() * radius * 0.5,
-                position.z + (this.random() - 0.5) * radius
+                position.x + Math.cos(angle) * radius * (0.5 + this.random() * 0.6),
+                position.y + this.random() * radius * 0.25,
+                position.z + Math.sin(angle) * radius * (0.5 + this.random() * 0.6)
             );
-            this.spawnPuff(this.tmpA, radius * (0.5 + this.random() * 0.5), 1.6 + this.random() * 2, 2.4 + this.random() * 1.6, 0x6f6862, 0.55);
+            this.spawnPuff(this.tmpA, radius * (0.55 + this.random() * 0.5), 0.5 + this.random(), 3.2 + this.random() * 1.8, 0x7a7168, 0.5);
         }
 
-        this.spawnDebris(position, 14, radius * 2.4);
+        const columnPuffs = Math.min(7, 3 + Math.round(radius * 0.4));
+        for (let i = 0; i < columnPuffs; i++) {
+            const rise = i / columnPuffs;
+            this.tmpA.set(
+                position.x + (this.random() - 0.5) * radius * 0.5,
+                position.y + radius * (0.3 + rise * 0.9),
+                position.z + (this.random() - 0.5) * radius * 0.5
+            );
+            this.spawnPuff(
+                this.tmpA,
+                radius * (0.45 + rise * 0.55),
+                2.6 + this.random() * 2.4,
+                3.6 + this.random() * 2.4,
+                i < 2 ? 0x5a4a3c : 0x4a443e,
+                0.55
+            );
+        }
+
+        this.spawnDebris(position, 18, radius * 2.6);
     }
 
     public spawnShell(from: THREE.Vector3, to: THREE.Vector3, radius = 6) {
@@ -478,64 +535,8 @@ export class WarEffects {
         this.spawnPuff(from, 2.4, 0.6, 1.8, 0x8d857c, 0.5);
     }
 
-    public addFire(position: THREE.Vector3, scale = 1, withLight = true): Fire {
-        const group = new THREE.Group();
-        group.position.copy(position);
-
-        const sheets: THREE.Mesh[] = [];
-        const geometry = this.bin.geometry(new THREE.PlaneGeometry(1.2, 1.8));
-
-        for (let i = 0; i < 3; i++) {
-            const material = this.bin.material(new THREE.MeshBasicMaterial({
-                map: this.flameMap,
-                color: i === 0 ? 0xffd08a : 0xff9a3c,
-                transparent: true,
-                opacity: 0.9,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-                toneMapped: false,
-                fog: false,
-            }));
-
-            const sheet = new THREE.Mesh(geometry, material);
-            sheet.position.y = 0.9 * scale;
-            sheet.rotation.y = (i / 3) * Math.PI;
-            sheet.scale.setScalar(scale);
-            group.add(sheet);
-            sheets.push(sheet);
-        }
-
-        const base = new THREE.Mesh(
-            this.bin.geometry(new THREE.CircleGeometry(1.1, 18)),
-            this.bin.material(new THREE.MeshBasicMaterial({
-                map: this.flameMap,
-                color: 0xff8a3a,
-                transparent: true,
-                opacity: 0.5,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                toneMapped: false,
-                fog: false,
-            }))
-        );
-        base.rotation.x = -Math.PI / 2;
-        base.position.y = 0.05;
-        base.scale.setScalar(scale);
-        group.add(base);
-
-        let light: THREE.PointLight | null = null;
-        if (withLight) {
-            light = new THREE.PointLight(0xff7a2a, 14 * scale, 20 * scale, 2);
-            light.position.y = 1.2 * scale;
-            group.add(light);
-        }
-
-        this.scene.add(group);
-
-        const fire: Fire = { group, sheets, light, scale, phase: this.random() * 9, smokeTimer: this.random() };
-        this.fires.push(fire);
-        return fire;
+    public addFire(position: THREE.Vector3, scale = 1, withLight = true, charred = true): Fire {
+        return this.fireSystem.add(position, scale, withLight, charred);
     }
 
     private updateTracers(delta: number) {
@@ -552,10 +553,19 @@ export class WarEffects {
                 continue;
             }
 
-            this.tmpA.lerpVectors(tracer.from, tracer.to, t);
+            // The streak's tail stays at the muzzle until the head has outrun its own
+            // length, so the round is seen leaving the barrel rather than appearing
+            // already downrange.
+            const distance = tracer.from.distanceTo(tracer.to);
+            const travelled = t * distance;
+            const visible = Math.min(tracer.streak, travelled);
+            const tail = Math.max(0, travelled - tracer.streak);
+
             this.tmpB.subVectors(tracer.to, tracer.from).normalize();
+            this.tmpA.copy(tracer.from).addScaledVector(this.tmpB, tail);
             tracer.mesh.position.copy(this.tmpA);
             tracer.mesh.quaternion.setFromUnitVectors(this.up, this.tmpB);
+            tracer.mesh.scale.y = Math.max(0.3, visible);
         }
     }
 
@@ -564,14 +574,14 @@ export class WarEffects {
             if (!flash.active) continue;
 
             flash.life += delta;
-            if (flash.life > 0.08) {
+            if (flash.life > 0.06) {
                 flash.active = false;
                 flash.sprite.visible = false;
                 continue;
             }
 
-            const fade = 1 - flash.life / 0.08;
-            (flash.sprite.material as THREE.SpriteMaterial).opacity = fade;
+            const fade = 1 - flash.life / 0.06;
+            (flash.sprite.material as THREE.SpriteMaterial).opacity = fade * 0.6;
         }
     }
 
@@ -606,14 +616,27 @@ export class WarEffects {
                 blast.active = false;
                 blast.core.visible = false;
                 blast.ring.visible = false;
+                blast.skirt.visible = false;
                 continue;
             }
 
-            const grow = Math.pow(t, 0.45);
-            blast.core.scale.setScalar(blast.radius * grow * 0.85);
-            blast.ring.scale.setScalar(blast.radius * grow * 1.7);
-            (blast.core.material as THREE.MeshBasicMaterial).opacity = 0.95 * (1 - t);
-            (blast.ring.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - t * t);
+            const grow = Math.pow(t, 0.42);
+            blast.core.scale.setScalar(blast.radius * (0.35 + grow * 0.75));
+            (blast.core.material as THREE.ShaderMaterial).uniforms.uProgress.value = t;
+            blast.core.rotation.y += delta * 0.6;
+
+            // The ground wave outruns the fireball and flattens out as it goes.
+            const wave = Math.pow(t, 0.55);
+            blast.ring.scale.setScalar(blast.radius * (0.6 + wave * 2.4));
+            (blast.ring.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - t) * (1 - t);
+
+            blast.skirt.scale.set(
+                blast.radius * (0.5 + wave * 2.1),
+                blast.radius * (0.5 + t * 1.1),
+                blast.radius * (0.5 + wave * 2.1)
+            );
+            blast.skirt.position.y = 0.3 + blast.radius * (0.12 + t * 0.28);
+            (blast.skirt.material as THREE.MeshBasicMaterial).opacity = 0.3 * (1 - t) * (1 - t * 0.5);
         }
 
         for (let i = 0; i < this.blastLights.length; i++) {
@@ -687,36 +710,12 @@ export class WarEffects {
     }
 
     private updateFires(delta: number, elapsed: number) {
-        for (const fire of this.fires) {
-            const flicker = 0.82 + Math.sin(elapsed * 9 + fire.phase) * 0.12 + Math.sin(elapsed * 21 + fire.phase * 2) * 0.06;
-
-            for (let i = 0; i < fire.sheets.length; i++) {
-                const sheet = fire.sheets[i];
-                const wobble = Math.sin(elapsed * (7 + i * 2.3) + fire.phase + i) * 0.1;
-                sheet.scale.set(
-                    fire.scale * (0.9 + wobble),
-                    fire.scale * (flicker + wobble * 0.4),
-                    fire.scale
-                );
-                sheet.position.y = fire.scale * (0.85 + wobble * 0.25);
-                sheet.rotation.y += delta * (0.35 + i * 0.12);
-                (sheet.material as THREE.MeshBasicMaterial).opacity = 0.75 + Math.sin(elapsed * 13 + i * 2 + fire.phase) * 0.2;
-            }
-
-            if (fire.light) fire.light.intensity = 12 * fire.scale * flicker;
-
-            fire.smokeTimer -= delta;
-            if (fire.smokeTimer <= 0) {
-                fire.smokeTimer = 1.3 + this.random() * 1.4;
-                this.tmpA.set(
-                    fire.group.position.x + (this.random() - 0.5) * fire.scale,
-                    fire.group.position.y + fire.scale * 1.6,
-                    fire.group.position.z + (this.random() - 0.5) * fire.scale
-                );
-                this.spawnPuff(this.tmpA, fire.scale * 1.2, 1.8 + this.random(), 3.4, 0x5e574f, 0.4);
-            }
-        }
+        this.fireSystem.update(delta, elapsed, this.emitFireSmoke, this.tmpA);
     }
+
+    private readonly emitFireSmoke = (position: THREE.Vector3, scale: number) => {
+        this.spawnPuff(position, scale * 1.3, 1.5 + this.random() * 0.9, 4.2, 0x4e4842, 0.42);
+    };
 
     private updatePending(delta: number) {
         for (let i = this.pending.length - 1; i >= 0; i--) {

@@ -1913,7 +1913,7 @@ export const it: PartialTranslations = {
   "g.floorReg.tower-token-gates.description": "Vetrina dei mondi memecoin",
   "g.showcase.church.name": "Chiesa della Memecoin",
   "g.showcase.church.tagline": "Il sermone del prossimo 100x",
-  "g.showcase.war.name": "La Guerra Eterna",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "Due ticker, un solo fronte",
   "g.showcase.garden.name": "Giardino della Calma",
   "g.showcase.garden.tagline": "Hold, cocktail e silenzio",

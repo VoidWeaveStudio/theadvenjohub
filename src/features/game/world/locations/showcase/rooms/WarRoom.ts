@@ -5,10 +5,10 @@ import { ResourceManager } from "../../../../core/ResourceManager";
 import { SHOWCASE_INFO_BY_ID, ShowcaseInfo } from "../config";
 import { CrowdSpec } from "../actors/ShowcaseCrowd";
 import type { ShowcaseActor } from "../actors/ShowcaseActor";
-import { KNEEL_DROP } from "../actors/poses";
+import { GROUND_SEAT_Y } from "../actors/poses";
 import { WarEffects } from "./war/WarEffects";
-import { WarProps } from "./war/WarProps";
-import { WarBattle } from "./war/WarBattle";
+import { WarProps, TRENCH_GAPS } from "./war/WarProps";
+import { WarBattle, TEAM_BLUE, JOHNNY_TEAM, JOHNNY_VARIANT } from "./war/WarBattle";
 import { WarVehicles } from "./war/WarVehicles";
 
 const HALF_WIDTH = 95;
@@ -19,9 +19,17 @@ const ROOM_RADIUS = 118;
 const RAMBO_SPOT = new THREE.Vector3(-12, 0, -22);
 const MEDIC_SPOT = new THREE.Vector3(-48, 0, -36);
 const MEDIC_FACING = -0.9;
+const MATTRESS_SPOT = new THREE.Vector3(-48.6, 0, -35.2);
+const MATTRESS_FACING = -0.9;
 const EMBER_COUNT = 340;
 const STAR_COUNT = 900;
 const FIGHTERS_PER_SIDE = 13;
+const RAMBO_SHOT_INTERVAL = 0.14;
+// How long Johnny stays on his feet under fire before he goes down.
+const JOHNNY_LIFETIME = 10;
+const JOHNNY_SCREAM_DURATION = 2.4;
+// Straight down Rambo's line of fire, on the blue side of the wire.
+const JOHNNY_ANCHOR = new THREE.Vector3(RAMBO_SPOT.x + 1, 0, BLUE_LINE);
 
 export class WarRoom extends ShowcaseRoom {
     private effects!: WarEffects;
@@ -37,12 +45,16 @@ export class WarRoom extends ShowcaseRoom {
     private artilleryTimer = 6;
     private readonly airProbe = new THREE.Vector3();
     private rambo: ShowcaseActor | null = null;
-    private ramboBubble: THREE.Sprite | null = null;
     private ramboTimer = 0;
+    private johnnyTimer = JOHNNY_LIFETIME;
     private medicBubbleA: THREE.Sprite | null = null;
     private medicBubbleB: THREE.Sprite | null = null;
     private readonly ramboMuzzle = new THREE.Vector3();
     private readonly ramboTarget = new THREE.Vector3();
+
+    private johnnyScreamBubble: THREE.Sprite | null = null;
+    private johnnyScreamWitness: ShowcaseActor | null = null;
+    private johnnyScreamTimer = 0;
 
     constructor(info: ShowcaseInfo = SHOWCASE_INFO_BY_ID.get("show-war") as ShowcaseInfo) {
         super(info, 0x9d34f1, ROOM_RADIUS);
@@ -52,13 +64,18 @@ export class WarRoom extends ShowcaseRoom {
     }
 
     protected buildAtmosphere(): void {
-        this.scene.background = new THREE.Color(0x0d0f14);
-        this.scene.fog = new THREE.FogExp2(0x1a1512, 0.0092);
+        this.scene.background = new THREE.Color(0x07090f);
+        this.scene.fog = new THREE.FogExp2(0x241a15, 0.0086);
 
-        this.scene.add(new THREE.AmbientLight(0x39324a, 0.62));
-        this.scene.add(new THREE.HemisphereLight(0x4a4262, 0x1a1512, 0.62));
+        // Night reads as night only if the fill light stays out of the way: almost all
+        // of the modelling comes from the moon and from the fires, and the flat ambient
+        // that used to sit at 0.62 was washing both of them out.
+        this.scene.add(new THREE.AmbientLight(0x2a2740, 0.16));
+        this.scene.add(new THREE.HemisphereLight(0x3c4670, 0x2a1408, 0.34));
 
-        const moon = new THREE.DirectionalLight(0x9fb0e8, 0.9);
+        this.buildSkyDome();
+
+        const moon = new THREE.DirectionalLight(0x9fb0e8, 1.15);
         moon.position.set(-90, 90, -60);
         moon.target.position.set(0, 0, 0);
         moon.castShadow = true;
@@ -75,9 +92,15 @@ export class WarRoom extends ShowcaseRoom {
         this.scene.add(moon);
         this.scene.add(moon.target);
 
-        const horizon = new THREE.DirectionalLight(0xff6a33, 0.45);
-        horizon.position.set(60, 14, 80);
+        // The city burning past the ruins rims everything from one side; the second,
+        // dimmer one keeps the opposite flank from going to pure black.
+        const horizon = new THREE.DirectionalLight(0xff6a33, 0.8);
+        horizon.position.set(60, 12, 80);
         this.scene.add(horizon);
+
+        const backGlow = new THREE.DirectionalLight(0xff4a1e, 0.3);
+        backGlow.position.set(-70, 10, -60);
+        this.scene.add(backGlow);
 
         this.skyFlash = new THREE.PointLight(0xffb066, 0, 420, 2);
         this.skyFlash.position.set(0, 110, 60);
@@ -86,14 +109,32 @@ export class WarRoom extends ShowcaseRoom {
         this.buildStars();
 
         const glow = this.mesh(
-            new THREE.SphereGeometry(300, 30, 18, 0, Math.PI * 2, Math.PI * 0.45, Math.PI * 0.1),
-            this.glow(0xff5a2a, 0.075, false),
+            new THREE.SphereGeometry(300, 30, 18, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.16),
+            this.glow(0xff5a2a, 0.13, false),
             [0, 0, 0]
         );
         glow.castShadow = false;
         glow.receiveShadow = false;
         (glow.material as THREE.Material).side = THREE.BackSide;
         this.scene.add(glow);
+    }
+
+    private buildSkyDome() {
+        const sky = this.mesh(
+            new THREE.SphereGeometry(340, 32, 24),
+            this.bin.material(new THREE.MeshBasicMaterial({
+                map: this.tex.nightSky("war", 0x090d1a, 0x5a1c0c, 0x3a2418),
+                side: THREE.BackSide,
+                depthWrite: false,
+                toneMapped: false,
+                fog: false,
+            })),
+            [0, 0, 0]
+        );
+        sky.castShadow = false;
+        sky.receiveShadow = false;
+        sky.renderOrder = -1;
+        this.scene.add(sky);
     }
 
     private buildStars() {
@@ -139,6 +180,7 @@ export class WarRoom extends ShowcaseRoom {
         this.props.prepare();
         this.props.buildGround(this.collisionGrid);
         this.props.buildRuins(this.collisionGrid);
+        this.props.buildPerimeterRing(this.collisionGrid);
         this.props.buildTrench(RED_LINE, -1, 0, this.collisionGrid);
         this.props.buildTrench(BLUE_LINE, 1, 1, this.collisionGrid);
         this.props.buildBanners(RED_LINE, -1, 5);
@@ -177,12 +219,15 @@ export class WarRoom extends ShowcaseRoom {
             this.effects.addFire(point, 1 + this.random() * 1.3, lit++ < 7);
         }
 
+        // Roof and barrel plumes sit on something already, so they get no debris ring.
         for (const point of this.props.smokePoints) {
-            this.effects.addFire(point, 1.6 + this.random() * 1.6, false);
+            this.effects.addFire(point, 1.6 + this.random() * 1.6, false, false);
         }
 
-        this.effects.addFire(new THREE.Vector3(-12, 0.2, -6), 2.4, true);
-        this.effects.addFire(new THREE.Vector3(18, 0.2, 4), 2.1, true);
+        // The two big ones burn on the wrecks in no man's land rather than on open
+        // tarmac — an unexplained fire in the middle of a road reads as a bug.
+        this.effects.addFire(new THREE.Vector3(-18, 0.35, 6), 2.4, true, false);
+        this.effects.addFire(new THREE.Vector3(24, 0.35, -4), 2.1, true, false);
     }
 
     private buildSearchlights() {
@@ -245,27 +290,35 @@ export class WarRoom extends ShowcaseRoom {
         this.battle = new WarBattle(this.crowd, this.effects, this.random, [
             {
                 coverPoints: this.props.redCover,
+                // Lined up with the gaps in the sandbag line and clear of the ruin rows,
+                // so a runner always has an unobstructed lane to the front.
                 rearSpawns: [
-                    new THREE.Vector3(-50, 0, RED_LINE - 32),
-                    new THREE.Vector3(0, 0, RED_LINE - 36),
-                    new THREE.Vector3(48, 0, RED_LINE - 30),
+                    new THREE.Vector3(TRENCH_GAPS[0], 0, RED_LINE - 14),
+                    new THREE.Vector3(TRENCH_GAPS[2], 0, RED_LINE - 16),
+                    new THREE.Vector3(TRENCH_GAPS[4], 0, RED_LINE - 14),
                 ],
                 variantSet: "soldierRed",
                 facing: 0,
+                wallZ: RED_LINE - 1.9,
+                gapsX: TRENCH_GAPS,
             },
             {
                 coverPoints: this.props.blueCover,
                 rearSpawns: [
-                    new THREE.Vector3(-46, 0, BLUE_LINE + 33),
-                    new THREE.Vector3(6, 0, BLUE_LINE + 37),
-                    new THREE.Vector3(52, 0, BLUE_LINE + 31),
+                    new THREE.Vector3(TRENCH_GAPS[0], 0, BLUE_LINE + 14),
+                    new THREE.Vector3(TRENCH_GAPS[2], 0, BLUE_LINE + 16),
+                    new THREE.Vector3(TRENCH_GAPS[4], 0, BLUE_LINE + 14),
                 ],
                 variantSet: "soldierBlue",
                 facing: Math.PI,
+                wallZ: BLUE_LINE + 1.9,
+                gapsX: TRENCH_GAPS,
             },
         ]);
 
-        this.battle.create(rm, FIGHTERS_PER_SIDE, this.collisionGrid);
+        this.battle.create(rm, FIGHTERS_PER_SIDE, this.collisionGrid, JOHNNY_ANCHOR);
+        this.battle.onJohnnyDied = () => this.reactToJohnnyDeath();
+        this.battle.onJohnnyRevived = () => { this.johnnyTimer = JOHNNY_LIFETIME; };
     }
 
     private buildHeroes(rm: ResourceManager) {
@@ -282,7 +335,8 @@ export class WarRoom extends ShowcaseRoom {
             set: "soldierRed",
             variantIndex: 2,
             facing: 0,
-            weapon: "whale-cannon",
+            pose: "hipFire",
+            weapon: "machine-gun",
             accent: 0xff5a4a,
             phase: 0.2,
             solid: false,
@@ -291,11 +345,8 @@ export class WarRoom extends ShowcaseRoom {
         if (rambo) {
             rambo.setFiring(true);
             rambo.setAim(0.06);
+            rambo.scream(true);
             this.rambo = rambo;
-
-            const bubble = this.bubble("NOT MY BAGS!", "#ff5a4a", { width: 3.6, tone: "shout", y: 2.9, speaker: rambo });
-            rambo.group.add(bubble);
-            this.ramboBubble = bubble;
         }
 
         const tarp = this.textured(this.tex.stripes([2, 2], 0x4a4236, 0x6b6151, 6), { roughness: 0.96, metalness: 0.02 });
@@ -318,8 +369,49 @@ export class WarRoom extends ShowcaseRoom {
             this.scene.add(bag);
         }
 
-        const stretcher = this.mesh(new THREE.BoxGeometry(2.4, 0.16, 1.1), tarp, [MEDIC_SPOT.x - 1.4, 0.32, MEDIC_SPOT.z + 1.6], [0, 0.4, 0]);
-        this.scene.add(stretcher);
+        // The mattress Johnny is laid out on. Its own basis is reused below to place both
+        // the body and the friend sitting beside it.
+        const mattressForward = new THREE.Vector3(Math.sin(MATTRESS_FACING), 0, Math.cos(MATTRESS_FACING));
+        const mattressAcross = new THREE.Vector3(-mattressForward.z, 0, mattressForward.x);
+
+        // The death clip lays a body out along the actor's left, so the mattress runs the
+        // same way — `across` is its length and `forward` its width.
+        const mattressAngle = MATTRESS_FACING + Math.PI;
+
+        const mattress = this.mesh(
+            new THREE.BoxGeometry(2.5, 0.28, 1.2),
+            tarp,
+            [MATTRESS_SPOT.x, 0.26, MATTRESS_SPOT.z],
+            [0, mattressAngle, 0]
+        );
+        mattress.receiveShadow = true;
+        this.scene.add(mattress);
+
+        const pillow = this.mesh(
+            new THREE.BoxGeometry(0.5, 0.18, 1),
+            tarp,
+            [
+                MATTRESS_SPOT.x + mattressAcross.x * 0.9,
+                0.49,
+                MATTRESS_SPOT.z + mattressAcross.z * 0.9,
+            ],
+            [0, mattressAngle, 0]
+        );
+        this.scene.add(pillow);
+
+        for (const side of [-1, 1]) {
+            const frame = this.mesh(
+                new THREE.BoxGeometry(2.6, 0.12, 0.12),
+                this.metal(0x3a3128, 0.6, 0.6),
+                [
+                    MATTRESS_SPOT.x + mattressForward.x * side * 0.62,
+                    0.12,
+                    MATTRESS_SPOT.z + mattressForward.z * side * 0.62,
+                ],
+                [0, mattressAngle, 0]
+            );
+            this.scene.add(frame);
+        }
 
         const lamp = this.mesh(new THREE.SphereGeometry(0.2, 10, 8), this.glow(0xffc46a, 0.9), [MEDIC_SPOT.x - 2.3, 1.5, MEDIC_SPOT.z + 1.9]);
         lamp.castShadow = false;
@@ -332,35 +424,42 @@ export class WarRoom extends ShowcaseRoom {
         lampLight.position.set(MEDIC_SPOT.x - 2.3, 1.7, MEDIC_SPOT.z + 1.9);
         this.scene.add(lampLight);
 
+        // Johnny's own side carries him off the line, so the pair wears blue — the same
+        // man Rambo is cutting down out front, seen a beat later. The friend sits on the
+        // ground beside the mattress rather than holding him.
         const medic = this.crowd.createActor(rm, {
-            position: new THREE.Vector3(MEDIC_SPOT.x, 0.24 - KNEEL_DROP, MEDIC_SPOT.z),
-            set: "soldierRed",
+            position: MATTRESS_SPOT.clone()
+                .addScaledVector(mattressForward, -1.55)
+                .addScaledVector(mattressAcross, 0.2)
+                .setY(GROUND_SEAT_Y),
+            set: "soldierBlue",
             variantIndex: 0,
-            facing: MEDIC_FACING,
-            pose: "cradle",
-            accent: 0xff8f5a,
+            facing: Math.atan2(mattressForward.x, mattressForward.z),
+            pose: "weep",
+            accent: 0x9ec6ff,
             phase: 1.1,
             solid: false,
         }, this.collisionGrid);
 
-        const cradleForward = new THREE.Vector3(Math.sin(MEDIC_FACING), 0, Math.cos(MEDIC_FACING));
-        const cradleAcross = new THREE.Vector3(-cradleForward.z, 0, cradleForward.x);
-        const johnnyPosition = MEDIC_SPOT.clone()
-            .addScaledVector(cradleForward, 0.46)
-            .addScaledVector(cradleAcross, -0.86);
-        johnnyPosition.y = 0.8;
+        // Anchored half a body back down the mattress so the clip lays his head onto the
+        // pillow end, resting on the mattress surface rather than sinking through it.
+        const johnnyPosition = MATTRESS_SPOT.clone()
+            .addScaledVector(mattressAcross, -0.3)
+            .setY(0.54);
 
+        // He plays the death clip and holds its last frame, so the body stays still
+        // instead of breathing and swaying through a living pose.
         const johnny = this.crowd.createActor(rm, {
             position: johnnyPosition,
-            set: "soldierRed",
-            variantIndex: 1,
-            facing: Math.atan2(-cradleAcross.x, -cradleAcross.z),
-            pose: "fallen",
-            tilt: -1.45,
+            set: "soldierBlue",
+            variantIndex: JOHNNY_VARIANT,
+            facing: MATTRESS_FACING,
+            tilt: 0,
             accent: 0x8a8f98,
             phase: 2.4,
             solid: false,
         }, this.collisionGrid);
+        johnny?.die();
 
         if (medic) {
             const first = this.bubble("STAY WITH ME, JOHNNY", "#ffd166", { width: 4, y: 2.6, speaker: medic });
@@ -389,13 +488,26 @@ export class WarRoom extends ShowcaseRoom {
             this.scene.add(relic);
         }
 
-        if (this.ramboBubble) {
-            const bubble = this.ramboBubble;
-            this.addStory([
-                { duration: 3.5, enter: () => { bubble.visible = true; } },
-                { duration: 4.5, enter: () => { bubble.visible = false; } },
-            ]);
+    }
+
+    private reactToJohnnyDeath() {
+        const johnny = this.battle.getJohnnyActor();
+        if (!johnny) return;
+
+        const witness = this.battle.nearestLiving(JOHNNY_TEAM, johnny.position, johnny);
+        if (!witness) return;
+
+        if (!this.johnnyScreamBubble) {
+            this.johnnyScreamBubble = this.bubble("JOHNNNYYYY!!!", "#ff5a4a", { width: 3.4, tone: "shout", y: 2.9 });
         }
+
+        const bubble = this.johnnyScreamBubble;
+        witness.group.add(bubble);
+        bubble.visible = true;
+        witness.setTalking(true, "JOHNNY");
+
+        this.johnnyScreamWitness = witness;
+        this.johnnyScreamTimer = JOHNNY_SCREAM_DURATION;
     }
 
     private buildCrew() {
@@ -452,24 +564,63 @@ export class WarRoom extends ShowcaseRoom {
         const rambo = this.rambo;
         if (!rambo) return;
 
+        // Counted in real time rather than per shot, so Johnny always takes the same ten
+        // seconds to go down no matter how fast Rambo is firing.
+        const johnnyAlive = this.battle.isJohnnyAlive();
+        if (johnnyAlive) {
+            this.johnnyTimer -= delta;
+            if (this.johnnyTimer <= 0) {
+                this.johnnyTimer = JOHNNY_LIFETIME;
+                this.battle.killJohnny();
+            }
+        }
+
         this.ramboTimer -= delta;
         if (this.ramboTimer > 0) return;
-        this.ramboTimer = 0.085;
+        this.ramboTimer = RAMBO_SHOT_INTERVAL;
 
         rambo.muzzleWorld(this.ramboMuzzle);
-        this.ramboTarget.set(
-            RAMBO_SPOT.x + (this.random() - 0.5) * 26,
-            1 + this.random() * 3,
-            RAMBO_SPOT.z + 44 + this.random() * 18
-        );
 
-        this.effects.spawnFlash(this.ramboMuzzle, 1.5, 0xffd9a0);
+        // Johnny is the man in his sights whenever he is up; anyone else only stands in
+        // while Johnny is down and waiting to come back.
+        const target = johnnyAlive
+            ? this.battle.getJohnnyActor()
+            : this.battle.nearestLiving(TEAM_BLUE, RAMBO_SPOT);
+
+        if (target) {
+            target.chestWorld(this.ramboTarget);
+            this.ramboTarget.x += (this.random() - 0.5) * 1.4;
+            this.ramboTarget.y += (this.random() - 0.5) * 0.5;
+            this.ramboTarget.z += (this.random() - 0.5) * 1.4;
+
+            if (johnnyAlive && this.random() < 0.5) {
+                this.battle.flinchJohnny(0.45 + this.random() * 0.45);
+            }
+        } else {
+            this.ramboTarget.set(
+                RAMBO_SPOT.x + (this.random() - 0.5) * 26,
+                1 + this.random() * 3,
+                RAMBO_SPOT.z + 44 + this.random() * 18
+            );
+        }
+
+        this.effects.spawnFlash(this.ramboMuzzle, 0.8, 0xffd2a0);
         this.effects.spawnTracer(this.ramboMuzzle, this.ramboTarget, 0xffc46a);
         rambo.kick(0.5);
     }
 
     protected tick(delta: number): void {
         this.updateRambo(delta);
+
+        if (this.johnnyScreamTimer > 0) {
+            this.johnnyScreamTimer -= delta;
+            if (this.johnnyScreamTimer <= 0 && this.johnnyScreamBubble) {
+                this.johnnyScreamBubble.visible = false;
+                this.johnnyScreamWitness?.setTalking(false);
+                this.johnnyScreamWitness = null;
+            }
+        }
+
         this.effects.update(delta, this.elapsed);
         this.props.update(delta, this.elapsed);
         this.vehicles.update(delta, this.elapsed);

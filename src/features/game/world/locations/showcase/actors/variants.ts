@@ -131,24 +131,24 @@ export function buildHat(kind: HatKind, color: number, accent: number | undefine
 
     switch (kind) {
         case "cap": {
-            const dome = new THREE.Mesh(new THREE.SphereGeometry(1.02, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), cloth);
-            dome.position.y = HEAD_TOP_Y - 0.75;
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(1.03, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.283), cloth);
+            dome.position.y = HEAD_TOP_Y - 0.97;
             group.add(dome);
 
-            const brim = new THREE.Mesh(new THREE.CircleGeometry(1.15, 18, 0, Math.PI), cloth);
+            const brim = new THREE.Mesh(new THREE.CircleGeometry(1.0, 18, 0, Math.PI), cloth);
             brim.rotation.x = -Math.PI / 2;
             brim.rotation.z = Math.PI;
-            brim.position.set(0, HEAD_TOP_Y - 0.78, 0.18);
+            brim.position.set(0, HEAD_TOP_Y - 0.32, 0.15);
             group.add(brim);
             break;
         }
         case "beanie": {
-            const dome = new THREE.Mesh(new THREE.SphereGeometry(1.06, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.58), cloth);
-            dome.position.y = HEAD_TOP_Y - 0.86;
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.92, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.288), cloth);
+            dome.position.y = HEAD_TOP_Y - 0.81;
             group.add(dome);
 
-            const band = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.08, 0.34, 16, 1, true), cloth);
-            band.position.y = HEAD_TOP_Y - 0.86;
+            const band = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.76, 0.22, 18, 1, true), cloth);
+            band.position.y = HEAD_TOP_Y - 0.35;
             group.add(band);
             break;
         }
@@ -164,13 +164,13 @@ export function buildHat(kind: HatKind, color: number, accent: number | undefine
             break;
         }
         case "helmet": {
-            const shell = new THREE.Mesh(new THREE.SphereGeometry(1.24, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), cloth);
-            shell.position.y = HEAD_TOP_Y - 1.02;
+            const shell = new THREE.Mesh(new THREE.SphereGeometry(1.03, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.283), cloth);
+            shell.position.y = HEAD_TOP_Y - 0.97;
             group.add(shell);
 
-            const rim = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.12, 8, 20), cloth);
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.055, 8, 24), cloth);
             rim.rotation.x = Math.PI / 2;
-            rim.position.y = HEAD_TOP_Y - 1.02;
+            rim.position.y = HEAD_TOP_Y - 0.32;
             group.add(rim);
             break;
         }
@@ -214,23 +214,22 @@ export function buildHat(kind: HatKind, color: number, accent: number | undefine
         }
         case "bucket": {
             const dome = new THREE.Mesh(new THREE.CylinderGeometry(1.04, 1.12, 0.86, 16), cloth);
-            dome.position.y = HEAD_TOP_Y - 0.42;
+            dome.position.y = HEAD_TOP_Y - 0.16;
             group.add(dome);
 
             const brim = new THREE.Mesh(new THREE.CylinderGeometry(1.62, 1.62, 0.08, 20), cloth);
-            brim.position.y = HEAD_TOP_Y - 0.84;
+            brim.position.y = HEAD_TOP_Y - 0.58;
             group.add(brim);
             break;
         }
         case "visor": {
-            const band = new THREE.Mesh(new THREE.CylinderGeometry(1.06, 1.06, 0.32, 16, 1, true), cloth);
-            band.position.y = HEAD_TOP_Y - 0.62;
+            const band = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.78, 0.26, 18, 1, true), cloth);
+            band.position.y = HEAD_TOP_Y - 0.32;
             group.add(band);
 
-            const shade = new THREE.Mesh(new THREE.CircleGeometry(1.2, 16, 0, Math.PI), cloth);
-            shade.rotation.x = -Math.PI / 2.2;
-            shade.rotation.z = Math.PI;
-            shade.position.set(0, HEAD_TOP_Y - 0.66, 0.42);
+            const shade = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.04, 0.5), cloth);
+            shade.rotation.x = -0.32;
+            shade.position.set(0, HEAD_TOP_Y - 0.5, 0.78);
             group.add(shade);
             break;
         }
@@ -297,31 +296,31 @@ export function buildHat(kind: HatKind, color: number, accent: number | undefine
         }
         case "turban": {
             for (let i = 0; i < 3; i++) {
-                const wrap = new THREE.Mesh(new THREE.TorusGeometry(1.0 - i * 0.1, 0.26, 8, 20), cloth);
+                const wrap = new THREE.Mesh(new THREE.TorusGeometry(0.68 - i * 0.13, 0.18 - i * 0.02, 8, 20), cloth);
                 wrap.rotation.x = Math.PI / 2;
                 wrap.rotation.z = i * 0.4;
-                wrap.position.y = HEAD_TOP_Y - 0.72 + i * 0.34;
+                wrap.position.y = HEAD_TOP_Y - 0.34 + i * 0.22;
                 group.add(wrap);
             }
 
             if (accent !== undefined) {
                 const jewel = new THREE.Mesh(
-                    new THREE.OctahedronGeometry(0.2, 0),
+                    new THREE.OctahedronGeometry(0.16, 0),
                     bin(new THREE.MeshStandardMaterial({ color: accent, roughness: 0.2, metalness: 0.8 }))
                 );
-                jewel.position.set(0, HEAD_TOP_Y - 0.5, 0.96);
+                jewel.position.set(0, HEAD_TOP_Y - 0.34, 0.9);
                 group.add(jewel);
             }
             break;
         }
         case "bandana":
         default: {
-            const band = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.4, 16, 1, true), cloth);
-            band.position.y = HEAD_TOP_Y - 0.72;
+            const band = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.78, 0.3, 20, 1, true), cloth);
+            band.position.y = HEAD_TOP_Y - 0.27;
             group.add(band);
 
-            const knot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), cloth);
-            knot.position.set(0, HEAD_TOP_Y - 0.78, -1.02);
+            const knot = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), cloth);
+            knot.position.set(0, HEAD_TOP_Y - 0.33, -0.88);
             group.add(knot);
             break;
         }

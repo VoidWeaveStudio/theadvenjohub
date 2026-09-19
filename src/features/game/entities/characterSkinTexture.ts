@@ -122,6 +122,21 @@ function bakeRegionSkinTexture(
         ctx.fill();
     }
 
+    // A flat fill per region reads as painted plastic — a fine deterministic weave/grain
+    // pass on top gives it a fabric feel without touching the region color logic above.
+    // Deterministic (hashed from pixel position, no RNG) so the bake stays pure.
+    ctx.globalCompositeOperation = "source-atop";
+    for (let y = 0; y < TEXTURE_SIZE; y += 2) {
+        for (let x = 0; x < TEXTURE_SIZE; x += 2) {
+            const h = (x * 13 + y * 37 + (x >> 2) * 7) % 23;
+            if (h < 15) continue;
+            const light = h % 2 === 0;
+            ctx.fillStyle = light ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)";
+            ctx.fillRect(x, y, 2, 2);
+        }
+    }
+    ctx.globalCompositeOperation = "source-over";
+
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.flipY = false;

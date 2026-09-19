@@ -1913,7 +1913,7 @@ export const id: PartialTranslations = {
   "g.floorReg.tower-token-gates.description": "Etalase dunia memecoin",
   "g.showcase.church.name": "Gereja Memecoin",
   "g.showcase.church.tagline": "Khotbah tentang 100x yang akan datang",
-  "g.showcase.war.name": "Perang Abadi",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "Dua ticker, satu garis depan",
   "g.showcase.garden.name": "Taman Ketenangan",
   "g.showcase.garden.tagline": "Hold, koktail, dan kesunyian",

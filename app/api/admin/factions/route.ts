@@ -6,6 +6,7 @@ import { db } from "@/core/database";
 import { factions, factionMembers, factionGates, games, users } from "@/core/database/schema";
 import { and, asc, desc, eq, exists, ilike, isNotNull, isNull, not, or, sql } from "drizzle-orm";
 import { getTokenByCa } from "@/core/lib/dexscreener";
+import { getPumpFunTokenInfo } from "@/core/lib/pumpfun";
 import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
 
 function buildFactionDescription(name: string, symbol: string | null): string {
@@ -114,12 +115,19 @@ export async function POST(req: NextRequest) {
         let trimmedSymbol = typeof symbolOverride === "string" && symbolOverride.trim().length > 0 ? symbolOverride.trim().slice(0, 20) : null;
         let trimmedImage = typeof imageOverride === "string" && imageOverride.trim().length > 0 ? imageOverride.trim().slice(0, 512) : null;
 
-        if (!trimmedName) {
+        if (!trimmedName || !trimmedImage) {
             const tokenInfo = await getTokenByCa(trimmedCa);
-            if (tokenInfo?.name) {
-                trimmedName = String(tokenInfo.name).trim().slice(0, 50);
-                if (!trimmedSymbol && tokenInfo.symbol) trimmedSymbol = String(tokenInfo.symbol).trim().slice(0, 20);
-                if (!trimmedImage && tokenInfo.image) trimmedImage = String(tokenInfo.image).trim().slice(0, 512);
+            if (!trimmedName && tokenInfo?.name) trimmedName = String(tokenInfo.name).trim().slice(0, 50);
+            if (!trimmedSymbol && tokenInfo?.symbol) trimmedSymbol = String(tokenInfo.symbol).trim().slice(0, 20);
+            if (!trimmedImage && tokenInfo?.image) trimmedImage = String(tokenInfo.image).trim().slice(0, 512);
+
+            // DexScreener only has data once a trading pair is indexed, which can lag
+            // minutes behind token creation — pump.fun has name/symbol/image immediately.
+            if (!trimmedName || !trimmedImage) {
+                const pumpInfo = await getPumpFunTokenInfo(trimmedCa);
+                if (!trimmedName && pumpInfo?.name) trimmedName = String(pumpInfo.name).trim().slice(0, 50);
+                if (!trimmedSymbol && pumpInfo?.symbol) trimmedSymbol = String(pumpInfo.symbol).trim().slice(0, 20);
+                if (!trimmedImage && pumpInfo?.image) trimmedImage = String(pumpInfo.image).trim().slice(0, 512);
             }
         }
 

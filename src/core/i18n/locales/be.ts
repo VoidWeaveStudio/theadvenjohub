@@ -1913,7 +1913,7 @@ export const be: PartialTranslations = {
   "g.floorReg.tower-token-gates.description": "Вітрына светаў мемкоінаў",
   "g.showcase.church.name": "Царква Мемкоіна",
   "g.showcase.church.tagline": "Пропаведзь пра будучы ікс",
-  "g.showcase.war.name": "Вечная вайна",
+  "g.showcase.war.name": "Endless WAR",
   "g.showcase.war.tagline": "Фронт двух тыкераў",
   "g.showcase.garden.name": "Сад супакою",
   "g.showcase.garden.tagline": "Холд, кактэйлі і цішыня",
