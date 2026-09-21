@@ -75,6 +75,9 @@ import { PerfPanel } from "./ui/PerfPanel";
 import { CinemaPanel } from "./ui/CinemaPanel";
 import type { CinemaState } from "./core/CinemaCamera";
 import { CrowdPanel } from "./ui/CrowdPanel";
+import { ScenePanel } from "./ui/ScenePanel";
+import { SubtitleBar } from "./ui/SubtitleBar";
+import type { SceneDirectorState } from "./systems/SceneDirector";
 import type { CrowdState } from "./systems/CrowdDirector";
 import { useCompanionState } from "./ui/hooks/useCompanionState";
 import { useCosmeticCrateState } from "./ui/hooks/useCosmeticCrateState";
@@ -260,6 +263,7 @@ export function GameClient({ slug }: GameClientProps) {
   const [wheelMode, setWheelMode] = useState<WheelMode>(null);
   const [cinemaState, setCinemaState] = useState<CinemaState | null>(null);
   const [crowdState, setCrowdState] = useState<CrowdState | null>(null);
+  const [sceneState, setSceneState] = useState<SceneDirectorState | null>(null);
   const [isSpecializationOpen, setIsSpecializationOpen] = useState(false);
   const [isSkillTreeOpen, setIsSkillTreeOpen] = useState(false);
   const [spawnProtectionSeconds, setSpawnProtectionSeconds] = useState(0);
@@ -591,6 +595,7 @@ export function GameClient({ slug }: GameClientProps) {
 
         game.onStateChange = (state) => { if (!cancelled) hud.handleStateChange(state); };
         game.onCinemaState = (state) => { if (!cancelled) setCinemaState(state); };
+        game.onSceneDirectorState = (state) => { if (!cancelled) setSceneState(state); };
         game.onCrowdState = (state) => { if (!cancelled) setCrowdState(state); };
         game.onLoadStateChange = (loading, message, progress) => {
           if (cancelled) return;
@@ -1662,7 +1667,7 @@ export function GameClient({ slug }: GameClientProps) {
             : { top: 0, height: '100dvh' }
       }
     >
-      <style>{`#${GAME_ROOT_ID}[data-cinema-clean="true"] > *:not(canvas) { display: none !important; }`}</style>
+      <style>{`#${GAME_ROOT_ID}[data-cinema-clean="true"] > *:not(canvas):not([data-cinema-keep="true"]) { display: none !important; }`}</style>
 
       <canvas
         ref={canvasRef}
@@ -1732,6 +1737,10 @@ export function GameClient({ slug }: GameClientProps) {
       <CinemaPanel state={cinemaState} />
 
       <CrowdPanel state={crowdState} />
+
+      <ScenePanel state={sceneState} />
+
+      <SubtitleBar hidden={cinemaState?.active === true && cinemaState.hideCaptions} />
 
       {!defusalMatch && !grinderMatch && (
         <TopMenu

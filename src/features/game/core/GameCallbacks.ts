@@ -3,6 +3,7 @@ import { ChatMessage } from "../ui/Chat";
 import type { BuildSessionState } from "../world/building/BuildSession";
 import type { CinemaState } from "./CinemaCamera";
 import type { CrowdState } from "../systems/CrowdDirector";
+import type { SceneDirectorState } from "../systems/SceneDirector";
 import type { ResolvedEvent } from "../data/eventDoors";
 import type { KillFeedEntry } from "../ui/KillFeed";
 import {
@@ -110,6 +111,7 @@ export interface GameCallbacks {
     onFloorSelectorToggle?: (isOpen: boolean) => void;
     onCinemaState?: (state: CinemaState) => void;
     onCrowdState?: (state: CrowdState | null) => void;
+    onSceneDirectorState?: (state: SceneDirectorState | null) => void;
     onBuildEditorState?: (state: BuildSessionState) => void;
     onLocationChange?: (id: string) => void;
 

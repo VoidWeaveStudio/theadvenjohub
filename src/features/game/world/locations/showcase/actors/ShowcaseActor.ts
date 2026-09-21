@@ -192,6 +192,9 @@ export class ShowcaseActor {
     private collisionGrid: CollisionGrid | null = null;
 
     private face: FaceRig | null = null;
+    private scripted = false;
+    private frozen = false;
+    private overrides: PoseBend[] = [];
     private poseBlend = 1;
     private skinnedMesh: THREE.SkinnedMesh | null = null;
     private headLocalBounds: THREE.Box3 | null = null;
@@ -484,6 +487,69 @@ export class ShowcaseActor {
         this.compilePose();
     }
 
+    // Instant pose change. A scrubbable timeline has to rebuild any frame from the cue
+    // list alone, and a blended transition would make the same frame look different
+    // depending on which direction the scrub arrived from.
+    public snapPose(pose: PoseId | undefined) {
+        if (this.dead) return;
+        this.poseBlend = 1;
+        if (this.spec.pose === pose) return;
+        this.spec.pose = pose;
+        this.compilePose();
+    }
+
+    public currentPose(): PoseId | undefined {
+        return this.spec.pose;
+    }
+
+    // Bends layered on top of the pose, driven by the bone editor and by recorded
+    // clips. They are unblended so a nudge shows up on the frame it was made.
+    public setBendOverrides(bends: PoseBend[]) {
+        this.overrides = bends;
+        this.compilePose();
+    }
+
+    public bendOverrides(): PoseBend[] {
+        return this.overrides;
+    }
+
+    public boneKeys(): BoneKey[] {
+        return Array.from(this.bones.keys());
+    }
+
+    public hasBone(key: BoneKey): boolean {
+        return this.bones.has(key);
+    }
+
+    public setAnimationTime(time: number) {
+        this.animator.setPhaseTime(time);
+    }
+
+    // Under a timeline the actor's own idle/walk bookkeeping fights the cues: it would
+    // reset motion to idle every frame and blend poses over time. Scripted actors take
+    // position, facing, motion and pose from the timeline alone.
+    public setScripted(value: boolean) {
+        this.scripted = value;
+        if (value) {
+            this.destination = null;
+            this.walk = null;
+            this.facingTarget = null;
+        }
+    }
+
+    public isScripted(): boolean {
+        return this.scripted;
+    }
+
+    // Holds the animation clip still so a paused frame stays the same frame.
+    public setFrozen(value: boolean) {
+        this.frozen = value;
+    }
+
+    public setClock(time: number) {
+        this.clock = time;
+    }
+
     public setTalking(talking: boolean, text?: string) {
         this.face?.setTalking(talking, text);
     }
@@ -656,6 +722,20 @@ export class ShowcaseActor {
                     blended: true,
                 });
             }
+        }
+
+        for (const bend of this.overrides) {
+            const target = ensure(bend.bone);
+            if (!target) continue;
+
+            target.bends.push({
+                axis: bend.axis,
+                angle: bend.angle,
+                sway: bend.sway ?? 0,
+                rate: bend.rate ?? 1,
+                phase: (bend.phase ?? 0) + this.clock,
+                blended: false,
+            });
         }
 
         if (this.armed) {
@@ -885,6 +965,9 @@ export class ShowcaseActor {
     }
 
     public update(delta: number) {
+        // A frozen actor advances nothing: same clip frame, same sway phase, same step
+        // along a walk. That is what makes a paused scene hold still.
+        if (this.frozen) delta = 0;
         this.clock += delta;
 
         if (this.recoil > 0) this.recoil = Math.max(0, this.recoil - delta * 7);
@@ -892,6 +975,14 @@ export class ShowcaseActor {
 
         if (this.dead) {
             this.animator.update(delta);
+            return;
+        }
+
+        if (this.scripted) {
+            this.animator.update(delta);
+            this.poseBlend = 1;
+            this.applyPose();
+            this.face?.update(delta);
             return;
         }
 

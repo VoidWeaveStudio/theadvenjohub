@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "upload:release": "node scripts/upload-to-blob.js",
+    "check:church": "tsx scripts/check-church-scene.mts",
     "build:client": "cd tanjo-client && npm run tauri build",
     "copy:release": "node scripts/copy-release.js",
     "release": "npm run build:client && npm run copy:release",

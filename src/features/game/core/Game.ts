@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { InputManager } from "./InputManager";
 import { CameraController, FP_EYE_HEIGHT } from "./CameraController";
 import { CinemaCamera } from "./CinemaCamera";
+import { SceneDirector } from "../systems/SceneDirector";
+import { asDirectedScene } from "../world/locations/showcase/scene/directedScene";
 import { ResourceManager } from "./ResourceManager";
 import { NetworkManager, InventoryEntry, FactionGateData, ShardStateData, LeaderboardEntry, FactionSummary, FactionQuestEntry, WorldStatusData, ProgressionStateData, RespawnTarget, TournamentSummary, TournamentActionPayload, InfluenceStateData, InfluenceCaptureData } from "../network/NetworkManager";
 import { BranchId } from "../data/progression";
@@ -142,6 +144,7 @@ export class Game {
     private inputManager: InputManager;
     public readonly cameraController: CameraController;
     public readonly cinema: CinemaCamera = new CinemaCamera();
+    public readonly sceneDirector: SceneDirector = new SceneDirector();
     public readonly crowdDirector: CrowdDirector = new CrowdDirector();
     public isAdmin: boolean = false;
     public readonly resourceManager: ResourceManager;
@@ -432,6 +435,8 @@ export class Game {
 
         this.closeTunersExcept(null);
         this.closeBuildEditor();
+        // The crowd director reads several of the same keys the scene director does.
+        this.crowdDirector.close();
 
         const origin = this.cameraController.camera.getWorldPosition(new THREE.Vector3());
         this.cinema.setAspect(this.getViewportAspect());
@@ -836,6 +841,7 @@ export class Game {
                             loc.scene,
                             loc.terrain ? (x, z) => loc.terrain!.getHeightAt(x, z) : null
                         );
+                        this.sceneDirector.setScene(asDirectedScene(loc));
                     }
                 };
 
@@ -912,6 +918,10 @@ export class Game {
                     currentLocation.scene,
                     currentLocation.terrain ? (x, z) => currentLocation.terrain!.getHeightAt(x, z) : null
                 );
+                this.sceneDirector.init(this.inputManager);
+                this.sceneDirector.onState = (state) => this.onSceneDirectorState?.(state);
+                this.sceneDirector.onNotification = (text, duration) => this.onNotification?.(text, duration);
+                this.sceneDirector.setScene(asDirectedScene(currentLocation));
                 this.canyonTuner.init(this.inputManager, currentLocation instanceof FirstFloor ? currentLocation : null);
                 this.canyonTuner.onReadout = (text) => {
                     this.hudState.tunerReadout = text;
@@ -1632,6 +1642,8 @@ export class Game {
                 currentLocation.update(this.player.mesh.position, delta, isEJustPressed, dayTime);
                 perf.end("location");
             }
+
+            this.sceneDirector.update(delta, cinematic);
 
             perf.begin("interaction");
             if (!cinematic) this.interactionSystem.update(delta, isEJustPressed);
@@ -2638,6 +2650,7 @@ export class Game {
         this.lootSystem.dispose();
         this.petSystem.dispose();
         this.crowdDirector.dispose();
+        this.sceneDirector.dispose();
         this.voiceChat.dispose();
 
         const currentLocation = this.locationManager.getCurrentLocation();

@@ -81,6 +81,159 @@ export function surfaceSet(
     return { map, normal };
 }
 
+// The cut-out nun from the faction sticker, used as the figure of the apse window.
+// onReady reports the image's aspect ratio, so the plane is sized from the file rather
+// than from a number copied into the room.
+export function loadPepeIcon(
+    bin: AssetBin,
+    anisotropy: number,
+    onReady?: (aspect: number) => void
+): THREE.Texture {
+    const loader = new THREE.TextureLoader();
+    const texture = bin.texture(loader.load(`${TEXTURE_ROOT}/pepe_nun.webp`, (loaded) => {
+        const image = loaded.image as { width?: number; height?: number } | undefined;
+        if (image?.width && image.height) onReady?.(image.height / image.width);
+    }));
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = anisotropy;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    return texture;
+}
+
+// Leaded glass for the rose window: concentric rings of quarries around an empty
+// medallion, since the figure is a separate plane laid over the middle.
+export function roseTexture(bin: AssetBin, seed: () => number): THREE.CanvasTexture {
+    const lead = "#1b1409";
+    const rings: Array<{ from: number; to: number; cells: number; tints: number[] }> = [
+        { from: 0.48, to: 0.6, cells: 20, tints: [0xf0c261, 0xd8a24a, 0xf7dd9a] },
+        { from: 0.6, to: 0.71, cells: 28, tints: [0x4ea85e, 0x6fc276, 0x2f7d46, 0xe0b95a] },
+        { from: 0.71, to: 0.81, cells: 36, tints: [0xc9563c, 0xe0864a, 0xf2c169, 0x8f3a2c] },
+        { from: 0.81, to: 0.9, cells: 44, tints: [0xd9a64c, 0xf2d488, 0xa8762f, 0x6fb46a] },
+    ];
+
+    return sprite(bin, 1024, (ctx, size) => {
+        const half = size / 2;
+        ctx.clearRect(0, 0, size, size);
+
+        ctx.fillStyle = lead;
+        ctx.beginPath();
+        ctx.arc(half, half, half, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (const ring of rings) {
+            const inner = half * ring.from;
+            const outer = half * ring.to;
+            const gap = 0.012;
+
+            for (let i = 0; i < ring.cells; i++) {
+                const from = (i / ring.cells) * Math.PI * 2 + gap;
+                const to = ((i + 1) / ring.cells) * Math.PI * 2 - gap;
+                const tint = ring.tints[Math.floor(seed() * ring.tints.length) % ring.tints.length];
+                const shade = 0.78 + seed() * 0.44;
+                const r = Math.min(255, Math.round(((tint >> 16) & 255) * shade));
+                const g = Math.min(255, Math.round(((tint >> 8) & 255) * shade));
+                const b = Math.min(255, Math.round((tint & 255) * shade));
+
+                ctx.fillStyle = `rgb(${r},${g},${b})`;
+                ctx.beginPath();
+                ctx.arc(half, half, outer - half * 0.008, from, to);
+                ctx.arc(half, half, inner + half * 0.008, to, from, true);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        // Petals pointing out of the medallion, the shape a real rose window reads as.
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            ctx.save();
+            ctx.translate(half, half);
+            ctx.rotate(angle);
+            ctx.fillStyle = "rgba(255,238,190,0.5)";
+            ctx.beginPath();
+            ctx.ellipse(half * 0.55, 0, half * 0.055, half * 0.03, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        const wash = ctx.createRadialGradient(half, half, half * 0.2, half, half, half);
+        wash.addColorStop(0, "rgba(255,240,205,0.4)");
+        wash.addColorStop(0.62, "rgba(255,214,150,0.16)");
+        wash.addColorStop(1, "rgba(120,70,20,0.28)");
+        ctx.fillStyle = wash;
+        ctx.beginPath();
+        ctx.arc(half, half, half, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = lead;
+        ctx.lineWidth = size * 0.022;
+        for (const edge of [0.47, 0.6, 0.71, 0.81, 0.895]) {
+            ctx.beginPath();
+            ctx.arc(half, half, half * edge, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        ctx.lineWidth = size * 0.014;
+        for (let i = 0; i < 16; i++) {
+            const angle = (i / 16) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(half + Math.cos(angle) * half * 0.47, half + Math.sin(angle) * half * 0.47);
+            ctx.lineTo(half + Math.cos(angle) * half * 0.895, half + Math.sin(angle) * half * 0.895);
+            ctx.stroke();
+        }
+
+        // The medallion is pale glass rather than a hole: the figure plane sits in front
+        // of it, and punching through would show the brick of the end wall instead of
+        // daylight behind the window.
+        const medallion = ctx.createRadialGradient(half, half * 0.94, half * 0.05, half, half, half * 0.46);
+        medallion.addColorStop(0, "rgb(255,248,226)");
+        medallion.addColorStop(0.55, "rgb(250,232,188)");
+        medallion.addColorStop(1, "rgb(232,200,142)");
+
+        ctx.fillStyle = medallion;
+        ctx.beginPath();
+        ctx.arc(half, half, half * 0.46, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = lead;
+        ctx.lineWidth = size * 0.02;
+        ctx.beginPath();
+        ctx.arc(half, half, half * 0.46, 0, Math.PI * 2);
+        ctx.stroke();
+    });
+}
+
+// The confessional screen: dark lattice with the squares between it left clear, used as
+// both map and alphaMap so you can see through it into the next cell.
+export function grilleTexture(bin: AssetBin): THREE.CanvasTexture {
+    return sprite(bin, 256, (ctx, size) => {
+        ctx.clearRect(0, 0, size, size);
+
+        const cells = 9;
+        const step = size / cells;
+        ctx.strokeStyle = "#20180e";
+        ctx.lineWidth = Math.max(2, step * 0.2);
+
+        for (let i = 0; i <= cells; i++) {
+            const at = i * step;
+            ctx.beginPath();
+            ctx.moveTo(at, 0);
+            ctx.lineTo(at, size);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(0, at);
+            ctx.lineTo(size, at);
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = "#241a0f";
+        ctx.lineWidth = Math.max(3, step * 0.34);
+        ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, size - ctx.lineWidth, size - ctx.lineWidth);
+    });
+}
+
 export function flameTexture(bin: AssetBin): THREE.CanvasTexture {
     return sprite(bin, 128, (ctx, size) => {
         ctx.clearRect(0, 0, size, size);

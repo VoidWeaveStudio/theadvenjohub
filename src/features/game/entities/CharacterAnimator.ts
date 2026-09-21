@@ -72,6 +72,17 @@ export class CharacterAnimator {
         return (action.time % duration) / duration;
     }
 
+    // Park the current clip at an absolute time instead of advancing it. The scene
+    // director needs this to hold a frame while scrubbing, and to step backwards.
+    setPhaseTime(time: number) {
+        const action = this.animations.get(this.currentKey);
+        if (!action) return;
+
+        const duration = action.getClip().duration;
+        action.time = duration > 0 ? ((time % duration) + duration) % duration : 0;
+        this.mixer?.update(0);
+    }
+
     update(delta: number) {
         this.mixer?.update(delta);
     }

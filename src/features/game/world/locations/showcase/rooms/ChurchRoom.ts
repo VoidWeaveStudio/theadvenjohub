@@ -4,39 +4,72 @@ import { ShowcaseRoom } from "../ShowcaseRoom";
 import { ResourceManager } from "../../../../core/ResourceManager";
 import { SHOWCASE_INFO_BY_ID, ShowcaseInfo } from "../config";
 import { CrowdSpec } from "../actors/ShowcaseCrowd";
-import type { ShowcaseActor } from "../actors/ShowcaseActor";
-import { footRestY, KNEEL_DROP, seatedActorY } from "../actors/poses";
+import { footRestY, seatedActorY } from "../actors/poses";
 import type { EmblemKind } from "../textures";
 import { getGraphicsSettings, prefersMobileProfile } from "@/features/game/core/graphicsSettings";
 import { ChurchLight, type ShaftSpec } from "./church/ChurchLight";
 import { ChurchAtmosphere, type BeamAnchor } from "./church/ChurchAtmosphere";
+import { ChurchService } from "./church/ChurchService";
+import type { DirectedActor, DirectedScene } from "../scene/directedScene";
+import type { ShowcaseActor } from "../actors/ShowcaseActor";
+import {
+    ALTAR_Z,
+    BOOTH_BENCH_X,
+    BOOTH_DEPTH,
+    BOOTH_DOOR_WIDTH,
+    BOOTH_GRILLE_Y,
+    BOOTH_HEIGHT,
+    BOOTH_SEAT_TOP,
+    BOOTH_WIDTH,
+    BOOTH_X,
+    BOOTH_Z,
+    boothCellZ,
+    type BoothCell,
+    CENSER_ANCHOR_Y,
+    CENSER_DROP,
+    CHOIR_TIERS,
+    CHOIR_X,
+    COLUMN_X,
+    HALF_WIDTH,
+    NAVE_END,
+    NAVE_LENGTH,
+    NAVE_MID,
+    NAVE_START,
+    PEW_CENTER_X,
+    PEW_FIRST_Z,
+    PEW_ROWS,
+    PEW_SEATS,
+    PEW_STEP,
+    PEW_WIDTH,
+    PULPIT_DECK_Y,
+    PULPIT_FACING,
+    PULPIT_X,
+    PULPIT_Z,
+    ROSE_BLAZE_GLOW,
+    ROSE_IDLE_GLOW,
+    ROSE_RADIUS,
+    ROSE_Y,
+    ROSE_Z,
+    SEAT_TOP,
+    VAULT_RADIUS,
+    VOTIVE_Z,
+    WALL_HEIGHT,
+    WINDOW_BAYS,
+    pewSeatX,
+    pewRowZ,
+    seatKey,
+    STORY_SEATS,
+} from "./church/churchLayout";
 import {
     disposeChurchSurfaces,
+    grilleTexture,
     loadChurchSurfaces,
+    loadPepeIcon,
+    roseTexture,
     surfaceSet,
     type ChurchSurfaceSet,
     type ChurchSurfaceTextures,
 } from "./church/churchTextures";
-
-const HALF_WIDTH = 15;
-const WALL_HEIGHT = 19;
-const VAULT_RADIUS = HALF_WIDTH - 0.4;
-const NAVE_START = -34;
-const NAVE_END = 40;
-const NAVE_MID = (NAVE_START + NAVE_END) / 2;
-const NAVE_LENGTH = NAVE_END - NAVE_START;
-const ALTAR_Z = 30;
-const PULPIT_Z = 21;
-const PEW_ROWS = 13;
-const PEW_FIRST_Z = -22;
-const PEW_STEP = 2.9;
-const SEAT_TOP = 0.46;
-const WINDOW_BAYS = 6;
-const COLUMN_X = 11.4;
-const CHOIR_Z = 16.5;
-const TITHE_Z = 18;
-const VOTIVE_Z = -27;
-const BOOTH_Z = -29;
 
 const GOSPELS: Array<{ ticker: string; kind: EmblemKind; tint: number }> = [
     { ticker: "$DOGE", kind: "dog", tint: 0xffc43d },
@@ -51,13 +84,27 @@ const RELICS = ["$LUNA", "$FTT", "$SAFE", "$ICO", "$BITCONNECT", "$SQUID"];
 
 const CHURCH_EXPOSURE = {
     environment: 0.38,
-    ambient: 0.34,
-    hemisphere: 0.42,
-    key: 1.35,
-    fill: 0.26,
-    shaftSun: 0.2,
-    shaftShade: 0.09,
+    ambient: 0.36,
+    hemisphere: 0.44,
+    key: 1.3,
+    fill: 0.34,
+    shaftSun: 0.17,
+    shaftShade: 0.08,
 };
+
+// Every shaft is pulled this far towards candle-warm before it is drawn, so a green
+// or blue window still throws honey-coloured light instead of tinting the aisle.
+const SHAFT_WARMTH = 0xffe0b0;
+
+const BOOTH_DOOR_SWING = 1.35;
+const BOOTH_DOOR_RATE = 3.4;
+
+interface BoothDoor {
+    hinge: THREE.Group;
+    sign: number;
+    angle: number;
+    target: number;
+}
 
 export class ChurchRoom extends ShowcaseRoom {
     private candleLights: THREE.PointLight[] = [];
@@ -69,14 +116,21 @@ export class ChurchRoom extends ShowcaseRoom {
     private censerBowl: THREE.Object3D | null = null;
     private readonly cameraProbe = new THREE.Vector3(0, 4, 0);
     private readonly censerProbe = new THREE.Vector3();
-    private idol: THREE.Group | null = null;
+    private rose: THREE.Group | null = null;
+    private roseGlass: THREE.MeshStandardMaterial | null = null;
+    private roseFigure: THREE.MeshStandardMaterial | null = null;
+    private roseFigureMesh: THREE.Mesh | null = null;
+    private roseBloom: THREE.MeshBasicMaterial | null = null;
+    private roseLight: THREE.PointLight | null = null;
+    private roseGlow = 0;
+    private roseGlowTarget = 0;
     private chartCandles: THREE.Mesh[] = [];
     private chartBaseY: number[] = [];
     private banners: THREE.Group[] = [];
-    private tithePile: THREE.Group | null = null;
-    private titheLight: THREE.PointLight | null = null;
     private censer: THREE.Group | null = null;
-    private preacher: ShowcaseActor | null = null;
+    private booth: THREE.Group | null = null;
+    private readonly boothDoors = new Map<BoothCell, BoothDoor>();
+    private service: ChurchService | null = null;
 
     constructor(info: ShowcaseInfo = SHOWCASE_INFO_BY_ID.get("show-church") as ShowcaseInfo) {
         super(info, 0x51a3c7, 60);
@@ -114,9 +168,15 @@ export class ChurchRoom extends ShowcaseRoom {
         this.scene.add(key);
         this.scene.add(key.target);
 
-        const fill = new THREE.DirectionalLight(0x7f97cc, CHURCH_EXPOSURE.fill);
+        // A cold blue bounce is what made the left aisle look sickly next to the warm
+        // key; the shade side gets a dim warm fill instead.
+        const fill = new THREE.DirectionalLight(0xffcf9e, CHURCH_EXPOSURE.fill);
         fill.position.set(-40, 26, -30);
         this.scene.add(fill);
+
+        const aisle = new THREE.PointLight(0xffc186, 26, 52, 2);
+        aisle.position.set(-8.5, 8.5, -4);
+        this.scene.add(aisle);
 
         const altarGlow = new THREE.PointLight(0xffc46a, 54, 60, 2);
         altarGlow.position.set(0, 9, ALTAR_Z - 2);
@@ -153,7 +213,6 @@ export class ChurchRoom extends ShowcaseRoom {
         this.buildWindows();
         this.buildBanners();
         this.buildApse();
-        this.buildTithe();
         this.buildPulpit();
         this.buildChoir();
         this.buildPews();
@@ -162,7 +221,8 @@ export class ChurchRoom extends ShowcaseRoom {
         this.buildRelicWall();
         this.buildChandeliers();
         this.buildCrowd();
-        this.buildBlessing(rm);
+        this.service = new ChurchService(this, this.crowd, this.random);
+        this.service.create(rm, this.collisionGrid);
 
         this.captureEnvironment();
 
@@ -197,93 +257,6 @@ export class ChurchRoom extends ShowcaseRoom {
         this.scene.environment = target.texture;
         this.scene.environmentIntensity = CHURCH_EXPOSURE.environment;
         generator.dispose();
-    }
-
-    private buildBlessing(rm: ResourceManager) {
-        const kneelSpot = new THREE.Vector3(-6.2, 0, PULPIT_Z - 3.2);
-        const queueSpot = new THREE.Vector3(-6.2, 0, PULPIT_Z - 9.4);
-
-        const preacher = this.crowd.createActor(rm, {
-            position: new THREE.Vector3(-6.4, 1.58, PULPIT_Z),
-            set: "clergy",
-            variantIndex: 0,
-            facing: Math.PI * 0.94,
-            pose: "preach",
-            held: "book",
-            heldHand: "left",
-            accent: 0xffd166,
-            solid: false,
-        }, this.collisionGrid);
-
-        const pilgrim = this.crowd.createActor(rm, {
-            position: queueSpot.clone(),
-            set: "flock",
-            variantIndex: 1,
-            facing: 0,
-            phase: 3.2,
-            solid: false,
-        }, this.collisionGrid);
-
-        if (!preacher || !pilgrim) return;
-        this.preacher = preacher;
-
-        const ask = this.bubble("BLESS MY BAGS", "#ffd489", { width: 3, y: 2.3, speaker: pilgrim });
-        pilgrim.group.add(ask);
-
-        const answer = this.bubble("JUST HOLD", "#ffe9a8", { width: 2.8, tone: "shout", y: 2.6, speaker: preacher });
-        preacher.group.add(answer);
-
-        const amen = this.bubble("AMEN", "#7ce8a8", { width: 1.8, y: 2.3, speaker: pilgrim });
-        pilgrim.group.add(amen);
-
-        this.addStory([
-            {
-                duration: 6,
-                enter: () => {
-                    ask.visible = false;
-                    answer.visible = false;
-                    amen.visible = false;
-                    pilgrim.setPose(undefined);
-                    pilgrim.moveTo(queueSpot.x, 0, queueSpot.z);
-                    pilgrim.setDestination(kneelSpot, 1.1);
-                },
-            },
-            {
-                duration: 3,
-                enter: () => {
-                    pilgrim.setDestination(null);
-                    pilgrim.moveTo(kneelSpot.x, -KNEEL_DROP, kneelSpot.z);
-                    pilgrim.faceTowards(new THREE.Vector3(-6.4, 1.6, PULPIT_Z));
-                    pilgrim.setPose("kneel");
-                    ask.visible = true;
-                },
-            },
-            {
-                duration: 4,
-                enter: () => {
-                    ask.visible = false;
-                    preacher.setPose("bless");
-                    answer.visible = true;
-                },
-            },
-            {
-                duration: 3,
-                enter: () => {
-                    answer.visible = false;
-                    preacher.setPose("preach");
-                    amen.visible = true;
-                },
-            },
-            {
-                duration: 6,
-                enter: () => {
-                    amen.visible = false;
-                    pilgrim.setPose(undefined);
-                    pilgrim.moveTo(kneelSpot.x, 0, kneelSpot.z);
-                    pilgrim.setDestination(queueSpot, 1.1);
-                },
-            },
-        ]);
     }
 
     private buildShell() {
@@ -449,9 +422,10 @@ export class ChurchRoom extends ShowcaseRoom {
                 sill.position.set(0, -4.9, 0.2);
                 group.add(sill);
 
+                const bloomTint = new THREE.Color(gospel.tint).lerp(new THREE.Color(SHAFT_WARMTH), 0.6);
                 const bloom = new THREE.Mesh(
                     this.bin.geometry(new THREE.PlaneGeometry(5.4, 11)),
-                    this.glow(gospel.tint, side > 0 ? 0.3 : 0.16)
+                    this.glow(bloomTint.getHex(), side > 0 ? 0.26 : 0.15)
                 );
                 bloom.position.set(0, 0.4, 0.5);
                 bloom.renderOrder = 6;
@@ -461,8 +435,8 @@ export class ChurchRoom extends ShowcaseRoom {
 
                 const sunward = side > 0;
                 const tint = new THREE.Color(gospel.tint).lerp(
-                    new THREE.Color(sunward ? 0xfff0cc : 0xd2e2ff),
-                    sunward ? 0.42 : 0.55
+                    new THREE.Color(SHAFT_WARMTH),
+                    sunward ? 0.62 : 0.78
                 );
 
                 this.shaftSpecs.push({
@@ -543,38 +517,7 @@ export class ChurchRoom extends ShowcaseRoom {
             this.scene.add(stair);
         }
 
-        const idol = new THREE.Group();
-        idol.position.set(0, 12.5, NAVE_END - 8);
-
-        const coin = new THREE.Mesh(this.bin.geometry(new THREE.CylinderGeometry(6.4, 6.4, 1.1, 42)), gold);
-        coin.rotation.x = Math.PI / 2;
-        coin.castShadow = true;
-        idol.add(coin);
-
-        const rim = new THREE.Mesh(this.bin.geometry(new THREE.TorusGeometry(6.4, 0.5, 10, 42)), goldDark);
-        idol.add(rim);
-
-        const face = new THREE.Mesh(
-            this.bin.geometry(new THREE.CircleGeometry(5.7, 40)),
-            this.decal(this.tex.emblem("idol", "rocket", 0xb8882f, 0xffe9a8), { roughness: 0.35, metalness: 0.6, emissive: 0xffc46a, emissiveIntensity: 0.35 })
-        );
-        face.position.z = 0.62;
-        idol.add(face);
-
-        for (let i = 0; i < 16; i++) {
-            const angle = (i / 16) * Math.PI * 2;
-            const ray = new THREE.Mesh(this.bin.geometry(new THREE.BoxGeometry(0.32, 3.6, 0.32)), gold);
-            ray.position.set(Math.cos(angle) * 8.4, Math.sin(angle) * 8.4, -0.4);
-            ray.rotation.z = angle - Math.PI / 2;
-            idol.add(ray);
-        }
-
-        const halo = new THREE.Mesh(this.bin.geometry(new THREE.CircleGeometry(11.5, 44)), this.glow(0xffc46a, 0.14));
-        halo.position.z = -0.9;
-        idol.add(halo);
-
-        this.scene.add(idol);
-        this.idol = idol;
+        this.buildRose(gold, goldDark);
 
         const altarSkin = this.pbr(this.surfaces!.marble, 3, 1, { color: 0x8c7a5c, roughness: 0.38, metalness: 0.1 });
         const altarTable = this.mesh(new THREE.BoxGeometry(7.4, 1.5, 3), altarSkin, [0, 2.05, ALTAR_Z]);
@@ -620,17 +563,30 @@ export class ChurchRoom extends ShowcaseRoom {
             this.scene.add(stand);
         }
 
+        // The group's origin is the hook in the vault, not the bowl: rotating it swings
+        // the whole censer on its chain instead of waggling the chain around a bowl that
+        // stays put.
         const censer = new THREE.Group();
-        censer.position.set(0, 9.5, ALTAR_Z - 6);
-        const chain = this.mesh(new THREE.CylinderGeometry(0.04, 0.04, 11, 6), goldDark, [0, 5.5, 0]);
+        censer.position.set(0, CENSER_ANCHOR_Y, ALTAR_Z - 6);
+
+        const hook = this.mesh(new THREE.TorusGeometry(0.2, 0.05, 6, 14), goldDark, [0, 0, 0], [Math.PI / 2, 0, 0]);
+        censer.add(hook);
+
+        const chain = this.mesh(new THREE.CylinderGeometry(0.04, 0.04, CENSER_DROP, 6), goldDark, [0, -CENSER_DROP / 2, 0]);
         censer.add(chain);
-        const bowlBody = this.mesh(new THREE.SphereGeometry(0.42, 14, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), goldDark, [0, 0, 0]);
+
+        const bowlBody = this.mesh(
+            new THREE.SphereGeometry(0.42, 14, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+            goldDark,
+            [0, -CENSER_DROP, 0]
+        );
         censer.add(bowlBody);
-        const lid = this.mesh(new THREE.ConeGeometry(0.44, 0.5, 12), gold, [0, 0.26, 0]);
+
+        const lid = this.mesh(new THREE.ConeGeometry(0.44, 0.5, 12), gold, [0, -CENSER_DROP + 0.26, 0]);
         censer.add(lid);
 
         const vent = new THREE.Object3D();
-        vent.position.set(0, 0.5, 0);
+        vent.position.set(0, -CENSER_DROP + 0.5, 0);
         censer.add(vent);
         this.censerBowl = vent;
 
@@ -638,124 +594,243 @@ export class ChurchRoom extends ShowcaseRoom {
         this.censer = censer;
     }
 
-    private buildTithe() {
+    // The apse window: a stone-and-gold sunburst with a leaded rose in it, and the
+    // praying frog as its figure. Lit from behind so it reads as glass, and the story
+    // drives setRoseGlow when the congregation lifts their bags.
+    private buildRose(gold: THREE.Material, goldDark: THREE.Material) {
         const group = new THREE.Group();
-        group.position.set(0, 0, TITHE_Z);
+        group.position.set(0, ROSE_Y, ROSE_Z);
+        group.rotation.y = Math.PI;
 
-        const basin = this.mesh(new THREE.CylinderGeometry(2.6, 2.1, 0.7, 22), this.metal(0x8c6b28, 0.46, 0.85), [0, 0.35, 0]);
-        group.add(basin);
-        this.collisionGrid.insertCylinder(new THREE.Vector3(0, 0.4, TITHE_Z), 2.7, 0.9);
+        const stone = this.pbr(this.surfaces!.marble, 3, 1, { color: 0x8e8270, roughness: 0.58, metalness: 0.06 });
+        const lead = this.matte(0x1b1409, 0.84, 0.18);
 
-        const coinGeometry = this.bin.geometry(new THREE.CylinderGeometry(0.26, 0.26, 0.07, 12));
-        const coinMaterial = this.lit(0xffcf5a, 0.55);
-        const coins = new THREE.InstancedMesh(coinGeometry, coinMaterial, 140);
-        coins.castShadow = true;
-        const matrix = new THREE.Matrix4();
-        const quaternion = new THREE.Quaternion();
-        const scale = new THREE.Vector3(1, 1, 1);
-        const position = new THREE.Vector3();
+        const surround = this.mesh(new THREE.TorusGeometry(ROSE_RADIUS + 0.8, 0.62, 10, 46), stone);
+        group.add(surround);
 
-        for (let i = 0; i < 140; i++) {
-            const radius = Math.sqrt(this.random()) * 2;
-            const angle = this.random() * Math.PI * 2;
-            position.set(Math.cos(angle) * radius, 0.72 + (2 - radius) * 0.18 * this.random(), Math.sin(angle) * radius);
-            quaternion.setFromEuler(new THREE.Euler(this.random() * 0.5 - 0.25, this.random() * Math.PI, this.random() * 0.5 - 0.25));
-            matrix.compose(position, quaternion, scale);
-            coins.setMatrixAt(i, matrix);
+        const rim = this.mesh(new THREE.TorusGeometry(ROSE_RADIUS + 0.12, 0.42, 10, 46), goldDark);
+        group.add(rim);
+
+        this.roseGlass = this.textured(roseTexture(this.bin, this.random), {
+            roughness: 0.2,
+            metalness: 0,
+            emissive: 0xffffff,
+            emissiveIntensity: ROSE_IDLE_GLOW,
+        });
+        this.roseGlass.transparent = true;
+        this.roseGlass.side = THREE.DoubleSide;
+
+        const pane = this.mesh(new THREE.CircleGeometry(ROSE_RADIUS, 52), this.roseGlass, [0, 0, 0.1]);
+        pane.castShadow = false;
+        pane.receiveShadow = false;
+        pane.renderOrder = 3;
+        group.add(pane);
+
+        const anisotropy = this.renderer?.capabilities.getMaxAnisotropy() ?? 4;
+        const icon = loadPepeIcon(this.bin, anisotropy, (aspect) => this.roseFigureMesh?.scale.set(1, aspect, 1));
+
+        this.roseFigure = this.textured(icon, {
+            roughness: 0.26,
+            metalness: 0,
+            emissive: 0xffffff,
+            emissiveIntensity: ROSE_IDLE_GLOW * 1.4,
+        });
+        // No alphaTest: the cut-out's edge is feathered and its lower hem fades out, and
+        // a hard cutoff would bring the straight ribbon cut back.
+        this.roseFigure.transparent = true;
+        this.roseFigure.depthWrite = false;
+        this.roseFigure.side = THREE.DoubleSide;
+
+        // Sized to sit inside the medallion (radius 0.46 of the pane) with its corners
+        // to spare, rather than spilling onto the surrounding quarries. The plane is one
+        // unit wide and scaled by the loader's aspect once the file is in.
+        const figureWidth = ROSE_RADIUS * 0.74;
+        const holder = new THREE.Group();
+        holder.position.set(0, 0.12, 0.22);
+        holder.scale.setScalar(figureWidth);
+
+        const figure = this.mesh(new THREE.PlaneGeometry(1, 1), this.roseFigure);
+        figure.scale.set(1, 0.85, 1);
+        figure.castShadow = false;
+        figure.receiveShadow = false;
+        figure.renderOrder = 4;
+        holder.add(figure);
+        group.add(holder);
+        this.roseFigureMesh = figure;
+
+        const medallion = this.mesh(new THREE.TorusGeometry(ROSE_RADIUS * 0.47, 0.14, 8, 40), lead, [0, 0, 0.16]);
+        group.add(medallion);
+
+        for (let i = 0; i < 16; i++) {
+            const angle = (i / 16) * Math.PI * 2;
+            const ray = new THREE.Mesh(this.bin.geometry(new THREE.BoxGeometry(0.3, 3.4, 0.3)), gold);
+            ray.position.set(Math.cos(angle) * (ROSE_RADIUS + 2.4), Math.sin(angle) * (ROSE_RADIUS + 2.4), -0.3);
+            ray.rotation.z = angle - Math.PI / 2;
+            group.add(ray);
         }
-        coins.instanceMatrix.needsUpdate = true;
-        group.add(coins);
 
-        this.titheLight = new THREE.PointLight(0xffc46a, 12, 16, 2);
-        this.titheLight.position.set(0, 1.6, 0);
-        group.add(this.titheLight);
-
-        const plaque = this.board(
-            this.tex.sign("tithe", ["TITHE", "SEND IT"], { background: 0x2a1f16, color: 0xffd489, accent: 0x8c6b28 }),
-            2.6,
-            1.3,
-            [0, 1.2, -2.3],
-            0,
-            { roughness: 0.8, metalness: 0.1, emissive: 0xffd489, emissiveIntensity: 0.3 }
-        );
-        plaque.rotation.x = -0.32;
-        group.add(plaque);
+        this.roseBloom = this.glow(0xffd79a, 0.16);
+        const bloom = new THREE.Mesh(this.bin.geometry(new THREE.CircleGeometry(ROSE_RADIUS + 3.4, 46)), this.roseBloom);
+        bloom.position.z = 0.34;
+        bloom.renderOrder = 5;
+        group.add(bloom);
 
         this.scene.add(group);
-        this.tithePile = group;
+        this.rose = group;
+
+        this.roseLight = new THREE.PointLight(0xffd7a2, 26, 54, 2);
+        this.roseLight.position.set(0, ROSE_Y - 1, ROSE_Z - 4.5);
+        this.scene.add(this.roseLight);
     }
 
+    // 0 keeps the window at its resting glow, 1 is the full blaze at the end of the
+    // sermon when every bag is held up.
+    public setRoseGlow(amount: number) {
+        this.roseGlowTarget = THREE.MathUtils.clamp(amount, 0, 1);
+    }
+
+    // Rebuilt straight: a true cylinder instead of a tapered one, the open side of the
+    // rail centred on the nave, the crest curved onto the drum instead of floating flat
+    // in front of it, and a closed flight of steps that actually reaches the deck.
     private buildPulpit() {
         const wood = this.pbr(this.surfaces!.wood, 2, 1, { color: 0x6b5238, roughness: 0.74, metalness: 0.05 });
+        const stepWood = this.pbr(this.surfaces!.wood, 1, 1, { color: 0x5d4730, roughness: 0.78, metalness: 0.05 });
         const gold = this.metal(0xd8b46a, 0.3, 0.9);
 
         const group = new THREE.Group();
-        group.position.set(-6.4, 0, PULPIT_Z);
-        group.rotation.y = 0.42;
+        group.position.set(PULPIT_X, 0, PULPIT_Z);
+        group.rotation.y = PULPIT_FACING;
 
-        const drum = this.mesh(new THREE.CylinderGeometry(1.32, 1.5, 1.42, 14), wood, [0, 0.71, 0]);
+        const radius = 1.42;
+        const drumHeight = PULPIT_DECK_Y - 0.16;
+
+        const drum = this.mesh(new THREE.CylinderGeometry(radius, radius, drumHeight, 16), wood, [0, drumHeight / 2, 0]);
         group.add(drum);
 
-        const deck = this.mesh(new THREE.CylinderGeometry(1.46, 1.46, 0.16, 14), wood, [0, 1.5, 0]);
+        const foot = this.mesh(new THREE.CylinderGeometry(radius + 0.16, radius + 0.22, 0.24, 16), wood, [0, 0.12, 0]);
+        group.add(foot);
+
+        const deck = this.mesh(new THREE.CylinderGeometry(radius + 0.06, radius + 0.06, 0.16, 16), wood, [0, PULPIT_DECK_Y - 0.08, 0]);
         group.add(deck);
 
-        const railBack = this.mesh(new THREE.CylinderGeometry(1.46, 1.46, 0.86, 14, 1, true, Math.PI * 0.2, Math.PI * 1.25), wood, [0, 1.95, 0]);
-        (railBack.material as THREE.Material).side = THREE.DoubleSide;
-        group.add(railBack);
+        // Open sector centred on local +Z, so the preacher looks out over the nave
+        // through the gap rather than over the panelling.
+        const rail = this.mesh(
+            new THREE.CylinderGeometry(radius + 0.06, radius + 0.06, 0.92, 16, 1, true, Math.PI * 0.25, Math.PI * 1.5),
+            wood,
+            [0, PULPIT_DECK_Y + 0.46, 0]
+        );
+        (rail.material as THREE.Material).side = THREE.DoubleSide;
+        group.add(rail);
 
-        const trim = this.mesh(new THREE.TorusGeometry(1.46, 0.07, 8, 20), gold, [0, 2.38, 0], [Math.PI / 2, 0, 0]);
+        const trim = this.mesh(new THREE.TorusGeometry(radius + 0.07, 0.07, 8, 24), gold, [0, PULPIT_DECK_Y + 0.92, 0], [Math.PI / 2, 0, 0]);
         group.add(trim);
 
+        const collar = this.mesh(new THREE.TorusGeometry(radius + 0.02, 0.06, 8, 24), gold, [0, drumHeight, 0], [Math.PI / 2, 0, 0]);
+        group.add(collar);
+
+        // The crest is a slice of cylinder skinned with the emblem, so it sits on the
+        // curve of the drum with no gap and no lean.
         const crest = this.mesh(
-            new THREE.PlaneGeometry(1.5, 1.5),
-            this.decal(this.tex.emblem("pulpit", "diamond", 0x3a2c1c, 0xffd489), { roughness: 0.8, metalness: 0.1, emissive: 0xffd489, emissiveIntensity: 0.25 }),
-            [0, 1.9, 1.52],
-            [0, 0, 0]
+            new THREE.CylinderGeometry(radius + 0.02, radius + 0.02, 0.92, 20, 1, true, -Math.PI / 6, Math.PI / 3),
+            this.decal(this.tex.emblem("pulpit", "diamond", 0x3a2c1c, 0xffd489), {
+                roughness: 0.8,
+                metalness: 0.1,
+                emissive: 0xffd489,
+                emissiveIntensity: 0.25,
+            }),
+            [0, drumHeight * 0.58, 0]
         );
         crest.castShadow = false;
         group.add(crest);
 
-        const lectern = this.mesh(new THREE.BoxGeometry(0.95, 0.1, 0.62), wood, [0, 2.2, 1.05], [-0.35, 0, 0]);
+        const lectern = this.mesh(new THREE.BoxGeometry(0.95, 0.1, 0.62), wood, [0, PULPIT_DECK_Y + 0.66, 1.08], [-0.3, 0, 0]);
         group.add(lectern);
 
-        const lecternBook = this.mesh(new THREE.BoxGeometry(0.62, 0.08, 0.42), this.matte(0xf2e6cc, 0.9), [0, 2.28, 1.02], [-0.35, 0, 0]);
+        const ledge = this.mesh(new THREE.BoxGeometry(0.95, 0.09, 0.1), wood, [0, PULPIT_DECK_Y + 0.58, 1.34]);
+        group.add(ledge);
+
+        const lecternBook = this.mesh(new THREE.BoxGeometry(0.62, 0.08, 0.42), this.matte(0xf2e6cc, 0.9), [0, PULPIT_DECK_Y + 0.73, 1.06], [-0.3, 0, 0]);
         group.add(lecternBook);
 
-        for (let i = 0; i < 3; i++) {
-            const stair = this.mesh(new THREE.BoxGeometry(1.2, 0.24, 0.62), wood, [0, 0.12 + i * 0.46, -1.5 - i * 0.6]);
-            group.add(stair);
+        const steps = 4;
+        const rise = PULPIT_DECK_Y / steps;
+        const tread = 0.52;
+        const stepWidth = 1.3;
+        const firstZ = -(radius - 0.24);
+
+        for (let i = 0; i < steps; i++) {
+            const height = rise * (i + 1);
+            const z = firstZ - (steps - 1 - i) * tread;
+            const block = this.mesh(new THREE.BoxGeometry(stepWidth, height, tread), stepWood, [0, height / 2, z]);
+            group.add(block);
+
+            const nose = this.mesh(new THREE.BoxGeometry(stepWidth + 0.08, 0.06, tread + 0.08), stepWood, [0, height, z]);
+            group.add(nose);
+        }
+
+        const flightLength = steps * tread;
+        const flightMidZ = firstZ - flightLength / 2 + tread / 2;
+
+        for (const side of [-1, 1]) {
+            const newel = this.mesh(new THREE.BoxGeometry(0.12, PULPIT_DECK_Y + 0.5, 0.12), wood, [side * (stepWidth / 2 + 0.02), (PULPIT_DECK_Y + 0.5) / 2, firstZ + 0.1]);
+            group.add(newel);
+
+            const footPost = this.mesh(new THREE.BoxGeometry(0.12, 0.9, 0.12), wood, [side * (stepWidth / 2 + 0.02), 0.45, firstZ - flightLength + 0.2]);
+            group.add(footPost);
+
+            const handRail = this.mesh(
+                new THREE.CylinderGeometry(0.055, 0.055, flightLength + 0.3, 8),
+                gold,
+                [side * (stepWidth / 2 + 0.02), (PULPIT_DECK_Y + 0.5 + 0.9) / 2 - 0.1, flightMidZ + 0.15],
+                [Math.atan2(PULPIT_DECK_Y - 0.4, flightLength) + Math.PI / 2, 0, 0]
+            );
+            group.add(handRail);
         }
 
         this.scene.add(group);
-        this.collisionGrid.insertCylinder(new THREE.Vector3(-6.4, 0.8, PULPIT_Z), 1.6, 1.6);
+
+        const facing = PULPIT_FACING;
+        this.collisionGrid.insertCylinder(new THREE.Vector3(PULPIT_X, drumHeight / 2, PULPIT_Z), radius + 0.2, drumHeight);
+        this.collisionGrid.insertOrientedBox(
+            PULPIT_X + Math.sin(facing) * flightMidZ,
+            PULPIT_Z + Math.cos(facing) * flightMidZ,
+            stepWidth,
+            flightLength,
+            facing,
+            0,
+            PULPIT_DECK_Y
+        );
     }
 
     private buildChoir() {
         const wood = this.pbr(this.surfaces!.wood, 3, 1, { color: 0x5f4830, roughness: 0.78, metalness: 0.04 });
 
-        for (let tier = 0; tier < 2; tier++) {
-            const height = 0.4 + tier * 0.4;
-            const deck = this.mesh(new THREE.BoxGeometry(8.4 - tier * 1.2, height, 2.2), wood, [7.6, height / 2, CHOIR_Z + tier * 2.2]);
+        for (const tier of CHOIR_TIERS) {
+            const deck = this.mesh(new THREE.BoxGeometry(tier.width, tier.y, 2.6), wood, [CHOIR_X, tier.y / 2, tier.z]);
             this.scene.add(deck);
-            this.collisionGrid.insertOrientedBox(7.6, CHOIR_Z + tier * 2.2, 8.4 - tier * 1.2, 2.2, 0, 0, height);
+            this.collisionGrid.insertOrientedBox(CHOIR_X, tier.z, tier.width, 2.6, 0, 0, tier.y);
         }
 
-        const rail = this.mesh(new THREE.BoxGeometry(8.4, 0.14, 0.14), this.metal(0xd8b46a, 0.35, 0.85), [7.6, 1.05, CHOIR_Z - 1.1]);
+        const brass = this.metal(0xd8b46a, 0.35, 0.85);
+        const railZ = CHOIR_TIERS[0].z - 1.5;
+
+        const rail = this.mesh(new THREE.BoxGeometry(8.4, 0.14, 0.14), brass, [CHOIR_X, 1.05, railZ]);
         this.scene.add(rail);
 
         for (const dx of [-4.1, 0, 4.1]) {
-            const post = this.mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.05, 8), this.metal(0xd8b46a, 0.35, 0.85), [7.6 + dx, 0.52, CHOIR_Z - 1.1]);
+            const post = this.mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.05, 8), brass, [CHOIR_X + dx, 0.52, railZ]);
             this.scene.add(post);
         }
     }
 
     private buildPews() {
         const wood = this.pbr(this.surfaces!.wood, 4, 1, { color: 0x5a4430, roughness: 0.72, metalness: 0.05, normalScale: 0.8 });
-        const seat = this.bin.geometry(new THREE.BoxGeometry(9, 0.16, 0.72));
-        const back = this.bin.geometry(new THREE.BoxGeometry(9, 0.78, 0.16));
+        const seat = this.bin.geometry(new THREE.BoxGeometry(PEW_WIDTH, 0.16, 0.72));
+        const back = this.bin.geometry(new THREE.BoxGeometry(PEW_WIDTH, 0.78, 0.16));
         const leg = this.bin.geometry(new THREE.BoxGeometry(0.34, SEAT_TOP - 0.08, 0.66));
         const kneelerHeight = footRestY(SEAT_TOP);
-        const kneeler = this.bin.geometry(new THREE.BoxGeometry(9, 0.14, 0.5));
+        const kneeler = this.bin.geometry(new THREE.BoxGeometry(PEW_WIDTH, 0.14, 0.5));
         const kneelerLeg = this.bin.geometry(new THREE.BoxGeometry(0.22, kneelerHeight, 0.4));
         const finial = this.bin.geometry(new THREE.OctahedronGeometry(0.1, 0));
         const brass = this.metal(0xb8882f, 0.4, 0.85);
@@ -764,7 +839,7 @@ export class ChurchRoom extends ShowcaseRoom {
             const z = PEW_FIRST_Z + row * PEW_STEP;
 
             for (const side of [-1, 1]) {
-                const cx = side * 6.6;
+                const cx = side * PEW_CENTER_X;
                 const group = new THREE.Group();
                 group.position.set(cx, 0, z);
 
@@ -779,7 +854,7 @@ export class ChurchRoom extends ShowcaseRoom {
                 rest.castShadow = true;
                 group.add(rest);
 
-                for (const dx of [-4.2, 0, 4.2]) {
+                for (const dx of [-(PEW_WIDTH / 2 - 0.4), 0, PEW_WIDTH / 2 - 0.4]) {
                     const support = new THREE.Mesh(leg, wood);
                     support.position.set(dx, (SEAT_TOP - 0.08) / 2, 0);
                     group.add(support);
@@ -790,7 +865,7 @@ export class ChurchRoom extends ShowcaseRoom {
                 }
 
                 const cap = new THREE.Mesh(finial, brass);
-                cap.position.set(side * -4.5, SEAT_TOP + 0.76, -0.5);
+                cap.position.set(side * -(PEW_WIDTH / 2 - 0.2), SEAT_TOP + 0.76, -0.5);
                 group.add(cap);
 
                 const board = new THREE.Mesh(kneeler, wood);
@@ -799,7 +874,7 @@ export class ChurchRoom extends ShowcaseRoom {
                 group.add(board);
 
                 this.scene.add(group);
-                this.collisionGrid.insertOrientedBox(cx, z, 9, 0.9, 0, 0, SEAT_TOP + 0.5);
+                this.collisionGrid.insertOrientedBox(cx, z, PEW_WIDTH, 0.9, 0, 0, SEAT_TOP + 0.5);
             }
         }
     }
@@ -853,42 +928,221 @@ export class ChurchRoom extends ShowcaseRoom {
         this.collisionGrid.insertOrientedBox(HALF_WIDTH - 3.4, VOTIVE_Z, 1.5, 5.4, 0, 0, 1.2);
     }
 
+    // Two cells side by side against the left wall: each has its own door on the aisle
+    // face, and the wall between them carries a grille at the height of a seated head,
+    // so the pair can talk without seeing each other.
     private buildConfessional() {
-        const wood = this.pbr(this.surfaces!.wood, 1, 2, { color: 0x4d3a26, roughness: 0.78, metalness: 0.05 });
-        const curtain = this.textured(this.tex.carpet([1, 1], 0x5a1a24, 0x8c6b28), { roughness: 0.96, metalness: 0 });
+        const wood = this.pbr(this.surfaces!.wood, 2, 2, { color: 0x4d3a26, roughness: 0.78, metalness: 0.05 });
+        const panel = this.pbr(this.surfaces!.wood, 1, 1, { color: 0x3d2d1d, roughness: 0.8, metalness: 0.05 });
+        const brass = this.metal(0xb8882f, 0.4, 0.85);
+        const shadow = this.matte(0x0d0906, 0.98, 0);
 
         const group = new THREE.Group();
-        group.position.set(-(HALF_WIDTH - 3), 0, BOOTH_Z);
-        group.rotation.y = Math.PI / 2;
+        group.position.set(BOOTH_X, 0, BOOTH_Z);
 
-        const shell = this.mesh(new THREE.BoxGeometry(4.4, 4.2, 2.2), wood, [0, 2.1, -0.5]);
-        group.add(shell);
+        const half = BOOTH_DEPTH / 2;
+        const span = BOOTH_WIDTH / 2;
+        const doorWidth = BOOTH_DOOR_WIDTH;
+        const doorHeight = 2.68;
+        const postWidth = (BOOTH_WIDTH - doorWidth * 2) / 3;
 
-        const roof = this.mesh(new THREE.BoxGeometry(5, 0.4, 2.8), wood, [0, 4.4, -0.5]);
-        group.add(roof);
+        const back = this.mesh(new THREE.BoxGeometry(0.18, BOOTH_HEIGHT, BOOTH_WIDTH), wood, [-half, BOOTH_HEIGHT / 2, 0]);
+        group.add(back);
 
-        const crown = this.mesh(new THREE.OctahedronGeometry(0.4, 0), this.metal(0xd8b46a, 0.32, 0.9), [0, 4.9, -0.5]);
-        group.add(crown);
-
-        const alcove = this.mesh(new THREE.BoxGeometry(1.7, 3, 1.4), this.matte(0x120d09, 0.98, 0), [-1.2, 1.5, 0.3]);
-        group.add(alcove);
-
-        const drape = this.mesh(new THREE.BoxGeometry(1.8, 3, 0.12), curtain, [1.2, 1.6, 0.62]);
-        group.add(drape);
-
-        const grille = this.mesh(new THREE.BoxGeometry(0.9, 0.9, 0.1), this.metal(0x6b5a34, 0.5, 0.7), [0, 2.2, 0.6]);
-        group.add(grille);
-
-        for (let i = 0; i < 5; i++) {
-            const bar = this.mesh(new THREE.BoxGeometry(0.06, 0.9, 0.14), this.metal(0x2b2620, 0.7, 0.5), [-0.36 + i * 0.18, 2.2, 0.66]);
-            group.add(bar);
+        for (const side of [-1, 1]) {
+            const wall = this.mesh(new THREE.BoxGeometry(BOOTH_DEPTH, BOOTH_HEIGHT, 0.18), wood, [0, BOOTH_HEIGHT / 2, side * span]);
+            group.add(wall);
         }
 
-        const kneelBoard = this.mesh(new THREE.BoxGeometry(1.4, 0.16, 0.6), wood, [1.2, footRestY(SEAT_TOP), 1.1]);
-        group.add(kneelBoard);
+        // One dividing wall with a window in it: four slabs of the same panelling around
+        // the opening read as a single wall, and the mesh screen in the opening is see
+        // through, so the two of them can look at each other while they talk.
+        const holeWidth = 0.86;
+        const holeHeight = 0.66;
+        const holeX = 0.12;
+        const belowHeight = BOOTH_GRILLE_Y - holeHeight / 2;
+        const aboveY = BOOTH_GRILLE_Y + holeHeight / 2;
+
+        const below = this.mesh(new THREE.BoxGeometry(BOOTH_DEPTH, belowHeight, 0.18), panel, [0, belowHeight / 2, 0]);
+        group.add(below);
+
+        const above = this.mesh(
+            new THREE.BoxGeometry(BOOTH_DEPTH, BOOTH_HEIGHT - aboveY, 0.18),
+            panel,
+            [0, aboveY + (BOOTH_HEIGHT - aboveY) / 2, 0]
+        );
+        group.add(above);
+
+        for (const edge of [-1, 1]) {
+            const inner = holeX + (edge * holeWidth) / 2;
+            const outer = edge < 0 ? -BOOTH_DEPTH / 2 : BOOTH_DEPTH / 2;
+            const width = Math.abs(outer - inner);
+            const jamb = this.mesh(
+                new THREE.BoxGeometry(width, holeHeight, 0.18),
+                panel,
+                [(inner + outer) / 2, BOOTH_GRILLE_Y, 0]
+            );
+            group.add(jamb);
+        }
+
+        const screen = this.mesh(
+            new THREE.PlaneGeometry(holeWidth, holeHeight),
+            this.textured(grilleTexture(this.bin), { roughness: 0.6, metalness: 0.3 }),
+            [holeX, BOOTH_GRILLE_Y, 0]
+        );
+        const screenMaterial = screen.material as THREE.MeshStandardMaterial;
+        screenMaterial.transparent = true;
+        screenMaterial.alphaMap = screenMaterial.map;
+        screenMaterial.side = THREE.DoubleSide;
+        screenMaterial.depthWrite = false;
+        screen.castShadow = false;
+        screen.receiveShadow = false;
+        group.add(screen);
+
+        const roof = this.mesh(new THREE.BoxGeometry(BOOTH_DEPTH + 0.6, 0.34, BOOTH_WIDTH + 0.6), wood, [0, BOOTH_HEIGHT + 0.17, 0]);
+        group.add(roof);
+
+        const cornice = this.mesh(new THREE.BoxGeometry(BOOTH_DEPTH + 0.32, 0.16, BOOTH_WIDTH + 0.32), brass, [0, BOOTH_HEIGHT - 0.06, 0]);
+        group.add(cornice);
+
+        const shaft = this.mesh(new THREE.BoxGeometry(0.12, 0.9, 0.12), brass, [0, BOOTH_HEIGHT + 0.72, 0]);
+        group.add(shaft);
+
+        const crossBar = this.mesh(new THREE.BoxGeometry(0.12, 0.12, 0.52), brass, [0, BOOTH_HEIGHT + 0.96, 0]);
+        group.add(crossBar);
+
+        // Mullions of the aisle face, with the two door openings left clear.
+        for (let i = 0; i < 3; i++) {
+            const z = -span + postWidth / 2 + i * (postWidth + doorWidth);
+            const post = this.mesh(new THREE.BoxGeometry(0.22, BOOTH_HEIGHT, postWidth), wood, [half, BOOTH_HEIGHT / 2, z]);
+            group.add(post);
+        }
+
+        const lintel = this.mesh(
+            new THREE.BoxGeometry(0.24, BOOTH_HEIGHT - doorHeight, BOOTH_WIDTH),
+            wood,
+            [half, doorHeight + (BOOTH_HEIGHT - doorHeight) / 2, 0]
+        );
+        group.add(lintel);
+
+        for (const cell of ["penitent", "priest"] as BoothCell[]) {
+            const z = boothCellZ(cell) - BOOTH_Z;
+
+            // The cell is a real room you walk into — a solid block used to fill it,
+            // which is why stepping through the door looked like walking into a wall.
+            // Darkness comes from the floor panel and the dim lamp instead.
+            const floor = this.mesh(
+                new THREE.BoxGeometry(BOOTH_DEPTH - 0.24, 0.06, doorWidth + 0.14),
+                shadow,
+                [-0.06, 0.03, z]
+            );
+            group.add(floor);
+
+            // A seat, not a shelf across the whole cell: he sits against the back wall
+            // with room to step in front of it.
+            const bench = this.mesh(new THREE.BoxGeometry(0.66, 0.14, doorWidth - 0.16), wood, [BOOTH_BENCH_X, BOOTH_SEAT_TOP - 0.07, z]);
+            group.add(bench);
+
+            for (const dz of [-0.32, 0.32]) {
+                const leg = this.mesh(
+                    new THREE.BoxGeometry(0.5, BOOTH_SEAT_TOP - 0.14, 0.12),
+                    wood,
+                    [BOOTH_BENCH_X, (BOOTH_SEAT_TOP - 0.14) / 2, z + dz]
+                );
+                group.add(leg);
+            }
+
+            const kneel = this.mesh(new THREE.BoxGeometry(0.5, 0.12, doorWidth - 0.3), wood, [half - 0.5, footRestY(BOOTH_SEAT_TOP), z]);
+            group.add(kneel);
+
+            const hingeSign = cell === "priest" ? 1 : -1;
+            const hinge = new THREE.Group();
+            hinge.position.set(half + 0.14, 0, z + (hingeSign * doorWidth) / 2);
+
+            const leaf = this.mesh(new THREE.BoxGeometry(0.1, doorHeight, doorWidth), panel, [0.02, doorHeight / 2, (-hingeSign * doorWidth) / 2]);
+            hinge.add(leaf);
+
+            const trim = this.mesh(
+                new THREE.BoxGeometry(0.05, doorHeight - 0.56, doorWidth - 0.36),
+                brass,
+                [0.09, doorHeight / 2, (-hingeSign * doorWidth) / 2]
+            );
+            hinge.add(trim);
+
+            const knob = this.mesh(new THREE.SphereGeometry(0.07, 10, 8), brass, [0.13, 1.04, -hingeSign * (doorWidth - 0.24)]);
+            hinge.add(knob);
+
+            group.add(hinge);
+            this.boothDoors.set(cell, { hinge, sign: hingeSign, angle: 0, target: 0 });
+        }
+
+        for (const cell of ["penitent", "priest"] as BoothCell[]) {
+            const lamp = new THREE.PointLight(0xffb76a, cell === "priest" ? 7 : 5, 7, 2);
+            lamp.position.set(-0.2, BOOTH_HEIGHT - 1, boothCellZ(cell) - BOOTH_Z);
+            group.add(lamp);
+        }
+
+        const plate = this.board(
+            this.tex.sign("confession", ["CONFESSION", "PAPER HANDS WELCOME"], { background: 0x1c1710, color: 0xf6e7c4, accent: 0x8c6b28 }),
+            2,
+            0.84,
+            [half + 0.22, 3.42, 0],
+            Math.PI / 2,
+            { roughness: 0.9, metalness: 0.05, emissive: 0xffd489, emissiveIntensity: 0.22, oneSided: true }
+        );
+        group.add(plate);
 
         this.scene.add(group);
-        this.collisionGrid.insertOrientedBox(-(HALF_WIDTH - 3), BOOTH_Z, 2.6, 4.8, 0, 0, 4.4);
+        this.booth = group;
+
+        // Only the shell is solid: the two door openings stay clear so an actor (or the
+        // player) can actually step inside.
+        this.collisionGrid.insertOrientedBox(BOOTH_X - half, BOOTH_Z, 0.18, BOOTH_WIDTH, 0, 0, BOOTH_HEIGHT);
+        for (const side of [-1, 1]) {
+            this.collisionGrid.insertOrientedBox(BOOTH_X, BOOTH_Z + side * span, BOOTH_DEPTH, 0.18, 0, 0, BOOTH_HEIGHT);
+        }
+        this.collisionGrid.insertOrientedBox(BOOTH_X, BOOTH_Z, BOOTH_DEPTH, 0.2, 0, 0, BOOTH_HEIGHT);
+        for (let i = 0; i < 3; i++) {
+            const z = BOOTH_Z - span + postWidth / 2 + i * (postWidth + doorWidth);
+            this.collisionGrid.insertOrientedBox(BOOTH_X + half, z, 0.22, postWidth, 0, 0, BOOTH_HEIGHT);
+        }
+    }
+
+    // What the F8 scene director drives: the service timeline plus every actor in the
+    // room, cast first so the scripted ones are the first thing you land on.
+    public getDirectedScene(): DirectedScene | null {
+        const timeline = this.service?.getTimeline();
+        if (!timeline) return null;
+
+        return {
+            timeline,
+            actors: () => {
+                const list: DirectedActor[] = [];
+                const scripted = new Set<ShowcaseActor>();
+
+                for (const id of timeline.actorIds()) {
+                    const actor = timeline.getActor(id);
+                    if (!actor) continue;
+                    list.push({ id, actor });
+                    scripted.add(actor);
+                }
+
+                let index = 0;
+                for (const actor of this.crowd.actors()) {
+                    if (scripted.has(actor)) continue;
+                    list.push({ id: `extra ${++index}`, actor });
+                }
+
+                return list;
+            },
+        };
+    }
+
+    // The story swings these: a door opens for whoever is stepping in, then shuts
+    // behind them for the confession itself.
+    public setBoothDoor(cell: BoothCell, open: boolean) {
+        const door = this.boothDoors.get(cell);
+        if (door) door.target = open ? -door.sign * BOOTH_DOOR_SWING : 0;
     }
 
     private buildRelicWall() {
@@ -959,29 +1213,23 @@ export class ChurchRoom extends ShowcaseRoom {
         }
     }
 
+    // Standing dressing only: everyone here holds a fixed spot. The people who move,
+    // speak or take part in the service are built by ChurchService instead, and the
+    // seats it owns are skipped here so nobody shares a bench with a scripted actor.
     private buildCrowd() {
         const specs: CrowdSpec[] = [];
         const altarLook = new THREE.Vector3(0, 1.6, ALTAR_Z);
-        const pulpitLook = new THREE.Vector3(-6.4, 1.6, PULPIT_Z);
+        const naveLook = new THREE.Vector3(0, 1.6, PULPIT_Z - 6);
 
-        specs.push({
-            position: new THREE.Vector3(-6.4, 1.58, PULPIT_Z),
-            set: "clergy",
-            variantIndex: 0,
-            facing: Math.PI * 0.92,
-            pose: "preach",
-            held: "book",
-            heldHand: "left",
-            accent: 0xffd166,
-            solid: false,
-        });
+        const reserved = new Set<string>();
+        for (const seat of Object.values(STORY_SEATS)) reserved.add(seatKey(seat));
 
         for (const side of [-1, 1]) {
             specs.push({
                 position: new THREE.Vector3(side * 4.4, 1.26, ALTAR_Z - 3.4),
                 set: "clergy",
                 variantIndex: 1,
-                lookAt: pulpitLook,
+                lookAt: naveLook,
                 pose: "carry",
                 held: "candle",
                 heldLight: true,
@@ -989,59 +1237,39 @@ export class ChurchRoom extends ShowcaseRoom {
             });
         }
 
-        specs.push({
-            position: new THREE.Vector3(0, 0, TITHE_Z - 2.4),
-            set: "clergy",
-            variantIndex: 1,
-            facing: Math.PI,
-            pose: "carry",
-            held: "basket",
-            solid: false,
-        });
-
-        for (let i = 0; i < 5; i++) {
-            specs.push({
-                position: new THREE.Vector3(-1.6 + (i % 2) * 3.2, 0, TITHE_Z - 3.8 - Math.floor(i / 2) * 2.2),
-                set: "flock",
-                facing: 0.05 + (this.random() - 0.5) * 0.2,
-                pose: i === 0 ? "cheer" : "carry",
-                held: i % 2 === 0 ? "cash" : "bag",
-                phase: this.random() * 10,
-            });
-        }
-
-        for (let i = 0; i < 8; i++) {
-            const row = Math.floor(i / 4);
-            specs.push({
-                position: new THREE.Vector3(4.6 + (i % 4) * 2, 0.4 + row * 0.4, CHOIR_Z + row * 2.2),
-                set: "clergy",
-                variantIndex: 1,
-                facing: Math.PI * 0.82,
-                pose: i % 3 === 0 ? "cheer" : "carry",
-                held: "book",
-                heldHand: "left",
-                phase: this.random() * 10,
-                solid: false,
-            });
+        for (const tier of CHOIR_TIERS) {
+            for (let i = 0; i < 4; i++) {
+                specs.push({
+                    position: new THREE.Vector3(CHOIR_X - 2.7 + i * 1.8, tier.y, tier.z),
+                    set: "clergy",
+                    variantIndex: 1,
+                    lookAt: naveLook,
+                    pose: i % 2 === 0 ? "carry" : "pray",
+                    held: "book",
+                    heldHand: "left",
+                    phase: this.random() * 10,
+                    solid: false,
+                });
+            }
         }
 
         for (let row = 0; row < PEW_ROWS; row++) {
-            const z = PEW_FIRST_Z + row * PEW_STEP;
+            const z = pewRowZ(row);
 
-            for (const side of [-1, 1]) {
-                const seats = 3 + Math.floor(this.random() * 2);
-                for (let s = 0; s < seats; s++) {
-                    if (this.random() < 0.18) continue;
+            for (const side of [-1, 1] as Array<-1 | 1>) {
+                for (let seat = 0; seat < PEW_SEATS; seat++) {
+                    if (reserved.has(seatKey({ row, side, seat }))) continue;
+                    if (this.random() < 0.2) continue;
 
-                    const x = side * 6.6 + (s - (seats - 1) / 2) * 2.5 + (this.random() - 0.5) * 0.3;
-                    const slouch = this.random() < 0.35;
+                    const x = pewSeatX(side, seat) + (this.random() - 0.5) * 0.3;
+                    const slouch = this.random() < 0.3;
 
                     specs.push({
                         position: new THREE.Vector3(x, seatedActorY(SEAT_TOP), z + 0.1),
-                        set: "flock",
-                        facing: 0.02 + (this.random() - 0.5) * 0.25,
+                        set: this.random() < 0.18 ? "mourner" : "flock",
+                        facing: 0.02 + (this.random() - 0.5) * 0.22,
                         pose: slouch ? "sitSlouch" : (this.random() < 0.5 ? "sit" : "pray"),
-                        held: this.random() < 0.22 ? "candle" : undefined,
+                        held: this.random() < 0.34 ? "bag" : (this.random() < 0.3 ? "candle" : undefined),
                         heldLight: false,
                         phase: this.random() * 10,
                         solid: false,
@@ -1050,10 +1278,11 @@ export class ChurchRoom extends ShowcaseRoom {
             }
         }
 
+        // Candle table on the right, clear of the column at x = 10.25.
         for (let i = 0; i < 4; i++) {
             specs.push({
-                position: new THREE.Vector3(HALF_WIDTH - 5.2, 0, VOTIVE_Z - 1.6 + i * 1.1),
-                set: "flock",
+                position: new THREE.Vector3(9.1, 0, VOTIVE_Z - 1.6 + i * 1.1),
+                set: i === 1 ? "mourner" : "flock",
                 facing: Math.PI / 2,
                 pose: i === 0 ? "work" : "mourn",
                 held: i === 0 ? "candle" : undefined,
@@ -1062,29 +1291,23 @@ export class ChurchRoom extends ShowcaseRoom {
             });
         }
 
+        // Waiting their turn outside the confessional, in the pocket between the booth
+        // and the pews.
         specs.push({
-            position: new THREE.Vector3(-(HALF_WIDTH - 4.4), 0, BOOTH_Z + 1.2),
+            position: new THREE.Vector3(-10.4, 0, BOOTH_Z + 1.6),
             set: "flock",
-            facing: -Math.PI / 2,
+            lookAt: new THREE.Vector3(BOOTH_X, 1.4, BOOTH_Z),
             pose: "pray",
             phase: this.random() * 6,
             solid: false,
         });
 
-        specs.push({
-            position: new THREE.Vector3(-(HALF_WIDTH - 3), seatedActorY(SEAT_TOP) + 0.1, BOOTH_Z - 0.9),
-            set: "clergy",
-            variantIndex: 0,
-            facing: Math.PI / 2,
-            pose: "sit",
-            phase: this.random() * 6,
-            solid: false,
-        });
-
+        // Along the aisles, inside the columns rather than in the wall buttresses,
+        // which is where these used to end up.
         for (let i = 0; i < 5; i++) {
             const side = i % 2 === 0 ? -1 : 1;
             specs.push({
-                position: new THREE.Vector3(side * (HALF_WIDTH - 1.6), 0, -14 + i * 8),
+                position: new THREE.Vector3(side * 9.4, 0, -12 + i * 7),
                 set: "flock",
                 lookAt: altarLook,
                 pose: "pray",
@@ -1094,61 +1317,21 @@ export class ChurchRoom extends ShowcaseRoom {
             });
         }
 
-        const ushers: Array<[number, number, number, number]> = [
-            [-1.2, -24, -1.2, 14],
-            [1.2, 14, 1.2, -24],
-        ];
-
-        for (const [x1, z1, x2, z2] of ushers) {
-            specs.push({
-                position: new THREE.Vector3(x1, 0, z1),
-                set: "clergy",
-                variantIndex: 1,
-                walk: {
-                    path: [new THREE.Vector3(x1, 0, z1), new THREE.Vector3(x2, 0, z2)],
-                    mode: "pingpong",
-                    pause: 3.5 + this.random() * 3,
-                    speed: 0.95 + this.random() * 0.3,
-                },
-                held: "basket",
-                phase: this.random() * 10,
-            });
-        }
-
-        const walkers: Array<[number, number, number, number]> = [
-            [-13.4, -26, -13.4, 18],
-            [13.4, 16, 13.4, -22],
-            [-9, 25, 9, 25],
-            [13.4, -6, 13.4, -28],
-        ];
-
-        for (const [x1, z1, x2, z2] of walkers) {
-            specs.push({
-                position: new THREE.Vector3(x1, 0, z1),
-                set: "flock",
-                walk: {
-                    path: [new THREE.Vector3(x1, 0, z1), new THREE.Vector3(x2, 0, z2)],
-                    mode: "pingpong",
-                    pause: 2.5 + this.random() * 3,
-                    speed: 1.1 + this.random() * 0.4,
-                },
-                held: this.random() < 0.5 ? "candle" : undefined,
-                heldLight: false,
-                phase: this.random() * 10,
-            });
-        }
-
         for (let i = 0; i < 3; i++) {
             specs.push({
-                position: new THREE.Vector3(-4 + i * 4, 0, NAVE_START + 7.5),
-                set: "crowd",
+                position: new THREE.Vector3(-4.4 + i * 4.4, 0, NAVE_START + 7.5),
+                set: "flock",
                 lookAt: altarLook,
-                pose: "gawk",
+                pose: i === 1 ? "gawk" : "pray",
                 phase: this.random() * 10,
             });
         }
 
         this.crowd.addMany(specs);
+    }
+
+    protected override timeScale(): number {
+        return this.service?.getTimeline().isPaused() ? 0 : 1;
     }
 
     protected tick(delta: number): void {
@@ -1171,22 +1354,31 @@ export class ChurchRoom extends ShowcaseRoom {
             light.intensity = (i < 2 ? 26 : 40) * (flicker + Math.sin(this.elapsed * 5 + i) * 0.06);
         }
 
-        if (this.idol) {
-            this.idol.rotation.z = Math.sin(this.elapsed * 0.25) * 0.04;
-            this.idol.position.y = 12.5 + Math.sin(this.elapsed * 0.6) * 0.18;
+        // Set, not eased: the story ramps this value itself, and an easing term here
+        // would make the same scene frame look different depending on the scrub.
+        this.roseGlow = this.roseGlowTarget;
+        const roseBreath = 0.92 + Math.sin(this.elapsed * 0.7) * 0.08;
+        const roseLevel = (ROSE_IDLE_GLOW + (ROSE_BLAZE_GLOW - ROSE_IDLE_GLOW) * this.roseGlow) * roseBreath;
+
+        if (this.roseGlass) this.roseGlass.emissiveIntensity = roseLevel;
+        if (this.roseFigure) this.roseFigure.emissiveIntensity = roseLevel * 1.4;
+        if (this.roseBloom) this.roseBloom.opacity = 0.14 + this.roseGlow * 0.5;
+        if (this.roseLight) this.roseLight.intensity = (22 + this.roseGlow * 150) * roseBreath;
+
+        this.service?.update(delta);
+
+        for (const door of this.boothDoors.values()) {
+            if (Math.abs(door.target - door.angle) < 0.001) continue;
+            door.angle += (door.target - door.angle) * Math.min(1, delta * BOOTH_DOOR_RATE);
+            door.hinge.rotation.y = door.angle;
         }
 
+        // A censer on a chain is a pendulum: T = 2*pi*sqrt(L/g), and two nearly equal
+        // rates on the two axes make it precess the way a swung thurible does.
         if (this.censer) {
-            this.censer.rotation.z = Math.sin(this.elapsed * 1.1) * 0.28;
-            this.censer.rotation.x = Math.sin(this.elapsed * 0.7) * 0.14;
-        }
-
-        if (this.titheLight) {
-            this.titheLight.intensity = 11 + Math.sin(this.elapsed * 2.2) * 3;
-        }
-
-        if (this.tithePile) {
-            this.tithePile.rotation.y = Math.sin(this.elapsed * 0.2) * 0.05;
+            const rate = Math.sqrt(9.81 / CENSER_DROP);
+            this.censer.rotation.z = Math.sin(this.elapsed * rate) * 0.085;
+            this.censer.rotation.x = Math.sin(this.elapsed * rate * 0.97 + 1.2) * 0.05;
         }
 
         for (let i = 0; i < this.banners.length; i++) {
@@ -1216,11 +1408,19 @@ export class ChurchRoom extends ShowcaseRoom {
         this.banners = [];
         this.chartCandles = [];
         this.chartBaseY = [];
-        this.idol = null;
-        this.tithePile = null;
-        this.titheLight = null;
+        this.rose = null;
+        this.roseGlass = null;
+        this.roseFigure = null;
+        this.roseFigureMesh = null;
+        this.roseBloom = null;
+        this.roseLight = null;
+        this.roseGlow = 0;
+        this.roseGlowTarget = 0;
         this.censer = null;
-        this.preacher = null;
+        this.booth = null;
+        this.boothDoors.clear();
+        this.service?.dispose();
+        this.service = null;
 
         super.dispose();
     }

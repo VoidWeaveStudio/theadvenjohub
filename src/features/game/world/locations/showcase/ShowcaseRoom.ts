@@ -241,6 +241,13 @@ export abstract class ShowcaseRoom extends TowerFloor {
 
     protected tick(_delta: number): void { }
 
+    // A room can stop its own clock — the church returns 0 while the scene director
+    // holds a frame, so candles, dust and crowd all freeze with the mise-en-scene
+    // instead of drifting under a paused shot.
+    protected timeScale(): number {
+        return 1;
+    }
+
     protected buildExitGate(): void {
         const group = new THREE.Group();
         group.position.copy(this.exitPosition);
@@ -316,6 +323,8 @@ export abstract class ShowcaseRoom extends TowerFloor {
     }
 
     override update(playerPosition: THREE.Vector3, delta: number, isEPressed?: boolean): void {
+        delta *= this.timeScale();
+
         this.elapsed += delta;
         this.crowd.update(delta);
         for (let i = 0; i < this.stories.length; i++) this.stories[i].update(delta);

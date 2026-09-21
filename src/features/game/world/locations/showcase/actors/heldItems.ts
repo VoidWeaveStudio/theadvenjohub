@@ -175,7 +175,10 @@ export function buildHeldItem(id: HeldItemId, bin: Bin, accent: number, withLigh
             emblem.position.y = 0.022;
             group.add(emblem);
 
-            rotation.set(0, 0, 0.2);
+            // Sat at the default offset the covers close around the hand instead of
+            // resting on it; dropped and pushed past the fingers it reads as carried.
+            offset.set(0, -0.1, 0.1);
+            rotation.set(0.12, 0, 0.2);
             break;
         }
         case "sign": {

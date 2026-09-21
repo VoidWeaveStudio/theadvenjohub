@@ -13,8 +13,13 @@ export interface ShaftSpec {
     strength: number;
 }
 
-const SPREAD = 1.75;
-const SECTION_SEGMENTS = 20;
+const SPREAD = 2.05;
+const SECTION_SEGMENTS = 32;
+
+// A near-rectangular cross-section (the old 0.32) gives the shaft four flat faces and
+// four hard creases, and those creases read as drawn edges on the light. A plain
+// ellipse has no creases, so the body fades out evenly all the way around.
+const SECTION_SHAPE = 1;
 
 const beamVertex = /* glsl */`
     precision highp float;
@@ -53,10 +58,12 @@ const beamFragment = /* glsl */`
     void main() {
         vec3 toFrag = normalize(vWorld - uCamPos);
         float facing = abs(dot(normalize(vNormal), toFrag));
-        float body = pow(facing, 1.35);
+        float body = pow(facing, 1.8);
         if (body <= 0.002) discard;
 
-        float ends = smoothstep(0.0, 0.09, vAlong) * (1.0 - smoothstep(0.34, 1.0, vAlong));
+        // Fade out well before the tube actually ends, otherwise the cut-off ring of
+        // geometry shows up as a straight edge drawn across the nave.
+        float ends = smoothstep(0.0, 0.16, vAlong) * (1.0 - smoothstep(0.2, 0.92, vAlong));
 
         vec2 uvA = vWorld.xz * 0.055 + vec2(uTime * 0.011, uTime * 0.007);
         vec2 uvB = vWorld.zy * 0.042 - vec2(uTime * 0.008, uTime * 0.013);
@@ -133,10 +140,9 @@ export class ChurchLight {
             const angle = (i / SECTION_SEGMENTS) * Math.PI * 2;
             const cos = Math.cos(angle);
             const sin = Math.sin(angle);
-            const shape = 0.32;
             section.push([
-                Math.sign(cos) * Math.pow(Math.abs(cos), shape),
-                Math.sign(sin) * Math.pow(Math.abs(sin), shape),
+                Math.sign(cos) * Math.pow(Math.abs(cos), SECTION_SHAPE),
+                Math.sign(sin) * Math.pow(Math.abs(sin), SECTION_SHAPE),
             ]);
         }
 
