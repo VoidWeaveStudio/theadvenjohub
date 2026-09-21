@@ -7,6 +7,16 @@ import { CrowdSpec } from "../actors/ShowcaseCrowd";
 import type { ShowcaseActor } from "../actors/ShowcaseActor";
 import { footRestY, KNEEL_DROP, seatedActorY } from "../actors/poses";
 import type { EmblemKind } from "../textures";
+import { getGraphicsSettings, prefersMobileProfile } from "@/features/game/core/graphicsSettings";
+import { ChurchLight, type ShaftSpec } from "./church/ChurchLight";
+import { ChurchAtmosphere, type BeamAnchor } from "./church/ChurchAtmosphere";
+import {
+    disposeChurchSurfaces,
+    loadChurchSurfaces,
+    surfaceSet,
+    type ChurchSurfaceSet,
+    type ChurchSurfaceTextures,
+} from "./church/churchTextures";
 
 const HALF_WIDTH = 15;
 const WALL_HEIGHT = 19;
@@ -39,10 +49,26 @@ const GOSPELS: Array<{ ticker: string; kind: EmblemKind; tint: number }> = [
 
 const RELICS = ["$LUNA", "$FTT", "$SAFE", "$ICO", "$BITCONNECT", "$SQUID"];
 
+const CHURCH_EXPOSURE = {
+    environment: 0.38,
+    ambient: 0.34,
+    hemisphere: 0.42,
+    key: 1.35,
+    fill: 0.26,
+    shaftSun: 0.2,
+    shaftShade: 0.09,
+};
+
 export class ChurchRoom extends ShowcaseRoom {
-    private shaftMaterials: THREE.MeshBasicMaterial[] = [];
     private candleLights: THREE.PointLight[] = [];
-    private motes: THREE.Points | null = null;
+    private surfaces: ChurchSurfaceTextures | null = null;
+    private light: ChurchLight | null = null;
+    private atmosphere: ChurchAtmosphere | null = null;
+    private environment: THREE.Texture | null = null;
+    private shaftSpecs: ShaftSpec[] = [];
+    private censerBowl: THREE.Object3D | null = null;
+    private readonly cameraProbe = new THREE.Vector3(0, 4, 0);
+    private readonly censerProbe = new THREE.Vector3();
     private idol: THREE.Group | null = null;
     private chartCandles: THREE.Mesh[] = [];
     private chartBaseY: number[] = [];
@@ -60,17 +86,22 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     protected buildAtmosphere(): void {
-        this.scene.background = new THREE.Color(0x120d09);
-        this.scene.fog = new THREE.FogExp2(0x1a120c, 0.0105);
+        const settings = getGraphicsSettings();
 
-        this.scene.add(new THREE.AmbientLight(0x4a3a2c, 0.5));
-        this.scene.add(new THREE.HemisphereLight(0x6b5a44, 0x1a1410, 0.55));
+        this.scene.background = new THREE.Color(0x0e0a07);
+        this.scene.fog = new THREE.FogExp2(0x160f0a, 0.0115);
 
-        const key = new THREE.DirectionalLight(0xffdca8, 1.5);
+        const anisotropy = this.renderer?.capabilities.getMaxAnisotropy() ?? 4;
+        this.surfaces = loadChurchSurfaces(prefersMobileProfile() ? Math.min(4, anisotropy) : anisotropy);
+
+        this.scene.add(new THREE.AmbientLight(0x43352a, CHURCH_EXPOSURE.ambient));
+        this.scene.add(new THREE.HemisphereLight(0x5f5140, 0x171310, CHURCH_EXPOSURE.hemisphere));
+
+        const key = new THREE.DirectionalLight(0xffdca8, CHURCH_EXPOSURE.key);
         key.position.set(46, 54, 10);
         key.target.position.set(0, 0, 6);
-        key.castShadow = true;
-        key.shadow.mapSize.set(2048, 2048);
+        key.castShadow = settings.shadowRes > 0;
+        key.shadow.mapSize.set(Math.max(1024, settings.shadowRes), Math.max(1024, settings.shadowRes));
         key.shadow.camera.left = -46;
         key.shadow.camera.right = 46;
         key.shadow.camera.top = 60;
@@ -83,16 +114,40 @@ export class ChurchRoom extends ShowcaseRoom {
         this.scene.add(key);
         this.scene.add(key.target);
 
-        const fill = new THREE.DirectionalLight(0x8fa6d8, 0.32);
+        const fill = new THREE.DirectionalLight(0x7f97cc, CHURCH_EXPOSURE.fill);
         fill.position.set(-40, 26, -30);
         this.scene.add(fill);
 
-        const altarGlow = new THREE.PointLight(0xffc46a, 60, 60, 2);
+        const altarGlow = new THREE.PointLight(0xffc46a, 54, 60, 2);
         altarGlow.position.set(0, 9, ALTAR_Z - 2);
         this.scene.add(altarGlow);
     }
 
+    private pbr(
+        set: ChurchSurfaceSet,
+        repeatX: number,
+        repeatY: number,
+        options: { color?: number; roughness?: number; metalness?: number; normalScale?: number } = {}
+    ): THREE.MeshStandardMaterial {
+        const tiled = surfaceSet(this.bin, set, repeatX, repeatY);
+        const material = this.bin.material(new THREE.MeshStandardMaterial({
+            map: tiled.map,
+            normalMap: tiled.normal,
+            color: options.color ?? 0xffffff,
+            roughness: options.roughness ?? 0.92,
+            metalness: options.metalness ?? 0.04,
+        }));
+        const scale = options.normalScale ?? 1;
+        material.normalScale.set(scale, scale);
+        return material;
+    }
+
     protected decorate(rm: ResourceManager): void {
+        const settings = getGraphicsSettings();
+        const mobile = prefersMobileProfile();
+
+        this.atmosphere = new ChurchAtmosphere(this.scene, this.bin, this.random, settings.particles);
+
         this.buildShell();
         this.buildColumns();
         this.buildWindows();
@@ -106,9 +161,42 @@ export class ChurchRoom extends ShowcaseRoom {
         this.buildConfessional();
         this.buildRelicWall();
         this.buildChandeliers();
-        this.buildMotes();
         this.buildCrowd();
         this.buildBlessing(rm);
+
+        this.captureEnvironment();
+
+        this.light = new ChurchLight(this.scene, this.bin, this.random, 0);
+        this.light.create(this.shaftSpecs, !mobile);
+
+        const anchors: BeamAnchor[] = this.shaftSpecs.map((spec) => ({
+            origin: spec.origin,
+            direction: spec.direction,
+            length: spec.length,
+            radius: Math.max(spec.width, spec.height) * 0.4,
+        }));
+
+        this.atmosphere.create(anchors, {
+            halfWidth: HALF_WIDTH,
+            from: NAVE_START + 2,
+            to: NAVE_END - 2,
+            height: 14,
+        });
+    }
+
+    private captureEnvironment() {
+        if (!this.renderer) return;
+
+        const generator = new THREE.PMREMGenerator(this.renderer);
+        const target = generator.fromScene(this.scene, 0, 0.5, 220, {
+            size: 128,
+            position: new THREE.Vector3(0, 6, NAVE_MID),
+        });
+
+        this.environment = target.texture;
+        this.scene.environment = target.texture;
+        this.scene.environmentIntensity = CHURCH_EXPOSURE.environment;
+        generator.dispose();
     }
 
     private buildBlessing(rm: ResourceManager) {
@@ -199,12 +287,13 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     private buildShell() {
-        const slab = this.textured(this.tex.stoneBlock([6, 22], 0x7b6f5c, 0x4f4638, 4), { roughness: 0.94, metalness: 0.03, bump: 0.05 });
-        const wallSkin = this.textured(this.tex.stoneBlock([5, 12], 0x6b5f4e, 0x463d30, 6), { roughness: 0.95, metalness: 0.03, bump: 0.08 });
-        const endSkin = this.textured(this.tex.stoneBlock([5, 4], 0x574c3d, 0x38301f, 5), { roughness: 0.95, metalness: 0.03, bump: 0.08 });
+        const textures = this.surfaces!;
+        const slab = this.pbr(textures.floor, 10, 24, { color: 0xa2967f, roughness: 0.42, metalness: 0.08, normalScale: 0.85 });
+        const wallSkin = this.pbr(textures.brick, 16, 4.5, { color: 0x8f8270, roughness: 0.95, normalScale: 1.2 });
+        const endSkin = this.pbr(textures.brick, 7, 4, { color: 0x7d7160, roughness: 0.95, normalScale: 1.2 });
         const runnerSkin = this.textured(this.tex.carpet([1, 14], 0x7c2230, 0xd8b46a), { roughness: 0.98, metalness: 0 });
-        const vaultSkin = this.textured(this.tex.plaster([5, 12], 0x554a3b, 0x241b12), { roughness: 0.97, metalness: 0.02 });
-        const ribSkin = this.textured(this.tex.stoneBlock([3, 1], 0x5f5443, 0x3c3428, 3), { roughness: 0.92, metalness: 0.04 });
+        const vaultSkin = this.pbr(textures.plaster, 6, 13, { color: 0x6f6252, roughness: 0.97, normalScale: 0.7 });
+        const ribSkin = this.pbr(textures.marble, 3, 1, { color: 0x8a7e6a, roughness: 0.68, metalness: 0.06 });
 
         const floor = this.mesh(new THREE.BoxGeometry(HALF_WIDTH * 2, 0.6, NAVE_LENGTH), slab, [0, -0.3, NAVE_MID]);
         floor.castShadow = false;
@@ -267,8 +356,9 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     private buildColumns() {
-        const shaftSkin = this.textured(this.tex.marble([2, 5], 0x8a7d67, 0x574c3b), { roughness: 0.62, metalness: 0.06, bump: 0.03 });
-        const trimSkin = this.textured(this.tex.stoneBlock([2, 1], 0x6f6252, 0x463d30, 2), { roughness: 0.88, metalness: 0.05 });
+        const textures = this.surfaces!;
+        const shaftSkin = this.pbr(textures.marble, 2, 5, { color: 0x968a72, roughness: 0.46, metalness: 0.07, normalScale: 0.6 });
+        const trimSkin = this.pbr(textures.marble, 2, 1, { color: 0x7d7160, roughness: 0.6, metalness: 0.07 });
 
         const shaft = this.bin.geometry(new THREE.CylinderGeometry(0.9, 1.02, WALL_HEIGHT - 3.5, 16, 1));
         const capital = this.bin.geometry(new THREE.CylinderGeometry(1.35, 0.95, 1.1, 16));
@@ -308,7 +398,7 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     private buildWindows() {
-        const frame = this.textured(this.tex.stoneBlock([1, 2], 0x453c2f, 0x2c261d, 3), { roughness: 0.9, metalness: 0.05 });
+        const frame = this.pbr(this.surfaces!.brick, 1, 2, { color: 0x4a4135, roughness: 0.9, metalness: 0.05 });
         const spacing = (ALTAR_Z - 4 - (NAVE_START + 6)) / (WINDOW_BAYS - 1);
 
         for (let i = 0; i < WINDOW_BAYS; i++) {
@@ -359,20 +449,31 @@ export class ChurchRoom extends ShowcaseRoom {
                 sill.position.set(0, -4.9, 0.2);
                 group.add(sill);
 
+                const bloom = new THREE.Mesh(
+                    this.bin.geometry(new THREE.PlaneGeometry(5.4, 11)),
+                    this.glow(gospel.tint, side > 0 ? 0.3 : 0.16)
+                );
+                bloom.position.set(0, 0.4, 0.5);
+                bloom.renderOrder = 6;
+                group.add(bloom);
+
                 this.scene.add(group);
 
-                const shaftMaterial = this.glow(gospel.tint, 0.03);
-                this.shaftMaterials.push(shaftMaterial);
-
-                const beam = new THREE.Mesh(
-                    this.bin.geometry(new THREE.CylinderGeometry(1.9, 4.4, 24, 14, 1, true)),
-                    shaftMaterial
+                const sunward = side > 0;
+                const tint = new THREE.Color(gospel.tint).lerp(
+                    new THREE.Color(sunward ? 0xfff0cc : 0xd2e2ff),
+                    sunward ? 0.42 : 0.55
                 );
-                beam.position.set(x - side * 7, 5, z + 2.4);
-                beam.rotation.z = side * 0.52;
-                beam.rotation.x = -0.14;
-                beam.renderOrder = 3;
-                this.scene.add(beam);
+
+                this.shaftSpecs.push({
+                    origin: new THREE.Vector3(x - side * 1.2, 11.2, z),
+                    direction: new THREE.Vector3(-side * 0.62, -0.74, -0.16).normalize(),
+                    width: 4.2,
+                    height: 8.8,
+                    length: 24,
+                    tint: tint.getHex(),
+                    strength: sunward ? CHURCH_EXPOSURE.shaftSun : CHURCH_EXPOSURE.shaftShade,
+                });
             }
         }
     }
@@ -410,8 +511,9 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     private buildApse() {
-        const stone = this.textured(this.tex.stoneBlock([6, 6], 0x6b5f4e, 0x463d30, 5), { roughness: 0.94, metalness: 0.03, bump: 0.07 });
-        const step = this.textured(this.tex.stoneBlock([4, 2], 0x7f7360, 0x4f4638, 2), { roughness: 0.9, metalness: 0.04 });
+        const textures = this.surfaces!;
+        const stone = this.pbr(textures.brick, 6, 5, { color: 0x8a7d6a, roughness: 0.94, normalScale: 1.1 });
+        const step = this.pbr(textures.marble, 4, 2, { color: 0x9a8e78, roughness: 0.5, metalness: 0.07 });
         const gold = this.metal(0xe0b552, 0.26, 0.95);
         const goldDark = this.metal(0x8c6b28, 0.48, 0.82);
 
@@ -474,7 +576,7 @@ export class ChurchRoom extends ShowcaseRoom {
         this.scene.add(idol);
         this.idol = idol;
 
-        const altarSkin = this.textured(this.tex.marble([3, 1], 0x6d5c42, 0x3b3122), { roughness: 0.55, metalness: 0.08 });
+        const altarSkin = this.pbr(this.surfaces!.marble, 3, 1, { color: 0x8c7a5c, roughness: 0.38, metalness: 0.1 });
         const altarTable = this.mesh(new THREE.BoxGeometry(7.4, 1.5, 3), altarSkin, [0, 2.05, ALTAR_Z]);
         this.scene.add(altarTable);
         this.collisionGrid.insertOrientedBox(0, ALTAR_Z, 7.4, 3, 0, 1.3, 2.8);
@@ -508,8 +610,7 @@ export class ChurchRoom extends ShowcaseRoom {
             const bowl = this.mesh(new THREE.CylinderGeometry(0.85, 0.45, 0.6, 12), goldDark, [0, 3.6, 0]);
             stand.add(bowl);
 
-            const flame = this.mesh(new THREE.ConeGeometry(0.55, 1.5, 10), this.glow(0xffb45a, 0.9), [0, 4.5, 0]);
-            stand.add(flame);
+            this.atmosphere?.addCandle(side * 6.5, 4.4, ALTAR_Z - 1, 2.6);
 
             const light = new THREE.PointLight(0xffa845, 26, 26, 2);
             light.position.set(0, 4.4, 0);
@@ -527,8 +628,12 @@ export class ChurchRoom extends ShowcaseRoom {
         censer.add(bowlBody);
         const lid = this.mesh(new THREE.ConeGeometry(0.44, 0.5, 12), gold, [0, 0.26, 0]);
         censer.add(lid);
-        const smoke = this.mesh(new THREE.ConeGeometry(0.5, 2.4, 10, 1, true), this.glow(0xd8c8a8, 0.1), [0, 1.4, 0]);
-        censer.add(smoke);
+
+        const vent = new THREE.Object3D();
+        vent.position.set(0, 0.5, 0);
+        censer.add(vent);
+        this.censerBowl = vent;
+
         this.scene.add(censer);
         this.censer = censer;
     }
@@ -581,7 +686,7 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     private buildPulpit() {
-        const wood = this.textured(this.tex.planks([2, 1], 0x54402a, 0x2e2316, 6), { roughness: 0.88, metalness: 0.04, bump: 0.05 });
+        const wood = this.pbr(this.surfaces!.wood, 2, 1, { color: 0x6b5238, roughness: 0.74, metalness: 0.05 });
         const gold = this.metal(0xd8b46a, 0.3, 0.9);
 
         const group = new THREE.Group();
@@ -626,7 +731,7 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     private buildChoir() {
-        const wood = this.textured(this.tex.planks([2, 1], 0x4a3722, 0x2a1f14, 6), { roughness: 0.9, metalness: 0.03 });
+        const wood = this.pbr(this.surfaces!.wood, 3, 1, { color: 0x5f4830, roughness: 0.78, metalness: 0.04 });
 
         for (let tier = 0; tier < 2; tier++) {
             const height = 0.4 + tier * 0.4;
@@ -645,7 +750,7 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     private buildPews() {
-        const wood = this.textured(this.tex.planks([3, 1], 0x4a3722, 0x291e13, 5), { roughness: 0.9, metalness: 0.03, bump: 0.04 });
+        const wood = this.pbr(this.surfaces!.wood, 4, 1, { color: 0x5a4430, roughness: 0.72, metalness: 0.05, normalScale: 0.8 });
         const seat = this.bin.geometry(new THREE.BoxGeometry(9, 0.16, 0.72));
         const back = this.bin.geometry(new THREE.BoxGeometry(9, 0.78, 0.16));
         const leg = this.bin.geometry(new THREE.BoxGeometry(0.34, SEAT_TOP - 0.08, 0.66));
@@ -714,9 +819,7 @@ export class ChurchRoom extends ShowcaseRoom {
         }
 
         const wax = this.bin.geometry(new THREE.CylinderGeometry(0.1, 0.11, 0.34, 8));
-        const flameGeometry = this.bin.geometry(new THREE.ConeGeometry(0.09, 0.26, 7));
         const waxMaterial = this.matte(0xe8dcc0, 0.85);
-        const flameMaterial = this.glow(0xffb45a, 0.95);
 
         for (let row = 0; row < 3; row++) {
             for (let i = 0; i < 14; i++) {
@@ -727,9 +830,7 @@ export class ChurchRoom extends ShowcaseRoom {
                 candle.position.set(x, 1.28, z);
                 group.add(candle);
 
-                const flame = new THREE.Mesh(flameGeometry, flameMaterial);
-                flame.position.set(x, 1.58, z);
-                group.add(flame);
+                this.atmosphere?.addCandle(HALF_WIDTH - 3.4 - z, 1.54, VOTIVE_Z + x, 0.62);
             }
         }
 
@@ -753,7 +854,7 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     private buildConfessional() {
-        const wood = this.textured(this.tex.planks([1, 2], 0x3d2c1c, 0x21180f, 5), { roughness: 0.92, metalness: 0.03 });
+        const wood = this.pbr(this.surfaces!.wood, 1, 2, { color: 0x4d3a26, roughness: 0.78, metalness: 0.05 });
         const curtain = this.textured(this.tex.carpet([1, 1], 0x5a1a24, 0x8c6b28), { roughness: 0.96, metalness: 0 });
 
         const group = new THREE.Group();
@@ -846,8 +947,7 @@ export class ChurchRoom extends ShowcaseRoom {
                 const wax = this.mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.72, 8), this.matte(0xe8dcc0, 0.85), [Math.cos(angle) * 2.5, 0.5, Math.sin(angle) * 2.5]);
                 group.add(wax);
 
-                const flame = this.mesh(new THREE.ConeGeometry(0.12, 0.36, 8), this.glow(0xffc06a, 0.95), [Math.cos(angle) * 2.5, 1.06, Math.sin(angle) * 2.5]);
-                group.add(flame);
+                this.atmosphere?.addCandle(Math.cos(angle) * 2.5, 13.7, z + Math.sin(angle) * 2.5, 0.8);
             }
 
             const light = new THREE.PointLight(0xffb45a, 40, 34, 2);
@@ -857,36 +957,6 @@ export class ChurchRoom extends ShowcaseRoom {
 
             this.scene.add(group);
         }
-    }
-
-    private buildMotes() {
-        const count = 420;
-        const positions = new Float32Array(count * 3);
-
-        for (let i = 0; i < count; i++) {
-            positions[i * 3] = (this.random() - 0.5) * (HALF_WIDTH * 2 - 4);
-            positions[i * 3 + 1] = 0.6 + this.random() * 16;
-            positions[i * 3 + 2] = NAVE_START + this.random() * NAVE_LENGTH;
-        }
-
-        const geometry = this.bin.geometry(new THREE.BufferGeometry());
-        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-
-        const material = this.bin.material(new THREE.PointsMaterial({
-            color: 0xffe3b0,
-            size: 0.09,
-            transparent: true,
-            opacity: 0.65,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            toneMapped: false,
-            fog: false,
-        }));
-
-        const points = new THREE.Points(geometry, material);
-        points.frustumCulled = false;
-        this.scene.add(points);
-        this.motes = points;
     }
 
     private buildCrowd() {
@@ -1082,15 +1152,23 @@ export class ChurchRoom extends ShowcaseRoom {
     }
 
     protected tick(delta: number): void {
+        const camera = this.camera;
+        if (camera) camera.getWorldPosition(this.cameraProbe);
+
+        this.light?.update(delta, this.cameraProbe);
+
+        if (this.censerBowl) {
+            this.censerBowl.getWorldPosition(this.censerProbe);
+            this.atmosphere?.setCenser(this.censerProbe);
+        }
+
+        this.atmosphere?.update(delta, this.cameraProbe);
+
         const flicker = 0.85 + Math.sin(this.elapsed * 7.3) * 0.08 + Math.sin(this.elapsed * 3.1) * 0.05;
 
         for (let i = 0; i < this.candleLights.length; i++) {
             const light = this.candleLights[i];
             light.intensity = (i < 2 ? 26 : 40) * (flicker + Math.sin(this.elapsed * 5 + i) * 0.06);
-        }
-
-        for (let i = 0; i < this.shaftMaterials.length; i++) {
-            this.shaftMaterials[i].opacity = 0.026 + Math.sin(this.elapsed * 0.5 + i * 0.7) * 0.008;
         }
 
         if (this.idol) {
@@ -1118,16 +1196,32 @@ export class ChurchRoom extends ShowcaseRoom {
         for (let i = 0; i < this.chartCandles.length; i++) {
             this.chartCandles[i].position.y = this.chartBaseY[i] + Math.sin(this.elapsed * 1.6 + i * 0.5) * 0.06;
         }
+    }
 
-        if (this.motes) {
-            const attribute = this.motes.geometry.getAttribute("position") as THREE.BufferAttribute;
-            const array = attribute.array as Float32Array;
-            for (let i = 0; i < array.length; i += 3) {
-                array[i + 1] += delta * 0.16;
-                array[i] += Math.sin(this.elapsed * 0.4 + i) * delta * 0.05;
-                if (array[i + 1] > 17) array[i + 1] = 0.4;
-            }
-            attribute.needsUpdate = true;
-        }
+    dispose(): void {
+        this.light?.dispose();
+        this.atmosphere?.dispose();
+        if (this.surfaces) disposeChurchSurfaces(this.surfaces);
+
+        this.scene.environment = null;
+        this.environment?.dispose();
+        this.environment = null;
+
+        this.light = null;
+        this.atmosphere = null;
+        this.surfaces = null;
+        this.shaftSpecs = [];
+        this.censerBowl = null;
+        this.candleLights = [];
+        this.banners = [];
+        this.chartCandles = [];
+        this.chartBaseY = [];
+        this.idol = null;
+        this.tithePile = null;
+        this.titheLight = null;
+        this.censer = null;
+        this.preacher = null;
+
+        super.dispose();
     }
 }

@@ -7,6 +7,10 @@ import { CrowdSpec } from "../actors/ShowcaseCrowd";
 import type { ShowcaseActor } from "../actors/ShowcaseActor";
 import type { EmblemKind } from "../textures";
 import { createNpcNameTag } from "../../../../entities/npcNameTag";
+import { getGraphicsSettings, prefersMobileProfile } from "@/features/game/core/graphicsSettings";
+import { MoonTerrain, type FlatZone } from "./moon/MoonTerrain";
+import { MoonSky } from "./moon/MoonSky";
+import { disposeMoonSurfaces, dustSprite, loadMoonSurfaces, plumeNoiseTexture, type MoonSurfaceTextures } from "./moon/moonTextures";
 
 const SURFACE_RADIUS = 78;
 const ROCKET_POSITION = new THREE.Vector3(14, 0, 26);
@@ -18,6 +22,22 @@ const CONTROL_CENTER = new THREE.Vector3(34, 0, 10);
 const SOLAR_CENTER = new THREE.Vector3(46, 0, 36);
 const SCOPE_CENTER = new THREE.Vector3(-30, 0, -26);
 const CONSOLE_SPOT = new THREE.Vector3(0, 0, 20);
+const SUN_POSITION = new THREE.Vector3(70, 46, -60);
+const EARTH_POSITION = new THREE.Vector3(-58, 96, 150);
+const EARTH_RADIUS = 26;
+
+const FLAT_ZONES: FlatZone[] = [
+    { x: 0, z: 0, radius: 50, feather: 18 },
+    { x: SOLAR_CENTER.x, z: SOLAR_CENTER.z, radius: 16, feather: 9 },
+];
+
+const MOON_EXPOSURE = {
+    ambient: 0.16,
+    hemisphere: 0.22,
+    sun: 2.9,
+    earthshine: 0.5,
+    environment: 0.45,
+};
 
 export class MoonRoom extends ShowcaseRoom {
     private mineBeacon: THREE.Mesh | null = null;
@@ -40,11 +60,15 @@ export class MoonRoom extends ShowcaseRoom {
     private padLights: THREE.PointLight[] = [];
     private padBulbs: THREE.MeshBasicMaterial[] = [];
     private dust: THREE.Points | null = null;
-    private stars: THREE.Points | null = null;
-    private earth: THREE.Object3D | null = null;
     private flagCloth: THREE.Mesh | null = null;
     private roverWheels: THREE.Object3D[] = [];
     private controlDish: THREE.Object3D | null = null;
+    private surfaces: MoonSurfaceTextures | null = null;
+    private plumeTime = { value: 0 };
+    private plumeMap: THREE.CanvasTexture | null = null;
+    private moonTerrain: MoonTerrain | null = null;
+    private sky: MoonSky | null = null;
+    private environment: THREE.Texture | null = null;
 
     constructor(info: ShowcaseInfo = SHOWCASE_INFO_BY_ID.get("show-moon") as ShowcaseInfo) {
         super(info, 0x4fc1d7, 76);
@@ -54,17 +78,22 @@ export class MoonRoom extends ShowcaseRoom {
     }
 
     protected buildAtmosphere(): void {
-        this.scene.background = new THREE.Color(0x03040a);
+        const settings = getGraphicsSettings();
+
+        this.scene.background = new THREE.Color(0x020307);
         this.scene.fog = null;
 
-        this.scene.add(new THREE.AmbientLight(0x2c3444, 0.55));
-        this.scene.add(new THREE.HemisphereLight(0x44506b, 0x0a0c12, 0.45));
+        const anisotropy = this.renderer?.capabilities.getMaxAnisotropy() ?? 4;
+        this.surfaces = loadMoonSurfaces(prefersMobileProfile() ? Math.min(4, anisotropy) : anisotropy);
 
-        const sun = new THREE.DirectionalLight(0xffffff, 2.6);
-        sun.position.set(70, 46, -60);
+        this.scene.add(new THREE.AmbientLight(0x252c3c, MOON_EXPOSURE.ambient));
+        this.scene.add(new THREE.HemisphereLight(0x3a465e, 0x07080c, MOON_EXPOSURE.hemisphere));
+
+        const sun = new THREE.DirectionalLight(0xfff6ea, MOON_EXPOSURE.sun);
+        sun.position.copy(SUN_POSITION);
         sun.target.position.set(0, 0, 8);
-        sun.castShadow = true;
-        sun.shadow.mapSize.set(2048, 2048);
+        sun.castShadow = settings.shadowRes > 0;
+        sun.shadow.mapSize.set(Math.max(1024, settings.shadowRes), Math.max(1024, settings.shadowRes));
         sun.shadow.camera.left = -70;
         sun.shadow.camera.right = 70;
         sun.shadow.camera.top = 70;
@@ -77,106 +106,17 @@ export class MoonRoom extends ShowcaseRoom {
         this.scene.add(sun);
         this.scene.add(sun.target);
 
-        const earthBounce = new THREE.DirectionalLight(0x5a8fd8, 0.4);
-        earthBounce.position.set(-40, 50, 70);
+        const earthBounce = new THREE.DirectionalLight(0x5f8fd8, MOON_EXPOSURE.earthshine);
+        earthBounce.position.copy(EARTH_POSITION);
         this.scene.add(earthBounce);
 
-        this.buildStars();
-        this.buildEarth();
-    }
-
-    private buildStars() {
-        const count = 1400;
-        const positions = new Float32Array(count * 3);
-
-        for (let i = 0; i < count; i++) {
-            const theta = this.random() * Math.PI * 2;
-            const phi = Math.acos(this.random() * 0.9);
-            const radius = 300;
-            positions[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
-            positions[i * 3 + 1] = Math.cos(phi) * radius;
-            positions[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * radius;
-        }
-
-        const geometry = this.bin.geometry(new THREE.BufferGeometry());
-        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-
-        const material = this.bin.material(new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 1.4,
-            sizeAttenuation: false,
-            transparent: true,
-            opacity: 0.9,
-            depthWrite: false,
-            toneMapped: false,
-            fog: false,
-        }));
-
-        const points = new THREE.Points(geometry, material);
-        points.frustumCulled = false;
-        this.scene.add(points);
-        this.stars = points;
-    }
-
-    private buildEarth() {
-        const group = new THREE.Group();
-        group.position.set(-58, 96, 150);
-
-        const globe = this.mesh(
-            new THREE.SphereGeometry(26, 36, 24),
-            this.bin.material(new THREE.MeshStandardMaterial({
-                color: 0x2f6ad8,
-                emissive: 0x14305f,
-                emissiveIntensity: 0.9,
-                roughness: 0.85,
-                metalness: 0,
-                fog: false,
-            })),
-            [0, 0, 0]
-        );
-        globe.castShadow = false;
-        globe.receiveShadow = false;
-        group.add(globe);
-
-        for (let i = 0; i < 7; i++) {
-            const land = this.mesh(
-                new THREE.SphereGeometry(26.15, 14, 10, this.random() * Math.PI * 2, 0.5 + this.random() * 0.6, this.random() * 1.4, 0.4 + this.random() * 0.5),
-                this.bin.material(new THREE.MeshStandardMaterial({
-                    color: 0x4f9f52,
-                    emissive: 0x1f4f28,
-                    emissiveIntensity: 0.6,
-                    roughness: 0.9,
-                    fog: false,
-                })),
-                [0, 0, 0]
-            );
-            land.castShadow = false;
-            group.add(land);
-        }
-
-        const clouds = this.mesh(
-            new THREE.SphereGeometry(26.8, 26, 18),
-            this.bin.material(new THREE.MeshBasicMaterial({
-                color: 0xffffff,
-                transparent: true,
-                opacity: 0.18,
-                fog: false,
-                toneMapped: false,
-            })),
-            [0, 0, 0]
-        );
-        clouds.castShadow = false;
-        group.add(clouds);
-
-        const halo = this.mesh(new THREE.SphereGeometry(29, 24, 16), this.glow(0x6fa8ff, 0.12), [0, 0, 0]);
-        halo.castShadow = false;
-        group.add(halo);
-
-        this.scene.add(group);
-        this.earth = group;
+        this.sky = new MoonSky(this.scene, this.bin, this.random, SUN_POSITION);
+        this.sky.create(EARTH_POSITION, EARTH_RADIUS);
     }
 
     protected decorate(rm: ResourceManager): void {
+        this.moonTerrain = new MoonTerrain(this.scene, this.bin, this.random, FLAT_ZONES);
+
         this.buildSurface();
         this.buildRocket();
         this.buildPad();
@@ -192,34 +132,87 @@ export class MoonRoom extends ShowcaseRoom {
         this.buildArrow();
         this.buildDust();
         this.buildCrowd();
+        this.captureEnvironment();
+    }
+
+    private plumeMaterial(color: number, opacity: number, streaks: number): THREE.MeshBasicMaterial {
+        if (!this.plumeMap) this.plumeMap = plumeNoiseTexture(this.bin, this.random);
+
+        const material = this.glow(color, opacity);
+        const uniforms = {
+            uPlume: { value: this.plumeMap },
+            uPlumeTime: this.plumeTime,
+            uPlumeStreaks: { value: streaks },
+        };
+
+        material.onBeforeCompile = (shader) => {
+            Object.assign(shader.uniforms, uniforms);
+
+            shader.vertexShader = shader.vertexShader
+                .replace("#include <common>", ["#include <common>", "varying vec2 vPlumeUv;"].join("\n"))
+                .replace("#include <begin_vertex>", ["#include <begin_vertex>", "vPlumeUv = uv;"].join("\n"));
+
+            shader.fragmentShader = shader.fragmentShader
+                .replace(
+                    "#include <common>",
+                    [
+                        "#include <common>",
+                        "uniform sampler2D uPlume;",
+                        "uniform float uPlumeTime;",
+                        "uniform float uPlumeStreaks;",
+                        "varying vec2 vPlumeUv;",
+                    ].join("\n")
+                )
+                .replace(
+                    "#include <opaque_fragment>",
+                    /* glsl */`
+                    float pnA = texture2D(uPlume, vec2(vPlumeUv.x * 2.0, vPlumeUv.y * 1.5 - uPlumeTime)).r;
+                    float pnB = texture2D(uPlume, vec2(vPlumeUv.x * 3.7 + 0.31, vPlumeUv.y * 2.8 - uPlumeTime * 1.9)).r;
+                    float shock = 0.7 + 0.46 * sin(vPlumeUv.y * uPlumeStreaks - uPlumeTime * 7.0);
+                    float taper = 1.0 - smoothstep(0.5, 1.0, vPlumeUv.y);
+                    diffuseColor.a *= clamp((0.3 + 2.1 * pnA * pnB) * mix(1.0, shock, 0.4) * taper, 0.0, 1.0);
+                    #include <opaque_fragment>
+                    `
+                );
+        };
+
+        material.customProgramCacheKey = () => `moon-plume-${streaks}`;
+        return material;
+    }
+
+    protected groundHeight(x: number, z: number): number {
+        return this.moonTerrain ? this.moonTerrain.heightAt(x, z) : 0;
+    }
+
+    private captureEnvironment() {
+        if (!this.renderer) return;
+
+        const generator = new THREE.PMREMGenerator(this.renderer);
+        const target = generator.fromScene(this.scene, 0, 1, 900, {
+            size: 128,
+            position: new THREE.Vector3(0, 8, 0),
+        });
+
+        this.environment = target.texture;
+        this.scene.environment = target.texture;
+        this.scene.environmentIntensity = MOON_EXPOSURE.environment;
+        generator.dispose();
     }
 
     private buildSurface() {
-        const regolith = this.textured(this.tex.regolith(30, 0x7d7a76), { roughness: 0.99, metalness: 0.02, bump: 0.08 });
-        const regolithDark = this.textured(this.tex.regolith(4, 0x615f5c), { roughness: 0.99, metalness: 0.02, bump: 0.08 });
+        this.moonTerrain!.create(this.surfaces!, prefersMobileProfile());
 
-        const ground = this.mesh(new THREE.CircleGeometry(SURFACE_RADIUS + 40, 64), regolith, [0, 0, 0], [-Math.PI / 2, 0, 0]);
-        ground.castShadow = false;
-        this.scene.add(ground);
+        const rockMaterial = this.bin.material(new THREE.MeshStandardMaterial({
+            map: this.surfaces!.basalt.map,
+            normalMap: this.surfaces!.basalt.normal,
+            color: 0x9c988f,
+            roughness: 0.98,
+            metalness: 0.03,
+        }));
 
-        for (let i = 0; i < 34; i++) {
-            const angle = this.random() * Math.PI * 2;
-            const distance = 10 + this.random() * (SURFACE_RADIUS + 20);
-            const radius = 2 + this.random() * 8;
-            const x = Math.cos(angle) * distance;
-            const z = Math.sin(angle) * distance;
-
-            const bowl = this.mesh(new THREE.CircleGeometry(radius, 20), regolithDark, [x, 0.03, z], [-Math.PI / 2, 0, 0]);
-            bowl.castShadow = false;
-            this.scene.add(bowl);
-
-            const lip = this.mesh(new THREE.TorusGeometry(radius, radius * 0.12, 6, 18), regolith, [x, 0.08, z], [-Math.PI / 2, 0, 0]);
-            lip.receiveShadow = true;
-            this.scene.add(lip);
-        }
-
+        const count = prefersMobileProfile() ? 140 : 320;
         const rockGeometry = this.bin.geometry(new THREE.DodecahedronGeometry(1, 0));
-        const rocks = new THREE.InstancedMesh(rockGeometry, regolithDark, 160);
+        const rocks = new THREE.InstancedMesh(rockGeometry, rockMaterial, count);
         rocks.castShadow = true;
         rocks.receiveShadow = true;
 
@@ -229,14 +222,17 @@ export class MoonRoom extends ShowcaseRoom {
         const position = new THREE.Vector3();
         const scale = new THREE.Vector3();
 
-        for (let i = 0; i < 160; i++) {
+        for (let i = 0; i < count; i++) {
             const angle = this.random() * Math.PI * 2;
-            const distance = 6 + this.random() * (SURFACE_RADIUS + 24);
-            const size = 0.3 + this.random() * 1.8;
-            position.set(Math.cos(angle) * distance, size * 0.3, Math.sin(angle) * distance);
+            const distance = 6 + Math.sqrt(this.random()) * 150;
+            const size = 0.3 + this.random() * 2.4;
+            const x = Math.cos(angle) * distance;
+            const z = Math.sin(angle) * distance;
+
+            position.set(x, this.groundHeight(x, z) + size * 0.24, z);
             euler.set(this.random() * 3, this.random() * 3, this.random() * 3);
             quaternion.setFromEuler(euler);
-            scale.set(size, size * 0.72, size);
+            scale.set(size, size * 0.68, size);
             matrix.compose(position, quaternion, scale);
             rocks.setMatrixAt(i, matrix);
         }
@@ -304,7 +300,7 @@ export class MoonRoom extends ShowcaseRoom {
         flameGeometry.rotateX(Math.PI);
         flameGeometry.translate(0, -4.5, 0);
 
-        this.exhaust = this.mesh(flameGeometry, this.glow(0xffb45a, 0.5), [0, 0.2, 0]);
+        this.exhaust = this.mesh(flameGeometry, this.plumeMaterial(0xffb45a, 0.5, 26), [0, 0.2, 0]);
         this.exhaust.castShadow = false;
         rocket.add(this.exhaust);
 
@@ -312,7 +308,7 @@ export class MoonRoom extends ShowcaseRoom {
         coreGeometry.rotateX(Math.PI);
         coreGeometry.translate(0, -3, 0);
 
-        this.exhaustCore = this.mesh(coreGeometry, this.glow(0xfff3c4, 0.85), [0, 0.2, 0]);
+        this.exhaustCore = this.mesh(coreGeometry, this.plumeMaterial(0xfff3c4, 0.85, 44), [0, 0.2, 0]);
         this.exhaustCore.castShadow = false;
         rocket.add(this.exhaustCore);
 
@@ -1062,11 +1058,14 @@ export class MoonRoom extends ShowcaseRoom {
         geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
         const material = this.bin.material(new THREE.PointsMaterial({
-            color: 0xd8d2c8,
-            size: 0.14,
+            map: dustSprite(this.bin),
+            color: 0xe4ded2,
+            size: 0.34,
+            sizeAttenuation: true,
             transparent: true,
             opacity: 0.55,
             depthWrite: false,
+            blending: THREE.AdditiveBlending,
             toneMapped: false,
             fog: false,
         }));
@@ -1225,10 +1224,20 @@ export class MoonRoom extends ShowcaseRoom {
             });
         }
 
+        for (const spec of specs) {
+            spec.position.y += this.groundHeight(spec.position.x, spec.position.z);
+            if (spec.walk) {
+                for (const point of spec.walk.path) point.y += this.groundHeight(point.x, point.z);
+            }
+        }
+
         this.crowd.addMany(specs);
     }
 
     protected tick(delta: number): void {
+        this.sky?.update(delta);
+        this.plumeTime.value += delta * (0.35 + this.launchBlast * 1.4);
+
         const pulse = 0.55 + Math.sin(this.elapsed * 8) * 0.2;
 
         if (this.drill) {
@@ -1309,10 +1318,6 @@ export class MoonRoom extends ShowcaseRoom {
             this.padLights[i].intensity = 10 + (i % 2 === 0 ? pulse : 1 - pulse) * 12;
         }
 
-        if (this.earth) {
-            this.earth.rotation.y += delta * 0.012;
-        }
-
         if (this.dish) {
             this.dish.rotation.y = Math.sin(this.elapsed * 0.12) * 0.7;
         }
@@ -1326,10 +1331,6 @@ export class MoonRoom extends ShowcaseRoom {
             this.roverWheels[i].rotation.y += delta * 0.2;
         }
 
-        if (this.stars) {
-            (this.stars.material as THREE.PointsMaterial).opacity = 0.75 + Math.sin(this.elapsed * 0.6) * 0.12;
-        }
-
         if (this.dust) {
             const attribute = this.dust.geometry.getAttribute("position") as THREE.BufferAttribute;
             const array = attribute.array as Float32Array;
@@ -1340,5 +1341,31 @@ export class MoonRoom extends ShowcaseRoom {
             }
             attribute.needsUpdate = true;
         }
+    }
+
+    dispose(): void {
+        this.sky?.dispose();
+        this.moonTerrain?.dispose();
+        if (this.surfaces) disposeMoonSurfaces(this.surfaces);
+
+        this.scene.environment = null;
+        this.environment?.dispose();
+        this.environment = null;
+
+        this.sky = null;
+        this.moonTerrain = null;
+        this.surfaces = null;
+        this.plumeMap = null;
+        this.oreNuggets = [];
+        this.flags = [];
+        this.solarPanels = [];
+        this.countdown = [];
+        this.steamPuffs = [];
+        this.padLights = [];
+        this.padBulbs = [];
+        this.roverWheels = [];
+        this.dust = null;
+
+        super.dispose();
     }
 }
