@@ -369,3 +369,73 @@ export function plumeNoiseTexture(bin: AssetBin, seed: () => number): THREE.Canv
     texture.needsUpdate = true;
     return texture;
 }
+
+export function galaxyTexture(bin: AssetBin, random: () => number): THREE.CanvasTexture {
+    const texture = bin.texture(new THREE.CanvasTexture(canvasOf(512, 512, (ctx, size) => {
+        const half = size / 2;
+        ctx.clearRect(0, 0, size, size);
+        ctx.globalCompositeOperation = "lighter";
+
+        const halo = ctx.createRadialGradient(half, half, 0, half, half, half * 0.9);
+        halo.addColorStop(0, "rgba(255, 244, 214, 0.85)");
+        halo.addColorStop(0.08, "rgba(255, 226, 168, 0.4)");
+        halo.addColorStop(0.3, "rgba(150, 178, 255, 0.12)");
+        halo.addColorStop(1, "rgba(80, 110, 200, 0)");
+        ctx.save();
+        ctx.translate(half, half);
+        ctx.scale(1, 0.46);
+        ctx.translate(-half, -half);
+        ctx.fillStyle = halo;
+        ctx.fillRect(0, 0, size, size);
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(half, half);
+        ctx.scale(1, 0.46);
+
+        for (let arm = 0; arm < 2; arm++) {
+            for (let i = 0; i < 2600; i++) {
+                const t = Math.pow(random(), 0.55);
+                const spread = (1 - t) * 0.5 + 0.08;
+                const angle = t * 5.2 + arm * Math.PI + (random() - 0.5) * spread * 2.4;
+                const radius = t * half * 0.92 + (random() - 0.5) * half * 0.05;
+
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+
+                const warm = 1 - Math.min(1, t * 1.6);
+                const red = Math.round(170 + warm * 85);
+                const green = Math.round(190 + warm * 50);
+                const blue = Math.round(255 - warm * 60);
+                const alpha = (0.1 + random() * 0.4) * (1 - t * 0.7);
+
+                ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(x, y, 0.5 + random() * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < 26; i++) {
+            const t = Math.pow(random(), 0.6);
+            const angle = t * 5.2 + (random() < 0.5 ? 0 : Math.PI) + (random() - 0.5) * 0.5;
+            const radius = t * half * 0.9;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+            const knot = ctx.createRadialGradient(x, y, 0, x, y, 8 + random() * 16);
+            knot.addColorStop(0, "rgba(190, 220, 255, 0.42)");
+            knot.addColorStop(1, "rgba(120, 170, 255, 0)");
+            ctx.fillStyle = knot;
+            ctx.beginPath();
+            ctx.arc(x, y, 8 + random() * 16, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+        ctx.globalCompositeOperation = "source-over";
+    })));
+
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+}

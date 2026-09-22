@@ -18,6 +18,7 @@ interface MoveCue extends CueSpan {
     from: THREE.Vector3;
     to: THREE.Vector3;
     run: boolean;
+    linear?: boolean;
     pose?: PoseId;
 }
 
@@ -150,7 +151,14 @@ export class SceneTimeline {
         if (cue.kind === "state") this.stateKeys.add(cue.key);
     }
 
-    public move(actor: string, from: THREE.Vector3, to: THREE.Vector3, start: number, duration: number, options: { run?: boolean; pose?: PoseId } = {}) {
+    public move(
+        actor: string,
+        from: THREE.Vector3,
+        to: THREE.Vector3,
+        start: number,
+        duration: number,
+        options: { run?: boolean; pose?: PoseId; linear?: boolean } = {}
+    ) {
         this.push({
             kind: "move",
             actor,
@@ -159,6 +167,7 @@ export class SceneTimeline {
             start,
             end: start + duration,
             run: options.run === true,
+            linear: options.linear === true,
             pose: options.pose,
         });
     }
@@ -273,7 +282,7 @@ export class SceneTimeline {
     private applyMove(actor: ShowcaseActor, cue: MoveCue) {
         const span = Math.max(0.0001, cue.end - cue.start);
         const raw = THREE.MathUtils.clamp((this.time - cue.start) / span, 0, 1);
-        const progress = easeInOut(raw);
+        const progress = cue.linear === true ? raw : easeInOut(raw);
 
         const x = THREE.MathUtils.lerp(cue.from.x, cue.to.x, progress);
         const y = THREE.MathUtils.lerp(cue.from.y, cue.to.y, progress);

@@ -3,6 +3,7 @@ export const SECOND_WORLD_ID = "tower-token-gates";
 export const BASEMENT_ID = "tower-basement";
 
 export type ShowcaseId =
+    | "show-launch"
     | "show-church"
     | "show-war"
     | "show-garden"
@@ -19,7 +20,11 @@ export interface ShowcaseInfo {
     gateStone: number;
     ringAngle: number;
     ringHeight: number;
+    entryId?: ShowcaseId;
 }
+
+export const MOON_SURFACE_ID: ShowcaseId = "show-moon";
+export const LAUNCH_ID: ShowcaseId = "show-launch";
 
 export const SHOWCASE_RADIUS = 150;
 export const GATE_RING_RADIUS = 78;
@@ -79,6 +84,7 @@ export const SHOWCASE_INFO: ShowcaseInfo[] = [
         gateStone: 0x5a5f68,
         ringAngle: (Math.PI * 10) / 7,
         ringHeight: 3,
+        entryId: "show-launch",
     },
     {
         id: "show-bazaar",
@@ -91,8 +97,18 @@ export const SHOWCASE_INFO: ShowcaseInfo[] = [
     },
 ];
 
+export const LAUNCH_INFO: ShowcaseInfo = {
+    id: "show-launch",
+    nameKey: "g.showcase.moon.name",
+    taglineKey: "g.showcase.moon.tagline",
+    accent: 0xffd166,
+    gateStone: 0x5a5f68,
+    ringAngle: (Math.PI * 10) / 7,
+    ringHeight: 3,
+};
+
 export const SHOWCASE_IDS: string[] = SHOWCASE_INFO.map((entry) => entry.id);
 
 export const SHOWCASE_INFO_BY_ID = new Map<string, ShowcaseInfo>(
-    SHOWCASE_INFO.map((entry) => [entry.id, entry])
+    [...SHOWCASE_INFO, LAUNCH_INFO].map((entry) => [entry.id, entry])
 );

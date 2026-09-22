@@ -297,7 +297,7 @@ export class SecondWorldHub extends TowerFloor {
 
         if (isEPressed) {
             const gate = this.nearestGate(playerPosition);
-            if (gate) this.pendingTeleport = gate.info.id;
+            if (gate) this.pendingTeleport = gate.info.entryId ?? gate.info.id;
         }
     }
 

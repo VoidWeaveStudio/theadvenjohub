@@ -5,12 +5,17 @@ import {
     earthCloudTexture,
     earthDayTexture,
     earthNightTexture,
+    galaxyTexture,
     milkyWayTexture,
     starSprite,
 } from "./moonTextures";
 
 const STAR_COUNT = 2600;
 const STAR_RADIUS = 300;
+
+const GALAXY_DIRECTION = new THREE.Vector3(-0.22, 0.84, 0.5).normalize();
+const GALAXY_DISTANCE = 268;
+const GALAXY_SIZE = 210;
 
 const STAR_COLORS = [
     0xffffff, 0xf2f6ff, 0xdce6ff, 0xc4d6ff,
@@ -148,6 +153,9 @@ export class MoonSky {
     private band: THREE.Mesh | null = null;
     private earth: THREE.Group | null = null;
     private earthMaterial: THREE.ShaderMaterial | null = null;
+    private galaxy: THREE.Mesh | null = null;
+    private galaxyMaterial: THREE.MeshBasicMaterial | null = null;
+    private galaxyLevel = 0;
     private elapsed = 0;
 
     constructor(
@@ -162,6 +170,36 @@ export class MoonSky {
         this.buildBand();
         this.buildEarth(earthPosition, earthRadius);
         this.buildSun();
+        this.buildGalaxy();
+    }
+
+    private buildGalaxy() {
+        const material = this.bin.material(new THREE.MeshBasicMaterial({
+            map: galaxyTexture(this.bin, this.random),
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
+            fog: false,
+        }));
+
+        const mesh = new THREE.Mesh(this.bin.geometry(new THREE.PlaneGeometry(GALAXY_SIZE, GALAXY_SIZE)), material);
+        mesh.position.copy(GALAXY_DIRECTION).multiplyScalar(GALAXY_DISTANCE);
+        mesh.lookAt(0, 0, 0);
+        mesh.rotateZ(0.7);
+        mesh.renderOrder = -8;
+        mesh.visible = false;
+        mesh.frustumCulled = false;
+        this.scene.add(mesh);
+
+        this.galaxy = mesh;
+        this.galaxyMaterial = material;
+    }
+
+    public setGalaxy(amount: number) {
+        this.galaxyLevel = THREE.MathUtils.clamp(amount, 0, 1);
+        if (this.galaxy) this.galaxy.visible = this.galaxyLevel > 0.005;
     }
 
     private buildStars() {
@@ -326,12 +364,24 @@ export class MoonSky {
             this.earthMaterial.uniforms.uSpin.value = (this.elapsed * 0.0032) % 1;
             this.earthMaterial.uniforms.uCloudShift.value = (this.elapsed * 0.0011) % 1;
         }
+
+        if (this.galaxyMaterial) {
+            const breath = 0.92 + Math.sin(this.elapsed * 0.4) * 0.08;
+            this.galaxyMaterial.opacity = this.galaxyLevel * breath;
+        }
+
+        if (this.galaxy) {
+            this.galaxy.scale.setScalar(0.82 + this.galaxyLevel * 0.18);
+        }
     }
 
     public dispose() {
         if (this.stars) this.scene.remove(this.stars);
         if (this.band) this.scene.remove(this.band);
         if (this.earth) this.scene.remove(this.earth);
+        if (this.galaxy) this.scene.remove(this.galaxy);
+        this.galaxy = null;
+        this.galaxyMaterial = null;
         this.stars = null;
         this.starMaterial = null;
         this.band = null;

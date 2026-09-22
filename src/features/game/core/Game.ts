@@ -25,6 +25,7 @@ import { PetSystem } from "../systems/PetSystem";
 import { PetTuner } from "../systems/PetTuner";
 import { CrowdDirector } from "../systems/CrowdDirector";
 import { setCaptionsHidden } from "../world/locations/showcase/captionVisibility";
+import { setCinemaActive } from "../world/locations/showcase/cinemaVisibility";
 import { BuildSystem } from "../systems/BuildSystem";
 import { VoiceChatSystem } from "../systems/VoiceChatSystem";
 import { EmoteSystem } from "../systems/EmoteSystem";
@@ -1633,6 +1634,7 @@ export class Game {
             perf.end("combat");
 
             setCaptionsHidden(this.cinema.hidesCaptions());
+            setCinemaActive(cinematic);
 
             if (currentLocation.update) {
                 const dayTime = this.dayNightConfig
