@@ -12,7 +12,7 @@ import {
     CAGE_X,
     CONTROL_SPOT,
     CREW_IDLE_A,
-    CREW_IDLE_B,
+    CREW_IDLE_B, 
     ENGINEER_SPOT,
     FENCE_RADIUS,
     GATEHOUSE,

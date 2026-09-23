@@ -12,7 +12,7 @@ const MOTE_COUNT = 70;
 const MOTE_RADIUS = 1.15;
 const MOTE_RISE = 3.1;
 
-const coreVertexShader = /* glsl */`
+const coreVertexShader = /* glsl */` 
     uniform float uTime;
     uniform float uPulse;
 

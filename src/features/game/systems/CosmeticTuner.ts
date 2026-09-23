@@ -10,7 +10,7 @@ const SCALE_STEP = 0.01;
 
 const MOVE_BINDINGS: Array<{ code: string; axis: "x" | "y" | "z"; sign: number }> = [
     { code: "Numpad4", axis: "x", sign: -1 },
-    { code: "Numpad6", axis: "x", sign: 1 },
+    { code: "Numpad6", axis: "x", sign: 1 }, 
     { code: "Numpad2", axis: "y", sign: -1 },
     { code: "Numpad8", axis: "y", sign: 1 },
     { code: "Numpad7", axis: "z", sign: -1 },

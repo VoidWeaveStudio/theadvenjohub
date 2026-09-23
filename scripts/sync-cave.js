@@ -9,7 +9,7 @@ const MESH = resolve(here, "../src/features/game/world/locations/cave/caveMesh.t
 const TARGET = resolve(here, "../../game-server/caveGeometry.js");
 
 function listOf(source, name, file) {
-    const start = source.indexOf(`export const ${name}`);
+    const start = source.indexOf(`export const ${name}`); 
     if (start === -1) throw new Error(`${name} not found in ${file}`);
     const open = source.indexOf("= [", start) + 2;
     const close = source.indexOf("\n];", open);

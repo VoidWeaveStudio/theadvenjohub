@@ -12,7 +12,7 @@ interface PeerEntry {
     ignoreOffer: boolean;
 }
 
-export class VoiceChatSystem {
+export class VoiceChatSystem { 
     private peers: Map<string, PeerEntry> = new Map();
     private nearbyIds: Set<string> = new Set();
     private pendingCandidates: Map<string, RTCIceCandidateInit[]> = new Map();

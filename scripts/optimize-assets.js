@@ -14,7 +14,7 @@ async function convertGlb(file) {
     const doc = await io.read(file);
     doc.createExtension(EXTTextureWebP);
     let changed = false;
-    for (const tex of doc.getRoot().listTextures()) {
+    for (const tex of doc.getRoot().listTextures()) { 
         if (tex.getMimeType() === "image/webp") continue;
         const image = tex.getImage();
         if (!image) continue;

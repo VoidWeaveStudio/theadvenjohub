@@ -12,6 +12,6 @@ export default function Page() {
       </div>
     }>
       <DesktopAuthPage />
-    </Suspense>
+    </Suspense> 
   );
 }

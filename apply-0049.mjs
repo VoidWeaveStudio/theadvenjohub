@@ -3,7 +3,7 @@ import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { Pool } from "@neondatabase/serverless";
 
-const FILE = "./src/core/database/drizzle/0049_faction_page_stats_manual.sql";
+const FILE = "./src/core/database/drizzle/0049_faction_page_stats_manual.sql"; 
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const client = await pool.connect();

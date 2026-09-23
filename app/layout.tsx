@@ -12,7 +12,7 @@ import { resolveLanguage } from "@/core/i18n/detect";
 import type { Language } from "@/core/i18n/types";
 
 const inter = Inter({
-  subsets: ["latin", "cyrillic"],
+  subsets: ["latin", "cyrillic"], 
   display: "swap",
   preload: true,
   fallback: ["system-ui", "arial"],

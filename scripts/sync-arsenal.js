@@ -11,7 +11,7 @@ const TARGET = resolve(here, "../../game-server/defusalArsenal.js");
 
 const EXPORTS = [
     "DEFUSAL_ECONOMY",
-    "ARSENAL",
+    "ARSENAL", 
     "ARSENAL_BY_ID",
     "DEFAULT_MELEE",
     "DEFAULT_PISTOL",

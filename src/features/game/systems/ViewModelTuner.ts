@@ -11,7 +11,7 @@ const TARGETS: Target[] = ["weapon", "hands", "handL", "handR", "remote"];
 const MODES: Mode[] = ["move", "rotate", "scale"];
 
 const STEPS = [0.001, 0.005, 0.02, 0.1];
-
+ 
 const AXES: Array<{ code: string; axis: "x" | "y" | "z"; sign: number }> = [
     { code: "Numpad4", axis: "x", sign: -1 },
     { code: "Numpad6", axis: "x", sign: 1 },

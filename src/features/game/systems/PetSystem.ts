@@ -8,7 +8,7 @@ import { DEFAULT_COMPANION_ID, isCompanionId, type CompanionId } from "../data/c
 
 export const PET_ITEM_ID = DEFAULT_COMPANION_ID;
 
-const FETCH_RADIUS = 28;
+const FETCH_RADIUS = 28; 
 const RUN_SPEED = 9;
 const WALK_SPEED = 5.5;
 const FOLLOW_DISTANCE = 2.2;

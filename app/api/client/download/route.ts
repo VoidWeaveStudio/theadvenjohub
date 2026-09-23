@@ -6,7 +6,7 @@ const LATEST_RELEASE_URL = "https://github.com/VoidWeaveStudio/theadvenjohub/rel
 
 export async function GET(req: NextRequest) {
   try {
-    const ip = getClientIp(req);
+    const ip = getClientIp(req); 
 
     const rl = await checkRateLimit(`download:${ip}`, {
       maxAttempts: 100,

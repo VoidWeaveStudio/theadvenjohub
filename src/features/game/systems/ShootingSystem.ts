@@ -6,7 +6,7 @@ import { InputManager } from "../core/InputManager";
 import { CameraController } from "../core/CameraController";
 import { ResourceManager } from "../core/ResourceManager";
 import { NetworkManager } from "../network/NetworkManager";
-import { OtherPlayer } from "../entities/OtherPlayer";
+import { OtherPlayer } from "../entities/OtherPlayer"; 
 import type { ArsenalItem } from "../data/defusalArsenal";
 import { Location } from "../world/Location";
 import { CollisionGrid } from "../world/CollisionGrid";

@@ -8,7 +8,7 @@ import { checkRateLimit, formatRateLimitHeaders, getClientIp } from "@/core/lib/
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
-const MAX_SEARCH_LENGTH = 100;
+const MAX_SEARCH_LENGTH = 100; 
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_TYPES = ["standard", "premium", "rare", "legendary"];

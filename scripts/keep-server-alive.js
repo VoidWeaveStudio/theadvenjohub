@@ -13,7 +13,7 @@ function pingServer() {
         console.error(`[${new Date().toISOString()}] Ping failed:`, err.message);
     });
 }
-
+ 
 console.log(`Starting ping service for ${SERVER_URL}`);
 console.log(`Pinging every ${PING_INTERVAL / 1000} seconds...`);
 

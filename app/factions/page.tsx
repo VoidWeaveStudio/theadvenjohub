@@ -14,7 +14,7 @@ function compactUsd(value: number): string {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
   return `$${value.toFixed(0)}`;
-}
+} 
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await serverTranslator();

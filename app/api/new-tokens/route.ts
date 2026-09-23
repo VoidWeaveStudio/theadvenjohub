@@ -8,7 +8,7 @@ export async function GET() {
         const res = await fetch("https://api.dexscreener.com/token-profiles/latest/v1", {
             cache: "no-store",
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        });
+        }); 
 
         if (!res.ok) {
             return NextResponse.json([]);

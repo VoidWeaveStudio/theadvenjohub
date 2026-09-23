@@ -7,7 +7,7 @@
       "esnext",
       "ES2020.BigInt"
     ],
-    "allowJs": true,
+    "allowJs": true, 
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,

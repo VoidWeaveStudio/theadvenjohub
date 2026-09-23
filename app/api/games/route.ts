@@ -12,7 +12,7 @@ const MAX_LIMIT = 100;
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const active = searchParams.get("active") === "true";
+    const active = searchParams.get("active") === "true"; 
     const page = parseInt(searchParams.get("page") || String(DEFAULT_PAGE));
     const limit = Math.min(parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT)), MAX_LIMIT);
     const offset = (page - 1) * limit;

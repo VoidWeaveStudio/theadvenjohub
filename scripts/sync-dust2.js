@@ -15,7 +15,7 @@ function block(source, name) {
     const open = source.indexOf("= [", start) + 2;
     const close = source.indexOf("\n];", open);
     return source.slice(open, close + 2);
-}
+} 
 
 // The tables reference exported constants and simple arithmetic, so they are
 // evaluated as JS literals rather than parsed as JSON.

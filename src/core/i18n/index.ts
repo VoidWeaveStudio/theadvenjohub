@@ -10,7 +10,7 @@ import { ja } from "./locales/ja";
 import { es } from "./locales/es";
 import { it } from "./locales/it";
 import { vi } from "./locales/vi";
-import { id } from "./locales/id";
+import { id } from "./locales/id"; 
 import { fil } from "./locales/fil";
 import { be } from "./locales/be";
 

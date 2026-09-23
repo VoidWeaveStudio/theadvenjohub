@@ -14,7 +14,7 @@ const ENTRY_LINE = /^(\s*"(?:[^"\\]|\\.)*":\s*")((?:[^"\\]|\\.)*)("(?:,)?\s*)$/;
 const convert = OpenCC.Converter({ from: "cn", to: "twp" });
 
 const OVERRIDES = [
-    [/臺/g, "台"],
+    [/臺/g, "台"], 
 ];
 
 function localise(text) {

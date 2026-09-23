@@ -15,7 +15,7 @@ export type Language =
 
 export type TranslationKey = string;
 
-export type Translations = Record<TranslationKey, string>;
+export type Translations = Record<TranslationKey, string>; 
 
 
 export type Translate = (key: string, vars?: Record<string, string | number>) => string;

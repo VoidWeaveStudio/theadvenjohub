@@ -9,7 +9,7 @@ export async function GET(req: Request) {
     windowMs: 60_000,
     prefix: "api:marketplace:config",
   });
-
+ 
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "too_many_attempts" },

@@ -6,7 +6,7 @@ of, and one throughline (Johnny) carries the middle of the piece instead of a
 plain location-by-location tour. Everything is still shot inside the game with
 the admin cinema camera; the cast is NPC actors; the only external elements are
 titles, the logo and the voice.
-
+ 
 The previous cut (pure documentary, location to location, ending on the
 galaxy) is superseded by this one, but its research is not wasted — the
 signage inventory and most of the per-set beats below are carried over

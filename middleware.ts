@@ -14,7 +14,7 @@ const DEV_CONNECT_SOURCES = [
 ];
 
 function buildConnectSrc(): string {
-  const sources = [
+  const sources = [ 
     "'self'",
     'blob:',
     'data:',

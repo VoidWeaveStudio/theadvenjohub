@@ -8,13 +8,13 @@ import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { apiGet } from "@/core/api/client";
 import { PurchaseButton } from "@/features/shared/PurchaseButton";
-import { PromoCodeRedeem } from "@/features/shared/PromoCodeRedeem";
+import { PromoCodeRedeem } from "@/features/shared/PromoCodeRedeem"; 
 import { Spinner } from "@/core/ui/Spinner";
 
 interface GameData {
     id: string;
     slug: string;
-    title: string;
+    title: string; 
     developer: string | null;
     publisher: string | null;
     coverImage: string | null;

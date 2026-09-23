@@ -13,7 +13,7 @@ export class EnemySystem extends System {
     private pendingSyncResolvers: (() => void)[] = [];
 
     public onEnemySpawn?: (id: string, hitbox: THREE.Mesh) => void;
-    public onEnemyDespawn?: (id: string) => void;
+    public onEnemyDespawn?: (id: string) => void; 
     public onEnemyEliminated?: (killerId: string) => void;
 
     init(scene: THREE.Scene, network: NetworkManager, getGroundHeight: (x: number, z: number) => number) {

@@ -13,7 +13,7 @@ const KEY_LINE = /^\s*"([^"]+)":\s/gm;
 const T_CALL = /\bt\(\s*"([^"\n]+)"|\bt\(\s*'([^'\n]+)'/g;
 
 function keysOf(code) {
-    const src = fs.readFileSync(path.join(LOCALES, `${code}.ts`), "utf8");
+    const src = fs.readFileSync(path.join(LOCALES, `${code}.ts`), "utf8"); 
     const keys = [];
     for (const match of src.matchAll(KEY_LINE)) keys.push(match[1]);
     return keys;

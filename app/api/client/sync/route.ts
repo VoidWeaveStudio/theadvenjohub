@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   try {
     const authResult = await requireAuth(req);
     if (authResult instanceof NextResponse) {
-      return authResult;
+      return authResult; 
     }
 
     const { user } = authResult;

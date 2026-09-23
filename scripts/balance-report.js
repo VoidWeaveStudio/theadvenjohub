@@ -261,7 +261,7 @@ for (const node of skills.nodes.filter((n) => n.ability)) {
         `${node.name.padEnd(19)} | ${pad(ability.energyCost, 4)} | ${pad((ability.cooldownMs / 1000).toFixed(0) + "s", 8)} | ` +
         `${pad((ability.energyCost / arcEnergy.energyRegen).toFixed(1) + "s", 10)} | ${pad((share * 100).toFixed(0) + "%", 13)}`
     );
-}
+} 
 
 console.log("\n=== weapon dps against enemies (no skills) ===\n");
 console.log("weapon | mode     | dmg/shot | shots/s | dps");
