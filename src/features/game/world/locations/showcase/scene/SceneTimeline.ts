@@ -61,6 +61,16 @@ export interface SceneSubtitle {
     text: string;
 }
 
+// What a voice track needs to know about the line currently on screen. Reported every
+// frame rather than on change, because a scrubbed timeline can land mid-line and the
+// audio has to come in at that same point.
+export interface SceneLineState {
+    speaker: string;
+    text: string;
+    actor?: string;
+    chorus?: boolean;
+}
+
 const _look = new THREE.Vector3();
 
 function easeInOut(t: number): number {
@@ -83,6 +93,7 @@ export class SceneTimeline {
     private paused = false;
 
     public onSubtitle?: (subtitle: SceneSubtitle | null) => void;
+    public onLine?: (line: SceneLineState | null, into: number, paused: boolean) => void;
 
     public register(id: string, actor: ShowcaseActor, rest: { at: THREE.Vector3; pose?: PoseId; face?: THREE.Vector3; facing?: number; held?: boolean }) {
         actor.setScripted(true);
@@ -364,5 +375,6 @@ export class SceneTimeline {
         for (const actor of this.chorus) actor.setTalking(shouting, current?.text);
 
         this.onSubtitle?.(current ? { speaker: current.speaker, text: current.text } : null);
+        this.onLine?.(current, current ? this.time - current.start : 0, this.paused);
     }
 }

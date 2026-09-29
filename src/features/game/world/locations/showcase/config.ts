@@ -10,7 +10,8 @@ export type ShowcaseId =
     | "show-graveyard"
     | "show-casino"
     | "show-moon"
-    | "show-bazaar";
+    | "show-bazaar"
+    | "show-news";
 
 export interface ShowcaseInfo {
     id: ShowcaseId;
@@ -94,6 +95,17 @@ export const SHOWCASE_INFO: ShowcaseInfo[] = [
         gateStone: 0x7a5a34,
         ringAngle: (Math.PI * 12) / 7,
         ringHeight: -2,
+    },
+    // The ring was a full heptagon, so this one sits between the church and war gates
+    // rather than renumbering the seven that were already placed.
+    {
+        id: "show-news",
+        nameKey: "g.showcase.news.name",
+        taglineKey: "g.showcase.news.tagline",
+        accent: 0x2fd8e8,
+        gateStone: 0x24262e,
+        ringAngle: Math.PI / 7,
+        ringHeight: 2,
     },
 ];
 

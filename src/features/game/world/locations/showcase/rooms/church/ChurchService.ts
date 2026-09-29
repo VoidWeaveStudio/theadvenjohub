@@ -6,6 +6,7 @@ import { ShowcaseCrowd, type CrowdSpec } from "../../actors/ShowcaseCrowd";
 import type { ShowcaseActor } from "../../actors/ShowcaseActor";
 import type { PoseId } from "../../actors/poses";
 import { SceneTimeline } from "../../scene/SceneTimeline";
+import { SceneVoice } from "../../scene/SceneVoice";
 import { setSceneSubtitle } from "../../scene/subtitles";
 import { PULPIT_FACING, pewSeatPoint, STORY_SEATS, type BoothCell } from "./churchLayout";
 import { buildChurchScript, churchSpots } from "./churchScript";
@@ -29,6 +30,7 @@ interface PewMember {
 
 export class ChurchService {
     private readonly timeline = new SceneTimeline();
+    private readonly voice = new SceneVoice("church");
     private readonly cast = new Map<string, ShowcaseActor>();
     private readonly pews: PewMember[] = [];
     private readonly extras: ShowcaseActor[] = [];
@@ -122,6 +124,11 @@ export class ChurchService {
         if (suppliants.some((actor) => actor === null)) return;
 
         this.timeline.onSubtitle = (subtitle) => setSceneSubtitle(subtitle);
+        this.timeline.onLine = (line, into, paused) => this.voice.update(line, into, paused);
+
+        // The clips load in the background; until they are decoded the scene plays the
+        // way it always did, on captions alone.
+        void this.voice.preload();
 
         this.timeline.register("sinner", sinner, { at: spot.gateSpot, facing: 0 });
         this.timeline.register("father", father, { at: spot.priestSeat, pose: "sit", face: spot.grille });
@@ -209,6 +216,7 @@ export class ChurchService {
     }
 
     public dispose() {
+        this.voice.dispose();
         this.cast.clear();
         this.pews.length = 0;
         this.extras.length = 0;

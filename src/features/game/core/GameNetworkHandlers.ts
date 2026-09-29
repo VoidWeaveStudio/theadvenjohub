@@ -1363,6 +1363,10 @@ export function registerNetworkHandlers(game: Game) {
         game.onNotification?.(t("g.notify.sold", { count: data.quantitySold, amount: data.ashEarned }), 2500);
     };
 
+    game.networkManager.onNewsAudio = (data) => {
+        game.playNewsBulletin(data.text, data.audio);
+    };
+
     game.networkManager.onServerError = (message) => {
         game.onNotification?.(`⚠️ ${message}`, 2500);
         game.rejectPendingSignSave(message);

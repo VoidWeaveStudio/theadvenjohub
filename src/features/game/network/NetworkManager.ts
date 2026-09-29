@@ -384,6 +384,12 @@ export type QuestReward =
   | { kind: "cosmeticFragments"; amount: number }
   | { kind: "factionTreasuryAsh"; amount: number };
 
+export type NewsAudioData = {
+  text: string;
+  audio: string;
+  mime: string;
+};
+
 export type QuestInfoData = {
   questId: string;
   npc: string;
@@ -1232,6 +1238,7 @@ export class NetworkManager {
     marketCap: number;
   }) => void;
   public onQuestInfo?: (data: QuestInfoData) => void;
+  public onNewsAudio?: (data: NewsAudioData) => void;
   public onQuestUpdate?: (data: QuestUpdateData) => void;
   public onNpcMet?: (metNpcs: string[]) => void;
   public onProgressionState?: (data: ProgressionStateData) => void;
@@ -2134,6 +2141,11 @@ export class NetworkManager {
       case "questInfo":
         this.onQuestInfo?.(data);
         break;
+      case "newsAudio":
+        if (typeof data.audio === "string" && typeof data.text === "string") {
+          this.onNewsAudio?.({ text: data.text, audio: data.audio, mime: data.mime ?? "audio/mpeg" });
+        }
+        break;
       case "questUpdate":
         this.onQuestUpdate?.(data);
         break;
@@ -2869,6 +2881,11 @@ export class NetworkManager {
   sendQuestAccept(questId: string) {
     if (!this.authenticated) return;
     this.send({ type: "questAccept", questId });
+  }
+
+  sendNewsSpeak(text: string) {
+    if (!this.authenticated) return;
+    this.send({ type: "newsSpeak", text });
   }
 
   sendQuestTurnIn(questId: string) {

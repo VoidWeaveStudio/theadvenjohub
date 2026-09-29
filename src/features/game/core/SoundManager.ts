@@ -25,6 +25,7 @@ export interface PlayOptions {
     volume?: number;
     rate?: number;
     delay?: number;
+    offset?: number;
 }
 
 export interface SpatialOptions extends PlayOptions {
@@ -146,10 +147,19 @@ export class SoundManager {
   private start(name: string, opts: PlayOptions, gainValue: number, pan: number, loop: boolean): SoundHandle | null {
     if (MUTED_SOUNDS.has(name)) return null;
 
-    const ctx = this.audioContext;
     const buffer = this.buffers.get(name);
-    if (!ctx || !buffer || gainValue <= 0.0005) return null;
+    if (!buffer) return null;
+
+    return this.startBuffer(buffer, opts, gainValue, pan, loop);
+  }
+
+  private startBuffer(buffer: AudioBuffer, opts: PlayOptions, gainValue: number, pan: number, loop: boolean): SoundHandle | null {
+    const ctx = this.audioContext;
+    if (!ctx || gainValue <= 0.0005) return null;
     if (ctx.state !== "running") return null;
+
+    const offset = Math.max(0, opts.offset ?? 0);
+    if (!loop && offset >= buffer.duration - 0.02) return null;
 
     try {
       const source = ctx.createBufferSource();
@@ -171,7 +181,7 @@ export class SoundManager {
       }
 
       tail.connect(ctx.destination);
-      source.start(ctx.currentTime + (opts.delay ?? 0));
+      source.start(ctx.currentTime + (opts.delay ?? 0), offset);
 
       return {
         setVolume: (volume: number, fadeSeconds = 0.4) => {
@@ -198,8 +208,54 @@ export class SoundManager {
         },
       };
     } catch (error) {
-      console.warn(`[SoundManager] Failed to play "${name}"`, error);
+      console.warn("[SoundManager] Failed to play clip", error);
       return null;
+    }
+  }
+
+  hasClip(key: string): boolean {
+    return this.buffers.has(key);
+  }
+
+  // Voice lines are generated ahead of time and live outside the sfx bank's own
+  // folder, so they are fetched by url and parked in the same bank under their own key.
+  async loadClipInto(key: string, url: string): Promise<boolean> {
+    if (this.buffers.has(key)) return true;
+
+    const ctx = this.ensureContext();
+    if (!ctx) return false;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return false;
+      this.buffers.set(key, await ctx.decodeAudioData(await response.arrayBuffer()));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Starts a loaded clip part-way in, which is what a scene being scrubbed needs: the
+  // line has to come in at the same point the timeline is sitting at.
+  playClipFrom(key: string, offset: number, opts?: PlayOptions): SoundHandle | null {
+    return this.start(key, { ...opts, offset }, this.masterVolume * (opts?.volume ?? 1), 0, false);
+  }
+
+  // The news anchor's voice is synthesised per bulletin instead of living in the
+  // preloaded bank, so it is decoded on arrival. The clip's real length goes back to
+  // the caller, which is what keeps the caption and the mouth in step with it.
+  async playClip(bytes: ArrayBuffer, opts?: PlayOptions): Promise<number> {
+    const ctx = this.ensureContext();
+    if (!ctx) return 0;
+    this.resume();
+
+    try {
+      const buffer = await ctx.decodeAudioData(bytes);
+      this.startBuffer(buffer, opts ?? {}, this.masterVolume * (opts?.volume ?? 1), 0, false);
+      return buffer.duration;
+    } catch (error) {
+      console.warn("[SoundManager] Failed to decode clip", error);
+      return 0;
     }
   }
 

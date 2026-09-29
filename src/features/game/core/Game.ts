@@ -61,6 +61,7 @@ import { DefusalViewModel } from "../entities/DefusalViewModel";
 import { GrenadeSystem } from "../systems/GrenadeSystem";
 import { ARSENAL_BY_ID } from "../data/defusalArsenal";
 import { Basement } from "../world/locations/tower/floors/basement/Basement";
+import { NewsRoom } from "../world/locations/showcase/rooms/NewsRoom";
 import { FactionGateRoom } from "../world/locations/tower/floors/FactionGateRoom";
 import { PersonalRoom, PERSONAL_ROOM_PREFIX } from "../world/locations/tower/floors/PersonalRoom";
 import { MainWorld } from "../world/locations/main-world/MainWorld";
@@ -2052,6 +2053,26 @@ export class Game {
 
     acceptQuest(questId: string) {
         this.networkManager.sendQuestAccept(questId);
+    }
+
+    speakNews(text: string) {
+        this.networkManager.sendNewsSpeak(text);
+    }
+
+    // The bulletin only lands if the player is still standing in the news set — the
+    // clip's decoded length is what the room uses to time the caption and the mouth.
+    async playNewsBulletin(text: string, audioBase64: string) {
+        const room = this.locationManager.getCurrentLocation();
+        if (!(room instanceof NewsRoom)) return;
+
+        const binary = atob(audioBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+        const duration = await SoundManager.getInstance().playClip(bytes.buffer, { volume: 0.9 });
+        if (duration <= 0) return;
+
+        room.speak(text, duration);
     }
 
     turnInQuest(questId: string) {

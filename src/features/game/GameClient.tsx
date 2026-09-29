@@ -34,6 +34,7 @@ import { TokenPanel } from "./ui/TokenPanel";
 import { Inventory } from "./ui/Inventory";
 import { VendorPanel } from "./ui/VendorPanel";
 import { SolaPanel } from "./ui/SolaPanel";
+import { NewsDeskPanel } from "./ui/NewsDeskPanel";
 import { AlfredoPanel } from "./ui/AlfredoPanel";
 import { GateStewardPanel, GateFactionResult } from "./ui/GateStewardPanel";
 import { BubbleInfoPanel } from "./ui/BubbleInfoPanel";
@@ -2229,6 +2230,13 @@ export function GameClient({ slug }: GameClientProps) {
         onClose={() => setIsVendorOpen(false)}
         onSell={(address, quantity) => gameRef.current?.sellToken(address, quantity)}
         onBuyItem={(itemId, quantity) => gameRef.current?.buyShopItem(itemId, quantity)}
+      />
+
+      {/* Admin flag is fixed at authentication, long before anyone can walk into the
+          news set, so re-reading it on the location-change render is enough. */}
+      <NewsDeskPanel
+        visible={currentLocationId === "show-news" && gameRef.current?.isAdmin === true}
+        onSpeak={(text) => gameRef.current?.speakNews(text)}
       />
 
       <SolaPanel

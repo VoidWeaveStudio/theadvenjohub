@@ -9,6 +9,7 @@ import { CasinoRoom } from "./rooms/CasinoRoom";
 import { MoonRoom } from "./rooms/MoonRoom";
 import { LaunchRoom } from "./rooms/LaunchRoom";
 import { BazaarRoom } from "./rooms/BazaarRoom";
+import { NewsRoom } from "./rooms/NewsRoom";
 
 type RoomFactory = (info: ShowcaseInfo) => Location;
 
@@ -21,6 +22,7 @@ const ROOM_FACTORIES: Record<ShowcaseId, RoomFactory> = {
     "show-moon": (info) => new MoonRoom(info),
     "show-launch": (info) => new LaunchRoom(info),
     "show-bazaar": (info) => new BazaarRoom(info),
+    "show-news": (info) => new NewsRoom(info),
 };
 
 export interface ShowcaseLocationConfig {
