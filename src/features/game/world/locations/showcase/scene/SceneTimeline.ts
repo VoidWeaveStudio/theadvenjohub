@@ -52,8 +52,11 @@ type Cue = MoveCue | HoldCue | LineCue | StateCue;
 
 export interface SceneLine {
     at: number;
+    duration: number;
     speaker: string;
     text: string;
+    actor?: string;
+    chorus?: boolean;
 }
 
 export interface SceneSubtitle {
@@ -234,7 +237,14 @@ export class SceneTimeline {
     public lines(): SceneLine[] {
         return this.cues
             .filter((cue): cue is LineCue => cue.kind === "line")
-            .map((cue) => ({ at: cue.start, speaker: cue.speaker, text: cue.text }))
+            .map((cue) => ({
+                at: cue.start,
+                duration: cue.end - cue.start,
+                speaker: cue.speaker,
+                text: cue.text,
+                actor: cue.actor,
+                chorus: cue.chorus,
+            }))
             .sort((a, b) => a.at - b.at);
     }
 

@@ -7,7 +7,7 @@
     "upload:release": "node scripts/upload-to-blob.js",
     "check:church": "tsx scripts/check-church-scene.mts",
     "check:scenes": "tsx scripts/check-launch-scene.mts",
-    "build:client": "cd tanjo-client && npm run tauri build", 
+    "build:client": "cd tanjo-client && npm run tauri build",
     "copy:release": "node scripts/copy-release.js",
     "release": "npm run build:client && npm run copy:release",
     "dev": "next dev --turbopack",
@@ -35,7 +35,7 @@
     "check:i18n": "node scripts/check-i18n.js",
     "check:i18n:unused": "node scripts/check-i18n-unused.js",
     "sync:zh-tw": "node scripts/gen-zh-tw.js",
-    "gen:voice": "node scripts/gen-voice-lines.mjs",
+    "gen:voice": "tsx scripts/gen-voice-lines.mts",
     "check:zh-tw": "node scripts/gen-zh-tw.js --check",
     "xp:curve": "node scripts/xp-curve.js",
     "balance:report": "node scripts/balance-report.js"
@@ -86,6 +86,7 @@
   "devDependencies": {
     "@gltf-transform/cli": "^4.4.2",
     "glob": "^13.0.6",
+    "kokoro-js": "^1.2.1",
     "opencc-js": "^1.4.2"
   }
 }
