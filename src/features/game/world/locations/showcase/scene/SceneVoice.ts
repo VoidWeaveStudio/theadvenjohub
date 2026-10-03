@@ -7,7 +7,7 @@ interface ManifestEntry {
     actor?: string;
     text: string;
     file: string;
-}
+} 
 
 // A jump larger than this is a scrub rather than the clock ticking on, so the line is
 // restarted at the new point instead of left playing from where it was.

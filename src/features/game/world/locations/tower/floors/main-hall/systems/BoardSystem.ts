@@ -4,7 +4,7 @@ import { CollisionGrid } from "../../../../../CollisionGrid";
 import type { LeaderboardEntry, FactionSummary, FactionQuestEntry } from "../../../../../../network/NetworkManager";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { tokenTextureCache } from "../../../../../../utils/TokenTextureCache";
-import { AssetBin } from "../utils/assetBin";
+import { AssetBin } from "../utils/assetBin"; 
 import { LoadGate } from "../../../../../../utils/loadGate";
 import { GeometryBatch, atlasColumn, atlasRow } from "../utils/geometryBatch";
 import { insertLocalBox } from "../utils/collision";

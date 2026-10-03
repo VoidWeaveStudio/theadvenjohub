@@ -5,7 +5,7 @@ import type { SceneTimeline } from "./SceneTimeline";
 export interface DirectedActor {
     id: string;
     actor: ShowcaseActor;
-}
+} 
 
 // What a room hands to the scene director: the scripted timeline, and every actor in
 // the room (cast first, then the extras) so any of them can be posed by hand.

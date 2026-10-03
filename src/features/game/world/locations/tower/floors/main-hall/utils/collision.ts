@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { CollisionGrid } from "../../../../../CollisionGrid";
 import { inwardRotation, localToWorld } from "../layout";
 
-export function insertBox(
+export function insertBox( 
     grid: CollisionGrid,
     centerX: number,
     centerZ: number,

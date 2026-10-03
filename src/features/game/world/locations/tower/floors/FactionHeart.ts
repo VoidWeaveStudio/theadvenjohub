@@ -4,7 +4,7 @@ import { tokenTextureCache } from "../../../../utils/TokenTextureCache";
 import { factionTint } from "../../../../utils/factionTint";
 import { buildMcFrame, disposeMcFrame, mcFrameSpec } from "../../../../utils/mcFrame";
 
-export const FACTION_HEART_INTERACTION = "faction-heart";
+export const FACTION_HEART_INTERACTION = "faction-heart"; 
 
 const SHARD_COUNT = 6;
 const WOUND_COLOUR = new THREE.Color(0xff2b2b);

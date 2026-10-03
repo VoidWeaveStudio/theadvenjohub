@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { AssetBin } from "../../AssetBin";
 
 export interface StoryStep {
-    duration: number;
+    duration: number; 
     enter?: () => void;
     update?: (elapsed: number, progress: number) => void;
     exit?: () => void;
