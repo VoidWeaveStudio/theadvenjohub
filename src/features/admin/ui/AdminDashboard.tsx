@@ -23,6 +23,7 @@ import {
     LogOut,
     Wallet,
     TriangleAlert,
+    Bot,
 } from "lucide-react";
 import { AdminPlayersTable } from "./AdminPlayersTable";
 import { AdminFactionsTable } from "./AdminFactionsTable";
@@ -40,6 +41,7 @@ import { AdminWorldPanel } from "./AdminWorldPanel";
 import { AdminInfluencePanel } from "./AdminInfluencePanel";
 import { AdminOverview } from "./AdminOverview";
 import { AdminPurchasesTable } from "./AdminPurchasesTable";
+import { AdminBotsPanel } from "./AdminBotsPanel";
 import { AdminTableRef } from "./AdminTableRef";
 import { Badge, Panel } from "./AdminKit";
 
@@ -61,7 +63,8 @@ type AdminSection =
     | "world"
     | "events"
     | "support"
-    | "chat";
+    | "chat"
+    | "bots";
 
 interface NavEntry {
     id: AdminSection;
@@ -101,6 +104,12 @@ const NAV: { group: string; items: NavEntry[] }[] = [
         items: [
             { id: "world", label: "World state", title: "World state", subtitle: "Rampart, rift, basement pedestals and maintenance", icon: Globe2 },
             { id: "events", label: "Events", title: "Events", subtitle: "Doors in the Events Hall", icon: CalendarClock },
+        ],
+    },
+    {
+        group: "Bots",
+        items: [
+            { id: "bots", label: "Bot games", title: "Bot games", subtitle: "Telegram mini apps — players, runs, stars and reported coins", icon: Bot },
         ],
     },
     {
@@ -162,6 +171,7 @@ export function AdminDashboard() {
         setRefreshTick((tick) => tick + 1);
         const map: Record<AdminSection, React.RefObject<AdminTableRef | null> | null> = {
             overview: null,
+            bots: null,
             players: playersRef,
             factions: factionsRef,
             quests: questsRef,
@@ -261,6 +271,7 @@ export function AdminDashboard() {
 
                 {section === "overview" && <AdminOverview refreshKey={refreshTick} onNavigate={(next) => setSection(next as AdminSection)} />}
                 {section === "players" && <AdminPlayersTable ref={playersRef} />}
+                {section === "bots" && <AdminBotsPanel refreshKey={refreshTick} />}
                 {section === "factions" && <AdminFactionsTable ref={factionsRef} />}
                 {section === "quests" && (
                     <Panel title="Faction quests">
