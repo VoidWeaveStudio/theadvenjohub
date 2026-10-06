@@ -10,15 +10,30 @@ interface BotConfig {
     label: string;
     base: string;
     token: string;
+    moderated: boolean;
 }
 
 function configuredBots(): BotConfig[] {
-    const registry: { id: string; label: string; base?: string; token?: string }[] = [
+    const registry: {
+        id: string;
+        label: string;
+        base?: string;
+        token?: string;
+        moderated: boolean;
+    }[] = [
         {
             id: "memetic",
             label: "MEMETIC",
             base: process.env.MEMETIC_API_URL,
             token: process.env.MEMETIC_ADMIN_TOKEN,
+            moderated: true,
+        },
+        {
+            id: "skerra",
+            label: "Skerra",
+            base: process.env.SKERRA_API_URL,
+            token: process.env.SKERRA_ADMIN_TOKEN,
+            moderated: false,
         },
     ];
 
@@ -29,6 +44,7 @@ function configuredBots(): BotConfig[] {
             label: entry.label,
             base: entry.base.replace(/\/+$/, ""),
             token: entry.token,
+            moderated: entry.moderated,
         }));
 }
 
@@ -61,11 +77,14 @@ export async function GET(req: NextRequest) {
             try {
                 const [stats, reports] = await Promise.all([
                     call<Record<string, unknown>>(bot, "/api/admin/stats"),
-                    call<{ reports: unknown[] }>(bot, "/api/admin/reports"),
+                    bot.moderated
+                        ? call<{ reports: unknown[] }>(bot, "/api/admin/reports")
+                        : Promise.resolve({ reports: [] as unknown[] }),
                 ]);
                 return {
                     id: bot.id,
                     label: bot.label,
+                    moderated: bot.moderated,
                     ok: true,
                     error: null,
                     stats,
@@ -78,7 +97,15 @@ export async function GET(req: NextRequest) {
                             ? "timed_out"
                             : error.message
                         : "unreachable";
-                return { id: bot.id, label: bot.label, ok: false, error: message, stats: null, reports: [] };
+                return {
+                    id: bot.id,
+                    label: bot.label,
+                    moderated: bot.moderated,
+                    ok: false,
+                    error: message,
+                    stats: null,
+                    reports: [],
+                };
             }
         })
     );

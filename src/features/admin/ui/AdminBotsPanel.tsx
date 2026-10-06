@@ -9,14 +9,20 @@ import { useAdminSignature } from "../lib/useAdminSignature";
 interface BotStats {
     players: number;
     named: number;
-    runs: number;
-    runs24h: number;
-    verified: number;
-    coins: number;
-    hiddenCoins: number;
-    openReports: number;
     stars: number;
     byItem: { itemId: string; stars: number; count: number }[];
+    runs?: number;
+    runs24h?: number;
+    verified?: number;
+    coins?: number;
+    hiddenCoins?: number;
+    openReports?: number;
+    active24h?: number;
+    islands?: number;
+    reached?: number;
+    contacts?: number;
+    raids24h?: number;
+    alliances?: number;
 }
 
 interface BotReport {
@@ -33,6 +39,7 @@ interface BotReport {
 interface BotEntry {
     id: string;
     label: string;
+    moderated: boolean;
     ok: boolean;
     error: string | null;
     stats: BotStats | null;
@@ -142,45 +149,85 @@ export function AdminBotsPanel({ refreshKey }: { refreshKey: number }) {
                                         hint={`${formatNumber(bot.stats.named)} with a nickname`}
                                         icon={<Users className="w-3 h-3" />}
                                     />
-                                    <Stat
-                                        label="Runs"
-                                        value={formatNumber(bot.stats.runs)}
-                                        hint={`${formatNumber(bot.stats.runs24h)} in the last day`}
-                                        icon={<Play className="w-3 h-3" />}
-                                    />
-                                    <Stat
-                                        label="Verified"
-                                        value={
-                                            bot.stats.runs > 0
-                                                ? `${Math.round((bot.stats.verified / bot.stats.runs) * 100)}%`
-                                                : "—"
-                                        }
-                                        hint={`${formatNumber(bot.stats.verified)} passed the replay`}
-                                        tone={
-                                            bot.stats.runs > 0 && bot.stats.verified / bot.stats.runs < 0.5
-                                                ? "warn"
-                                                : "good"
-                                        }
-                                        icon={<ShieldCheck className="w-3 h-3" />}
-                                    />
+                                    {bot.stats.active24h !== undefined && (
+                                        <Stat
+                                            label="Active"
+                                            value={formatNumber(bot.stats.active24h)}
+                                            hint="seen in the last day"
+                                            icon={<Play className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.runs !== undefined && (
+                                        <Stat
+                                            label="Runs"
+                                            value={formatNumber(bot.stats.runs)}
+                                            hint={`${formatNumber(bot.stats.runs24h ?? 0)} in the last day`}
+                                            icon={<Play className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.runs !== undefined && bot.stats.verified !== undefined && (
+                                        <Stat
+                                            label="Verified"
+                                            value={
+                                                bot.stats.runs > 0
+                                                    ? `${Math.round((bot.stats.verified / bot.stats.runs) * 100)}%`
+                                                    : "—"
+                                            }
+                                            hint={`${formatNumber(bot.stats.verified)} passed the replay`}
+                                            tone={
+                                                bot.stats.runs > 0 && bot.stats.verified / bot.stats.runs < 0.5
+                                                    ? "warn"
+                                                    : "good"
+                                            }
+                                            icon={<ShieldCheck className="w-3 h-3" />}
+                                        />
+                                    )}
                                     <Stat
                                         label="Stars"
                                         value={formatNumber(bot.stats.stars)}
                                         hint={`${bot.stats.byItem.length} item kinds sold`}
                                         icon={<Star className="w-3 h-3" />}
                                     />
-                                    <Stat
-                                        label="Player coins"
-                                        value={formatNumber(bot.stats.coins)}
-                                        hint={`${formatNumber(bot.stats.hiddenCoins)} hidden`}
-                                        icon={<Coins className="w-3 h-3" />}
-                                    />
-                                    <Stat
-                                        label="Open reports"
-                                        value={formatNumber(bot.stats.openReports)}
-                                        tone={bot.stats.openReports > 0 ? "warn" : "good"}
-                                        icon={<Flag className="w-3 h-3" />}
-                                    />
+                                    {bot.stats.coins !== undefined && (
+                                        <Stat
+                                            label="Player coins"
+                                            value={formatNumber(bot.stats.coins)}
+                                            hint={`${formatNumber(bot.stats.hiddenCoins ?? 0)} hidden`}
+                                            icon={<Coins className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.openReports !== undefined && (
+                                        <Stat
+                                            label="Open reports"
+                                            value={formatNumber(bot.stats.openReports)}
+                                            tone={bot.stats.openReports > 0 ? "warn" : "good"}
+                                            icon={<Flag className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.islands !== undefined && (
+                                        <Stat
+                                            label="Shards"
+                                            value={formatNumber(bot.stats.islands)}
+                                            hint={`${formatNumber(bot.stats.reached ?? 0)} past the first rank`}
+                                            icon={<Coins className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.contacts !== undefined && (
+                                        <Stat
+                                            label="Contacts"
+                                            value={formatNumber(bot.stats.contacts)}
+                                            hint={`${formatNumber(bot.stats.alliances ?? 0)} alliances`}
+                                            icon={<Users className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.raids24h !== undefined && (
+                                        <Stat
+                                            label="Raids"
+                                            value={formatNumber(bot.stats.raids24h)}
+                                            hint="opened in the last day"
+                                            icon={<Flag className="w-3 h-3" />}
+                                        />
+                                    )}
                                 </div>
                             </Panel>
 
@@ -207,6 +254,7 @@ export function AdminBotsPanel({ refreshKey }: { refreshKey: number }) {
                                 </Panel>
                             )}
 
+                            {bot.moderated && (
                             <Panel
                                 title={`${bot.label} — reports`}
                                 actions={
@@ -261,6 +309,7 @@ export function AdminBotsPanel({ refreshKey }: { refreshKey: number }) {
                                     </table>
                                 )}
                             </Panel>
+                            )}
                         </>
                     )}
                 </div>
