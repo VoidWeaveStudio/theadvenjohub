@@ -115,7 +115,9 @@ export function AdminBotsPanel({ refreshKey }: { refreshKey: number }) {
         return (
             <Panel title="Bot games">
                 <Empty>
-                    No bot is wired up yet. Set MEMETIC_API_URL and MEMETIC_ADMIN_TOKEN to see it here.
+                    No bot is wired up yet. A game shows here once its pair of variables is set:
+                    MEMETIC_API_URL and MEMETIC_ADMIN_TOKEN, SKERRA_API_URL and
+                    SKERRA_ADMIN_TOKEN.
                 </Empty>
             </Panel>
         );
