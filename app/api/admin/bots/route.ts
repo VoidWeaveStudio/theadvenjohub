@@ -35,6 +35,13 @@ function configuredBots(): BotConfig[] {
             token: process.env.SKERRA_ADMIN_TOKEN,
             moderated: false,
         },
+        {
+            id: "bloxaro",
+            label: "BLOXARO",
+            base: process.env.BLOXARO_API_URL,
+            token: process.env.BLOXARO_ADMIN_TOKEN,
+            moderated: false,
+        },
     ];
 
     return registry

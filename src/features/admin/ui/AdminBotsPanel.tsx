@@ -2,7 +2,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Users, Play, ShieldCheck, Coins, Flag, Star } from "lucide-react";
+import {
+    Users,
+    Play,
+    ShieldCheck,
+    Coins,
+    Flag,
+    Star,
+    Wifi,
+    Trophy,
+    Timer,
+    Gift,
+    Target,
+} from "lucide-react";
 import { Alert, Badge, Empty, Panel, Stat, formatNumber, formatRelative } from "./AdminKit";
 import { useAdminSignature } from "../lib/useAdminSignature";
 
@@ -23,6 +35,23 @@ interface BotStats {
     contacts?: number;
     raids24h?: number;
     alliances?: number;
+    new24h?: number;
+    online?: number;
+    ranked?: number;
+    survivors?: number;
+    bestSurvival?: number;
+    bestRange?: number;
+    gold?: number;
+    tnj?: number;
+    dailyClaims24h?: number;
+    streak?: number;
+}
+
+function formatSpan(seconds: number): string {
+    if (seconds <= 0) return "—";
+    const minutes = Math.floor(seconds / 60);
+    const rest = Math.floor(seconds % 60);
+    return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
 
 interface BotReport {
@@ -117,7 +146,7 @@ export function AdminBotsPanel({ refreshKey }: { refreshKey: number }) {
                 <Empty>
                     No bot is wired up yet. A game shows here once its pair of variables is set:
                     MEMETIC_API_URL and MEMETIC_ADMIN_TOKEN, SKERRA_API_URL and
-                    SKERRA_ADMIN_TOKEN.
+                    SKERRA_ADMIN_TOKEN, BLOXARO_API_URL and BLOXARO_ADMIN_TOKEN.
                 </Empty>
             </Panel>
         );
@@ -155,8 +184,60 @@ export function AdminBotsPanel({ refreshKey }: { refreshKey: number }) {
                                         <Stat
                                             label="Active"
                                             value={formatNumber(bot.stats.active24h)}
-                                            hint="seen in the last day"
+                                            hint={
+                                                bot.stats.new24h !== undefined
+                                                    ? `${formatNumber(bot.stats.new24h)} joined, seen in the last day`
+                                                    : "seen in the last day"
+                                            }
                                             icon={<Play className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.online !== undefined && (
+                                        <Stat
+                                            label="Online"
+                                            value={formatNumber(bot.stats.online)}
+                                            hint="in the lobby right now"
+                                            icon={<Wifi className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.ranked !== undefined && (
+                                        <Stat
+                                            label="Ranked"
+                                            value={formatNumber(bot.stats.ranked)}
+                                            hint="past the training levels"
+                                            icon={<Trophy className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.bestSurvival !== undefined && (
+                                        <Stat
+                                            label="Longest stand"
+                                            value={formatSpan(bot.stats.bestSurvival)}
+                                            hint={`${formatNumber(bot.stats.survivors ?? 0)} held the full run`}
+                                            icon={<Timer className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.gold !== undefined && (
+                                        <Stat
+                                            label="Gold"
+                                            value={formatNumber(bot.stats.gold)}
+                                            hint={`${formatNumber(bot.stats.tnj ?? 0)} TNJ held`}
+                                            icon={<Coins className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.dailyClaims24h !== undefined && (
+                                        <Stat
+                                            label="Daily claims"
+                                            value={formatNumber(bot.stats.dailyClaims24h)}
+                                            hint={`longest streak ${formatNumber(bot.stats.streak ?? 0)}`}
+                                            icon={<Gift className="w-3 h-3" />}
+                                        />
+                                    )}
+                                    {bot.stats.bestRange !== undefined && (
+                                        <Stat
+                                            label="Range record"
+                                            value={formatNumber(bot.stats.bestRange)}
+                                            hint="best score on a firing range"
+                                            icon={<Target className="w-3 h-3" />}
                                         />
                                     )}
                                     {bot.stats.runs !== undefined && (
