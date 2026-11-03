@@ -17,6 +17,7 @@ import {
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
+import type { GameStoreLinks } from "@/core/lib/gamePlatforms";
 
 
 export const users = pgTable("users", {
@@ -53,6 +54,7 @@ export const games = pgTable("games", {
   priceUsdCents: integer("price_usd_cents").default(0).notNull(),
   releaseDate: timestamp("release_date"),
   platform: varchar("platform", { length: 50 }),
+  storeLinks: jsonb("store_links").$type<GameStoreLinks>().default({}).notNull(),
   status: varchar("status", { length: 20 }).default("development").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

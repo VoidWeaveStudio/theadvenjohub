@@ -1,21 +1,27 @@
 // app/api/games/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/core/database";
-import { games } from "@/core/database/schema";
-import { eq, and } from "drizzle-orm";
+import { games, gameDescriptions } from "@/core/database/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { resolveGamePrice } from "@/core/lib/gamePricing";
+import { resolvePlatforms, sanitizeStoreLinks } from "@/core/lib/gamePlatforms";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
+function readLanguage(raw: string | null): string {
+  return raw && /^[a-z]{2,3}(-[a-z]{2})?$/i.test(raw) ? raw.toLowerCase() : "en";
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const active = searchParams.get("active") === "true"; 
+    const active = searchParams.get("active") === "true";
     const page = parseInt(searchParams.get("page") || String(DEFAULT_PAGE));
     const limit = Math.min(parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT)), MAX_LIMIT);
     const offset = (page - 1) * limit;
+    const lang = readLanguage(searchParams.get("lang"));
 
     const where = active ? and(eq(games.isActive, true)) : undefined;
 
@@ -31,6 +37,9 @@ export async function GET(req: NextRequest) {
           priceCurrency: games.priceCurrency,
           priceUsdCents: games.priceUsdCents,
           isActive: games.isActive,
+          platform: games.platform,
+          storeLinks: games.storeLinks,
+          status: games.status,
         })
         .from(games)
         .where(where)
@@ -40,14 +49,44 @@ export async function GET(req: NextRequest) {
       db.$count(games, where),
     ]);
 
+    const descriptionRows = gamesList.length === 0
+      ? []
+      : await db
+        .select({
+          gameId: gameDescriptions.gameId,
+          language: gameDescriptions.language,
+          shortDescription: gameDescriptions.shortDescription,
+        })
+        .from(gameDescriptions)
+        .where(and(
+          inArray(gameDescriptions.gameId, gamesList.map((game) => game.id)),
+          inArray(gameDescriptions.language, lang === "en" ? ["en"] : [lang, "en"]),
+        ));
+
+    const shortDescriptionOf = (gameId: string): string | null => {
+      const rows = descriptionRows.filter((row) => row.gameId === gameId);
+      const row = rows.find((entry) => entry.language === lang) ?? rows.find((entry) => entry.language === "en");
+      return row?.shortDescription ?? null;
+    };
+
     // `price` stays the TNJ number the storefront has always rendered; for a
     // USDT-priced game it is the live conversion. The USDT source is sent along
     // so the card can label it instead of implying a fixed TNJ tag.
     const priced = await Promise.all(
       gamesList.map(async (game) => {
         const resolved = await resolveGamePrice(game);
+        const storeLinks = sanitizeStoreLinks(game.storeLinks);
         return {
-          ...game,
+          id: game.id,
+          slug: game.slug,
+          title: game.title,
+          coverImage: game.coverImage,
+          publisher: game.publisher,
+          isActive: game.isActive,
+          status: game.status,
+          storeLinks,
+          platforms: resolvePlatforms(game.platform, storeLinks),
+          shortDescription: shortDescriptionOf(game.id),
           price: resolved.payableTnj ?? game.price,
           priceCurrency: resolved.currency,
           priceUsdCents: resolved.priceUsdCents,

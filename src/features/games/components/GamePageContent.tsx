@@ -8,7 +8,11 @@ import { useLanguage } from "@/core/i18n/LanguageContext";
 import { useAuth } from "@/core/auth/AuthProvider";
 import { apiGet } from "@/core/api/client";
 import { PurchaseButton } from "@/features/shared/PurchaseButton";
-import { PromoCodeRedeem } from "@/features/shared/PromoCodeRedeem"; 
+import { PromoCodeRedeem } from "@/features/shared/PromoCodeRedeem";
+import { PlatformBadges } from "@/features/shared/PlatformBadge";
+import { GameStatusChip } from "@/features/shared/GameStatusChip";
+import { StoreLinkButtons, hasStoreLinks } from "@/features/shared/StoreLinkButtons";
+import { needsLicense, type GamePlatform, type GameStoreLinks } from "@/core/lib/gamePlatforms";
 import { Spinner } from "@/core/ui/Spinner";
 
 interface GameData {
@@ -25,6 +29,8 @@ interface GameData {
     priceUnavailable?: boolean;
     releaseDate: string | null;
     platform: string | null;
+    platforms: GamePlatform[];
+    storeLinks: GameStoreLinks;
     status: string;
     isOwned: boolean;
     screenshots: { id: string; url: string }[];
@@ -116,16 +122,8 @@ export default function GamePageContent() {
         return `${inUsdt ? "≈ " : ""}${price.toLocaleString("en-US")} TNJ`;
     };
 
-    const getStatusBadge = (status: string) => {
-        const badges: Record<string, { label: string; color: string }> = {
-            development: { label: t("game.status.development") || "In Development", color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30" },
-            released: { label: t("game.status.released") || "Released", color: "bg-green-500/10 text-green-400 border-green-500/30" },
-            coming_soon: { label: t("game.status.coming_soon") || "Coming Soon", color: "bg-blue-500/10 text-blue-400 border-blue-500/30" },
-        };
-        return badges[status] || badges.development;
-    };
-
-    const statusBadge = getStatusBadge(game.status);
+    const licensed = needsLicense(game.platforms);
+    const showRequirements = game.platforms.includes("pc") || game.systemRequirements.length > 0;
 
     return (
         <div className="min-h-screen">
@@ -183,19 +181,13 @@ export default function GamePageContent() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm sm:text-base">
-                                    <span className={`px-3 sm:px-4 py-2 rounded-lg border ${statusBadge.color}`}>
-                                        {statusBadge.label}
-                                    </span>
+                                    <GameStatusChip status={game.status} size="md" />
                                     {game.releaseDate && (
                                         <span className="text-text-secondary">
                                             {t("game.releaseDate") || "Release"}: {new Date(game.releaseDate).toLocaleDateString(language)}
                                         </span>
                                     )}
-                                    {game.platform && (
-                                        <span className="text-text-secondary">
-                                            {game.platform}
-                                        </span>
-                                    )}
+                                    <PlatformBadges platforms={game.platforms} size="md" />
                                 </div>
                             </div>
                         </div>
@@ -273,15 +265,17 @@ export default function GamePageContent() {
                                 >
                                     {t("game.reviews") || "Reviews"} ({game.stats.reviewsCount})
                                 </button>
-                                <button
-                                    onClick={() => setActiveTab("requirements")}
-                                    className={`pb-3 px-1 font-medium transition-colors ${activeTab === "requirements"
-                                        ? "text-primary border-b-2 border-primary"
-                                        : "text-text-secondary hover:text-foreground"
-                                        }`}
-                                >
-                                    {t("game.requirements") || "System Requirements"}
-                                </button>
+                                {showRequirements && (
+                                    <button
+                                        onClick={() => setActiveTab("requirements")}
+                                        className={`pb-3 px-1 font-medium transition-colors ${activeTab === "requirements"
+                                            ? "text-primary border-b-2 border-primary"
+                                            : "text-text-secondary hover:text-foreground"
+                                            }`}
+                                    >
+                                        {t("game.requirements") || "System Requirements"}
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -431,7 +425,7 @@ export default function GamePageContent() {
                                 )}
                             </div>
 
-                            {game.isOwned ? (
+                            {licensed && (game.isOwned ? (
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2 text-green-400">
                                         <span className="text-xl">✓</span>
@@ -470,6 +464,15 @@ export default function GamePageContent() {
                                     <div className="pt-2 border-t border-border">
                                         <PromoCodeRedeem gameId={game.id} onSuccess={() => window.location.reload()} />
                                     </div>
+                                </div>
+                            ))}
+
+                            {hasStoreLinks(game.storeLinks) && (
+                                <div className={licensed ? "pt-4 border-t border-border space-y-3" : "space-y-3"}>
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                                        {t("store.whereToPlay")}
+                                    </p>
+                                    <StoreLinkButtons links={game.storeLinks} primary={!licensed} />
                                 </div>
                             )}
 

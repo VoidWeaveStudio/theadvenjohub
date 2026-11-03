@@ -1,100 +1,170 @@
-// src/features/store/page.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import { Search, X } from "lucide-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
-import { GameCard } from "./components/GameCard";
 import { apiGet } from "@/core/api/client";
-
-interface StoreGame {
-  id: string;
-  slug: string;
-  title: string;
-  coverImage: string | null;
-  price: number;
-  priceCurrency?: string;
-  priceUsdCents?: number;
-  priceUnavailable?: boolean;
-  publisher: string | null;
-}
+import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
+import { GAME_PLATFORMS } from "@/core/lib/gamePlatforms";
+import { PlatformIcon } from "@/features/shared/PlatformIcon";
+import { gameStatusRank } from "@/features/shared/GameStatusChip";
+import { GameCard } from "./components/GameCard";
+import { FeaturedGame } from "./components/FeaturedGame";
+import { CategoryBar } from "./components/CategoryBar";
+import type { StoreCategory, StoreGame } from "./types";
 
 export default function StorePage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [games, setGames] = useState<StoreGame[]>([]);
   const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState<StoreCategory>("all");
+  const [query, setQuery] = useState("");
 
   const loadGames = useCallback(async () => {
     try {
-      const data = await apiGet<{ games: StoreGame[] }>("/api/games?active=true");
+      const data = await apiGet<{ games: StoreGame[] }>(`/api/games?active=true&lang=${language}`);
       setGames(data.games || []);
     } catch (error) {
       console.error("Failed to load store games:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     loadGames();
   }, [loadGames]);
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-16">
+  const sorted = useMemo(
+    () =>
+      [...games].sort(
+        (a, b) => gameStatusRank(a.status) - gameStatusRank(b.status) || a.title.localeCompare(b.title),
+      ),
+    [games],
+  );
 
-      <div className="mb-8 sm:mb-12">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-          {t("store.title")}
-        </h1>
-        <p className="text-text-secondary">
-          {t("store.subtitle")}
-        </p>
-      </div>
+  const counts = useMemo(() => {
+    const result = { all: sorted.length } as Record<StoreCategory, number>;
+    for (const platform of GAME_PLATFORMS) {
+      result[platform] = sorted.filter((game) => game.platforms.includes(platform)).length;
+    }
+    return result;
+  }, [sorted]);
+
+  const needle = query.trim().toLowerCase();
+
+  const visible = useMemo(
+    () =>
+      sorted.filter(
+        (game) =>
+          (category === "all" || game.platforms.includes(category)) &&
+          (needle === "" || game.title.toLowerCase().includes(needle)),
+      ),
+    [sorted, category, needle],
+  );
+
+  const featured = useMemo(
+    () =>
+      sorted.find((game) => game.slug === DEFAULT_GAME_SLUG) ??
+      sorted.find((game) => game.coverImage) ??
+      null,
+    [sorted],
+  );
+
+  const spotlight = category === "all" && needle === "" ? featured : null;
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+      <section className="relative mb-8 overflow-hidden rounded-3xl border border-border bg-surface px-5 py-8 sm:mb-10 sm:px-10 sm:py-12">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-violet-500/10 blur-3xl" />
+
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-5xl">{t("store.title")}</h1>
+            <p className="mt-3 text-base text-text-secondary sm:text-lg">{t("store.subtitle")}</p>
+          </div>
+
+          <div className="relative w-full lg:w-80">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
+            <input
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("store.search")}
+              aria-label={t("store.search")}
+              className="input-field pl-10 pr-10"
+            />
+            {query !== "" && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label={t("actions.close")}
+                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-zinc-900 border border-zinc-700 rounded-lg overflow-hidden animate-pulse">
-              <div className="h-48 bg-zinc-800" />
-              <div className="p-4 space-y-3">
-                <div className="h-5 bg-zinc-800 rounded w-3/4" />
-                <div className="h-4 bg-zinc-800 rounded w-full" />
-                <div className="h-4 bg-zinc-800 rounded w-2/3" />
+            <div key={i} className="card animate-pulse overflow-hidden">
+              <div className="aspect-video bg-surface-elevated" />
+              <div className="space-y-3 p-4">
+                <div className="h-5 w-3/4 rounded bg-surface-elevated" />
+                <div className="h-4 w-full rounded bg-surface-elevated" />
+                <div className="h-4 w-2/3 rounded bg-surface-elevated" />
               </div>
             </div>
           ))}
         </div>
       ) : games.length === 0 ? (
-        <div className="text-center py-16 text-text-secondary">
-          <p className="text-lg mb-2">🎮 {t("store.noGames")}</p>
+        <div className="py-16 text-center text-text-secondary">
+          <p className="mb-2 text-lg">🎮 {t("store.noGames")}</p>
           <p className="text-sm">{t("store.noGamesHint")}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {games.map((game) => (
-            <GameCard
-              key={game.id}
-              id={game.id}
-              slug={game.slug}
-              title={game.title}
-              coverImage={game.coverImage ?? null}
-              price={game.price}
-              priceCurrency={game.priceCurrency}
-              priceUsdCents={game.priceUsdCents}
-              priceUnavailable={game.priceUnavailable}
-              publisher={game.publisher ?? null}
-            />
-          ))}
+        <div className="space-y-8">
+          {spotlight && <FeaturedGame game={spotlight} />}
+
+          <CategoryBar active={category} counts={counts} onChange={setCategory} />
+
+          {visible.length === 0 ? (
+            <div className="card flex flex-col items-center px-6 py-14 text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-surface-elevated text-text-muted">
+                {category === "all" ? (
+                  <Search className="h-6 w-6" aria-hidden="true" />
+                ) : (
+                  <PlatformIcon platform={category} className="h-6 w-6" />
+                )}
+              </div>
+              <p className="text-lg font-semibold text-foreground">
+                {needle !== "" ? t("store.noResults") : t("store.emptyCategory")}
+              </p>
+              {needle === "" && <p className="mt-1 text-sm text-text-secondary">{t("store.emptyCategoryHint")}</p>}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {visible.map((game) => (
+                <GameCard key={game.id} game={game} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      <div className="mt-12 sm:mt-16 text-center">
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs text-text-muted px-2">
+      <div className="mt-12 text-center sm:mt-16">
+        <div className="flex flex-col items-center justify-center gap-2 px-2 text-xs text-text-muted sm:flex-row sm:gap-4">
           <span>
             © {new Date().getFullYear()} VoidWeave Studio. {t("store.footer")}
           </span>
-          <span className="hidden sm:inline text-text-muted/30">•</span>
-          <Link href="/privacy" className="hover:text-foreground transition-colors inline-flex items-center min-h-[44px]">
+          <span className="hidden text-text-muted/30 sm:inline">•</span>
+          <Link href="/privacy" className="inline-flex min-h-[44px] items-center transition-colors hover:text-foreground">
             {t("footer.privacy")}
           </Link>
         </div>
