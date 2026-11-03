@@ -10,17 +10,14 @@ import { GameStatusChip, normalizeGameStatus } from "@/features/shared/GameStatu
 import { GamePrice } from "./GamePrice";
 import type { StoreGame } from "../types";
 
-type Effect = "blend" | "flip" | "slide";
 type Direction = 1 | -1;
 type SlideState = "idle" | "active" | "leaving";
 
 interface Transition {
   from: number;
-  effect: Effect;
   dir: Direction;
 }
 
-const AUTO_EFFECTS: Effect[] = ["blend", "flip", "slide"];
 const SLIDE_INTERVAL_MS = 6500;
 const TRANSITION_MS = 1000;
 const SWIPE_THRESHOLD_PX = 48;
@@ -28,12 +25,12 @@ const SWIPE_THRESHOLD_PX = 48;
 interface FeaturedSlideProps {
   game: StoreGame;
   state: SlideState;
-  effect: Effect | "none";
+  turning: boolean;
   dir: Direction;
   priority: boolean;
 }
 
-function FeaturedSlide({ game, state, effect, dir, priority }: FeaturedSlideProps) {
+function FeaturedSlide({ game, state, turning, dir, priority }: FeaturedSlideProps) {
   const { t } = useLanguage();
   const showStatus = normalizeGameStatus(game.status) !== "released";
   const active = state === "active";
@@ -44,7 +41,7 @@ function FeaturedSlide({ game, state, effect, dir, priority }: FeaturedSlideProp
       tabIndex={active ? 0 : -1}
       aria-hidden={!active}
       data-state={state}
-      data-effect={effect}
+      data-flip={turning ? "on" : "off"}
       data-dir={dir}
       className="fc-slide group col-start-1 row-start-1 grid lg:grid-cols-5"
     >
@@ -108,7 +105,6 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
   const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const touchStartX = useRef<number | null>(null);
-  const effectCursor = useRef(0);
 
   const count = games.length;
   const shown = count === 0 ? 0 : current % count;
@@ -123,10 +119,10 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
   }, []);
 
   const go = useCallback(
-    (target: number, dir: Direction, effect: Effect) => {
+    (target: number, dir: Direction) => {
       if (count < 2 || target === shown || transition) return;
 
-      setTransition({ from: shown, effect, dir });
+      setTransition({ from: shown, dir });
       setCurrent(target);
     },
     [count, shown, transition],
@@ -142,11 +138,7 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
   useEffect(() => {
     if (count < 2 || paused || reducedMotion || transition) return;
 
-    const timer = window.setTimeout(() => {
-      const effect = AUTO_EFFECTS[effectCursor.current % AUTO_EFFECTS.length];
-      effectCursor.current += 1;
-      go((shown + 1) % count, 1, effect);
-    }, SLIDE_INTERVAL_MS);
+    const timer = window.setTimeout(() => go((shown + 1) % count, 1), SLIDE_INTERVAL_MS);
 
     return () => window.clearTimeout(timer);
   }, [shown, count, paused, reducedMotion, transition, go]);
@@ -159,8 +151,8 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
     const delta = clientX - start;
     if (Math.abs(delta) < SWIPE_THRESHOLD_PX) return;
 
-    if (delta < 0) go((shown + 1) % count, 1, "slide");
-    else go((shown - 1 + count) % count, -1, "slide");
+    if (delta < 0) go((shown + 1) % count, 1);
+    else go((shown - 1 + count) % count, -1);
   };
 
   const stateOf = (position: number): SlideState => {
@@ -194,7 +186,7 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
             key={game.id}
             game={game}
             state={stateOf(position)}
-            effect={transition?.effect ?? "none"}
+            turning={transition !== null}
             dir={transition?.dir ?? 1}
             priority={position === 0}
           />
@@ -207,7 +199,7 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
             <button
               key={game.id}
               type="button"
-              onClick={() => go(position, position > shown ? 1 : -1, "slide")}
+              onClick={() => go(position, position > shown ? 1 : -1)}
               aria-label={game.title}
               aria-current={position === shown}
               className="border-0 bg-transparent p-1.5 hover:bg-transparent"
