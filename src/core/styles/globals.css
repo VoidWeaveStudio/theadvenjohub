@@ -573,7 +573,7 @@ body.modal-open {
   background-repeat: no-repeat;
 }
 [data-theme="light"] .site-background {
-  display: none;
+  background-image: url('/assets/backgrounds/bg-light.webp');
 }
 
 .wallet-adapter-button,
