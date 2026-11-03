@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -10,21 +10,43 @@ import { GameStatusChip, normalizeGameStatus } from "@/features/shared/GameStatu
 import { GamePrice } from "./GamePrice";
 import type { StoreGame } from "../types";
 
+type Effect = "blend" | "flip" | "slide";
+type Direction = 1 | -1;
+type SlideState = "idle" | "active" | "leaving";
+
+interface Transition {
+  from: number;
+  effect: Effect;
+  dir: Direction;
+}
+
+const AUTO_EFFECTS: Effect[] = ["blend", "flip", "slide"];
 const SLIDE_INTERVAL_MS = 6500;
+const TRANSITION_MS = 1000;
 const SWIPE_THRESHOLD_PX = 48;
 
-function FeaturedSlide({ game, active, priority }: { game: StoreGame; active: boolean; priority: boolean }) {
+interface FeaturedSlideProps {
+  game: StoreGame;
+  state: SlideState;
+  effect: Effect | "none";
+  dir: Direction;
+  priority: boolean;
+}
+
+function FeaturedSlide({ game, state, effect, dir, priority }: FeaturedSlideProps) {
   const { t } = useLanguage();
   const showStatus = normalizeGameStatus(game.status) !== "released";
+  const active = state === "active";
 
   return (
     <Link
       href={`/games/${game.slug}`}
       tabIndex={active ? 0 : -1}
       aria-hidden={!active}
-      className={`group col-start-1 row-start-1 grid transition-opacity duration-700 ease-in-out lg:grid-cols-5 ${
-        active ? "opacity-100" : "pointer-events-none opacity-0"
-      }`}
+      data-state={state}
+      data-effect={effect}
+      data-dir={dir}
+      className="fc-slide group col-start-1 row-start-1 grid lg:grid-cols-5"
     >
       <div className="relative aspect-video overflow-hidden bg-surface-elevated lg:col-span-3 lg:aspect-auto lg:min-h-[340px]">
         {game.coverImage ? (
@@ -33,6 +55,7 @@ function FeaturedSlide({ game, active, priority }: { game: StoreGame; active: bo
             alt={game.title}
             fill
             priority={priority}
+            loading="eager"
             sizes="(min-width: 1024px) 60vw, 100vw"
             className="object-cover transition-transform duration-700 group-hover:scale-105"
           />
@@ -42,7 +65,7 @@ function FeaturedSlide({ game, active, priority }: { game: StoreGame; active: bo
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-surface/60" />
       </div>
 
-      <div className="flex flex-col justify-center gap-4 p-6 sm:p-8 lg:col-span-2">
+      <div className="flex flex-col justify-center gap-4 bg-surface p-6 sm:p-8 lg:col-span-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           {t("store.featured")}
@@ -80,13 +103,15 @@ function FeaturedSlide({ game, active, priority }: { game: StoreGame; active: bo
 
 export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
   const { t } = useLanguage();
-  const [index, setIndex] = useState(0);
+  const [current, setCurrent] = useState(0);
+  const [transition, setTransition] = useState<Transition | null>(null);
   const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const effectCursor = useRef(0);
 
   const count = games.length;
-  const current = count === 0 ? 0 : index % count;
+  const shown = count === 0 ? 0 : current % count;
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -97,12 +122,34 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
     return () => query.removeEventListener("change", onChange);
   }, []);
 
-  useEffect(() => {
-    if (count < 2 || paused || reducedMotion) return;
+  const go = useCallback(
+    (target: number, dir: Direction, effect: Effect) => {
+      if (count < 2 || target === shown || transition) return;
 
-    const timer = window.setTimeout(() => setIndex((current + 1) % count), SLIDE_INTERVAL_MS);
+      setTransition({ from: shown, effect, dir });
+      setCurrent(target);
+    },
+    [count, shown, transition],
+  );
+
+  useEffect(() => {
+    if (!transition) return;
+
+    const timer = window.setTimeout(() => setTransition(null), TRANSITION_MS + 60);
     return () => window.clearTimeout(timer);
-  }, [current, count, paused, reducedMotion]);
+  }, [transition]);
+
+  useEffect(() => {
+    if (count < 2 || paused || reducedMotion || transition) return;
+
+    const timer = window.setTimeout(() => {
+      const effect = AUTO_EFFECTS[effectCursor.current % AUTO_EFFECTS.length];
+      effectCursor.current += 1;
+      go((shown + 1) % count, 1, effect);
+    }, SLIDE_INTERVAL_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [shown, count, paused, reducedMotion, transition, go]);
 
   const onTouchEnd = (clientX: number) => {
     const start = touchStartX.current;
@@ -112,10 +159,18 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
     const delta = clientX - start;
     if (Math.abs(delta) < SWIPE_THRESHOLD_PX) return;
 
-    setIndex(delta < 0 ? (current + 1) % count : (current - 1 + count) % count);
+    if (delta < 0) go((shown + 1) % count, 1, "slide");
+    else go((shown - 1 + count) % count, -1, "slide");
+  };
+
+  const stateOf = (position: number): SlideState => {
+    if (position === shown) return "active";
+    return transition && position === transition.from ? "leaving" : "idle";
   };
 
   if (count === 0) return null;
+
+  const stageStyle = { "--fc-duration": `${TRANSITION_MS}ms` } as CSSProperties;
 
   return (
     <section
@@ -130,9 +185,19 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
       }}
       onTouchEnd={(event) => onTouchEnd(event.changedTouches[0].clientX)}
     >
-      <div className="card grid overflow-hidden transition-colors hover:border-primary/50">
+      <div
+        className="fc-stage card grid overflow-hidden transition-colors hover:border-primary/50"
+        style={stageStyle}
+      >
         {games.map((game, position) => (
-          <FeaturedSlide key={game.id} game={game} active={position === current} priority={position === 0} />
+          <FeaturedSlide
+            key={game.id}
+            game={game}
+            state={stateOf(position)}
+            effect={transition?.effect ?? "none"}
+            dir={transition?.dir ?? 1}
+            priority={position === 0}
+          />
         ))}
       </div>
 
@@ -142,14 +207,14 @@ export function FeaturedCarousel({ games }: { games: StoreGame[] }) {
             <button
               key={game.id}
               type="button"
-              onClick={() => setIndex(position)}
+              onClick={() => go(position, position > shown ? 1 : -1, "slide")}
               aria-label={game.title}
-              aria-current={position === current}
+              aria-current={position === shown}
               className="border-0 bg-transparent p-1.5 hover:bg-transparent"
             >
               <span
                 className={`block h-2 rounded-full transition-all duration-500 ${
-                  position === current ? "w-7 bg-primary" : "w-2 bg-text-muted/40"
+                  position === shown ? "w-7 bg-primary" : "w-2 bg-text-muted/40"
                 }`}
               />
             </button>
