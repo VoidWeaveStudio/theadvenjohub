@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { useLanguage } from "@/core/i18n/LanguageContext";
 import { apiGet } from "@/core/api/client";
 import { DEFAULT_GAME_SLUG } from "@/core/lib/defaultGame";
@@ -10,7 +10,7 @@ import { GAME_PLATFORMS } from "@/core/lib/gamePlatforms";
 import { PlatformIcon } from "@/features/shared/PlatformIcon";
 import { gameStatusRank } from "@/features/shared/GameStatusChip";
 import { GameCard } from "./components/GameCard";
-import { FeaturedGame } from "./components/FeaturedGame";
+import { FeaturedCarousel } from "./components/FeaturedCarousel";
 import { CategoryBar } from "./components/CategoryBar";
 import type { StoreCategory, StoreGame } from "./types";
 
@@ -64,15 +64,12 @@ export default function StorePage() {
     [sorted, category, needle],
   );
 
-  const featured = useMemo(
-    () =>
-      sorted.find((game) => game.slug === DEFAULT_GAME_SLUG) ??
-      sorted.find((game) => game.coverImage) ??
-      null,
-    [sorted],
-  );
+  const slides = useMemo(() => {
+    const lead = sorted.find((game) => game.slug === DEFAULT_GAME_SLUG);
+    return lead ? [lead, ...sorted.filter((game) => game !== lead)] : sorted;
+  }, [sorted]);
 
-  const spotlight = category === "all" && needle === "" ? featured : null;
+  const showCarousel = category === "all" && needle === "";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
@@ -80,33 +77,9 @@ export default function StorePage() {
         <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
         <div aria-hidden="true" className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-violet-500/10 blur-3xl" />
 
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-5xl">{t("store.title")}</h1>
-            <p className="mt-3 text-base text-text-secondary sm:text-lg">{t("store.subtitle")}</p>
-          </div>
-
-          <div className="relative w-full lg:w-80">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
-            <input
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("store.search")}
-              aria-label={t("store.search")}
-              className="input-field pl-10 pr-10"
-            />
-            {query !== "" && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label={t("actions.close")}
-                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            )}
-          </div>
+        <div className="relative max-w-2xl">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-5xl">{t("store.title")}</h1>
+          <p className="mt-3 text-base text-text-secondary sm:text-lg">{t("store.subtitle")}</p>
         </div>
       </section>
 
@@ -130,9 +103,15 @@ export default function StorePage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {spotlight && <FeaturedGame game={spotlight} />}
+          {showCarousel && <FeaturedCarousel games={slides} />}
 
-          <CategoryBar active={category} counts={counts} onChange={setCategory} />
+          <CategoryBar
+            active={category}
+            counts={counts}
+            onChange={setCategory}
+            query={query}
+            onQueryChange={setQuery}
+          />
 
           {visible.length === 0 ? (
             <div className="card flex flex-col items-center px-6 py-14 text-center">

@@ -1,17 +1,19 @@
-export const GAME_PLATFORMS = ["web", "pc", "telegram", "google_play", "app_store"] as const;
+export const GAME_PLATFORMS = ["web", "pc", "steam", "telegram", "google_play", "app_store"] as const;
 export type GamePlatform = (typeof GAME_PLATFORMS)[number];
 
-export const STORE_LINK_KEYS = ["telegram", "googlePlay", "appStore"] as const;
+export const STORE_LINK_KEYS = ["steam", "telegram", "googlePlay", "appStore"] as const;
 export type StoreLinkKey = (typeof STORE_LINK_KEYS)[number];
 export type GameStoreLinks = Partial<Record<StoreLinkKey, string>>;
 
 const LINK_TO_PLATFORM: Record<StoreLinkKey, GamePlatform> = {
+  steam: "steam",
   telegram: "telegram",
   googlePlay: "google_play",
   appStore: "app_store",
 };
 
 const PLATFORM_TO_LINK: Partial<Record<GamePlatform, StoreLinkKey>> = {
+  steam: "steam",
   telegram: "telegram",
   google_play: "googlePlay",
   app_store: "appStore",

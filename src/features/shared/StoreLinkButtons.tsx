@@ -5,9 +5,10 @@ import { useLanguage } from "@/core/i18n/LanguageContext";
 import { platformStoreUrl, type GamePlatform, type GameStoreLinks } from "@/core/lib/gamePlatforms";
 import { PlatformIcon } from "./PlatformIcon";
 
-const LINK_PLATFORMS: GamePlatform[] = ["telegram", "google_play", "app_store"];
+const LINK_PLATFORMS: GamePlatform[] = ["steam", "telegram", "google_play", "app_store"];
 
 const OPEN_LABEL_KEYS: Record<string, string> = {
+  steam: "store.open.steam",
   telegram: "store.open.telegram",
   google_play: "store.open.google_play",
   app_store: "store.open.app_store",

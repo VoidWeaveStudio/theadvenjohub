@@ -123,7 +123,8 @@ export default function GamePageContent() {
     };
 
     const licensed = needsLicense(game.platforms);
-    const showRequirements = game.platforms.includes("pc") || game.systemRequirements.length > 0;
+    const showRequirements =
+        game.platforms.includes("pc") || game.platforms.includes("steam") || game.systemRequirements.length > 0;
 
     return (
         <div className="min-h-screen">
